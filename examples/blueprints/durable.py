@@ -8,7 +8,7 @@ bp = Blueprint()
 @bp.route(route="orchestrators/simple")
 @bp.durable_client_input(client_name="client")
 async def example_start(req: HttpRequest, client):
-    instance_id = await client.start_new("simple_root")
+    instance_id = await client.start_new("example_orch")
     response = client.create_check_status_response(req, instance_id)
     return response
 
@@ -16,9 +16,9 @@ async def example_start(req: HttpRequest, client):
 # Orchestrator
 @bp.orchestration_trigger(context_name="context")
 def example_orch(context):
-    result1 = yield context.call_activity("simple_hello", "Seattle")
-    result2 = yield context.call_activity("simple_hello", "Tokyo")
-    result3 = yield context.call_activity("simple_hello", "London")
+    result1 = yield context.call_activity("example_act", "Seattle")
+    result2 = yield context.call_activity("example_act", "Tokyo")
+    result3 = yield context.call_activity("example_act", "London")
 
     return [result1, result2, result3]
 

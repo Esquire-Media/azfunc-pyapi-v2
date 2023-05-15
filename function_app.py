@@ -6,6 +6,6 @@ app.register_blueprints(
     [
         "libs/azure/functions/blueprints/jsonapi",
         "libs/azure/functions/blueprints/whoami",
-        "libs/azure/functions/blueprints/async_tasks/*",
+        "libs/azure/functions/blueprints/keep_alive"
     ]
 )

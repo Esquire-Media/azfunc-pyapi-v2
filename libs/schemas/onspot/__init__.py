@@ -1,28 +1,30 @@
-from .base import GeoJsonBaseSchema, GeoJsonWithSaveSchema
-from .attribution import AttributionSchema, AttributionWithSaveSchema
-from .address import AddressSchema
-from .counts import GeoJsonGroupedByDaySchema, GeoJsonGroupedByIntervalSchema
-from .demographics import GeoJsonDemographicsSchema
-from .min_max import (
+from .requests.base import GeoJsonBaseSchema, GeoJsonWithSaveSchema, FilesBaseSchema
+from .requests.attribution import AttributionSchema, AttributionWithSaveSchema
+from .requests.address import AddressWithSaveSchema
+from .requests.counts import GeoJsonGroupedByDaySchema, GeoJsonGroupedByIntervalSchema
+from .requests.demographics import GeoJsonDemographicsSchema
+from .requests.min_max import (
     GeoJsonWithMinMaxSchema,
     GeoJsonWithMinMaxSaveSchema,
     FilesWithMinMaxSaveSchema,
 )
-from .observations import GeoJsonObservationsWithSaveSchema
-from .political import (
+from .requests.observations import GeoJsonObservationsWithSaveSchema
+from .requests.political import (
     GeoJsonPoliticalAggregateSchema,
     GeoJsonPoliticalWithSaveSchema,
     FilesPoliticalWithSaveSchema,
 )
-from .social import GeoJsonSocialsWithSaveSchema
-from .trade import GeoJsonTradesWithSaveSchema
+from .requests.publish import DevicesSegment
+from .requests.social import GeoJsonSocialsWithSaveSchema
+from .requests.trade import GeoJsonTradesWithSaveSchema
 
 __all__ = [
-    "AddressSchema",
+    "AddressWithSaveSchema",
     "AttributionSchema",
     "AttributionWithSaveSchema",
     "GeoJsonBaseSchema",
     "GeoJsonDemographicsSchema",
+    "FilesBaseSchema",
     "FilesWithMinMaxSaveSchema",
     "GeoJsonGroupedByDaySchema",
     "GeoJsonObservationsWithSaveSchema",
@@ -60,14 +62,14 @@ endpoints = {
         "geoframe/political/aggregate": GeoJsonPoliticalAggregateSchema,
         "geoframe/tradearea": GeoJsonTradesWithSaveSchema,
         "geoframes/attribution": AttributionSchema,
-        #"devices/segment/push" ,
-        #"geoframe/segment/push": ,
+        "devices/segment/push": DevicesSegment,
+        "geoframe/segment/push": DevicesSegment,
     },
-    "stored": {
-        "save/addresses/all/devices": AddressSchema,
-        "save/businessaddresses/all/demographics": AddressSchema,
-        "save/businessaddresses/all/devices": AddressSchema,
-        "save/businessaddresses/all/locations": AddressSchema,
+    "storage": {
+        "save/addresses/all/devices": AddressWithSaveSchema,
+        "save/businessaddresses/all/demographics": AddressWithSaveSchema,
+        "save/businessaddresses/all/devices": AddressWithSaveSchema,
+        "save/businessaddresses/all/locations": AddressWithSaveSchema,
         "save/files/demographics/all": FilesWithMinMaxSaveSchema,
         "save/files/extension/socialnetwork": FilesPoliticalWithSaveSchema,
         "save/files/political": FilesPoliticalWithSaveSchema,
@@ -85,6 +87,6 @@ endpoints = {
         "save/geoframes/attribution/devices": AttributionWithSaveSchema,
         "save/geoframes/attribution/journey": AttributionWithSaveSchema,
         "save/geoframes/attribution/locations": AttributionWithSaveSchema,
-        # "save/files/extension/devicesinhome": ,
+        "save/files/extension/devicesinhome": FilesBaseSchema,
     }
 }

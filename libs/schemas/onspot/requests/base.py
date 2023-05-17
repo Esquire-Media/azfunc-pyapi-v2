@@ -8,10 +8,12 @@ from marshmallow_geojson import (
 
 
 class PropertiesBaseSchema(PropertiesSchema):
+    name = fields.Str(required=True)
     callback = fields.Str(required=True)
+
+class PropertiesGeoJsonSchema(PropertiesBaseSchema):
     start = fields.DateTime(required=True)
     end = fields.DateTime(required=True)
-    name = fields.Str(required=True)
     validate = fields.Bool(default=True)
 
     @validates("end")
@@ -28,10 +30,9 @@ class PropertiesBaseSchema(PropertiesSchema):
                 "Start date must be after 1st of the month 1 year ago"
             )
 
-
 class FeatureBaseSchema(FeatureSchema):
     properties = fields.Nested(
-        PropertiesBaseSchema(),
+        PropertiesGeoJsonSchema(),
         required=True,
     )
 
@@ -61,7 +62,7 @@ class WithSaveSchema(Schema):
 class PropertiesWithSaveSchema(PropertiesBaseSchema, WithSaveSchema):
     pass
 
-class FileSchema(Schema):
+class FileBaseSchema(FeatureSchema):
     type = fields.Str(
         required=True,
         validate=fields.validate.OneOf(
@@ -70,12 +71,19 @@ class FileSchema(Schema):
         ),
     )
     properties = fields.Nested(
-        PropertiesSchema(),
+        PropertiesBaseSchema(),
         required=True,
     )
     paths = fields.List(fields.Url(), required=True)
+    
+class FilesBaseSchema(FeatureCollectionSchema):
+    features = fields.List(
+        fields.Nested(FileBaseSchema()),
+        required=True,
+    )
 
-class FileWithSaveSchema(FileSchema):
+
+class FileWithSaveSchema(FileBaseSchema):
     properties = fields.Nested(
         PropertiesWithSaveSchema(),
         required=True,

@@ -8,8 +8,31 @@ from .min_max import (
     FileWithMinMaxSaveSchema,
     PropertiesWithMinMaxSaveSchema,
 )
-from .options import PoliticalAggregateOptions
 from marshmallow import fields
+
+
+PoliticalAggregateOptions = [
+    "congressional_district",
+    "state_senate_district",
+    "state_assembly_district",
+    "conservative_party_probability",
+    "democratic_party_probability",
+    "green_party_probability",
+    "independent_party_probability",
+    "libertarian_party_probability",
+    "liberal_party_probability",
+    "republican_party_probability",
+    "state_donation_amount_percentile",
+    "state_donation_amount_prediction",
+    "state_donor_probability",
+    "federal_donation_amount_percentile",
+    "federal_donation_amount_prediction",
+    "federal_donor_probability",
+    "turnout_probability_midterm_general",
+    "turnout_probability_midterm_primary",
+    "turnout_probability_presidential_general",
+    "turnout_probability_presidential_primary",
+]
 
 
 class PropertiesPoliticalAggregateSchema(PropertiesBaseSchema):
@@ -54,7 +77,7 @@ class GeoJsonPoliticalWithSaveSchema(GeoJsonBaseSchema):
     )
 
 
-class PropertiesPoliticalFileSchema(
+class PropertiesPoliticalFileBaseSchema(
     PropertiesWithMinMaxSaveSchema, PropertiesPoliticalAggregateSchema
 ):
     pass
@@ -62,7 +85,7 @@ class PropertiesPoliticalFileSchema(
 
 class FilePoliticalWithSaveSchema(FileWithMinMaxSaveSchema):
     properties = fields.Nested(
-        PropertiesPoliticalFileSchema(),
+        PropertiesPoliticalFileBaseSchema(),
         required=True,
     )
 

@@ -1,4 +1,4 @@
-from .base import FeatureBaseSchema, GeoJsonBaseSchema, PropertiesWithSaveSchema, FileSchema
+from .base import FeatureBaseSchema, GeoJsonBaseSchema, PropertiesWithSaveSchema, FileBaseSchema
 from marshmallow import fields
 
 
@@ -26,7 +26,7 @@ class GeoJsonSocialsWithSaveSchema(GeoJsonBaseSchema):
     )
 
 
-class FileSocialsWithSaveSchema(FileSchema):
+class FileSocialsWithSaveSchema(FileBaseSchema):
     properties = fields.Nested(
         PropertiesSocialsWithSaveSchema(),
         required=True,

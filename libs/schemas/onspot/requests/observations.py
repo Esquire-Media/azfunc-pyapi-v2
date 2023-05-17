@@ -1,10 +1,16 @@
-from .base import (
-    FeatureBaseSchema,
-    GeoJsonBaseSchema,
-    PropertiesWithSaveSchema
-)
-from .options import ObservationOptions
+from .base import FeatureBaseSchema, GeoJsonBaseSchema, PropertiesWithSaveSchema
 from marshmallow import fields
+
+ObservationOptions = [
+    "location",
+    "deviceid",
+    "timestamp",
+    "date",
+    "time",
+    "dayofweek",
+    "lat",
+    "lng",
+]
 
 
 class PropertiesObservationsWithSaveSchema(PropertiesWithSaveSchema):

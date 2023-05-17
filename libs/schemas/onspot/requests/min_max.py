@@ -3,7 +3,7 @@ from .base import (
     FeatureBaseSchema,
     GeoJsonBaseSchema,
     WithSaveSchema,
-    FileSchema,
+    FileBaseSchema,
 )
 from marshmallow import Schema, fields, validates, ValidationError
 
@@ -69,7 +69,7 @@ class PropertiesFilesWithMinMaxSaveSchema(PropertiesWithMinMaxSaveSchema):
     includeNonMatchedDevices = fields.Boolean()
 
 
-class FileWithMinMaxSaveSchema(FileSchema):
+class FileWithMinMaxSaveSchema(FileBaseSchema):
     properties = fields.Nested(
         PropertiesFilesWithMinMaxSaveSchema(),
         required=True,

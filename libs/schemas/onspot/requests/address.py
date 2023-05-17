@@ -10,7 +10,7 @@ class AddressMappingsSchema(Schema):
     zip4 = fields.List(fields.String(), required=True)
 
 
-class AddressSchema(WithSaveSchema):
+class AddressWithSaveSchema(WithSaveSchema):
     name = fields.String(required=True)
     sources = fields.List(fields.Url(), required=True)
     mappings = fields.Nested(AddressMappingsSchema, required=True)

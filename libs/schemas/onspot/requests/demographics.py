@@ -1,3 +1,10 @@
+from .base import (
+    FeatureBaseSchema,
+    GeoJsonBaseSchema,
+)
+from .min_max import PropertiesWithMinMax
+from marshmallow import fields
+
 DemographicsOptions = [
     "location (venue)",
     "state",
@@ -185,36 +192,23 @@ DemographicsOptions = [
     "spectator_soccer",
 ]
 
-ObservationOptions = [
-    "location",
-    "deviceid",
-    "timestamp",
-    "date",
-    "time",
-    "dayofweek",
-    "lat",
-    "lng",
-]
 
-PoliticalAggregateOptions = [
-    "congressional_district",
-    "state_senate_district",
-    "state_assembly_district",
-    "conservative_party_probability",
-    "democratic_party_probability",
-    "green_party_probability",
-    "independent_party_probability",
-    "libertarian_party_probability",
-    "liberal_party_probability",
-    "republican_party_probability",
-    "state_donation_amount_percentile",
-    "state_donation_amount_prediction",
-    "state_donor_probability",
-    "federal_donation_amount_percentile",
-    "federal_donation_amount_prediction",
-    "federal_donor_probability",
-    "turnout_probability_midterm_general",
-    "turnout_probability_midterm_primary",
-    "turnout_probability_presidential_general",
-    "turnout_probability_presidential_primary",
-]
+class PropertiesDemographicsSchema(PropertiesWithMinMax):
+    demographics = fields.List(
+        fields.Str(validate=fields.validate.OneOf(DemographicsOptions)),
+        default=DemographicsOptions,
+    )
+
+
+class FeatureDemographicsSchema(FeatureBaseSchema):
+    properties = fields.Nested(
+        PropertiesDemographicsSchema(),
+        required=True,
+    )
+
+
+class GeoJsonDemographicsSchema(GeoJsonBaseSchema):
+    features = fields.List(
+        fields.Nested(FeatureDemographicsSchema()),
+        required=True,
+    )

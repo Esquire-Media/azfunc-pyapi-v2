@@ -11,14 +11,14 @@ class PropertiesGroupedByDaySchema(PropertiesBaseSchema):
 
 class FeatureGroupedByDaySchema(FeatureBaseSchema):
     properties = fields.Nested(
-        PropertiesGroupedByDaySchema(),
-        required=True,
+        PropertiesGroupedByDaySchema,
+        missing=dict,
     )
 
 
 class GeoJsonGroupedByDaySchema(GeoJsonBaseSchema):
     features = fields.List(
-        fields.Nested(FeatureGroupedByDaySchema()),
+        fields.Nested(FeatureGroupedByDaySchema),
         required=True,
     )
 
@@ -32,14 +32,14 @@ class PropertiesGroupedByIntervalSchema(PropertiesBaseSchema):
 
 class FeatureGroupedByIntervalSchema(FeatureBaseSchema):
     properties = fields.Nested(
-        PropertiesGroupedByIntervalSchema(),
-        required=True,
+        PropertiesGroupedByIntervalSchema,
+        missing=dict,
     )
 
 
 class GeoJsonGroupedByIntervalSchema(GeoJsonBaseSchema):
     features = fields.List(
-        fields.Nested(FeatureGroupedByIntervalSchema()),
+        fields.Nested(FeatureGroupedByIntervalSchema),
         required=True,
     )
     

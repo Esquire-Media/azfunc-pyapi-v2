@@ -33,14 +33,14 @@ class PropertiesWithMinMax(PropertiesBaseSchema, MinMaxSchema):
 
 class FeatureWithMinMaxSchema(FeatureBaseSchema):
     properties = fields.Nested(
-        PropertiesWithMinMax(),
-        required=True,
+        PropertiesWithMinMax,
+        missing=dict,
     )
 
 
 class GeoJsonWithMinMaxSchema(GeoJsonBaseSchema):
     features = fields.List(
-        fields.Nested(FeatureWithMinMaxSchema()),
+        fields.Nested(FeatureWithMinMaxSchema),
         required=True,
     )
 
@@ -53,14 +53,14 @@ class PropertiesWithMinMaxSaveSchema(
 
 class FeatureWithMinMaxSaveSchema(FeatureBaseSchema):
     properties = fields.Nested(
-        PropertiesWithMinMaxSaveSchema(),
-        required=True,
+        PropertiesWithMinMaxSaveSchema,
+        missing=dict,
     )
 
 
 class GeoJsonWithMinMaxSaveSchema(GeoJsonBaseSchema):
     features = fields.List(
-        fields.Nested(FeatureWithMinMaxSaveSchema()),
+        fields.Nested(FeatureWithMinMaxSaveSchema),
         required=True,
     )
 
@@ -71,13 +71,13 @@ class PropertiesFilesWithMinMaxSaveSchema(PropertiesWithMinMaxSaveSchema):
 
 class FileWithMinMaxSaveSchema(FileBaseSchema):
     properties = fields.Nested(
-        PropertiesFilesWithMinMaxSaveSchema(),
-        required=True,
+        PropertiesFilesWithMinMaxSaveSchema,
+        missing=dict,
     )
 
 
 class FilesWithMinMaxSaveSchema(GeoJsonBaseSchema):
     features = fields.List(
-        fields.Nested(FileWithMinMaxSaveSchema()),
+        fields.Nested(FileWithMinMaxSaveSchema),
         required=True,
     )

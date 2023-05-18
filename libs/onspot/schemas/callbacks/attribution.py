@@ -21,4 +21,4 @@ class AttirbutionDataSchema(Schema):
     
 
 class AttributionCallbackSchema(CallbackInfoSchema):
-    data = fields.Nested(AttirbutionDataSchema(), required=True)
+    data = fields.Nested(AttirbutionDataSchema, required=True)

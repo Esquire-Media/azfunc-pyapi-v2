@@ -1,5 +1,5 @@
-from .base import WithSaveSchema
-from marshmallow import Schema, fields
+from .base import WithSaveSchema, PropertiesBaseSchema
+from marshmallow import Schema, fields, pre_load
 
 
 class AddressMappingsSchema(Schema):
@@ -10,9 +10,9 @@ class AddressMappingsSchema(Schema):
     zip4 = fields.List(fields.String(), required=True)
 
 
-class AddressWithSaveSchema(WithSaveSchema):
-    name = fields.String(required=True)
-    sources = fields.List(fields.Url(), required=True)
+class AddressWithSaveSchema(PropertiesBaseSchema, WithSaveSchema):
+    sources = fields.List(
+        fields.Url(schemes=["http", "https", "s3", "gs", "az"]), required=True
+    )
     mappings = fields.Nested(AddressMappingsSchema, required=True)
-    callback = fields.Url(required=True)
     matchAcceptanceThreshold = fields.Float(default=29.9)

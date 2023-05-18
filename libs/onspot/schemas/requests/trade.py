@@ -10,13 +10,13 @@ class PropertiesTradesWithSaveSchema(PropertiesWithSaveSchema):
 
 class FeatureTradesWithSaveSchema(FeatureBaseSchema):
     properties = fields.Nested(
-        PropertiesTradesWithSaveSchema(),
-        required=True,
+        PropertiesTradesWithSaveSchema,
+        missing=dict,
     )
 
 
 class GeoJsonTradesWithSaveSchema(GeoJsonBaseSchema):
     features = fields.List(
-        fields.Nested(FeatureTradesWithSaveSchema()),
+        fields.Nested(FeatureTradesWithSaveSchema),
         required=True,
     )

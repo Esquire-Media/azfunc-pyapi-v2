@@ -1,4 +1,4 @@
-from .base import FeatureBaseSchema, GeoJsonBaseSchema, PropertiesWithSaveSchema
+from .base import GeoJsonWithSaveSchema, FeatureWithSaveSchema, PropertiesWithSaveSchema
 from marshmallow import fields
 
 ObservationOptions = [
@@ -20,15 +20,15 @@ class PropertiesObservationsWithSaveSchema(PropertiesWithSaveSchema):
     )
 
 
-class FeatureObservationsWithSaveSchema(FeatureBaseSchema):
+class FeatureObservationsWithSaveSchema(FeatureWithSaveSchema):
     properties = fields.Nested(
-        PropertiesObservationsWithSaveSchema(),
-        required=True,
+        PropertiesObservationsWithSaveSchema,
+        missing=dict,
     )
 
 
-class GeoJsonObservationsWithSaveSchema(GeoJsonBaseSchema):
+class GeoJsonObservationsWithSaveSchema(GeoJsonWithSaveSchema):
     features = fields.List(
-        fields.Nested(FeatureObservationsWithSaveSchema()),
+        fields.Nested(FeatureObservationsWithSaveSchema),
         required=True,
     )

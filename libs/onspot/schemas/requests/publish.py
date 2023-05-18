@@ -1,3 +1,4 @@
+from .base import PropertiesBaseSchema
 from marshmallow import Schema, fields, validate
 
 
@@ -16,17 +17,19 @@ PartnerOptions = [
 
 
 class LotameSegment(Schema):
-    files = fields.List(fields.Url(), required=True)
+    files = fields.List(
+        fields.Url(schemes=["http", "https", "s3", "gs", "az"]), required=True
+    )
     name = fields.Str(required=True)
     id = fields.Int(required=True)
 
 
-class DevicesSegment(Schema):
+class DevicesSegment(PropertiesBaseSchema):
     partner = fields.Str(required=True, validate=validate.OneOf(PartnerOptions))
     organization = fields.Str(required=True)
-    sourcePaths = fields.List(fields.Url(), required=True)
-    callback = fields.Str(required=True)
-    name = fields.Str()
+    sourcePaths = fields.List(
+        fields.Url(schemes=["http", "https", "s3", "gs", "az"]), required=True
+    )
     validate = fields.Bool(missing=True)
     segments = fields.List(fields.Str())
     lotameSegments = fields.List(fields.Nested(LotameSegment))

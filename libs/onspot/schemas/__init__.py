@@ -37,11 +37,13 @@ __all__ = [
     "AddressWithSaveSchema",
     "AttributionSchema",
     "AttributionWithSaveSchema",
+    "DevicesSegment",
     "GeoJsonBaseSchema",
     "GeoJsonDemographicsSchema",
     "FilesBaseSchema",
     "FilesWithMinMaxSaveSchema",
     "GeoJsonGroupedByDaySchema",
+    "GeoJsonGroupedByIntervalSchema",
     "GeoJsonObservationsWithSaveSchema",
     "GeoJsonPoliticalAggregateSchema",
     "GeoJsonPoliticalWithSaveSchema",
@@ -53,19 +55,20 @@ __all__ = [
     # Response Schemas
     "ResponseBaseSchema",
     "ResponseWithSaveSchema",
-    # Callback Schemas
+    # Callback Schemas,
     "CallbackBaseSchema",
     "CallbackInfoSchema",
+    "AttributionCallbackSchema",
     "CountCallbackSchema",
     "CountByDayCallbackSchema",
     "CountByDeviceCallbackSchema",
     "CountByHourCallbackSchema",
     "CountByIntervalCallbackSchema",
     "CountByFrequencyCallbackSchema",
+    "DemographicZipcodesCallbackSchema",
     "DevicesCallbackSchema",
     "DeviceLocationsCallbackSchema",
     "ObservationsCallbackSchema",
-    "AttributionCallbackSchema"
 ]
 
 endpoints = {
@@ -138,7 +141,7 @@ endpoints = {
         "geoframe/demographics/aggregate": {
             "request": GeoJsonDemographicsSchema,
             "response": ResponseBaseSchema,
-            "callback": None, # Unsure of how to deserialize this one
+            "callback": None,  # Unsure of how to deserialize this one
         },
         "geoframe/demographics/aggregate/zipcodes": {
             "request": GeoJsonWithMinMaxSchema,
@@ -148,7 +151,7 @@ endpoints = {
         "geoframe/extension/devicesinhome": {
             "request": GeoJsonWithMinMaxSchema,
             "response": ResponseBaseSchema,
-            "callback": DevicesCallbackSchema, 
+            "callback": DevicesCallbackSchema,
         },
         "geoframe/extension/devicesinhomecount": {
             "request": GeoJsonWithMinMaxSchema,
@@ -173,7 +176,7 @@ endpoints = {
         "geoframe/political/aggregate": {
             "request": GeoJsonPoliticalAggregateSchema,
             "response": ResponseBaseSchema,
-            "callback": None, # Unsure of how to deserialize this one
+            "callback": None,  # Unsure of how to deserialize this one
         },
         "geoframes/attribution": {
             "request": AttributionSchema,

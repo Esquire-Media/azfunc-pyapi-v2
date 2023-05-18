@@ -8,7 +8,7 @@ class CallbackBaseSchema(Schema):
 
 
 class CallbackInfoSchema(Schema):
-    cbinfo = fields.Nested(CallbackBaseSchema(), required=True)
+    cbInfo = fields.Nested(CallbackBaseSchema, required=True)
     name = fields.Str()
 
 

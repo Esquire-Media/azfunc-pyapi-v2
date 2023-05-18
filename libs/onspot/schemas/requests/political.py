@@ -44,14 +44,14 @@ class PropertiesPoliticalAggregateSchema(PropertiesBaseSchema):
 
 class FeaturePoliticalAggregateSchema(FeatureBaseSchema):
     properties = fields.Nested(
-        PropertiesPoliticalAggregateSchema(),
-        required=True,
+        PropertiesPoliticalAggregateSchema,
+        missing=dict,
     )
 
 
 class GeoJsonPoliticalAggregateSchema(GeoJsonBaseSchema):
     features = fields.List(
-        fields.Nested(FeaturePoliticalAggregateSchema()),
+        fields.Nested(FeaturePoliticalAggregateSchema),
         required=True,
     )
 
@@ -65,14 +65,14 @@ class PropertiesPoliticalAggregateSchema(PropertiesBaseSchema):
 
 class FeaturePoliticalWithSaveSchema(FeatureBaseSchema):
     properties = fields.Nested(
-        PropertiesPoliticalAggregateSchema(),
-        required=True,
+        PropertiesPoliticalAggregateSchema,
+        missing=dict,
     )
 
 
 class GeoJsonPoliticalWithSaveSchema(GeoJsonBaseSchema):
     features = fields.List(
-        fields.Nested(FeaturePoliticalAggregateSchema()),
+        fields.Nested(FeaturePoliticalAggregateSchema),
         required=True,
     )
 
@@ -85,13 +85,13 @@ class PropertiesPoliticalFileBaseSchema(
 
 class FilePoliticalWithSaveSchema(FileWithMinMaxSaveSchema):
     properties = fields.Nested(
-        PropertiesPoliticalFileBaseSchema(),
-        required=True,
+        PropertiesPoliticalFileBaseSchema,
+        missing=dict,
     )
 
 
 class FilesPoliticalWithSaveSchema(FilesWithMinMaxSaveSchema):
     features = fields.List(
-        fields.Nested(FilePoliticalWithSaveSchema()),
+        fields.Nested(FilePoliticalWithSaveSchema),
         required=True,
     )

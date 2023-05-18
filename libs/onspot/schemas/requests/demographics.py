@@ -202,13 +202,13 @@ class PropertiesDemographicsSchema(PropertiesWithMinMax):
 
 class FeatureDemographicsSchema(FeatureBaseSchema):
     properties = fields.Nested(
-        PropertiesDemographicsSchema(),
-        required=True,
+        PropertiesDemographicsSchema,
+        missing=dict,
     )
 
 
 class GeoJsonDemographicsSchema(GeoJsonBaseSchema):
     features = fields.List(
-        fields.Nested(FeatureDemographicsSchema()),
+        fields.Nested(FeatureDemographicsSchema),
         required=True,
     )

@@ -29,3 +29,5 @@ geojson
 marshmallow-geojson
 pyproj
 shapely
+## onspot
+requests-auth-aws-sigv4

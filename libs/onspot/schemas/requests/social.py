@@ -9,32 +9,32 @@ class PropertiesSocialsWithSaveSchema(PropertiesWithSaveSchema):
             "validator_failed": "interval must be greater than or equal to 5"
         },
     )
-    levels = fields.Int(validate=fields.validate.OneOf(1,2))
+    levels = fields.Int(validate=fields.validate.OneOf([1,2]))
 
 
 class FeatureSocialsWithSaveSchema(FeatureBaseSchema):
     properties = fields.Nested(
-        PropertiesSocialsWithSaveSchema(),
-        required=True,
+        PropertiesSocialsWithSaveSchema,
+        missing=dict,
     )
 
 
 class GeoJsonSocialsWithSaveSchema(GeoJsonBaseSchema):
     features = fields.List(
-        fields.Nested(FeatureSocialsWithSaveSchema()),
+        fields.Nested(FeatureSocialsWithSaveSchema),
         required=True,
     )
 
 
 class FileSocialsWithSaveSchema(FileBaseSchema):
     properties = fields.Nested(
-        PropertiesSocialsWithSaveSchema(),
-        required=True,
+        PropertiesSocialsWithSaveSchema,
+        missing=dict,
     )
 
 
 class FilesSocialsWithSaveSchema(GeoJsonBaseSchema):
     features = fields.List(
-        fields.Nested(FileSocialsWithSaveSchema()),
+        fields.Nested(FileSocialsWithSaveSchema),
         required=True,
     )

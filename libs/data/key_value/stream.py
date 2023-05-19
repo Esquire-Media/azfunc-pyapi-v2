@@ -26,6 +26,9 @@ class StreamKeyValueProvider:
             if self.scheme == value:
                 self.scheme = key
         self.config = {**kwargs}
+    
+    def __getitem__(self, handle):
+        return self.connect(handle)
 
     def connect(self, key: str, **kwargs) -> Any:
         return open(self.scheme + "://" + key, **{**kwargs, **self.config})

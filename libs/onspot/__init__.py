@@ -25,18 +25,13 @@ class OnSpotAPI:
         self.url = f"https://{host}/"
 
     def submit(self, endpoint: str, request: str):
-        # send request
-        response = requests.post(
+        return requests.post(
             url=self.url + endpoint,
             auth=self.auth,
             data=request,
             headers={**self.headers, "Content-type": "text/json"},
         )
 
-        # deserialize response
-        response_schema: Schema = endpoint.response()
-        return response_schema.loads(response.content, many=True)
-
     @staticmethod
-    def build_request(endpoint: str, request: dict, context: dict = {}):
-        return ENDPOINT_REGISTRY[endpoint].request(context=context).load(request)
+    def pythonic_request(endpoint: str, request: str, context: dict = {}):
+        return ENDPOINT_REGISTRY[endpoint].request(context=context).loads(request)

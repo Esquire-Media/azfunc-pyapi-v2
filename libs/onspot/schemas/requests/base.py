@@ -14,6 +14,7 @@ from marshmallow_geojson import (
     FeatureCollectionSchema,
 )
 import uuid
+import logging
 
 
 class MissingNestedSchema(Schema):
@@ -37,17 +38,10 @@ class PropertiesBaseSchema(PropertiesSchema):
     @pre_load
     def meta_base(self, data, **kwargs):
         if "callback" in self.context.keys():
-            data["callback"] = self.context["callback"]
-        if "prefix_callback" in self.context.keys():
-            if callable(self.context["prefix_callback"]):
-                data["callback"] = self.context["prefix_callback"](self, data) + data.get("callback", "")
+            if callable(self.context["callback"]):
+                data["callback"] = self.context["callback"](self, data)
             else:
-                data["callback"] = self.context["prefix_callback"] + data.get("callback", "")
-        if "suffix_callback" in self.context.keys():
-            if callable(self.context["suffix_callback"]):
-                data["callback"] =  data.get("callback", "") + self.context["suffix_callback"](self, data)
-            else:
-                data["callback"] = data.get("callback", "") + self.context["suffix_callback"]
+                data["callback"] = self.context["callback"]
         if "hash" in self.context.keys():
             data["hash"] = self.context["hash"]
 
@@ -58,18 +52,20 @@ class PropertiesGeoJsonSchema(PropertiesBaseSchema):
     start = fields.DateTime(
         missing=lambda: datetime.fromisoformat(
             (datetime.utcnow() - timedelta(days=8)).date().isoformat()
-        )
+        ).isoformat()
     )
     end = fields.DateTime(
         missing=lambda: datetime.fromisoformat(
             (datetime.utcnow() - timedelta(days=6)).date().isoformat()
-        )
+        ).isoformat()
     )
     validate = fields.Bool(default=True)
 
     @validates("end")
     def validate_end(self, value):
         # Check if the date is before 5 days ago
+        if isinstance(value, str):
+            value = datetime.fromisoformat(value)
         if value >= datetime.fromisoformat(
             (datetime.utcnow() - timedelta(days=5)).date().isoformat()
         ):
@@ -78,6 +74,8 @@ class PropertiesGeoJsonSchema(PropertiesBaseSchema):
     @validates("start")
     def validate_start(self, value):
         # Check if the date is after 1st of the month 1 year ago
+        if isinstance(value, str):
+            value = datetime.fromisoformat(value)
         if value <= datetime.fromisoformat(
             datetime(datetime.now().year - 1, datetime.now().month, 1)
             .date()
@@ -107,7 +105,6 @@ class PropertiesGeoJsonSchema(PropertiesBaseSchema):
                 data["end"] = datetime.fromisoformat(
                     (datetime.utcnow() + self.context["end"]).date().isoformat()
                 ).isoformat()
-
         return data
 
 

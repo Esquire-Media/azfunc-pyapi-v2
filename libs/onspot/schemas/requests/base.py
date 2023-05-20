@@ -189,22 +189,6 @@ class WithSaveSchema(MissingNestedSchema):
             data["outputLocation"] = data["outputLocation"].replace("https://", "az://")
         return data
 
-    @post_load
-    def meta_withsave_filename(self, data: dict, **kwargs):
-        if not data.get("fileName"):
-            data["fileName"] = data["name"]
-        if "prefix_fileName" in self.context.keys():
-            if callable(self.context["prefix_fileName"]):
-                data["fileName"] = self.context["prefix_fileName"](self, data) + data.get("fileName", "")
-            else:
-                data["fileName"] = self.context["prefix_fileName"] + data.get("fileName", "")
-        if "suffix_fileName" in self.context.keys():
-            if callable(self.context["suffix_fileName"]):
-                data["fileName"] =  data.get("fileName", "") + self.context["suffix_fileName"](self, data)
-            else:
-                data["fileName"] = data.get("fileName", "") + self.context["suffix_fileName"]
-        return data
-
 
 class PropertiesWithSaveSchema(PropertiesBaseSchema, WithSaveSchema):
     pass

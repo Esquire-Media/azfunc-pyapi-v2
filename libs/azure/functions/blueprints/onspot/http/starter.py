@@ -2,6 +2,7 @@ from azure.durable_functions import DurableOrchestrationClient
 from libs.azure.functions import Blueprint
 from libs.azure.functions.blueprints.onspot.helpers import onspot_initializer
 from libs.azure.functions.http import HttpRequest
+
 bp = Blueprint()
 
 
@@ -11,5 +12,4 @@ bp = Blueprint()
 async def onspot_starter(req: HttpRequest, client: DurableOrchestrationClient):
     # Generate an instance ID
     instanceId = await onspot_initializer(req=req, client=client)
-    response = client.create_check_status_response(request=req, instance_id=instanceId)
-    return response
+    return client.create_check_status_response(request=req, instance_id=instanceId)

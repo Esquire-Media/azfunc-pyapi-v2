@@ -1,8 +1,7 @@
-from ..helpers import onspot_initializer
 from azure.durable_functions import DurableOrchestrationClient
 from libs.azure.functions import Blueprint
+from libs.azure.functions.blueprints.onspot.helpers import onspot_initializer
 from libs.azure.functions.http import HttpRequest
-
 bp = Blueprint()
 
 

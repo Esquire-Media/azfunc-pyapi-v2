@@ -1,38 +1,31 @@
 from azure.data.tables import TableServiceClient, TableEntity
-import logging
+from logging import Handler
 import os
 
 
-class AzureTableHandler(logging.Handler):
+class AzureTableHandler(Handler):
     def __init__(
         self,
-        table_name: str = os.environ.get("LOGGING_TABLE_NAME", "logging"),
-        connection_string: str = os.environ.get(
-            "LOGGING_CONN_STR", os.environ["AzureWebJobsStorage"]
-        ),
+        conn_str=os.environ.get("LOGGING_CONN_STR", os.environ["AzureWebJobsStorage"]),
+        table_name=os.environ.get("LOGGING_TABLE_NAME", "logging"),
+        *args,
+        **kwargs,
     ):
-        super().__init__()
-        self.table_service: TableServiceClient = (
-            TableServiceClient.from_connection_string(connection_string)
-        )
-        self.table_name: str = table_name
+        super(AzureTableHandler, self).__init__(*args, **kwargs)
+        self._table_client = TableServiceClient.from_connection_string(
+            conn_str=conn_str
+        ).create_table_if_not_exists(table_name=table_name)
 
-        # Create the table if it doesn't exist
-        self.table_service.create_table_if_not_exists(self.table_name)
-
-    def emit(self, record: logging.LogRecord):
-        log_entry: str = self.format(record)
+    def emit(self, record):
         entity: TableEntity = TableEntity(
             PartitionKey="log",
             RowKey=str(record.created),
-            Message=log_entry,
+            Message=record.getMessage(),
             Level=record.levelname,
         )
-
-        # Add invocation_id if it's included in the log record
-        if hasattr(record, "invocation_id"):
-            entity["InvocationId"] = record.invocation_id
-
-        self.table_service.get_table_client(self.table_name).create_entity(
-            entity=entity
-        )
+        if hasattr(record, "context"):
+            for k,v in record.context.items():
+                if v:
+                    entity[k] = v
+            
+        self._table_client.create_entity(entity)

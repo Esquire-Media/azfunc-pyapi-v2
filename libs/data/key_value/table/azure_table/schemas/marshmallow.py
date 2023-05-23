@@ -10,7 +10,7 @@ class MetadataSchema(Schema):
 class AzureTableEntitySchema(Schema):
     PartitionKey = fields.String(required=True)
     RowKey = fields.String(required=True)
-    metadata = fields.Nested(MetadataSchema)
+    metadata = fields.Nested(MetadataSchema, attribute="metadata")
 
     # def load(
     #     self,

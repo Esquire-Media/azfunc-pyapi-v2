@@ -1,7 +1,8 @@
 from azure.durable_functions import DurableOrchestrationClient, EntityId
 from azure.storage.blob import ContainerClient
 from libs.azure.functions import Blueprint
-from libs.onspot.endpoints import REGISTRY
+from libs.azure.functions.blueprints.onspot.config import ONSPOT_CONN_STR
+from libs.onspot.endpoints import REGISTRY, EndpointToStorage
 from libs.utils.helpers import find_key
 import os
 
@@ -32,25 +33,24 @@ async def onspot_activity_format(
         )
     ).entity_state
 
-    if settings["target"] == "blobs":
+    if issubclass(endpoint := REGISTRY[settings["endpoint"]], EndpointToStorage):
         # Make sure the intended Storage Container exists, if not create it
-        conn_str = os.environ.get("ONSPOT_CONN_STR", os.environ["AzureWebJobsStorage"])
         container_name = os.environ.get(
             "ONSPOT_CONTAINER",
             f"{client._orchestration_bindings.task_hub_name}-largemessages",
         )
         container: ContainerClient = ContainerClient.from_connection_string(
-            conn_str=conn_str, container_name=container_name
+            conn_str=ONSPOT_CONN_STR, container_name=container_name
         )
         if not container.exists():
             container.create_container()
 
     # Autofill and validate the original data and replace the data entity with the results
-    request_schema = REGISTRY[settings["endpoint"]].request(
+    request_schema = endpoint.request(
         context={
             "hash": False,
             "callback": lambda self_, data_: (
-                settings["response_links"]["sendEventPostUri"].replace(
+                settings["links"]["sendEventPostUri"].replace(
                     "{eventName}", 
                     # f"{requestId}_{data_.get('name', '')}",
                     data_.get('name', ''),
@@ -58,10 +58,10 @@ async def onspot_activity_format(
             ),
             **(
                 {
-                    "outputAzConnStr": conn_str,
+                    "outputAzConnStr": ONSPOT_CONN_STR,
                     "outputLocation": f"{container_name}/{instanceId}/results",
                 }
-                if settings["target"] == "blobs"
+                if issubclass(endpoint, EndpointToStorage)
                 else {}
             ),
             **settings["context"],

@@ -1,4 +1,4 @@
-from .schemas import *
+from .schemas.marshmallow import *
 from marshmallow import Schema
 
 

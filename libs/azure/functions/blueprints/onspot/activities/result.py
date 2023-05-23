@@ -1,8 +1,9 @@
 from azure.durable_functions import DurableOrchestrationClient, EntityId
-from azure.storage.blob import BlobClient
+from azure.storage.blob.aio import BlobClient
 from libs.azure.functions import Blueprint
 from libs.onspot.endpoints import REGISTRY
-from libs.onspot.schemas.responses import ResponseWithSaveSchema
+from libs.onspot.schemas.marshmallow.responses import ResponseWithSaveSchema
+import asyncio
 import logging
 
 bp = Blueprint()
@@ -40,21 +41,18 @@ async def onspot_activity_result(instanceId: str, client: DurableOrchestrationCl
 
     # Format results
     if isinstance(response_schema, ResponseWithSaveSchema):
-        data = {
-            responses[e["id"]]["name"]: {
-                "url": url,
-                "size": blob.get_blob_properties().size,
-            }
+        errors = [e for e in events if not e["success"]]
+        # Create tasks for each blob
+        tasks = [
+            get_blob_data(responses[e["id"]]["location"], responses[e["id"]]["name"])
             for e in events
             if e["success"]
-            if (
-                blob := BlobClient.from_blob_url(
-                    url := responses[e["id"]]["location"].replace("az://", "https://")
-                )
-            )
-        }
-        errors = [e for e in events if not e["success"]]
+        ]
+        # Gather results
+        data = {k: v for i in (await asyncio.gather(*tasks)) for k, v in i.items()}
+        logging.warning(sum([d["size"] for d in data.values()]))
     else:
+        errors = [e["cbInfo"] for e in events if not e["cbInfo"]["success"]]
         data = {
             name: e
             for e in events
@@ -62,6 +60,17 @@ async def onspot_activity_result(instanceId: str, client: DurableOrchestrationCl
             if e.pop("cbInfo")
             if (name := e.pop("name"))
         }
-        errors = [e["cbInfo"] for e in events if not e["cbInfo"]["success"]]
 
     return {"data": data, "errors": errors}
+
+
+async def get_blob_data(url, name):
+    url = url.replace("az://", "https://")
+    async with BlobClient.from_blob_url(url) as blob:
+        size = (await blob.get_blob_properties()).size
+    return {
+        name: {
+            "url": url,
+            "size": size,
+        }
+    }

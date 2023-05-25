@@ -22,7 +22,7 @@ async def async_task_status(req: HttpRequest, client: DurableOrchestrationClient
     )
     if not status:
         return HttpResponse(status_code=404)
-    
+
     obj = {
         "started": status.created_time.isoformat(),
         "updated": status.last_updated_time.isoformat(),

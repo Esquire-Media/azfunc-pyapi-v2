@@ -63,6 +63,19 @@ class MemoryKeyValueProvider:
         -------
         Any
             The retrieved item.
+
+        Example
+        -------
+        >>> from libs.data import from_bind
+        >>> provider = from_bind('ram_handle')
+        >>> provider.save("my_key", "my_value")
+        >>> value = provider["my_key"]
+        >>> print(value)
+
+        Notes
+        -----
+        This method allows retrieving an item from the store using the handle as a key.
+        It is a shorthand for calling the `load()` method with the provided handle.
         """
 
         return self.load(key=handle)
@@ -81,6 +94,18 @@ class MemoryKeyValueProvider:
             The encoder function to use for encoding the value, by default None.
         **kwargs : dict
             Additional keyword arguments.
+
+        Example
+        -------
+        >>> from libs.data import from_bind
+        >>> provider = from_bind('ram_handle')
+        >>> provider.save("my_key", "my_value")
+
+        Notes
+        -----
+        This method saves a key-value pair in the store. If an encoder function is provided,
+        the value is encoded before saving. The encoded value or the original value is stored
+        in the internal store dictionary with the specified key.
         """
 
         self.store[key] = encoder(value, **kwargs) if encoder else value
@@ -102,6 +127,20 @@ class MemoryKeyValueProvider:
         -------
         Any
             The retrieved value.
+
+        Example
+        -------
+        >>> from libs.data import from_bind
+        >>> provider = from_bind('ram_handle')
+        >>> provider.save("my_key", "my_value")
+        >>> value = provider.load("my_key")
+        >>> print(value)
+
+        Notes
+        -----
+        This method retrieves a value from the store using the specified key.
+        If a decoder function is provided, the retrieved value is decoded before returning.
+        The decoded value or the original stored value is returned.
         """
 
         return decoder(self.store[key], **kwargs) if decoder else self.store[key]
@@ -114,6 +153,18 @@ class MemoryKeyValueProvider:
         ----------
         key : str
             The key associated with the value to be deleted.
+
+        Example
+        -------
+        >>> from libs.data import from_bind
+        >>> provider = from_bind('ram_handle')
+        >>> provider.save("my_key", "my_value")
+        >>> provider.drop("my_key")
+
+        Notes
+        -----
+        This method deletes a key-value pair from the store using the specified key.
+        If the key is not found in the store, a KeyError is raised.
         """
 
         del self.store[key]

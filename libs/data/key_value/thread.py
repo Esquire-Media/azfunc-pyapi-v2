@@ -52,6 +52,12 @@ class ThreadKeyValueProvider:
         -------
         ThreadKeyValueProvider
             The created instance of ThreadKeyValueProvider.
+
+        Notes
+        -----
+        This method ensures that only one instance of ThreadKeyValueProvider is created.
+        If the instance does not exist, it creates a new instance. If the instance already exists,
+        it returns the existing instance.
         """
 
         if not hasattr(cls, "instance"):
@@ -71,6 +77,19 @@ class ThreadKeyValueProvider:
         -------
         Any
             The retrieved item.
+
+        Example
+        -------
+        >>> from libs.data import from_bind
+        >>> provider = from_bind('thread_handle')
+        >>> provider.save("my_key", "my_value")
+        >>> value = provider["my_key"]
+        >>> print(value)
+
+        Notes
+        -----
+        This method allows retrieving an item from the storage using the handle as a key.
+        It is a shorthand for calling the `load()` method with the provided handle.
         """
 
         return self.load(key=handle)
@@ -89,6 +108,19 @@ class ThreadKeyValueProvider:
             The encoder function to use for encoding the value, by default None.
         **kwargs : dict
             Additional keyword arguments.
+
+        Example
+        -------
+        >>> from libs.data import from_bind
+        >>> provider = from_bind('thread_handle')
+        >>> provider.save("my_key", "my_value")
+
+        Notes
+        -----
+        This method saves a key-value pair in the thread-based storage.
+        If an encoder function is provided, the value is encoded before saving.
+        The method stores the encoded or original value in the thread-local storage
+        using the specified key.
         """
 
         current.__setattr__(key, encoder(value) if encoder else value)
@@ -110,6 +142,21 @@ class ThreadKeyValueProvider:
         -------
         Any
             The loaded value.
+
+        Example
+        -------
+        >>> from libs.data import from_bind
+        >>> provider = from_bind('thread_handle')
+        >>> provider.save("my_key", "my_value")
+        >>> value = provider.load("my_key")
+        >>> print(value)
+
+        Notes
+        -----
+        This method retrieves a value from the thread-based storage using the specified key.
+        If a decoder function is provided, the retrieved value is decoded before returning.
+        The method retrieves the value from the thread-local storage using the specified key.
+        The decoded or raw value is returned.
         """
 
         return (
@@ -126,6 +173,18 @@ class ThreadKeyValueProvider:
         ----------
         key : str
             The key associated with the value to be deleted.
+
+        Example
+        -------
+        >>> from libs.data import from_bind
+        >>> provider = from_bind('thread_handle')
+        >>> provider.save("my_key", "my_value")
+        >>> provider.drop("my_key")
+
+        Notes
+        -----
+        This method deletes a key-value pair from the thread-based storage using the specified key.
+        It removes the key from the thread-local storage.
         """
 
         current.__delattr__(key)

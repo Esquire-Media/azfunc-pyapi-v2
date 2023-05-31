@@ -1,4 +1,5 @@
-import functools
+# File: libs/data/structured/sqlalchemy/__init__.py
+
 from libs.utils.decorators import staticproperty
 from .interface import QueryFrame
 from .marshmallow import extend_models as extend_models_marshmallow, schema
@@ -27,6 +28,21 @@ class SQLAlchemyStructuredProvider:
     Structured data storage provider using SQLAlchemy.
 
     This provider allows storing, loading, and dropping structured data using SQLAlchemy as the underlying database engine.
+
+    Examples
+    --------
+    >>> from libs.data import register_binding, from_binding
+    >>> register_binding(
+    >>>     "an_sql_server",
+    >>>     "Structured",
+    >>>     "sql",
+    >>>     url="mssql+pymssql://<username>:<password>@<host>:<port>/<database>?charset=utf8",
+    >>>     schemas=["other", "dbo"],
+    >>> )
+    >>> provider = from_bind("an_sql_server")
+    >>> qf = provider["other.table1"]
+    >>> qf = qf[[qf["column1"], qf["column2"], qf["column3"]]]
+    >>> # Perform actions with the QueryFrame.
     """
 
     @staticproperty
@@ -38,6 +54,14 @@ class SQLAlchemyStructuredProvider:
         -------
         list
             A list of supported schemes.
+
+        Examples
+        --------
+        >>> supported_schemes = SQLAlchemyStructuredProvider.SUPPORTED_SCHEMES
+
+        Notes
+        -----
+        This property returns a list of supported schemes for the SQLAlchemyStructuredProvider.
         """
 
         return ["sql"]
@@ -51,6 +75,14 @@ class SQLAlchemyStructuredProvider:
         -------
         str
             The resource type delimiter.
+
+        Examples
+        --------
+        >>> delimiter = SQLAlchemyStructuredProvider.RESOURCE_TYPE_DELIMITER
+
+        Notes
+        -----
+        This property returns the delimiter used to separate resource types in keys.
         """
 
         return "."
@@ -64,6 +96,14 @@ class SQLAlchemyStructuredProvider:
         -------
         str
             The default schema.
+
+        Examples
+        --------
+        >>> default_schema = SQLAlchemyStructuredProvider.DEFAULT_SCHEMA
+
+        Notes
+        -----
+        This property returns the default schema used when no schema is specified.
         """
 
         return "default"
@@ -81,6 +121,14 @@ class SQLAlchemyStructuredProvider:
         -------
         dict
             A dictionary representing the structure's schema.
+
+        Examples
+        --------
+        >>> schema = provider.get_schema(type_='marshmallow')
+
+        Notes
+        -----
+        This method retrieves the schema for a given structure type, such as "marshmallow".
         """
 
         match type_:
@@ -97,14 +145,32 @@ class SQLAlchemyStructuredProvider:
             Additional positional arguments.
         **kwargs : dict
             Additional keyword arguments.
+
+        Examples
+        --------
+        >>> provider = SQLAlchemyStructuredProvider(engine='sqlite:///:memory:')
+
+        Notes
+        -----
+        This method initializes the SQLAlchemyStructuredProvider by setting up the underlying database engine and metadata.
+        It reflects the database tables, prepares the base automap, and extends the models.
+        It also sets up the session and provides access to the models for performing CRUD operations on the structured data.
         """
 
         kw = kwargs.keys()
+
+        # Remove the 'scheme' key from kwargs
         kwargs.pop("scheme")
+
+        # Generate a unique ID for the provider
         self.id: str = uuid.uuid4().hex
+
+        # Determine the schemas to reflect (if provided)
         self.schemas: List[str] = kwargs.pop(
             "schemas", [s] if (s := kwargs.pop("schema", None)) else None
         )
+
+        # Set up the database engine
         self.engine: Engine = (
             kwargs.pop("engine")
             if "engine" in kw
@@ -115,13 +181,18 @@ class SQLAlchemyStructuredProvider:
         if not self.engine:
             raise Exception("No engine configuration values specified.")
 
+        # Create the metadata object
         self.metadata = MetaData()
+
+        # Reflect the database tables
         if self.schemas:
+            # Reflect tables for specific schemas
             for s in self.schemas:
                 self.metadata.reflect(bind=self.engine, schema=s, views=True)
                 for table in self.metadata.tables.values():
                     if table.schema == s:
                         if not table.primary_key:
+                            # Set primary key if not defined
                             for col in table.c:
                                 if (
                                     (c := col.name.lower()) == "id"
@@ -134,14 +205,17 @@ class SQLAlchemyStructuredProvider:
                                     col.primary_key = True
                                     table.append_constraint(PrimaryKeyConstraint(col))
                         if not table.primary_key:
+                            # Add a fake primary key column if no primary key defined
                             table.append_column(
                                 Column("fake_pk_id", Integer, primary_key=True)
                             )
                             table.append_constraint(PrimaryKeyConstraint("fake_pk_id"))
         else:
+            # Reflect tables for all schemas
             self.metadata.reflect(bind=self.engine, views=True)
             for table in self.metadata.tables.values():
                 if not table.primary_key:
+                    # Set primary key if not defined
                     for col in table.c:
                         if (
                             (c := col.name.lower()) == "id"
@@ -154,16 +228,26 @@ class SQLAlchemyStructuredProvider:
                             col.primary_key = True
                             table.append_constraint(PrimaryKeyConstraint(col))
                 if not table.primary_key:
+                    # Add a fake primary key column if no primary key defined
                     table.append_column(Column("fake_pk_id", Integer, primary_key=True))
                     table.append_constraint(PrimaryKeyConstraint("fake_pk_id"))
+
+        # Create the base automap
         self.base: AutomapBase = automap_base(metadata=self.metadata)
+
+        # Set up the session
         self.session: Callable = lambda: Session(self.engine)
+
+        # Prepare the base automap
         self.base.prepare(
             modulename_for_table=self.modulename_for_table,
             name_for_collection_relationship=name_for_collection_relationship,
         )
+
+        # Retrieve the models for the provider's ID
         self.models = self.base.by_module.get(self.id)
 
+        # Extend the models with additional functionality
         for func in MODEL_EXTENSION_STEPS:
             func(
                 models=[
@@ -187,6 +271,15 @@ class SQLAlchemyStructuredProvider:
         -------
         QueryFrame
             A QueryFrame object representing the structured data.
+
+        Examples
+        --------
+        >>> query_frame = provider['schema.table.primary_key']
+        >>> # Perform actions with the QueryFrame.
+
+        Notes
+        -----
+        This method retrieves a QueryFrame object for the specified handle, which represents structured data.
         """
 
         selected = self.models
@@ -208,6 +301,15 @@ class SQLAlchemyStructuredProvider:
         -------
         Session
             A SQLAlchemy Session object.
+
+        Examples
+        --------
+        >>> session = provider.connect()
+        >>> # Perform actions with the SQLAlchemy session.
+
+        Notes
+        -----
+        This method establishes a connection to the structured data storage and returns a SQLAlchemy Session object.
         """
 
         return self.session()
@@ -235,6 +337,14 @@ class SQLAlchemyStructuredProvider:
             The table name, by default None.
         model : Any, optional
             The model to use, by default None.
+
+        Examples
+        --------
+        >>> provider.save('schema.table.primary_key', value)
+
+        Notes
+        -----
+        This method saves a value to the specified key in the structured data storage.
         """
 
         session = self.session()
@@ -275,6 +385,14 @@ class SQLAlchemyStructuredProvider:
         -------
         Any
             The loaded value.
+
+        Examples
+        --------
+        >>> value = provider.load('schema.table.primary_key')
+
+        Notes
+        -----
+        This method loads a value from the specified key in the structured data storage.
         """
 
         session = self.session()
@@ -303,6 +421,15 @@ class SQLAlchemyStructuredProvider:
         -------
         List[Any]
             The filtered data.
+
+        Examples
+        --------
+        >>> filtered_data = provider.filter(['schema.table.column == "value"'])
+
+        Notes
+        -----
+        ***TODO***
+        This method filters the structured data based on the provided filters and returns the filtered data.
         """
 
         pass
@@ -327,6 +454,14 @@ class SQLAlchemyStructuredProvider:
             The table name, by default None.
         model : Any, optional
             The model to use, by default None.
+
+        Examples
+        --------
+        >>> provider.drop('schema.table.primary_key')
+
+        Notes
+        -----
+        This method deletes the record with the specified key from the structured data storage.
         """
 
         session = self.session()
@@ -350,6 +485,14 @@ class SQLAlchemyStructuredProvider:
         -------
         Tuple[str, str, str]
             The parsed schema name, table name, and primary key.
+
+        Examples
+        --------
+        >>> schema, table, primary_key = provider.parse_key('schema.table.primary_key')
+
+        Notes
+        -----
+        This method parses the specified key into schema name, table name, and primary key components.
         """
 
         key = key.split(self.RESOURCE_TYPE_DELIMITER)
@@ -377,6 +520,14 @@ class SQLAlchemyStructuredProvider:
         -------
         str
             The module name for the table.
+
+        Examples
+        --------
+        >>> module_name = provider.modulename_for_table(cls, tablename, table)
+
+        Notes
+        -----
+        This method retrieves the module name for a table in the structured data storage.
         """
 
         return (

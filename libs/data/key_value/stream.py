@@ -72,6 +72,20 @@ class StreamKeyValueProvider:
         -------
         Any
             The connection to the specified key.
+
+        Example
+        -------
+        >>> from libs.data import from_bind
+        >>> provider = from_bind('s3_handle')
+        >>> connection = provider.connect("my_bucket/my_key.txt")
+        >>> connection.write("Hello, world!")
+        >>> connection.close()
+
+        Notes
+        -----
+        This method connects to a specified key using the stream-based storage mechanism.
+        It returns a connection object that can be used for reading from or writing to the key.
+        The connection object can be used with standard file-like operations such as write, read, and close.
         """
 
         return open(self.scheme + "://" + key, **{**kwargs, **self.config})
@@ -95,6 +109,19 @@ class StreamKeyValueProvider:
         ------
         TypeError
             If the value is not a supported type.
+
+        Example
+        -------
+        >>> from libs.data import from_bind
+        >>> provider = from_bind('s3_handle')
+        >>> provider.save("my_bucket/my_key.txt", "Hello, world!")
+
+        Notes
+        -----
+        This method saves a key-value pair using the stream-based storage mechanism.
+        If an encoder function is provided, the value is encoded before saving.
+        The method uses the specified key to connect to the storage provider and writes the encoded or
+        original value to the connected key.
         """
 
         if encoder is not None:
@@ -129,6 +156,20 @@ class StreamKeyValueProvider:
         -------
         Any
             The loaded value.
+
+        Example
+        -------
+        >>> from libs.data import from_bind
+        >>> provider = from_bind('s3_handle')
+        >>> value = provider.load("my_bucket/my_key.txt")
+        >>> print(value)
+
+        Notes
+        -----
+        This method loads a value from the specified key using the stream-based storage mechanism.
+        If a decoder function is provided, the loaded value is decoded before returning.
+        The method uses the specified key to connect to the storage provider and reads the value
+        from the connected key. The decoded or raw value is returned.
         """
 
         if decoder:
@@ -145,6 +186,17 @@ class StreamKeyValueProvider:
             The key associated with the value to be deleted.
         **kwargs : dict
             Additional keyword arguments.
+
+        Example
+        -------
+        >>> from libs.data import from_bind
+        >>> provider = from_bind('s3_handle')
+        >>> provider.drop("my_bucket/my_key.txt")
+
+        Notes
+        -----
+        This method deletes a key-value pair from the stream-based storage using the specified key.
+        Any additional keyword arguments are ignored in this implementation.
         """
 
         pass

@@ -139,6 +139,23 @@ class KeyValueRegistry:
         ------
         ValueError
             If no supporting provider is found for the specified scheme.
+
+        Example
+        -------
+        >>> from libs.data import from_bind
+        >>> provider = from_bind('my_handle')
+        >>> provider.save('my_key', 'my_value')
+        >>> value = provider.load('my_key')
+        >>> print(value)
+
+        Notes
+        -----
+        This method generally should not be called directly.
+
+        This method retrieves an instance of a key-value storage provider that supports
+        the specified scheme. It checks the registered provider classes for the given scheme
+        and returns an instance of the first matching provider. If no supporting provider is found,
+        a ValueError is raised.
         """
 
         provider_class = None
@@ -161,6 +178,16 @@ class KeyValueRegistry:
         -------
         List[str]
             A list of supported schemes.
+
+        Example
+        -------
+        >>> schemes = KeyValueRegistry.get_schemes()
+        >>> print(schemes)
+
+        Notes
+        -----
+        This method returns a list of all supported schemes by iterating over the registered provider classes
+        and retrieving the SUPPORTED_SCHEMES attribute from each class.
         """
 
         return [
@@ -173,6 +200,16 @@ class KeyValueRegistry:
     def load_modules(cls) -> None:
         """
         Load modules and register any KeyValueProviders found.
+
+        Example
+        -------
+        >>> KeyValueRegistry.load_modules()
+
+        Notes
+        -----
+        This method loads modules using the pluginloader and registers any classes found that are
+        subclasses of KeyValueProvider. It iterates over the loaded modules, checks each object,
+        and registers it if it meets the criteria.
         """
 
         for module in load(path=__file__, file_mode="all", depth=-1):

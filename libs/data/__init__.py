@@ -159,6 +159,18 @@ def get_provider(protocol: str, scheme: str, *args, **kwargs) -> StorageProvider
     -------
     StorageProvider
         A provider instance supporting the specified scheme.
+
+    Example
+    -------
+    >>> provider = get_provider('my_protocol', 'my_scheme')
+    >>> data = provider.load()
+    >>> print(data)
+
+    Notes
+    -----
+    This function retrieves a provider instance that supports a specified scheme.
+    It checks the registered storage provider registries for the given protocol and scheme,
+    and returns an instance of the storage provider if found.
     """
 
     global _REGISTRY
@@ -178,6 +190,16 @@ def get_supported() -> dict:
     -------
     dict
         A dictionary mapping protocol names to lists of supported schemes.
+
+    Example
+    -------
+    >>> print(get_supported())
+
+    Notes
+    -----
+    This function returns a dictionary that maps protocol names to lists of supported schemes.
+    It iterates over the registered storage provider registries and calls the `get_protocol()`
+    and `get_schemes()` methods to retrieve the supported schemes for each protocol.
     """
 
     global _REGISTRY
@@ -203,6 +225,18 @@ def register_binding(handle: str, protocol: str, scheme: str, *args, **kwargs) -
         Additional positional arguments.
     **kwargs : dict
         Additional keyword arguments.
+
+    Example
+    -------
+    >>> register_binding('my_handle', 'my_protocol', 'my_scheme')
+    >>> provider = from_bind('my_handle')
+    >>> data = provider.load()
+    >>> print(data)
+
+    Notes
+    -----
+    This function registers a binding between a handle and a provider instance.
+    The handle can be used to retrieve the provider instance later using the `from_bind()` function.
     """
 
     global _BINDINGS
@@ -223,6 +257,18 @@ def from_bind(handle: str) -> StorageProvider:
     -------
     StorageProvider
         The provider instance associated with the handle, or None if not found.
+
+    Example
+    -------
+    >>> provider = from_bind('my_handle')
+    >>> data = provider.load()
+    >>> print(data)
+
+    Notes
+    -----
+    This function retrieves a provider instance from a binding using a handle.
+    It looks up the handle in the global bindings dictionary and returns the associated provider instance,
+    or None if the handle is not found.
     """
 
     global _BINDINGS

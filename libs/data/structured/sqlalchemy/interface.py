@@ -14,7 +14,7 @@ class QueryFrame:
         self.__session = session
         self.__select = []
         self.__ops = []
-        self.__sort = []
+        self.__sort = ()
         self.__limit = 0
         self.__offset = 0
     
@@ -117,6 +117,9 @@ class QueryFrame:
             stop = key.stop or 0
         self.__limit = stop - start
         self.__offset = start
+        
+    def sort_values(self, *args):
+        self.__sort = args
 
     def to_pandas(self):
         try:

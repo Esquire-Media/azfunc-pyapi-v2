@@ -1,1 +1,4 @@
 -r libs/requirements.txt
+
+pymp4
+reportlab

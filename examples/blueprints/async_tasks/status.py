@@ -19,6 +19,9 @@ async def async_task_status(req: HttpRequest, client: DurableOrchestrationClient
     status: DurableOrchestrationStatus = await client.get_status(
         req.route_params["instance_id"], show_history=True, show_history_output=True
     )
+    if not status:
+        return HttpResponse(status_code=404)
+
     obj = {
         "started": status.created_time.isoformat(),
         "updated": status.last_updated_time.isoformat(),

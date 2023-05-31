@@ -1,3 +1,4 @@
+from marshmallow import Schema
 from sqlalchemy import Column
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import InstrumentedAttribute, Mapper, Query, Session
@@ -85,9 +86,13 @@ class QueryFrame:
         self.__session = session
         self.__select = []
         self.__ops = []
-        self.__sort = []
+        self.__sort = ()
         self.__limit = 0
         self.__offset = 0
+    
+    @property
+    def schema(self) -> Schema:
+        pass
 
     @property
     def __primary_key__(self) -> Column:
@@ -306,6 +311,9 @@ class QueryFrame:
             stop = key.stop or 0
         self.__limit = stop - start
         self.__offset = start
+        
+    def sort_values(self, *args):
+        self.__sort = args
 
     def sort_values(self, *args) -> None:
         """

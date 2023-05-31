@@ -3,7 +3,14 @@ from .marshmallow import extend_models as extend_models_marshmallow, schema
 from .utils import extend_models as extend_models_base, name_for_collection_relationship
 from libs.utils.decorators import staticproperty
 
-from sqlalchemy import create_engine, Engine
+from sqlalchemy import (
+    create_engine,
+    Column,
+    Engine,
+    Integer,
+    MetaData,
+    PrimaryKeyConstraint,
+)
 from sqlalchemy.ext.automap import automap_base, AutomapBase
 from sqlalchemy.orm import Session
 from typing import Any, Callable, List
@@ -37,12 +44,8 @@ class SQLAlchemyStructuredProvider:
         kw = kwargs.keys()
         kwargs.pop("scheme")
         self.id: str = uuid.uuid4().hex
-        self.schemas: List[str] = (
-            kwargs.pop("schemas")
-            if "schemas" in kw
-            else [kwargs.pop("schema")]
-            if "schema" in kw
-            else []
+        self.schemas: List[str] = kwargs.pop(
+            "schemas", [s] if (s := kwargs.pop("schema", None)) else None
         )
         self.engine: Engine = (
             kwargs.pop("engine")
@@ -54,16 +57,43 @@ class SQLAlchemyStructuredProvider:
         if not self.engine:
             raise Exception("No engine configuration values specified.")
 
-        self.base: AutomapBase = automap_base()
+        self.metadata = MetaData()
+        if self.schemas:
+            for s in self.schemas:
+                self.metadata.reflect(bind=self.engine, schema=s, views=True)
+                for table in self.metadata.tables.values(): 
+                    if table.schema == s:
+                        if not table.primary_key:
+                            for col in table.c:
+                                if (c := col.name.lower()) == "id" or c == "uuid" or c == "guid":
+                                    col.primary_key = True
+                                    table.append_constraint(PrimaryKeyConstraint(col))
+                                elif c[-3:] == "_id":
+                                    col.primary_key = True
+                                    table.append_constraint(PrimaryKeyConstraint(col))
+                        if not table.primary_key:
+                            table.append_column(Column("fake_pk_id", Integer, primary_key=True))
+                            table.append_constraint(PrimaryKeyConstraint("fake_pk_id"))
+        else:
+            self.metadata.reflect(bind=self.engine, views=True)
+            for table in self.metadata.tables.values():
+                if not table.primary_key:
+                    for col in table.c:
+                        if (c := col.name.lower()) == "id" or c == "uuid" or c == "guid":
+                            col.primary_key = True
+                            table.append_constraint(PrimaryKeyConstraint(col))
+                        elif c[-3:] == "_id":
+                            col.primary_key = True
+                            table.append_constraint(PrimaryKeyConstraint(col))
+                if not table.primary_key:
+                    table.append_column(Column("fake_pk_id", Integer, primary_key=True))
+                    table.append_constraint(PrimaryKeyConstraint("fake_pk_id"))
+        self.base: AutomapBase = automap_base(metadata=self.metadata)
         self.session: Callable = lambda: Session(self.engine)
-
-        for schema in self.schemas:
-            self.base.prepare(
-                autoload_with=self.engine,
-                schema=schema,
-                modulename_for_table=self.modulename_for_table,
-                name_for_collection_relationship=name_for_collection_relationship,
-            )
+        self.base.prepare(
+            modulename_for_table=self.modulename_for_table,
+            name_for_collection_relationship=name_for_collection_relationship,
+        )
         self.models = self.base.by_module.get(self.id)
 
         for func in MODEL_EXTENSION_STEPS:
@@ -78,7 +108,13 @@ class SQLAlchemyStructuredProvider:
 
     def __getitem__(self, handle):
         selected = self.models
-        for selector in handle.split(self.RESOURCE_TYPE_DELIMITER):
+        selectors = handle.split(self.RESOURCE_TYPE_DELIMITER)
+        if self.schemas:
+            if selectors[0] not in self.schemas:
+                selectors = [self.schemas[0]] + selectors
+        else:
+            selectors = [self.DEFAULT_SCHEMA] + selectors
+        for selector in selectors:
             selected = selected[selector]
         return QueryFrame(selected, self.session)
 

@@ -3,11 +3,6 @@ from libs.utils.decorators import staticproperty
 from .interface import QueryFrame
 from .marshmallow import extend_models as extend_models_marshmallow, schema
 from .utils import extend_models as extend_models_base, name_for_collection_relationship
-<<<<<<< HEAD
-from libs.utils.decorators import staticproperty
-
-=======
->>>>>>> 73a975e52303f1db67ef1be0f138a6edb31b626d
 from sqlalchemy import (
     create_engine,
     Column,
@@ -124,13 +119,6 @@ class SQLAlchemyStructuredProvider:
         if self.schemas:
             for s in self.schemas:
                 self.metadata.reflect(bind=self.engine, schema=s, views=True)
-<<<<<<< HEAD
-                for table in self.metadata.tables.values(): 
-                    if table.schema == s:
-                        if not table.primary_key:
-                            for col in table.c:
-                                if (c := col.name.lower()) == "id" or c == "uuid" or c == "guid":
-=======
                 for table in self.metadata.tables.values():
                     if table.schema == s:
                         if not table.primary_key:
@@ -140,35 +128,26 @@ class SQLAlchemyStructuredProvider:
                                     or c == "uuid"
                                     or c == "guid"
                                 ):
->>>>>>> 73a975e52303f1db67ef1be0f138a6edb31b626d
                                     col.primary_key = True
                                     table.append_constraint(PrimaryKeyConstraint(col))
                                 elif c[-3:] == "_id":
                                     col.primary_key = True
                                     table.append_constraint(PrimaryKeyConstraint(col))
                         if not table.primary_key:
-<<<<<<< HEAD
-                            table.append_column(Column("fake_pk_id", Integer, primary_key=True))
-=======
                             table.append_column(
                                 Column("fake_pk_id", Integer, primary_key=True)
                             )
->>>>>>> 73a975e52303f1db67ef1be0f138a6edb31b626d
                             table.append_constraint(PrimaryKeyConstraint("fake_pk_id"))
         else:
             self.metadata.reflect(bind=self.engine, views=True)
             for table in self.metadata.tables.values():
                 if not table.primary_key:
                     for col in table.c:
-<<<<<<< HEAD
-                        if (c := col.name.lower()) == "id" or c == "uuid" or c == "guid":
-=======
                         if (
                             (c := col.name.lower()) == "id"
                             or c == "uuid"
                             or c == "guid"
                         ):
->>>>>>> 73a975e52303f1db67ef1be0f138a6edb31b626d
                             col.primary_key = True
                             table.append_constraint(PrimaryKeyConstraint(col))
                         elif c[-3:] == "_id":

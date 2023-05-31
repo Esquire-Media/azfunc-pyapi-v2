@@ -2,7 +2,8 @@ from libs.utils.pluginloader import load
 from typing import Any, List, Protocol, runtime_checkable
 import inspect
 
-
+# Define StorageProvider protocol. 
+# Classes implementing this protocol must have save() and load() methods.
 @runtime_checkable
 class StorageProvider(Protocol):
     """
@@ -45,6 +46,9 @@ class StorageProvider(Protocol):
         pass  # Placeholder for load method
 
 
+# Define StorageProviderRegistry protocol.
+# Classes implementing this protocol must have the following class methods:
+# get_protocol(), register(), get_instance(), get_schemes(), and load_modules().
 @runtime_checkable
 class StorageProviderRegistry(Protocol):
     """
@@ -135,7 +139,7 @@ for module in load(path=__file__, depth=1):
             _REGISTRY[name] = obj
             obj.load_modules()  # Load modules for the storage provider registry
 
-
+# Function to retrieve a provider instance supporting a specified scheme
 def get_provider(protocol: str, scheme: str, *args, **kwargs) -> StorageProvider:
     """
     Get a provider instance supporting a specified scheme.
@@ -177,7 +181,7 @@ def get_provider(protocol: str, scheme: str, *args, **kwargs) -> StorageProvider
         if cls.regex_schemes(scheme):
             return cls.get_instance(scheme, *args, **kwargs)
 
-
+# Function to retrieve a dictionary of supported schemes for each protocol
 def get_supported() -> dict:
     """
     Get a dictionary of supported schemes for each protocol.
@@ -199,15 +203,12 @@ def get_supported() -> dict:
     """
 
     global _REGISTRY
-    return {
-        cls.get_protocol().__name__: cls.get_schemes() for _, cls in _REGISTRY.items()
-    }
-
+    return {cls.get_protocol().__name__: cls.get_schemes() for _, cls in _REGISTRY.items()}
 
 # Initialize global bindings dictionary
 _BINDINGS = {}
 
-
+# Function to register a binding between a handle and a provider instance
 def register_binding(handle: str, protocol: str, scheme: str, *args, **kwargs) -> None:
     """
     Register a binding between a handle and a provider instance.
@@ -242,7 +243,7 @@ def register_binding(handle: str, protocol: str, scheme: str, *args, **kwargs) -
     if handle not in _BINDINGS:
         _BINDINGS[handle] = get_provider(protocol, scheme, *args, **kwargs)
 
-
+# Function to retrieve a provider instance from a binding using a handle
 def from_bind(handle: str) -> StorageProvider:
     """
     Retrieve a provider instance from a binding using a handle.

@@ -2,6 +2,15 @@ from marshmallow.fields import Nested, Field
 
 
 def marshmallow_schema_to_dict(self):
+    """
+    Convert Marshmallow schemas to a dictionary representing the structure's schema.
+
+    Returns
+    -------
+    dict
+        Dictionary representing the structure's schema.
+
+    """
     return {
         f"{schema}.{table}": {
             "fields": {
@@ -27,7 +36,6 @@ def marshmallow_schema_to_dict(self):
                     "required": field.required,
                     "allow_none": field.allow_none,
                     "many": field.many,
-                    # "other": [(key,type(getattr(field,key)),getattr(field,key)) for key in dir(field) if key[0:2] != "__"]
                 }
                 for field in getattr(model, f"__marshmallow__")().fields.values()
                 if isinstance(field, Nested)

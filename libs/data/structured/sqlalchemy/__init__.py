@@ -158,6 +158,19 @@ class SQLAlchemyStructuredProvider:
             Additional positional arguments.
         **kwargs : dict
             Additional keyword arguments.
+            Supported optional kwargs include:
+            - engine : Engine
+                The SQLAlchemy Engine object to use as the underlying database engine.
+                If provided, the `url` parameter will be ignored.
+            - url : str
+                The URL string to create the SQLAlchemy Engine object.
+                This parameter is ignored if `engine` is provided.
+            - schema : str
+                The default schema to use if no schema is specified explicitly.
+                This parameter is ignored if `schemas` is provided.
+            - schemas : List[str]
+                The list of schemas to reflect and consider for models.
+                If provided, the `schema` parameter will be ignored.
 
         Examples
         --------
@@ -197,53 +210,39 @@ class SQLAlchemyStructuredProvider:
         # Create the metadata object
         self.metadata = MetaData()
 
+        def prime_table(table):
+            # Check if the table has a primary key defined
+            if not table.primary_key:
+                # Iterate over each column in the table
+                for col in table.c:
+                    # Check if the column name indicates a primary key
+                    c = col.name.lower()
+                    if c in ["id", "uuid", "guid"] or c[-3:] == "_id":
+                        # Set the column as the primary key
+                        col.primary_key = True
+                        table.append_constraint(PrimaryKeyConstraint(col))
+                # If no primary key is found, add a fake primary key column
+                if not table.primary_key:
+                    table.append_column(Column("fake_pk_id", Integer, primary_key=True))
+                    table.append_constraint(PrimaryKeyConstraint("fake_pk_id"))
+
         # Reflect the database tables
         if self.schemas:
             # Reflect tables for specific schemas
             for s in self.schemas:
+                # Reflect tables for the given schema and include views
                 self.metadata.reflect(bind=self.engine, schema=s, views=True)
                 for table in self.metadata.tables.values():
+                    # Check if the table belongs to the current schema
                     if table.schema == s:
-                        if not table.primary_key:
-                            # Set primary key if not defined
-                            for col in table.c:
-                                if (
-                                    (c := col.name.lower()) == "id"
-                                    or c == "uuid"
-                                    or c == "guid"
-                                ):
-                                    col.primary_key = True
-                                    table.append_constraint(PrimaryKeyConstraint(col))
-                                elif c[-3:] == "_id":
-                                    col.primary_key = True
-                                    table.append_constraint(PrimaryKeyConstraint(col))
-                        if not table.primary_key:
-                            # Add a fake primary key column if no primary key defined
-                            table.append_column(
-                                Column("fake_pk_id", Integer, primary_key=True)
-                            )
-                            table.append_constraint(PrimaryKeyConstraint("fake_pk_id"))
+                        # Update the table's primary key if necessary
+                        prime_table(table)
         else:
-            # Reflect tables for all schemas
+            # Reflect tables for all schemas and include views
             self.metadata.reflect(bind=self.engine, views=True)
             for table in self.metadata.tables.values():
-                if not table.primary_key:
-                    # Set primary key if not defined
-                    for col in table.c:
-                        if (
-                            (c := col.name.lower()) == "id"
-                            or c == "uuid"
-                            or c == "guid"
-                        ):
-                            col.primary_key = True
-                            table.append_constraint(PrimaryKeyConstraint(col))
-                        elif c[-3:] == "_id":
-                            col.primary_key = True
-                            table.append_constraint(PrimaryKeyConstraint(col))
-                if not table.primary_key:
-                    # Add a fake primary key column if no primary key defined
-                    table.append_column(Column("fake_pk_id", Integer, primary_key=True))
-                    table.append_constraint(PrimaryKeyConstraint("fake_pk_id"))
+                # Update the table's primary key if necessary
+                prime_table(table)
 
         # Create the base automap
         self.base: AutomapBase = automap_base(metadata=self.metadata)

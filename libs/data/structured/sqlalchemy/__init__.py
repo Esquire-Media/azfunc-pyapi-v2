@@ -43,6 +43,19 @@ class SQLAlchemyStructuredProvider:
     >>> qf = provider["other.table1"]
     >>> qf = qf[[qf["column1"], qf["column2"], qf["column3"]]]
     >>> # Perform actions with the QueryFrame.
+
+    Notes
+    -----
+    The `SQLAlchemyStructuredProvider` class is designed to provide a structured data storage solution using SQLAlchemy.
+    It allows interacting with relational databases by providing methods for storing, loading, and dropping structured data.
+    The class establishes a connection to the database engine and reflects the database schema to dynamically generate models.
+    These models can be used to perform CRUD operations and execute queries on the structured data.
+
+    The `QueryFrame` class, available through the `SQLAlchemyStructuredProvider`, represents a query frame for querying SQLAlchemy models.
+    It provides a convenient way to construct and execute queries on structured data. The `QueryFrame` object allows selecting specific fields,
+    applying filters, sorting, limiting the number of results, and more. It leverages the power of SQLAlchemy's ORM to handle complex queries
+    and retrieve results in a tabular format. The `QueryFrame` can be converted to a pandas DataFrame using the `to_pandas()` method,
+    enabling further data analysis and manipulation.
     """
 
     @staticproperty

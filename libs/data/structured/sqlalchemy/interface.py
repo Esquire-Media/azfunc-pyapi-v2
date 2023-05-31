@@ -2,8 +2,7 @@ from sqlalchemy import Column
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import InstrumentedAttribute, Mapper, Query, Session
 from sqlalchemy.sql.elements import BinaryExpression, BooleanClauseList
-from typing import Any
-import logging
+from typing import Any, List
 
 
 class QueryFrame:
@@ -52,8 +51,21 @@ class QueryFrame:
         Retrieve an attribute as an InstrumentedAttribute.
     __slice(self, key)
         Handle slicing operations on the query frame.
+    sort_values(self, *args)
+        Sort the query results based on the given columns.
     to_pandas(self)
         Convert the query results to a pandas DataFrame.
+
+    Examples
+    --------
+    >>> from sqlalchemy.orm import Session
+    >>> from libs.data.structured.sqlalchemy.interface import QueryFrame
+    >>> from myapp.models import MyModel
+
+    >>> session = Session()
+    >>> query_frame = QueryFrame(MyModel, session)
+    >>> query_frame['column_name']
+    >>> # Perform actions with the retrieved attribute.
     """
 
     def __init__(self, model: Any, session: Session) -> None:
@@ -105,6 +117,11 @@ class QueryFrame:
         -------
         QueryFrame or Any
             The retrieved item or the QueryFrame object.
+
+        Examples
+        --------
+        >>> query_frame['column_name']
+        >>> # Perform actions with the retrieved attribute.
         """
 
         match key:
@@ -134,7 +151,9 @@ class QueryFrame:
         """
 
         query: Query = (
-            self.__session().query(*(self.__select or [self.__model])).select_from(self.__model)
+            self.__session()
+            .query(*(self.__select or [self.__model]))
+            .select_from(self.__model)
         )
         for op in self.__ops:
             query = getattr(query, op[0])(op[1])
@@ -146,7 +165,7 @@ class QueryFrame:
                 query = query.offset(self.__offset)
         return query
 
-    def __call__(self, key: str = None):
+    def __call__(self, key: str = None) -> List[Any]:
         """
         Execute the query and retrieve the results.
 
@@ -159,6 +178,11 @@ class QueryFrame:
         -------
         Any or List[Any]
             The retrieved item or the list of retrieved items.
+
+        Examples
+        --------
+        >>> results = query_frame()
+        >>> # Perform actions with the retrieved results.
         """
 
         if key:
@@ -173,6 +197,11 @@ class QueryFrame:
         -------
         int
             The count of query results.
+
+        Examples
+        --------
+        >>> len(query_frame)
+        >>> # Perform actions with the count.
         """
 
         return self.__build__().count()
@@ -185,6 +214,10 @@ class QueryFrame:
         -------
         str
             The string representation of the query.
+
+        Examples
+        --------
+        >>> print(query_frame)
         """
 
         query = self.__build__()
@@ -214,6 +247,11 @@ class QueryFrame:
         -------
         InstrumentedAttribute or None
             The retrieved attribute as an InstrumentedAttribute or None if not found.
+
+        Examples
+        --------
+        >>> query_frame.__getitem_field('column_name')
+        >>> # Perform actions with the retrieved attribute.
         """
 
         if isinstance(field := getattr(self.__model, key, None), InstrumentedAttribute):
@@ -231,6 +269,11 @@ class QueryFrame:
         Returns
         -------
         None
+
+        Examples
+        --------
+        >>> query_frame[-5:-15]
+        >>> # Perform actions with the sliced results.
         """
 
         if not len(self.__sort):
@@ -264,6 +307,26 @@ class QueryFrame:
         self.__limit = stop - start
         self.__offset = start
 
+    def sort_values(self, *args) -> None:
+        """
+        Sort the query results based on the given columns.
+
+        Parameters
+        ----------
+        *args : Column
+            The columns to sort the query results by.
+
+        Returns
+        -------
+        None
+
+        Examples
+        --------
+        >>> query_frame.sort_values(query_frame["column1"], query_frame["column2"].desc())
+        >>> # Perform actions with the sorted query results.
+        """
+        self.__sort = args
+
     def to_pandas(self):
         """
         Convert the query results to a pandas DataFrame.
@@ -277,6 +340,11 @@ class QueryFrame:
         ------
         Exception
             If pandas is not installed.
+
+        Examples
+        --------
+        >>> df = query_frame.to_pandas()
+        >>> # Perform actions with the DataFrame.
         """
 
         try:

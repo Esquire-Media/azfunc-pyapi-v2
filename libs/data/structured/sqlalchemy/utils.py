@@ -25,6 +25,16 @@ def extend_models(models: List[Any], session: Session) -> None:
     Returns
     -------
     None
+
+    Examples
+    --------
+    >>> from sqlalchemy.orm import Session
+    >>> from libs.data.structured.sqlalchemy.utils import extend_models
+    >>> from myapp.models import MyModel1, MyModel2
+
+    >>> session = Session()
+    >>> models = [MyModel1, MyModel2]
+    >>> extend_models(models, session)
     """
 
     for func in EXTENSION_STEPS:
@@ -48,6 +58,12 @@ def model_set_column(self: object, key: str, value: Any) -> None:
     Returns
     -------
     None
+
+    Examples
+    --------
+    >>> model = MyModel()
+    >>> model_set_column(model, "column_name", value)
+    >>> # The column value is set on the model object.
     """
 
     setattr(self, key, value)
@@ -70,6 +86,18 @@ def model_get(session: Session) -> Callable:
     -------
     Callable
         The __class_getitem__ method.
+
+    Examples
+    --------
+    >>> from sqlalchemy.orm import Session
+    >>> from libs.data.structured.sqlalchemy.utils import model_get
+    >>> from myapp.models import MyModel
+
+    >>> session = Session()
+    >>> model = MyModel
+    >>> get_item_method = model_get(session)
+    >>> get_item_method(model, key)
+    >>> # Perform actions with the retrieved method.
     """
 
     @classmethod
@@ -107,6 +135,18 @@ def name_for_collection_relationship(
     -------
     str
         The name for the collection relationship.
+
+    Examples
+    --------
+    >>> from sqlalchemy.schema import ForeignKeyConstraint
+    >>> from myapp.models import MyModel
+
+    >>> base = MyModel
+    >>> local_cls = MyModel
+    >>> referred_cls = MyModel
+    >>> constraint = ForeignKeyConstraint()
+    >>> name = name_for_collection_relationship(base, local_cls, referred_cls, constraint)
+    >>> # Perform actions with the obtained name.
     """
 
     if constraint.comment:

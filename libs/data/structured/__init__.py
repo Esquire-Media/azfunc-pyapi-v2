@@ -221,6 +221,19 @@ class StructuredRegistry:
         -------
         StructuredProvider
             An instance of the structured data storage provider.
+
+        Example
+        -------
+        >>> from libs.data import from_bind
+        >>> provider = from_bind('structured_handle')
+
+        Notes
+        -----
+        This method generally should not be called directly.
+
+        This method retrieves an instance of a structured data storage provider based on the specified scheme.
+        The scheme is used to identify the appropriate provider class.
+        Additional arguments and keyword arguments are passed to the provider class constructor.
         """
 
         provider_class = None
@@ -246,6 +259,15 @@ class StructuredRegistry:
         -------
         List[str]
             A list of supported schemes.
+
+        Example
+        -------
+        >>> schemes = StructuredRegistry.get_schemes()
+        >>> print(schemes)
+
+        Notes
+        -----
+        This method returns a list of all supported schemes by querying each registered provider.
         """
 
         return [
@@ -268,6 +290,15 @@ class StructuredRegistry:
         -------
         bool
             True if the scheme matches a regular expression scheme, False otherwise.
+
+        Example
+        -------
+        >>> match = StructuredRegistry.regex_schemes("my_scheme")
+        >>> print(match)
+
+        Notes
+        -----
+        This method checks if the specified scheme matches any of the regular expression schemes defined by the registered providers.
         """
 
         for provider in cls._providers:
@@ -280,6 +311,10 @@ class StructuredRegistry:
     def load_modules(cls) -> None:
         """
         Load modules and register any Structured Providers found.
+
+        Notes
+        -----
+        This method loads modules using the pluginloader utility and registers any structured data storage providers found in the modules.
         """
 
         for module in load(path=__file__, file_mode="all", depth=-1):

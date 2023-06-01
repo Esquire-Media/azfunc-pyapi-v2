@@ -4,7 +4,7 @@ from libs.azure.functions import FunctionApp
 app = FunctionApp(http_auth_level=AuthLevel.ANONYMOUS)
 app.register_blueprints(
     [
-        "examples/blueprints/pdf"
+        "libs/azure/functions/blueprints/logger"
     ]
 )
 

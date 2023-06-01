@@ -19,6 +19,7 @@ import geojson
 import shapely.wkb
 import shapely.wkt
 
+# Define type aliases
 GeoJsonType: type = Union[geojson.Feature, geojson.FeatureCollection]
 WkbType: type = Union[
     GeometryCollection,
@@ -33,6 +34,26 @@ WktType: type = WkbType
 
 
 def wkb2geojson(wkb: bytes) -> GeoJsonType:
+    """
+    Converts Well-Known Binary (WKB) geometry to GeoJSON format.
+
+    Parameters
+    ----------
+    wkb : bytes
+        Well-Known Binary (WKB) representation of the geometry.
+
+    Returns
+    -------
+    GeoJsonType
+        The converted geometry in GeoJSON format.
+
+    Notes
+    -----
+    This function converts a WKB geometry to GeoJSON format. It uses the `shapely.wkb.loads` function to load the WKB geometry,
+    validates the geometry, and constructs the GeoJSON representation using the `geojson.Feature` or `geojson.FeatureCollection` class.
+    If the WKB geometry is a `GeometryCollection`, it creates multiple features for each geometry in the collection and returns a `geojson.FeatureCollection`.
+    Otherwise, it creates a single feature with the geometry and returns a `geojson.Feature`.
+    """
     wkb = shapely.wkb.loads(wkb)
     wkb = validate_wkb(wkb)
     if type(wkb) == GeometryCollection:
@@ -45,6 +66,26 @@ def wkb2geojson(wkb: bytes) -> GeoJsonType:
 
 
 def wkt2geojson(wkt: str) -> GeoJsonType:
+    """
+    Converts Well-Known Text (WKT) geometry to GeoJSON format.
+
+    Parameters
+    ----------
+    wkt : str
+        Well-Known Text (WKT) representation of the geometry.
+
+    Returns
+    -------
+    GeoJsonType
+        The converted geometry in GeoJSON format.
+
+    Notes
+    -----
+    This function converts a WKT geometry to GeoJSON format. It uses the `shapely.wkt.loads` function to load the WKT geometry,
+    validates the geometry, and constructs the GeoJSON representation using the `geojson.Feature` or `geojson.FeatureCollection` class.
+    If the WKT geometry is a `GeometryCollection`, it creates multiple features for each geometry in the collection and returns a `geojson.FeatureCollection`.
+    Otherwise, it creates a single feature with the geometry and returns a `geojson.Feature`.
+    """
     wkt = shapely.wkt.loads(wkt)
     wkt = validate_wkt(wkt)
     if type(wkt) == GeometryCollection:
@@ -59,6 +100,27 @@ def wkt2geojson(wkt: str) -> GeoJsonType:
 def geojson2shape(
     data: Union[GeoJsonType, dict]
 ) -> Union[GeometryCollection, Polygon, MultiPolygon,]:
+    """
+    Converts GeoJSON format to Shapely geometry objects.
+
+    Parameters
+    ----------
+    data : Union[GeoJsonType, dict]
+        The GeoJSON geometry or dictionary representing the GeoJSON geometry.
+
+    Returns
+    -------
+    Union[GeometryCollection, Polygon, MultiPolygon]
+        The converted Shapely geometry.
+
+    Notes
+    -----
+    This function converts GeoJSON format to Shapely geometry objects. It validates the input GeoJSON using the `validate_geojson` function,
+    and constructs the Shapely geometry objects using the `shape` function. If the GeoJSON is a `Polygon`, it orients the polygon with a positive sign.
+    If the GeoJSON is a `MultiPolygon`, it orients each polygon in the collection with a positive sign. If the GeoJSON is a `Feature`,
+    it extracts the geometry and converts it to Shapely format. If the GeoJSON is a `FeatureCollection`, it iterates over the features,
+    converts each geometry to Shapely format, and returns a `GeometryCollection`.
+    """
     data = validate_geojson(data)
     if data.get("type") == "Polygon":
         return polygon.orient(shape(data), sign=1.0)
@@ -76,14 +138,68 @@ def geojson2shape(
 
 
 def geojson2wkb(data: Union[GeoJsonType, dict]) -> WktType:
+    """
+    Converts GeoJSON format to Well-Known Binary (WKB) representation.
+
+    Parameters
+    ----------
+    data : Union[GeoJsonType, dict]
+        The GeoJSON geometry or dictionary representing the GeoJSON geometry.
+
+    Returns
+    -------
+    WktType
+        The converted Well-Known Binary (WKB) representation.
+
+    Notes
+    -----
+    This function converts GeoJSON format to Well-Known Binary (WKB) representation. It validates the input GeoJSON using the `validate_geojson` function,
+    converts the GeoJSON to Shapely format using the `geojson2shape` function, and retrieves the WKB representation of the Shapely geometry using the `.wkb` attribute.
+    """
     return geojson2shape(validate_geojson(data)).wkb
 
 
 def geojson2wkt(data: Union[GeoJsonType, dict]) -> WktType:
+    """
+    Converts GeoJSON format to Well-Known Text (WKT) representation.
+
+    Parameters
+    ----------
+    data : Union[GeoJsonType, dict]
+        The GeoJSON geometry or dictionary representing the GeoJSON geometry.
+
+    Returns
+    -------
+    WktType
+        The converted Well-Known Text (WKT) representation.
+
+    Notes
+    -----
+    This function converts GeoJSON format to Well-Known Text (WKT) representation. It validates the input GeoJSON using the `validate_geojson` function,
+    converts the GeoJSON to Shapely format using the `geojson2shape` function, and retrieves the WKT representation of the Shapely geometry using the `.wkt` attribute.
+    """
     return geojson2shape(validate_geojson(data)).wkt
 
 
 def validate_geojson(data: Union[GeoJsonType, dict]) -> GeoJsonType:
+    """
+    Validates the GeoJSON format.
+
+    Parameters
+    ----------
+    data : Union[GeoJsonType, dict]
+        The GeoJSON geometry or dictionary representing the GeoJSON geometry.
+
+    Returns
+    -------
+    GeoJsonType
+        The validated GeoJSON geometry.
+
+    Notes
+    -----
+    This function validates the GeoJSON format using the `geojson.loads` and `geojson.dumps` functions.
+    It ensures that the GeoJSON is valid and returns the validated GeoJSON object.
+    """
     data = geojson.loads(geojson.dumps(data))
     if not data.is_valid:
         return None
@@ -92,12 +208,48 @@ def validate_geojson(data: Union[GeoJsonType, dict]) -> GeoJsonType:
 
 
 def validate_wkb(data: WkbType) -> WkbType:
+    """
+    Validates the Well-Known Binary (WKB) representation.
+
+    Parameters
+    ----------
+    data : WkbType
+        The Well-Known Binary (WKB) representation of the geometry.
+
+    Returns
+    -------
+    WkbType
+        The validated Well-Known Binary (WKB) representation.
+
+    Notes
+    -----
+    This function validates the Well-Known Binary (WKB) representation using the `.is_valid` attribute of the Shapely geometry object.
+    It ensures that the WKB representation is valid and returns the validated WKB object.
+    """
     if not data.is_valid:
         return None
     return data
 
 
 def validate_wkt(data: WktType) -> WktType:
+    """
+    Validates the Well-Known Text (WKT) representation.
+
+    Parameters
+    ----------
+    data : WktType
+        The Well-Known Text (WKT) representation of the geometry.
+
+    Returns
+    -------
+    WktType
+        The validated Well-Known Text (WKT) representation.
+
+    Notes
+    -----
+    This function validates the Well-Known Text (WKT) representation using the `.is_valid` attribute of the Shapely geometry object.
+    It ensures that the WKT representation is valid and returns the validated WKT object.
+    """
     if not data.is_valid:
         return None
     return data
@@ -105,12 +257,33 @@ def validate_wkt(data: WktType) -> WktType:
 
 def latlon_buffer(lat: float, lon: float, radius: int, cap_style=int):
     """
-    Creates a buffer circle around a latlong point with a given radius in meters.
+    Create a buffer circle around a latitude-longitude point with a given radius in meters.
 
-    Params:
-    cap_style: round = 1, flat = 2, square = 3
+    Parameters
+    ----------
+    lat : float
+        The latitude of the center point.
+    lon : float
+        The longitude of the center point.
+    radius : int
+        The radius of the buffer circle in meters.
+    cap_style : int, optional
+        The style of the buffer cap. Possible values are:
+            - round: 1
+            - flat: 2
+            - square: 3
+        Default is `int`.
 
-    Modified from latlon_circle
+    Returns
+    -------
+    shapely.geometry.Polygon
+        The buffered polygon representing the circle.
+
+    Notes
+    -----
+    This function creates a buffer circle around a latitude-longitude point using the Shapely library.
+    It transforms the coordinates to an azimuthal equidistant projection centered at the given point,
+    creates a buffer using the projected coordinates, and then transforms the buffer back to latitude-longitude coordinates.
     """
 
     local_azimuthal_projection = (
@@ -136,16 +309,28 @@ def latlon_buffer(lat: float, lon: float, radius: int, cap_style=int):
 
 def points_in_poly_numpy(x: np.array, y: np.array, poly: np.array) -> np.array:
     """
-    Finds points that are within given polygon coordinates.
-    Uses numpy to vectorize and check all points quickly
+    Find points that are within a given polygon.
 
-    Args:
-        x       : x-coordinates of the points to check
-        y       : y-coordinates of the points to check
-        poly    : coordinates of the polygon
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The x-coordinates of the points to check.
+    y : numpy.ndarray
+        The y-coordinates of the points to check.
+    poly : numpy.ndarray
+        The coordinates of the polygon vertices.
 
-    Returns:
-        inside: boolean array the length of the points. True if the point is inside the polygon, False otherwise
+    Returns
+    -------
+    numpy.ndarray
+        A boolean array with the same length as the input points.
+        True if the point is inside the polygon, False otherwise.
+
+    Notes
+    -----
+    This function uses numpy vectorization to efficiently check if points are inside a polygon.
+    It iterates through the polygon vertices and checks if each point is within the bounds of the corresponding polygon segment.
+    The function returns a boolean array indicating whether each point is inside the polygon or not.
     """
 
     n = len(poly)

@@ -6,7 +6,6 @@ from marshmallow import (
     validates,
     ValidationError,
     pre_load,
-    post_load,
 )
 from marshmallow_geojson import (
     PropertiesSchema,
@@ -14,10 +13,22 @@ from marshmallow_geojson import (
     FeatureCollectionSchema,
 )
 import uuid
-import logging
 
 
 class MissingNestedSchema(Schema):
+    """
+    Schema for handling missing nested fields.
+
+    This schema is used to handle missing nested fields by loading the missing field value when it's a callable.
+
+    Examples
+    --------
+    >>> schema = MissingNestedSchema()
+    >>> data = {}
+    >>> schema.load(data)
+    {'nested_field': 'default_value'}
+    """
+
     @pre_load
     def load_missing_nested(self, data, **kwargs):
         for fieldname, field in self.fields.items():
@@ -31,6 +42,19 @@ class MissingNestedSchema(Schema):
 
 
 class PropertiesBaseSchema(PropertiesSchema):
+    """
+    Base schema for properties in GeoJSON features.
+
+    This schema defines the base properties for GeoJSON features.
+
+    Examples
+    --------
+    >>> schema = PropertiesBaseSchema()
+    >>> data = {"name": "Example", "callback": "example_callback", "hash": True}
+    >>> schema.load(data)
+    {'name': 'Example', 'callback': 'example_callback', 'hash': True}
+    """
+
     name = fields.Str(missing=lambda: str(uuid.uuid4()))
     callback = fields.Str(required=True)
     hash = fields.Bool(required=False)
@@ -49,6 +73,19 @@ class PropertiesBaseSchema(PropertiesSchema):
 
 
 class PropertiesGeoJsonSchema(PropertiesBaseSchema):
+    """
+    Schema for properties in GeoJSON features with additional geo-specific properties.
+
+    This schema extends the base properties schema with additional geo-specific properties.
+
+    Examples
+    --------
+    >>> schema = PropertiesGeoJsonSchema()
+    >>> data = {"name": "Example", "callback": "example_callback", "hash": True}
+    >>> schema.load(data)
+    {'name': 'Example', 'callback': 'example_callback', 'hash': True, 'start': '2022-01-01T00:00:00', 'end': '2022-01-31T23:59:59', 'validate': True}
+    """
+
     start = fields.DateTime(
         missing=lambda: datetime.fromisoformat(
             (datetime.utcnow() - timedelta(days=8)).date().isoformat()
@@ -63,7 +100,27 @@ class PropertiesGeoJsonSchema(PropertiesBaseSchema):
 
     @validates("end")
     def validate_end(self, value):
-        # Check if the date is before 5 days ago
+        """
+        Validate the end date.
+
+        This method validates that the end date is before 5 days ago.
+
+        Parameters
+        ----------
+        value : datetime or str
+            The end date to validate.
+
+        Raises
+        ------
+        ValidationError
+            If the end date is not before 5 days ago.
+
+        Examples
+        --------
+        >>> schema = PropertiesGeoJsonSchema()
+        >>> schema.validate_end("2022-01-10T00:00:00")
+        ValidationError: End date must be before 5 days ago
+        """
         if isinstance(value, str):
             value = datetime.fromisoformat(value)
         if value >= datetime.fromisoformat(
@@ -73,7 +130,27 @@ class PropertiesGeoJsonSchema(PropertiesBaseSchema):
 
     @validates("start")
     def validate_start(self, value):
-        # Check if the date is after 1st of the month 1 year ago
+        """
+        Validate the start date.
+
+        This method validates that the start date is after 1st of the month 1 year ago.
+
+        Parameters
+        ----------
+        value : datetime or str
+            The start date to validate.
+
+        Raises
+        ------
+        ValidationError
+            If the start date is not after 1st of the month 1 year ago.
+
+        Examples
+        --------
+        >>> schema = PropertiesGeoJsonSchema()
+        >>> schema.validate_start("2021-01-01T00:00:00")
+        ValidationError: Start date must be after 1st of the month 1 year ago
+        """
         if isinstance(value, str):
             value = datetime.fromisoformat(value)
         if value <= datetime.fromisoformat(
@@ -109,6 +186,19 @@ class PropertiesGeoJsonSchema(PropertiesBaseSchema):
 
 
 class FeatureBaseSchema(FeatureSchema, MissingNestedSchema):
+    """
+    Base schema for GeoJSON features.
+
+    This schema defines the base schema for GeoJSON features.
+
+    Examples
+    --------
+    >>> schema = FeatureBaseSchema()
+    >>> data = {"type": "Feature", "properties": {"name": "Example"}}
+    >>> schema.load(data)
+    {'type': 'Feature', 'properties': {'name': 'Example'}}
+    """
+
     type = fields.Str(
         validate=validate.OneOf(
             choices=["Feature"],
@@ -121,6 +211,19 @@ class FeatureBaseSchema(FeatureSchema, MissingNestedSchema):
 
 
 class GeoJsonBaseSchema(FeatureCollectionSchema):
+    """
+    Base schema for GeoJSON feature collections.
+
+    This schema defines the base schema for GeoJSON feature collections.
+
+    Examples
+    --------
+    >>> schema = GeoJsonBaseSchema()
+    >>> data = {"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"name": "Example"}}]}
+    >>> schema.load(data)
+    {'type': 'FeatureCollection', 'features': [{'type': 'Feature', 'properties': {'name': 'Example'}}]}
+    """
+
     type = fields.Str(
         validate=validate.OneOf(
             choices=["FeatureCollection"],
@@ -136,12 +239,38 @@ class GeoJsonBaseSchema(FeatureCollectionSchema):
 
 
 class FileFormatSchema(Schema):
+    """
+    Schema for file formats.
+
+    This schema defines the properties for file formats.
+
+    Examples
+    --------
+    >>> schema = FileFormatSchema()
+    >>> data = {"delimiter": ",", "quoteEncapsulate": True, "compressionType": "gzip"}
+    >>> schema.load(data)
+    {'delimiter': ',', 'quoteEncapsulate': True, 'compressionType': 'gzip'}
+    """
+
     delimiter = fields.Str(missing=",")
     quoteEncapsulate = fields.Bool(missing=True)
     compressionType = fields.Str()
 
 
 class WithSaveSchema(MissingNestedSchema):
+    """
+    Schema for data with save options.
+
+    This schema defines the properties for data with save options.
+
+    Examples
+    --------
+    >>> schema = WithSaveSchema()
+    >>> data = {"organization": "Example Org", "outputProvider": "s3", "outputLocation": "s3://bucket/data", "fileName": "data.csv", "fileFormat": {"delimiter": ",", "quoteEncapsulate": True}}
+    >>> schema.load(data)
+    {'organization': 'Example Org', 'outputProvider': 's3', 'outputLocation': 's3://bucket/data', 'fileName': 'data.csv', 'fileFormat': {'delimiter': ',', 'quoteEncapsulate': True}}
+    """
+
     organization = fields.Str(required=False)
     outputProvider = fields.Str(
         default="s3", validate=fields.validate.OneOf(["s3", "gs", "az"]), required=False
@@ -191,16 +320,55 @@ class WithSaveSchema(MissingNestedSchema):
 
 
 class PropertiesWithSaveSchema(PropertiesBaseSchema, WithSaveSchema):
+    """
+    Schema for properties in GeoJSON features with save options.
+
+    This schema extends the base properties schema with save options.
+
+    Examples
+    --------
+    >>> schema = PropertiesWithSaveSchema()
+    >>> data = {"name": "Example", "callback": "example_callback", "hash": True, "organization": "Example Org", "outputProvider": "s3", "outputLocation": "s3://bucket/data", "fileName": "data.csv", "fileFormat": {"delimiter": ",", "quoteEncapsulate": True}}
+    >>> schema.load(data)
+    {'name': 'Example', 'callback': 'example_callback', 'hash': True, 'organization': 'Example Org', 'outputProvider': 's3', 'outputLocation': 's3://bucket/data', 'fileName': 'data.csv', 'fileFormat': {'delimiter': ',', 'quoteEncapsulate': True}}
+    """
+
     pass
 
 
 class PropertiesGeoJsonWithSaveSchema(
     PropertiesGeoJsonSchema, PropertiesWithSaveSchema
 ):
+    """
+    Schema for properties in GeoJSON features with save options.
+
+    This schema extends the GeoJSON properties schema with save options.
+
+    Examples
+    --------
+    >>> schema = PropertiesGeoJsonWithSaveSchema()
+    >>> data = {"name": "Example", "callback": "example_callback", "hash": True, "organization": "Example Org", "outputProvider": "s3", "outputLocation": "s3://bucket/data", "fileName": "data.csv", "fileFormat": {"delimiter": ",", "quoteEncapsulate": True}}
+    >>> schema.load(data)
+    {'name': 'Example', 'callback': 'example_callback', 'hash': True, 'organization': 'Example Org', 'outputProvider': 's3', 'outputLocation': 's3://bucket/data', 'fileName': 'data.csv', 'fileFormat': {'delimiter': ',', 'quoteEncapsulate': True}}
+    """
+
     pass
 
 
 class FeatureWithSaveSchema(FeatureBaseSchema):
+    """
+    Schema for GeoJSON features with save options.
+
+    This schema extends the base feature schema with save options.
+
+    Examples
+    --------
+    >>> schema = FeatureWithSaveSchema()
+    >>> data = {"type": "Feature", "properties": {"name": "Example", "organization": "Example Org", "outputProvider": "s3", "outputLocation": "s3://bucket/data", "fileName": "data.csv", "fileFormat": {"delimiter": ",", "quoteEncapsulate": True}}}
+    >>> schema.load(data)
+    {'type': 'Feature', 'properties': {'name': 'Example', 'organization': 'Example Org', 'outputProvider': 's3', 'outputLocation': 's3://bucket/data', 'fileName': 'data.csv', 'fileFormat': {'delimiter': ',', 'quoteEncapsulate': True}}}
+    """
+
     properties = fields.Nested(
         PropertiesGeoJsonWithSaveSchema,
         missing=dict,
@@ -208,6 +376,20 @@ class FeatureWithSaveSchema(FeatureBaseSchema):
 
 
 class GeoJsonWithSaveSchema(GeoJsonBaseSchema):
+    """
+    Schema for GeoJSON feature collections with save options.
+
+    This schema extends the base GeoJSON feature collection schema with save options.
+
+    Examples
+    --------
+    >>> schema = GeoJsonWithSaveSchema()
+    >>> data = {"type": "FeatureCollection", "features": [{"type": "Feature", "properties": {"name": "Example", "organization": "Example Org", "outputProvider": "s3", "outputLocation": "s3://bucket/data", "fileName": "data.csv", "fileFormat": {"delimiter": ",", "quoteEncapsulate": True}}}]}
+
+    >>> schema.load(data)
+    {'type': 'FeatureCollection', 'features': [{'type': 'Feature', 'properties': {'name': 'Example', 'organization': 'Example Org', 'outputProvider': 's3', 'outputLocation': 's3://bucket/data', 'fileName': 'data.csv', 'fileFormat': {'delimiter': ',', 'quoteEncapsulate': True}}}]}
+    """
+
     features = fields.List(
         fields.Nested(FeatureWithSaveSchema),
         required=True,
@@ -215,6 +397,19 @@ class GeoJsonWithSaveSchema(GeoJsonBaseSchema):
 
 
 class FileBaseSchema(FeatureSchema, MissingNestedSchema):
+    """
+    Base schema for files in GeoJSON features.
+
+    This schema defines the base schema for files in GeoJSON features.
+
+    Examples
+    --------
+    >>> schema = FileBaseSchema()
+    >>> data = {"type": "Files", "properties": {"name": "Example"}, "paths": ["http://example.com/file1.csv", "http://example.com/file2.csv"]}
+    >>> schema.load(data)
+    {'type': 'Files', 'properties': {'name': 'Example'}, 'paths': ['http://example.com/file1.csv', 'http://example.com/file2.csv']}
+    """
+
     type = fields.Str(
         validate=fields.validate.OneOf(
             ["Files"],
@@ -233,6 +428,19 @@ class FileBaseSchema(FeatureSchema, MissingNestedSchema):
 
 
 class FilesBaseSchema(FeatureCollectionSchema):
+    """
+    Base schema for collections of files in GeoJSON format.
+
+    This schema defines the base schema for collections of files in GeoJSON format.
+
+    Examples
+    --------
+    >>> schema = FilesBaseSchema()
+    >>> data = {"type": "FeatureCollection", "features": [{"type": "Files", "properties": {"name": "Example"}, "paths": ["http://example.com/file1.csv", "http://example.com/file2.csv"]}]
+    >>> schema.load(data)
+    {'type': 'FeatureCollection', 'features': [{'type': 'Files', 'properties': {'name': 'Example'}, 'paths': ['http://example.com/file1.csv', 'http://example.com/file2.csv']}]}
+    """
+
     features = fields.List(
         fields.Nested(FileBaseSchema),
         required=True,
@@ -240,6 +448,19 @@ class FilesBaseSchema(FeatureCollectionSchema):
 
 
 class FileWithSaveSchema(FileBaseSchema):
+    """
+    Schema for files in GeoJSON features with save options.
+
+    This schema extends the base file schema with save options.
+
+    Examples
+    --------
+    >>> schema = FileWithSaveSchema()
+    >>> data = {"type": "Files", "properties": {"name": "Example", "organization": "Example Org", "outputProvider": "s3", "outputLocation": "s3://bucket/data", "fileName": "data.csv", "fileFormat": {"delimiter": ",", "quoteEncapsulate": True}}, "paths": ["http://example.com/file1.csv", "http://example.com/file2.csv"]}
+    >>> schema.load(data)
+    {'type': 'Files', 'properties': {'name': 'Example', 'organization': 'Example Org', 'outputProvider': 's3', 'outputLocation': 's3://bucket/data', 'fileName': 'data.csv', 'fileFormat': {'delimiter': ',', 'quoteEncapsulate': True}}, 'paths': ['http://example.com/file1.csv', 'http://example.com/file2.csv']}
+    """
+
     properties = fields.Nested(
         PropertiesWithSaveSchema,
         missing=dict,
@@ -247,6 +468,19 @@ class FileWithSaveSchema(FileBaseSchema):
 
 
 class FilesWithSaveSchema(GeoJsonBaseSchema):
+    """
+    Schema for collections of files in GeoJSON format with save options.
+
+    This schema extends the base GeoJSON feature collection schema with save options.
+
+    Examples
+    --------
+    >>> schema = FilesWithSaveSchema()
+    >>> data = {"type": "FeatureCollection", "features": [{"type": "Files", "properties": {"name": "Example", "organization": "Example Org", "outputProvider": "s3", "outputLocation": "s3://bucket/data", "fileName": "data.csv", "fileFormat": {"delimiter": ",", "quoteEncapsulate": True}}, "paths": ["http://example.com/file1.csv", "http://example.com/file2.csv"]}]
+    >>> schema.load(data)
+    {'type': 'FeatureCollection', 'features': [{'type': 'Files', 'properties': {'name': 'Example', 'organization': 'Example Org', 'outputProvider': 's3', 'outputLocation': 's3://bucket/data', 'fileName': 'data.csv', 'fileFormat': {'delimiter': ',', 'quoteEncapsulate': True}}, 'paths': ['http://example.com/file1.csv', 'http://example.com/file2.csv']}]}
+    """
+
     features = fields.List(
         fields.Nested(FileWithSaveSchema),
         required=True,

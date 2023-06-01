@@ -5,6 +5,46 @@ import sys
 
 
 def load(path: str, file_mode: str = "init", depth: int = 0):
+    """
+    Load modules from a specified path.
+
+    Parameters
+    ----------
+    path : str
+        The path to the directory or file to load modules from.
+    file_mode : str, optional
+        The file mode to filter the modules, by default "init".
+        Possible values:
+        - "init": Only load modules with the filename "__init__.py".
+        - "non-init": Only load modules without the filename "__init__.py".
+        - "all": Load all modules regardless of the filename.
+    depth : int, optional
+        The depth of subdirectories to traverse.
+        - If depth is 0, only modules in the specified path will be loaded.
+        - If depth is -1, all modules in the subdirectories will be loaded.
+        - If depth is greater than 0, modules in the specified path and up to the specified depth will be loaded.
+
+    Returns
+    -------
+    list
+        A list of loaded module objects.
+
+    Notes
+    -----
+    This function loads Python modules from the specified path.
+    It recursively traverses subdirectories based on the specified depth and filters modules based on the file mode.
+
+    The loaded modules are returned as a list of module objects.
+
+    Examples
+    --------
+    Load modules from the specified path and perform operations with them:
+
+    >>> modules = load("/path/to/plugins", file_mode="non-init", depth=2)
+    >>> for module in modules:
+    ...     # Perform operations with the loaded module
+    """
+    
     if ".py" in path:
         parent = Path(path).parent
     else:

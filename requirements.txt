@@ -2,3 +2,4 @@
 
 pymp4
 reportlab
+ipykernel

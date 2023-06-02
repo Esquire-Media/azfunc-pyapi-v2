@@ -5,17 +5,23 @@ azure-functions-durable>=1.2.3 # Blueprints Required
 azure-storage-blob
 
 # required
-frozendict
-itsdangerous
+## data handling
 marshmallow
 marshmallow-jsonapi
 marshmallow-sqlalchemy>=0.29.0
 pandas>=2.0.0
-py-abac
-querystring-parser
 smart-open
 sqlalchemy>=2.0.0
+## openapi
+aiopenapi3 @ git+https://github.com/Esquire-Media/aiopenapi3
+httpx_auth
+## tools
+frozendict
+querystring-parser
 werkzeug
+## security
+itsdangerous
+py-abac
 
 # optional
 ## database connectors

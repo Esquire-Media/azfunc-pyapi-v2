@@ -107,37 +107,3 @@ def parse_exception(error_string):
             message += chr(byte)
 
     return messages
-
-import smart_open
-from pymp4.parser import Box
-import struct
-
-
-def mp4_metadata(path, **kwargs):
-    """Returns an iterator to read MP4 boxes one at a time.
-
-    Parameters
-    ----------
-    path : str
-        The path to the MP4 file.
-    """
-    with smart_open.open(**kwargs, uri=path, mode="rb") as f:
-        boxes = []
-        while True:
-            # Read the size and type of the next box
-            try:
-                size, box_type = struct.unpack(">I4s", f.read(8))
-            except:
-                # If we reached the end of the file, stop iterating
-                break
-            
-            # Seek to the beginning on this box
-            if box_type == b"mdat":
-                # Skip over the box data
-                f.seek(f.tell() + size - 8)
-            else:
-                f.seek(f.tell() - 8)
-
-                # Read the entire box data
-                boxes.append(Box.parse(f.read(size)))
-        return boxes

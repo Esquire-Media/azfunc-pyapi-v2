@@ -1,5 +1,6 @@
 from libs.azure.functions import Blueprint
-from marshmallow import Schema, fields, validate, ValidationError, validates_schema
+from marshmallow import Schema, fields, validate
+from dateutil.relativedelta import relativedelta
 
 bp = Blueprint()
 
@@ -19,7 +20,22 @@ class AdvertiserSchema(Schema):
 
 class DateRangeSchema(Schema):
     start = fields.Date(required=True)
-    end = fields.Date(required=False)
+    end = fields.Date()
+    months = fields.Integer()
+
+    def validate(self, data, **kwargs):
+        if 'start' in data and 'end' in data:
+            start = data['start']
+            end = data['end']
+            months = relativedelta(end, start).months
+            data['months'] = months
+        elif 'start' in data and 'months' in data:
+            start = data['start']
+            months = data['months']
+            end = start + relativedelta(months=months)
+            data['end'] = end
+
+        return super().validate(data, **kwargs)
 
 
 class FilterSchema(Schema):
@@ -28,8 +44,18 @@ class FilterSchema(Schema):
     value = fields.Raw(required=True)
 
 
+CARIBBEAN_ISO       = [28, 44, 52, 192, 212, 214, 308, 332, 388, 659, 662, 670, 780]
+CENTRAL_AMERICA_ISO = [84, 188, 222, 320, 340, 484, 558, 591]
+NORTH_AMERICA_ISO   = [124, 840, 304]
+SOUTH_AMERICA_ISO   = [32, 68, 76, 152, 170, 218, 254, 328, 604, 600, 740, 858, 862]
+
 class BaseSchema(Schema):
-    cities = fields.List(fields.Str())
+    country = fields.Int(
+        required=True,
+        validate=validate.OneOf(
+            CARIBBEAN_ISO + CENTRAL_AMERICA_ISO + NORTH_AMERICA_ISO + SOUTH_AMERICA_ISO
+        ),
+    )
     zips = fields.List(fields.Int())
 
 
@@ -43,17 +69,5 @@ class CampaignSchema(Schema):
     advertiser = fields.Nested(AdvertiserSchema, required=True)
     date_range = fields.Nested(DateRangeSchema, required=True)
     budget = fields.Int(required=True)
-    impressions = fields.Int(required=True)
     creative = fields.Url(required=True)
     targeting = fields.List(fields.Nested(TargetingSchema))
-
-    @validates_schema
-    def validate_budget(self, data, **kwargs):
-        CPM = 25
-        if "budget" in data and "impressions" in data:
-            min_budget = data["impressions"] / (CPM * 1000)
-            if data["budget"] < min_budget:
-                raise ValidationError(
-                    f'"budget" is too low to reach the request number of "impressions"',
-                    "budget",
-                )

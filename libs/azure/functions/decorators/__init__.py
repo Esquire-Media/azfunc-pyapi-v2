@@ -1,6 +1,11 @@
 from .http import HttpDecoratorApi
-from azure.durable_functions import BluePrint as DFBP
-from azure.functions import AuthLevel, FunctionRegister
+from azure.durable_functions.decorators.durable_app import Blueprint as DFBP
+from azure.functions import (
+    AuthLevel,
+    FunctionRegister,
+    TriggerApi,
+    BindingApi,
+)
 from azure.functions.decorators.function_app import FunctionBuilder
 from functools import wraps
 from libs.utils.logging import AzureTableHandler
@@ -9,6 +14,7 @@ import importlib.util
 import inspect
 import logging
 import os
+
 try:
     import simplejson as json
 except:
@@ -76,7 +82,7 @@ class Blueprint(DFBP, HttpDecoratorApi):
                                 "url": trigger_arg.url,
                                 "method": trigger_arg.method,
                                 "headers": dict(trigger_arg.headers),
-                                "params": dict(trigger_arg.route_params)
+                                "params": dict(trigger_arg.route_params),
                             }
                             if trigger_type == "httpTrigger"
                             else {},
@@ -159,7 +165,8 @@ class Blueprint(DFBP, HttpDecoratorApi):
         user_code_with_middleware = _middleware
         fb._function._func = user_code_with_middleware
 
-class FunctionApp(Blueprint, FunctionRegister):
+
+class FunctionApp(Blueprint, FunctionRegister, TriggerApi, BindingApi):
     def __init__(self, http_auth_level: AuthLevel | str = AuthLevel.FUNCTION):
         """
         Function app class for registering blueprints.
@@ -257,7 +264,9 @@ class FunctionApp(Blueprint, FunctionRegister):
         elif path.endswith("/"):
             path = path[:-1]  # Remove / from the end
         else:
-            single_file = True  # If it doesn't end with / or /*, assume it's a single file
+            single_file = (
+                True  # If it doesn't end with / or /*, assume it's a single file
+            )
 
         # Function to process a single file
         def process_file(file_path):

@@ -22,6 +22,8 @@ bp = Blueprint()
 def async_task_handler(context: DurableOrchestrationContext):
     context.set_custom_status("Validating Request Data")
     request = yield context.call_activity("validate_request", context.get_input())
+    
+    context.set_custom_status("Validating Creative Asset")
     creative_md5 = yield context.call_activity("validate_creative", request["creative"])
 
     try:
@@ -31,38 +33,43 @@ def async_task_handler(context: DurableOrchestrationContext):
         )
     except:
         context.set_custom_status("Awaiting: New Advertiser Registration")
-        advertiser = yield context.wait_for_external_event("oneview_advertiser_id")
+        advertiser_event = yield context.wait_for_external_event("oneview_advertiser_id")
         
-    events = []
-    try:
-        campaign = TABLE_CLIENTS["campaigns"].get_entity(
-            partition_key=advertiser["RowKey"],
-            row_key=context.instance_id,
-        )
-    except:
-        events.append["oneview_campaign_id"]
+        advertiser = TABLE_CLIENTS["advertisers"].create_entity({
+            "PartitionKey": request["advertiser"]["tenant"],
+            "RowKey": request["advertiser"]["id"],
+            "OrganizationName": request["advertiser"]["name"],
+            "Domain": request["advertiser"]["domain"],
+            "ContentCategory": request["advertiser"]["category"],
+            "OneView_AdvertiserID": advertiser_event["advertiser_id"],
+            "OneView_OrgID": advertiser_event["organization_id"],
+        })
+        
     try:
         creative = TABLE_CLIENTS["creatives"].get_entity(
             partition_key=advertiser["RowKey"],
             row_key=creative_md5,
         )
     except:
-        events.append["oneview_campaign_id"]
+        context.set_custom_status("Awaiting: Creative Registration")
+        creative_event = yield context.wait_for_external_event("oneview_creative_id")
+        creative = TABLE_CLIENTS["creatives"].create_entity({
+            "PartitionKey": advertiser["RowKey"],
+            "RowKey": creative_md5,
+            "OneView_CreativeID": creative_event["creative_id"]
+        })
         
-    events = ['oneview_campaign_id', 'oneview_creative_id', 'event3']  # Replace with your actual event names
-    event_tasks = [context.wait_for_external_event(event) for event in events]
+    context.set_custom_status("Awaiting: Campaign Registration")
+    campaign_event = yield context.wait_for_external_event("oneview_campaign_id")
+    campaign = TABLE_CLIENTS["campaigns"].create_entity({
+        "PartitionKey": advertiser["RowKey"],
+        "RowKey": campaign_event["campaign_id"]
+    })
     
-    while event_tasks:
-        done_task = yield context.task_any(event_tasks)
-        completed_event = events[event_tasks.index(done_task)]
-        event_tasks.remove(done_task)
-        
-        # When each event completes, update an Azure Table entity based on the event name
-        entity = {'PartitionKey': 'pkey', 'RowKey': completed_event, 'completed': True}
-        table_service.insert_or_replace_entity(table_name, entity)
-
-    approval = yield context.wait_for_external_event("Approval")
-    if approval:
-        return "Approved"
-    else:
-        return "Rejected"
+    
+    context.set_custom_status("Awaiting: Flight Registration")
+    flight_event = yield context.wait_for_external_event("oneview_flight_id")
+    flight = TABLE_CLIENTS["flights"].create_entity({
+        "PartitionKey": campaign["RowKey"],
+        "RowKey": flight_event["flight_id"],
+    })

@@ -1,5 +1,5 @@
 -r libs/requirements.txt
 
-pymp4
-reportlab
-ipykernel
+chardet
+fsspec[http]
+git+https://github.com/ggpwnkthx/pyisobmff

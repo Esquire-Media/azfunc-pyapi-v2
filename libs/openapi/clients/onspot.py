@@ -1062,19 +1062,8 @@ class OnSpotAPI:
                     "content": {
                         "application/json": {
                             "schema": {
-                                "allOf": [
-                                    {"$ref": "#/components/schemas/Async"},
-                                    {
-                                        "type": "object",
-                                        "properties": {
-                                            "location": {
-                                                "type": "string",
-                                                "example": "s3://mybucket/myorganization/Feature Example.csv",
-                                                "description": "Location File will be uploaded to",
-                                            }
-                                        },
-                                    },
-                                ]
+                                "type": "array",
+                                "items": {"$ref": "#/components/schemas/AsyncSave"}
                             }
                         }
                     },
@@ -1208,6 +1197,26 @@ class OnSpotAPI:
                         },
                     },
                     "required": ["id", "name"],
+                    "type": "object",
+                },
+                "AsyncSave": {
+                    "properties": {
+                        "id": {
+                            "description": "Unique id used to track the async request",
+                            "example": "123e4567-e89b-12d3-a456-426655440000",
+                            "type": "string",
+                        },
+                        "name": {
+                            "description": "Name of the feature that this result was generated from",
+                            "example": "Feature Example",
+                            "type": "string",
+                        },
+                        "location": {
+                            "type": "string",
+                            "example": "s3://mybucket/myorganization/Feature Example.csv",
+                            "description": "Location File will be uploaded to",
+                        },
+                    },
                     "type": "object",
                 },
                 "AttributionBase": {

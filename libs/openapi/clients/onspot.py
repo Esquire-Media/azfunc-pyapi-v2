@@ -159,17 +159,8 @@ class OnSpotAPI:
         from this request is then used as the document parameter to initialize the
         OpenAPI object.
         """
-        spec_url = f'https://api.{"" if production else "qa."}onspotdata.com/openapi'
-        auth = httpx_auth.HeaderApiKey(
-            api_key=api_key, header_name="x-api-key"
-        ) + httpx_auth.AWS4Auth(
-            access_id=access_key,
-            secret_key=secret_key,
-            region=region,
-            service="execute-api",
-        )
         api = OpenAPI(
-            url="https://osd-api-docs.s3.amazonaws.com/openapi.json",
+            url=f'https://api.{"" if production else "qa."}onspotdata.com/openapi',
             document=OnSpotAPI.spec,
             plugins=[OnSpotInitPlugin(production=production)],
         )

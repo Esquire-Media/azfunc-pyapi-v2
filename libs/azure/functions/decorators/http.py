@@ -1,4 +1,4 @@
-from ..http import HttpResponse
+from ..http import HttpResponse, HttpRequest
 from .jsonapi import (
     parse_request as parse_request_jsonapi,
     alter_response as alter_response_jsonapi,
@@ -8,17 +8,56 @@ from .session import (
     alter_response as alter_response_session,
 )
 from asyncio import iscoroutinefunction
-from azure.functions.decorators.core import BindingDirection
+from azure.functions.decorators.core import Binding, BindingDirection
 from azure.functions.decorators.constants import HTTP_TRIGGER, HTTP_OUTPUT
-from azure.functions.decorators.function_app import DecoratorApi
+from azure.functions.decorators.function_app import DecoratorApi, FunctionBuilder
 from functools import wraps
 from typing import Any, Callable, Optional
 import os
 
+import logging
+from libs.utils.logging import AzureTableHandler
+
+# Create a logger
+logger = logging.getLogger("example_logger")
+logger.setLevel(logging.DEBUG)
+# Create an instance of the custom handler
+custom_handler = AzureTableHandler()
+custom_handler.setLevel(logging.DEBUG)
+# Create a formatter and set it on the custom handler
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+custom_handler.setFormatter(formatter)
+# Add the custom handler to the logger
+logger.addHandler(custom_handler)
+
 
 class HttpDecoratorApi(DecoratorApi):
     @staticmethod
-    def get_request_binding(wrap):
+    def apply_middleware_http(fb: FunctionBuilder, func: Any):
+        if binding := HttpDecoratorApi.get_request_binding(fb):
+            user_code = fb._function._func
+            if iscoroutinefunction(user_code):
+                # Asynchronous middleware function
+                @wraps(user_code)
+                async def middleware(*args, **kwargs):
+                    return func(
+                        *args, http_trigger_binding=binding, **kwargs
+                    ) or await user_code(*args, **kwargs)
+
+            else:
+                # Synchronous middleware function
+                @wraps(user_code)
+                def middleware(*args, **kwargs):
+                    return func(
+                        *args, http_trigger_binding=binding, **kwargs
+                    ) or user_code(*args, **kwargs)
+
+            # Assign the enhanced user-defined code (middleware) back to the function wrapper
+            enhanced_user_code = middleware
+            fb._function._func = enhanced_user_code
+
+    @staticmethod
+    def get_request_binding(wrap: FunctionBuilder) -> Binding:
         """
         Get the request binding from the function wrapper.
 
@@ -46,7 +85,7 @@ class HttpDecoratorApi(DecoratorApi):
         return None
 
     @staticmethod
-    def get_response_binding(wrap):
+    def get_response_binding(wrap: FunctionBuilder) -> Binding:
         """
         Get the response binding from the function wrapper.
 
@@ -75,7 +114,7 @@ class HttpDecoratorApi(DecoratorApi):
 
     def _enhance_http_request(
         self,
-        wrap: Callable,
+        wrap: FunctionBuilder,
         property_name: str,
         value: Any = None,
         func: Callable = None,
@@ -102,57 +141,19 @@ class HttpDecoratorApi(DecoratorApi):
         This method enhances the HTTP request object by adding a new property or function to it.
         The property name and value can be specified directly, or a function can be provided to compute the value dynamically.
         The enhanced HTTP request object is then passed to the user's code.
-
-        Steps:
-        1. Check if there is an HTTP trigger binding in the function wrapper.
-        2. Get the user-defined code from the function wrapper.
-        3. Check if the user-defined code is a coroutine function (async) or a regular function.
-        4. Define a middleware function that wraps the user-defined code.
-            - Retrieve the HTTP request object from the function arguments.
-            - Set the specified property name on the request object.
-                - If a value is provided directly, use it.
-                - If a function is provided, call it with the request object and additional function arguments.
-        5. Call the user-defined code (either asynchronously or synchronously) with the modified arguments.
-        6. Return the result of the user-defined code.
-
-        The enhanced user-defined code (middleware) is assigned back to the function wrapper.
         """
-        if binding := self.get_request_binding(wrap):
-            user_code = wrap._function._func
-
-            if iscoroutinefunction(user_code):
-                # Asynchronous middleware function
-                @wraps(user_code)
-                async def middleware(*args, **kwargs):
-                    # Set the specified property on the request object
-                    setattr(
-                        kwargs[binding.name],
-                        property_name,
-                        value or func(kwargs[binding.name], **func_kwargs),
-                    )
-                    # Call the user-defined code
-                    return await user_code(*args, **kwargs)
-
-            else:
-                # Synchronous middleware function
-                @wraps(user_code)
-                def middleware(*args, **kwargs):
-                    # Set the specified property on the request object
-                    setattr(
-                        kwargs[binding.name],
-                        property_name,
-                        value or func(kwargs[binding.name], **func_kwargs),
-                    )
-                    # Call the user-defined code
-                    return user_code(*args, **kwargs)
-
-            # Assign the enhanced user-defined code (middleware) back to the function wrapper
-            enhanced_user_code = middleware
-            wrap._function._func = enhanced_user_code
+        self.apply_middleware_http(
+            wrap,
+            lambda *args, http_trigger_binding, **kwargs: setattr(
+                kwargs[http_trigger_binding.name],
+                property_name,
+                value or func(kwargs[http_trigger_binding.name], **func_kwargs),
+            ),
+        )
 
     def _enhance_http_response(
         self,
-        wrap: Callable,
+        wrap: FunctionBuilder,
         property_name: str = None,
         value: Any = None,
         func: Callable = None,
@@ -197,6 +198,7 @@ class HttpDecoratorApi(DecoratorApi):
 
         The enhanced user-defined code (middleware) is assigned back to the function wrapper.
         """
+
         if binding := self.get_response_binding(wrap):
             user_code = wrap._function._func
 
@@ -285,7 +287,7 @@ class HttpDecoratorApi(DecoratorApi):
         """
 
         @self._configure_function_builder
-        def wrap(fb):
+        def wrap(fb: FunctionBuilder):
             def decorator():
                 # Append the JSON API route parameters to the existing route
                 self.get_request_binding(
@@ -348,7 +350,7 @@ class HttpDecoratorApi(DecoratorApi):
         """
 
         @self._configure_function_builder
-        def wrap(fb):
+        def wrap(fb: FunctionBuilder):
             def decorator():
                 # Enhance the HTTP request object with the `session` property using `parse_request_session`
                 self._enhance_http_request(
@@ -365,6 +367,29 @@ class HttpDecoratorApi(DecoratorApi):
                     func=alter_response_session,
                     secret=secret,
                     max_age=max_age,
+                )
+                return fb
+
+            return decorator()
+
+        return wrap
+
+    def easy_auth(self, enforce: bool = True) -> Callable:
+        @self._configure_function_builder
+        def wrap(fb: FunctionBuilder):
+            def decorator():
+                self.apply_middleware_http(
+                    fb,
+                    lambda *args, http_trigger_binding, **kwargs: None
+                    if not enforce
+                    else None
+                    if kwargs[http_trigger_binding.name].headers.get(
+                        "x-ms-client-principal-idp"
+                    )
+                    and kwargs[http_trigger_binding.name].headers.get(
+                        "x-ms-client-principal-id"
+                    )
+                    else HttpResponse(status_code=403),
                 )
                 return fb
 

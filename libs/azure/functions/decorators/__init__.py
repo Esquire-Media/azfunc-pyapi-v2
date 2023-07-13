@@ -1,11 +1,6 @@
 from .http import HttpDecoratorApi
-from azure.durable_functions.decorators.durable_app import Blueprint as DFBP
-from azure.functions import (
-    AuthLevel,
-    FunctionRegister,
-    TriggerApi,
-    BindingApi,
-)
+from azure.durable_functions.decorators.durable_app import Blueprint as DFBlueprint
+from azure.functions import AuthLevel, FunctionRegister
 from azure.functions.decorators.function_app import FunctionBuilder
 from functools import wraps
 from libs.utils.logging import AzureTableHandler
@@ -27,7 +22,7 @@ if __handler not in __logger.handlers:
     __logger.addHandler(__handler)
 
 
-class Blueprint(DFBP, HttpDecoratorApi):
+class Blueprint(DFBlueprint, HttpDecoratorApi):
     def logger(self, name: str = "azure.functions.decorator"):
         """
         Configure the logger for the decorator.
@@ -77,15 +72,13 @@ class Blueprint(DFBP, HttpDecoratorApi):
                                 for k in dir(trigger_arg)
                                 if not k.startswith("_")
                             }
-                            if trigger_type == "timerTrigger"
+                            if trigger_type != "httpTrigger"
                             else {
                                 "url": trigger_arg.url,
                                 "method": trigger_arg.method,
                                 "headers": dict(trigger_arg.headers),
                                 "params": dict(trigger_arg.route_params),
                             }
-                            if trigger_type == "httpTrigger"
-                            else {},
                         ),
                     }
                 },
@@ -166,7 +159,7 @@ class Blueprint(DFBP, HttpDecoratorApi):
         fb._function._func = user_code_with_middleware
 
 
-class FunctionApp(Blueprint, FunctionRegister, TriggerApi, BindingApi):
+class FunctionApp(Blueprint, FunctionRegister):
     def __init__(self, http_auth_level: AuthLevel | str = AuthLevel.FUNCTION):
         """
         Function app class for registering blueprints.

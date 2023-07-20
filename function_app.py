@@ -4,5 +4,5 @@ from libs.azure.functions import FunctionApp
 app = FunctionApp(http_auth_level=AuthLevel.ANONYMOUS)
 
 app.register_blueprints([
-    "libs/azure/functions/blueprints/audience_generation/*",
+    "libs/azure/functions/blueprints/daily_audience_generation/*",
 ])

@@ -1,8 +1,8 @@
-# File: blueprints/async_tasks/entities/request.py
+# File: libs/azure/functions/blueprints/async_tasks/entities/request.py
 
 from azure.durable_functions import DurableEntityContext
-from blueprints.roku_async.helpers import TABLE_CLIENTS, calculate_missing_campaigns
-from blueprints.roku_async.schemas import (
+from libs.azure.functions.blueprints.roku_async.helpers import TABLE_CLIENTS
+from libs.azure.functions.blueprints.roku_async.schemas import (
     RequestSchema,
     AdvertiserRecordSchema,
     CreativeRecordSchema,
@@ -101,6 +101,9 @@ def roku_async_entity_request(context: DurableEntityContext):
                 many=True,
             )
     except:
+        value["existing"]["flights"] = []
+
+    if "flights" not in value["existing"]:
         value["existing"]["flights"] = []
 
     ingress = context.get_input()

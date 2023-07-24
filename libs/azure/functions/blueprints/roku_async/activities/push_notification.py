@@ -1,4 +1,4 @@
-# File: blueprints/async_tasks/activities/push_notification.py
+# File: libs/azure/functions/blueprints/async_tasks/activities/push_notification.py
 
 from libs.azure.functions import Blueprint
 from libs.azure.key_vault import KeyVaultClient

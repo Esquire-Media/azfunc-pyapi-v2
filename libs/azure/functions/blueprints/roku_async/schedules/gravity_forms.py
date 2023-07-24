@@ -1,8 +1,11 @@
-# File: blueprints/schedules/report.py
+# File: libs/azure/functions/blueprints/schedules/report.py
 
 from azure.durable_functions import DurableOrchestrationClient
 from azure.functions import TimerRequest
-from blueprints.roku_async.helpers import TABLE_CLIENTS, request_initializer
+from libs.azure.functions.blueprints.roku_async.helpers import (
+    TABLE_CLIENTS,
+    request_initializer,
+)
 from libs.azure.functions import Blueprint
 from libs.openapi.clients.gravity_forms import GravityFormsAPI
 
@@ -136,7 +139,9 @@ async def roku_async_schedule_gravity_forms(
                                             "zips": [
                                                 zipcode.strip()
                                                 for zipcode in entry[
-                                                    COUNTRY_MAP[agency["GravityForms_FormID"]][key]
+                                                    COUNTRY_MAP[
+                                                        agency["GravityForms_FormID"]
+                                                    ][key]
                                                 ].split(",")
                                             ],
                                         },
@@ -154,6 +159,8 @@ async def roku_async_schedule_gravity_forms(
                             )
 
                             # Initialize the request and get the instance id of the started task
-                            instanceId = await request_initializer(request=payload, client=client)
+                            instanceId = await request_initializer(
+                                request=payload, client=client
+                            )
                 else:
                     break

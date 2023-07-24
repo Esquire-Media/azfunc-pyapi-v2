@@ -1,4 +1,4 @@
-# File: blueprints/async_tasks/helpers.py
+# File: libs/azure/functions/blueprints/async_tasks/helpers.py
 
 from azure.data.tables import TableServiceClient
 from azure.durable_functions import DurableOrchestrationClient, EntityId

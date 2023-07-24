@@ -8,3 +8,11 @@ register_binding(
     url=os.environ["DATABIND_SQL_ROKU"],
     schemas=["dbo"],
 )
+
+register_binding(
+    "salesforce",
+    "Structured",
+    "sql",
+    url=os.environ["DATABIND_SQL_SALESFORCE"],
+    schemas=["dbo"],
+)

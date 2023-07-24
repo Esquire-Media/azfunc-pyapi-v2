@@ -1,7 +1,7 @@
-# File: blueprints/schedules/report.py
+# File: libs/azure/functions/blueprints/schedules/report.py
 
 from azure.functions import TimerRequest
-from blueprints.roku_async.helpers import TABLE_CLIENTS
+from libs.azure.functions.blueprints.roku_async.helpers import TABLE_CLIENTS
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
@@ -22,7 +22,7 @@ def generate_reports_accounting(delta):
 
     provider = from_bind("roku")
     for agency in TABLE_CLIENTS["agencies"].query_entities("PartitionKey eq 'tenants'"):
-        df: pd.DataFrame = generate_report_insights(
+        df: pd.DataFrame = generate_report_accounting(
             provider, agency["OneView_AgencyID"], start, end
         ).to_pandas()
         if "CPM_Client" in agency.keys():

@@ -1,20 +1,22 @@
-# File: blueprints/async_tasks/activities/validate_creative.py
+# File: libs/azure/functions/blueprints/async_tasks/activities/validate_creative.py
 
 from azure.durable_functions import DurableOrchestrationClient, EntityId
-from blueprints.roku_async.schemas import RequestSchema
+from libs.azure.functions.blueprints.roku_async.schemas import RequestSchema
 from libs.azure.functions import Blueprint
 import isobmff
 import fsspec
 import hashlib
-import logging
 
 
 bp = Blueprint()
 
+
 # Define an Azure Durable Activity Function
 @bp.activity_trigger(input_name="instanceId")
 @bp.durable_client_input(client_name="client")
-async def roku_async_activity_validate_creative(instanceId: str, client: DurableOrchestrationClient) -> str:
+async def roku_async_activity_validate_creative(
+    instanceId: str, client: DurableOrchestrationClient
+) -> str:
     """
     Validate the creative video file with certain conditions.
 
@@ -41,10 +43,13 @@ async def roku_async_activity_validate_creative(instanceId: str, client: Durable
     """
 
     # Get state
-    entity_id = EntityId("roku_async_entity_request", instanceId)
-    state = await client.read_entity_state(entity_id)
+    state = await client.read_entity_state(
+        EntityId("roku_async_entity_request", instanceId)
+    )
     while not state.entity_exists:
-        state = await client.read_entity_state(entity_id)
+        state = await client.read_entity_state(
+            EntityId("roku_async_entity_request", instanceId)
+        )
     state = RequestSchema().loads(state.entity_state)
 
     # Create a filesystem object for HTTP
@@ -149,6 +154,8 @@ async def roku_async_activity_validate_creative(instanceId: str, client: Durable
     # Generate the MD5 hash of the 'moov' box in the ISOBMFF file
     md5 = hashlib.md5(iso["moov"].slice.read()).hexdigest()
 
-    await client.signal_entity(entity_id, "creative_md5", md5)
+    await client.signal_entity(
+        EntityId("roku_async_entity_request", instanceId), "creative_md5", md5
+    )
 
     return md5

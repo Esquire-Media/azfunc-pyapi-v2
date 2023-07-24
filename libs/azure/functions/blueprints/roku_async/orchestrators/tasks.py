@@ -1,8 +1,11 @@
-# File: blueprints/orchestrators/tasks.py
+# File: libs/azure/functions/blueprints/orchestrators/tasks.py
 
 from azure.durable_functions import DurableOrchestrationContext, EntityId
-from blueprints.roku_async.schemas import RequestSchema
-from blueprints.roku_async.helpers import calculate_missing_campaigns, calculate_missing_flights
+from libs.azure.functions.blueprints.roku_async.schemas import RequestSchema
+from libs.azure.functions.blueprints.roku_async.helpers import (
+    calculate_missing_campaigns,
+    calculate_missing_flights,
+)
 from libs.azure.functions import Blueprint
 
 bp = Blueprint()
@@ -49,8 +52,9 @@ def roku_async_orchestrator_tasks(context: DurableOrchestrationContext):
         )
 
         # Get the current state of the instance
-        entity_id = EntityId("roku_async_entity_request", context.instance_id)
-        state = yield context.call_entity(entity_id, "get")
+        state = yield context.call_entity(
+            EntityId("roku_async_entity_request", context.instance_id), "get"
+        )
         state = schema.loads(state)
 
         # For each of the tasks "advertiser", "creative", "campaign", if the task
@@ -60,21 +64,35 @@ def roku_async_orchestrator_tasks(context: DurableOrchestrationContext):
             if not state["existing"][task]:
                 context.set_custom_status(f"Awaiting: {task.capitalize()} Registration")
                 event = yield context.wait_for_external_event(task)
-                state = yield context.call_entity(entity_id, task, event)
+                state = yield context.call_entity(
+                    EntityId("roku_async_entity_request", context.instance_id),
+                    task,
+                    event,
+                )
                 state = schema.loads(state)
 
         # If there are missing months, wait for flight registration
         while campaigns := calculate_missing_campaigns(state):
-            context.set_custom_status(f"Awaiting: {len(campaigns)} Campaign Registrations")
+            context.set_custom_status(
+                f"Awaiting: {len(campaigns)} Campaign Registrations"
+            )
             event = yield context.wait_for_external_event("campaign")
-            state = yield context.call_entity(entity_id, "campaign", event)
+            state = yield context.call_entity(
+                EntityId("roku_async_entity_request", context.instance_id),
+                "campaign",
+                event,
+            )
             state = schema.loads(state)
 
         # If there are missing months, wait for flight registration
         while flights := calculate_missing_flights(state):
             context.set_custom_status(f"Awaiting: {len(flights)} Flight Registrations")
             event = yield context.wait_for_external_event("flight")
-            state = yield context.call_entity(entity_id, "flight", event)
+            state = yield context.call_entity(
+                EntityId("roku_async_entity_request", context.instance_id),
+                "flight",
+                event,
+            )
             state = schema.loads(state)
 
         return schema.dumps(state)
@@ -90,7 +108,11 @@ def roku_async_orchestrator_tasks(context: DurableOrchestrationContext):
                 for s in traceback.extract_stack()
             ],
         }
-        state = yield context.call_entity(entity_id, "error", exc_dict)
+        state = yield context.call_entity(
+            EntityId("roku_async_entity_request", context.instance_id),
+            "error",
+            exc_dict,
+        )
         yield context.call_activity(
             "roku_async_activity_push_notification", schema.dump(schema.loads(state))
         )

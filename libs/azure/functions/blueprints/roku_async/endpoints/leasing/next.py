@@ -1,4 +1,4 @@
-# File: blueprints/async_tasks/endpoints/leasing/next.py
+# File: libs/azure/functions/blueprints/async_tasks/endpoints/leasing/next.py
 
 from azure.durable_functions import (
     DurableOrchestrationClient,
@@ -8,7 +8,10 @@ from azure.durable_functions import (
 from azure.durable_functions.models.DurableOrchestrationStatus import (
     DurableOrchestrationStatus,
 )
-from blueprints.roku_async.schemas import RequestSchema, StatusSchema
+from libs.azure.functions.blueprints.roku_async.schemas import (
+    RequestSchema,
+    StatusSchema,
+)
 from datetime import datetime
 from libs.azure.functions import Blueprint
 from libs.azure.functions.http import HttpRequest, HttpResponse
@@ -20,7 +23,9 @@ bp = Blueprint()
 @bp.easy_auth()
 @bp.route(route="async/lease/next", methods=["GET"])
 @bp.durable_client_input(client_name="client")
-async def roku_async_endpoint_lease_next(req: HttpRequest, client: DurableOrchestrationClient):
+async def roku_async_endpoint_lease_next(
+    req: HttpRequest, client: DurableOrchestrationClient
+):
     """
     Asynchronously handle lease request and returns status.
 

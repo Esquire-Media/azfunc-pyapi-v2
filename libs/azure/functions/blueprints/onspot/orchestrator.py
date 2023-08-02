@@ -1,7 +1,6 @@
 from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
-from libs.utils.helpers import parse_exception
-import logging
+from urllib.parse import urlparse
 
 bp = Blueprint()
 
@@ -9,32 +8,32 @@ bp = Blueprint()
 @bp.orchestration_trigger(context_name="context")
 def onspot_orchestrator(context: DurableOrchestrationContext):
     # Format the request
-    try:
-        eventIds = yield context.call_activity(
-            name="onspot_activity_format", input_=context.instance_id
-        )
-    except Exception as e:
-        return {"errors": parse_exception(e.args[0])}
+    request = yield context.call_activity(
+        name="onspot_async_activity_format",
+        input_={
+            "instance_id": context.instance_id,
+            "request": context.get_input()["request"],
+        },
+    )
 
     # Prepare for callbacks using external events
     events = [
-        context.wait_for_external_event(eventId)
-        for eventId in eventIds
+        context.wait_for_external_event(
+            urlparse(f["properties"]["callback"]).path.split("/")[-1]
+        )
+        for f in request["features"]
     ]
 
     # Submit request
-    yield context.call_activity(
-        name="onspot_activity_submit",
-        input_=context.instance_id,
+    jobs = yield context.call_activity(
+        name="onspot_async_activity_submit",
+        input_={
+            "endpoint": context.get_input()["endpoint"],
+            "request": request,
+        },
     )
 
     # Wait for all of the callbacks
-    yield context.task_all(events)
-    
-    # Process callbacks to get results
-    results = yield context.call_activity(
-        name="onspot_activity_result",
-        input_=context.instance_id
-    )
+    callbacks = yield context.task_all(events)
 
-    return results
+    return {"jobs": jobs, "callbacks": callbacks}

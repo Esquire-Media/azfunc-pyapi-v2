@@ -1,3 +1,5 @@
+# File: libs/azure/functions/blueprints/onspot/orchestrator.py
+
 from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
 from urllib.parse import urlparse
@@ -9,7 +11,7 @@ bp = Blueprint()
 def onspot_orchestrator(context: DurableOrchestrationContext):
     # Format the request
     request = yield context.call_activity(
-        name="onspot_async_activity_format",
+        name="onspot_activity_format",
         input_={
             "instance_id": context.instance_id,
             "request": context.get_input()["request"],
@@ -26,7 +28,7 @@ def onspot_orchestrator(context: DurableOrchestrationContext):
 
     # Submit request
     jobs = yield context.call_activity(
-        name="onspot_async_activity_submit",
+        name="onspop_activity_submit",
         input_={
             "endpoint": context.get_input()["endpoint"],
             "request": request,

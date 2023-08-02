@@ -1,3 +1,5 @@
+# File: libs/azure/functions/blueprints/onspot/activities/submit.py
+
 from libs.azure.functions import Blueprint
 from libs.openapi.clients.onspot import OnSpotAPI
 

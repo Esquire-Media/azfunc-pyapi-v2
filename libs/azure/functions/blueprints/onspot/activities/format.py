@@ -1,3 +1,5 @@
+# File: libs/azure/functions/blueprints/onspot/activities/format.py
+
 from azure.durable_functions import DurableOrchestrationClient
 from azure.storage.blob import (
     ContainerClient,

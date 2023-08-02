@@ -1,3 +1,5 @@
+# File: libs/azure/functions/blueprints/onspot/starters/http.py
+
 from azure.durable_functions import DurableOrchestrationClient
 from libs.azure.functions import Blueprint
 from libs.azure.functions.http import HttpRequest
@@ -12,7 +14,7 @@ async def onspot_starter_http(
 ):
     endpoint = "/" + req.route_params["endpoint"]
     instance_id = await client.start_new(
-        "onspot_async_orchestrator",
+        "onspot_orchestrator",
         None,
         {
             "endpoint": endpoint,

@@ -1,14 +1,29 @@
 {
   "IsEncrypted": false,
   "Values": {
+    "REVERSE_PROXY": "https://********.com",
+    "TASK_HUB_NAME": "development",
+
     "FUNCTIONS_WORKER_RUNTIME": "python",
     "AzureWebJobsStorage": "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;",
     "AzureWebJobsFeatureFlags": "EnableWorkerIndexing",
-    "TASK_HUB_NAME": "development",
 
+    "KEY_VAULT": "********",
+    "O365_EMAIL_ACCOUNT_ID": "********",
     "SESSION_SECRET": "ThisIsTheSecretKey",
     "SESSION_MAX_AGE": "3600",
+    "DEFAULT_JSONAPI_PAGE_SIZE": "1000",
 
-    "DEFAULT_JSONAPI_PAGE_SIZE": "1000"
+    "DATABIND_SQL_ROKU": "mssql+pymssql://********:********@********-ondemand.sql.azuresynapse.net:1433/roku?charset=utf8",
+    "DATABIND_SQL_SALESFORCE": "mssql+pymssql://********:********@********-ondemand.sql.azuresynapse.net:1433/salesforce?charset=utf8",
+    
+    "GRAVITY_FORMS_URL": "https://********.com/wp-json/gf/v2",
+    "GRAVITY_FORMS_USERNAME": "********",
+    "GRAVITY_FORMS_PASSWORD": "********",
+    
+    "ONSPOT_API_KEY": "********",
+    "ONSPOT_ACCESS_KEY": "********",
+    "ONSPOT_SECRET_KEY": "********",
+    "ONSPOT_CONN_STR": "DefaultEndpointsProtocol=https;AccountName=********;AccountKey=********;EndpointSuffix=core.windows.net"
   }
 }

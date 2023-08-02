@@ -1,8 +1,14 @@
 # File: libs/azure/functions/blueprints/async_tasks/endpoints/leasing/break.py
 
-from azure.durable_functions import (
-    DurableOrchestrationClient,
-    EntityId,
+from azure.durable_functions import DurableOrchestrationClient
+from datetime import datetime
+from libs.azure.functions.blueprints.oneview.helpers import (
+    state as OrchestratorState,
+    process_state as OrchestartorStateOperation,
+)
+from libs.azure.functions.blueprints.oneview.schemas import (
+    RequestSchema,
+    StatusSchema,
 )
 from libs.azure.functions import Blueprint
 from libs.azure.functions.http import HttpRequest, HttpResponse
@@ -14,7 +20,9 @@ bp = Blueprint()
 @bp.easy_auth()
 @bp.route(route="async/lease/break/{instance_id}", methods=["GET"])
 @bp.durable_client_input(client_name="client")
-async def roku_async_endpoint_lease_release(req: HttpRequest, client: DurableOrchestrationClient):
+async def oneview_endpoint_lease_release(
+    req: HttpRequest, client: DurableOrchestrationClient
+):
     """
     Asynchronously handle lease release request and return status.
 
@@ -36,19 +44,26 @@ async def roku_async_endpoint_lease_release(req: HttpRequest, client: DurableOrc
     """
 
     # Create entity with the provided instance id from the route params
-    entity = EntityId("roku_async_entity_request", req.route_params["instance_id"])
-    state = await client.read_entity_state(entity)
+    state = RequestSchema().load(OrchestratorState(req.route_params["instance_id"]))
 
     # If entity exists, send a signal to release lease
-    if state.entity_exists:
-        await client.signal_entity(
-            entity,
-            "release",
-            {
-                "provider": req.headers.get("x-ms-client-principal-idp"),
-                "access_id": req.headers.get("x-ms-client-principal-id"),
-            },
-        )
+    if state:
+        if "lease" in state.keys():
+            if (
+                state["lease"]["expires"] > datetime.utcnow()
+                and state["lease"]["provider"]
+                == req.headers.get("x-ms-client-principal-idp")
+                and state["lease"]["access_id"]
+                == req.headers.get("x-ms-client-principal-id")
+            ):
+                state = OrchestartorStateOperation(
+                    req.route_params["instance_id"],
+                    "break",
+                    {
+                        "provider": req.headers.get("x-ms-client-principal-idp"),
+                        "access_id": req.headers.get("x-ms-client-principal-id"),
+                    },
+                )
 
         # Return response after lease release signal
         return HttpResponse(

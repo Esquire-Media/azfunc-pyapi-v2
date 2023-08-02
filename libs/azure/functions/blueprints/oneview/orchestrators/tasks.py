@@ -1,20 +1,21 @@
 # File: libs/azure/functions/blueprints/orchestrators/tasks.py
 
-from azure.durable_functions import DurableOrchestrationContext, EntityId
-from libs.azure.functions.blueprints.roku_async.schemas import RequestSchema
-from libs.azure.functions.blueprints.roku_async.helpers import (
+from azure.durable_functions import DurableOrchestrationContext
+from libs.azure.functions.blueprints.oneview.helpers import (
     calculate_missing_campaigns,
     calculate_missing_flights,
+    state as OrchestartorState,
+    process_state as OrchestartorStateOperation,
 )
+from libs.azure.functions.blueprints.oneview.schemas import RequestSchema
 from libs.azure.functions import Blueprint
 
 bp = Blueprint()
 
 
 # Define the orchestrator function
-@bp.logger()
 @bp.orchestration_trigger(context_name="context")
-def roku_async_orchestrator_tasks(context: DurableOrchestrationContext):
+def oneview_orchestrator_tasks(context: DurableOrchestrationContext):
     """
     The orchestrator function for asynchronous tasks. This function manages the
     execution of tasks, including the validation of a creative asset, the
@@ -43,19 +44,15 @@ def roku_async_orchestrator_tasks(context: DurableOrchestrationContext):
         raised after a notification is sent.
     """
     try:
-        schema = RequestSchema()
-
         # Validate creative asset
-        context.set_custom_status("Validating Creative Asset")
-        yield context.call_activity(
-            "roku_async_activity_validate_creative", context.instance_id
-        )
+        # context.set_custom_status("Validating Creative Asset")
+        # yield context.call_activity(
+        #     "oneview_activity_validate_creative", context.instance_id
+        # )
 
         # Get the current state of the instance
-        state = yield context.call_entity(
-            EntityId("roku_async_entity_request", context.instance_id), "get"
-        )
-        state = schema.loads(state)
+        schema = RequestSchema()
+        state = schema.load(OrchestartorState(context.instance_id))
 
         # For each of the tasks "advertiser", "creative", "campaign", if the task
         # does not exist in the current state, wait for an event signaling its
@@ -64,12 +61,9 @@ def roku_async_orchestrator_tasks(context: DurableOrchestrationContext):
             if not state["existing"][task]:
                 context.set_custom_status(f"Awaiting: {task.capitalize()} Registration")
                 event = yield context.wait_for_external_event(task)
-                state = yield context.call_entity(
-                    EntityId("roku_async_entity_request", context.instance_id),
-                    task,
-                    event,
+                state = schema.load(
+                    OrchestartorStateOperation(context.instance_id, task, event)
                 )
-                state = schema.loads(state)
 
         # If there are missing months, wait for flight registration
         while campaigns := calculate_missing_campaigns(state):
@@ -77,25 +71,19 @@ def roku_async_orchestrator_tasks(context: DurableOrchestrationContext):
                 f"Awaiting: {len(campaigns)} Campaign Registrations"
             )
             event = yield context.wait_for_external_event("campaign")
-            state = yield context.call_entity(
-                EntityId("roku_async_entity_request", context.instance_id),
-                "campaign",
-                event,
+            state = schema.load(
+                OrchestartorStateOperation(context.instance_id, "campaign", event)
             )
-            state = schema.loads(state)
 
         # If there are missing months, wait for flight registration
         while flights := calculate_missing_flights(state):
             context.set_custom_status(f"Awaiting: {len(flights)} Flight Registrations")
             event = yield context.wait_for_external_event("flight")
-            state = yield context.call_entity(
-                EntityId("roku_async_entity_request", context.instance_id),
-                "flight",
-                event,
+            state = schema.load(
+                OrchestartorStateOperation(context.instance_id, "flight", event)
             )
-            state = schema.loads(state)
 
-        return schema.dumps(state)
+        return schema.dump(state)
 
     except Exception as e:
         import traceback
@@ -105,15 +93,13 @@ def roku_async_orchestrator_tasks(context: DurableOrchestrationContext):
             "message": str(e),
             "traceback": [
                 {"file": s.filename, "line": s.lineno}
-                for s in traceback.extract_stack()
+                for s in traceback.extract_tb(e.__traceback__)
             ],
         }
-        state = yield context.call_entity(
-            EntityId("roku_async_entity_request", context.instance_id),
-            "error",
-            exc_dict,
+        state = schema.load(
+            OrchestartorStateOperation(context.instance_id, "error", exc_dict)
         )
         yield context.call_activity(
-            "roku_async_activity_push_notification", schema.dump(schema.loads(state))
+            "oneview_activity_push_notification", schema.dumps(state)
         )
         raise e

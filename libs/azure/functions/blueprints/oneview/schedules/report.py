@@ -1,7 +1,7 @@
 # File: libs/azure/functions/blueprints/schedules/report.py
 
 from azure.functions import TimerRequest
-from libs.azure.functions.blueprints.roku_async.helpers import TABLE_CLIENTS
+from libs.azure.functions.blueprints.oneview.helpers import TABLE_CLIENTS
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
@@ -134,16 +134,16 @@ def get_insights(provider, agency_uid, start, end):
     return qf
 
 
-@bp.logger()
-@bp.timer_trigger(arg_name="timer", schedule="0 0 0 * * TUE,FRI")
-def roku_async_schedule_report_semiweekly(timer: TimerRequest) -> None:
-    generate_reports_insights(relativedelta(days=-30))
+# @bp.logger()
+# @bp.timer_trigger(arg_name="timer", schedule="0 0 0 * * TUE,FRI")
+# def oneview_schedule_report_semiweekly(timer: TimerRequest) -> None:
+#     generate_reports_insights(relativedelta(days=-30))
 
 
-@bp.logger()
-@bp.timer_trigger(arg_name="timer", schedule="0 0 0 1 * *")
-def roku_async_schedule_report_monthly(timer: TimerRequest) -> None:
-    now = datetime.utcnow()
-    end = datetime(now.year, now.month, 1)
-    start = end + relativedelta(months=-1)
-    generate_reports_accounting((start, end))
+# @bp.logger()
+# @bp.timer_trigger(arg_name="timer", schedule="0 0 0 1 * *")
+# def oneview_schedule_report_monthly(timer: TimerRequest) -> None:
+#     now = datetime.utcnow()
+#     end = datetime(now.year, now.month, 1)
+#     start = end + relativedelta(months=-1)
+#     generate_reports_accounting((start, end))

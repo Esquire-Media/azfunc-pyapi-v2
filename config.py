@@ -9,10 +9,10 @@ register_binding(
     schemas=["dbo"],
 )
 
-# register_binding(
-#     "salesforce",
-#     "Structured",
-#     "sql",
-#     url=os.environ["DATABIND_SQL_SALESFORCE"],
-#     schemas=["dbo"],
-# )
+register_binding(
+    "salesforce",
+    "Structured",
+    "sql",
+    url=os.environ["DATABIND_SQL_SALESFORCE"],
+    schemas=["dbo"],
+)

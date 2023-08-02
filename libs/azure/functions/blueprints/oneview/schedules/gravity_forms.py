@@ -2,7 +2,7 @@
 
 from azure.durable_functions import DurableOrchestrationClient
 from azure.functions import TimerRequest
-from libs.azure.functions.blueprints.roku_async.helpers import (
+from libs.azure.functions.blueprints.oneview.helpers import (
     TABLE_CLIENTS,
     request_initializer,
 )
@@ -55,10 +55,9 @@ COUNTRY_MAP = {
 }
 
 
-@bp.logger()
 @bp.timer_trigger(arg_name="timer", schedule="0 */5 * * * * ")
 @bp.durable_client_input(client_name="client")
-async def roku_async_schedule_gravity_forms(
+async def oneview_schedule_gravity_forms(
     timer: TimerRequest, client: DurableOrchestrationClient
 ) -> None:
     """
@@ -122,12 +121,8 @@ async def roku_async_schedule_gravity_forms(
                                 },
                                 "budget": {
                                     "monthly_impressions": int(entry["6"]),
-                                    "cpm_client": int(entry["6"])
-                                    / 1000
-                                    / agency["CPM_Client"],
-                                    "cpm_tenant": int(entry["6"])
-                                    / 1000
-                                    / agency["CPM_Tenant"],
+                                    "cpm_client": agency["CPM_Client"],
+                                    "cpm_tenant": agency["CPM_Tenant"],
                                 },
                                 "creative": entry["7"],
                                 "landing_page": entry["58"],

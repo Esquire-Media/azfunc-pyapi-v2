@@ -15,7 +15,7 @@ bp = Blueprint()
 
 # Define an Azure Durable Activity Function
 @bp.activity_trigger(input_name="message")
-def roku_async_activity_push_notification(message: dict):
+def oneview_activity_push_notification(message: dict):
     """
     Send a notification email using an Azure Durable Activity Function.
 

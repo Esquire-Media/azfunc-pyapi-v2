@@ -1,7 +1,7 @@
 # File: libs/azure/functions/blueprints/async_tasks/activities/validate_creative.py
 
 from azure.durable_functions import DurableOrchestrationClient, EntityId
-from libs.azure.functions.blueprints.roku_async.schemas import RequestSchema
+from libs.azure.functions.blueprints.oneview.schemas import RequestSchema
 from libs.azure.functions import Blueprint
 import isobmff
 import fsspec
@@ -14,7 +14,7 @@ bp = Blueprint()
 # Define an Azure Durable Activity Function
 @bp.activity_trigger(input_name="instanceId")
 @bp.durable_client_input(client_name="client")
-async def roku_async_activity_validate_creative(
+async def oneview_activity_validate_creative(
     instanceId: str, client: DurableOrchestrationClient
 ) -> str:
     """
@@ -44,11 +44,11 @@ async def roku_async_activity_validate_creative(
 
     # Get state
     state = await client.read_entity_state(
-        EntityId("roku_async_entity_request", instanceId)
+        EntityId("oneview_entity_request", instanceId)
     )
     while not state.entity_exists:
         state = await client.read_entity_state(
-            EntityId("roku_async_entity_request", instanceId)
+            EntityId("oneview_entity_request", instanceId)
         )
     state = RequestSchema().loads(state.entity_state)
 
@@ -155,7 +155,7 @@ async def roku_async_activity_validate_creative(
     md5 = hashlib.md5(iso["moov"].slice.read()).hexdigest()
 
     await client.signal_entity(
-        EntityId("roku_async_entity_request", instanceId), "creative_md5", md5
+        EntityId("oneview_entity_request", instanceId), "creative_md5", md5
     )
 
     return md5

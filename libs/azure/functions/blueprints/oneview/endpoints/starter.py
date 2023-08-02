@@ -1,6 +1,6 @@
 # File: libs/azure/functions/blueprints/async_tasks/endpoints/starter.py
 
-from libs.azure.functions.blueprints.roku_async.helpers import request_initializer
+from libs.azure.functions.blueprints.oneview.helpers import request_initializer
 from azure.durable_functions import DurableOrchestrationClient
 from libs.azure.functions import Blueprint
 from libs.azure.functions.http import HttpRequest, HttpResponse
@@ -19,7 +19,7 @@ bp = Blueprint()
 @bp.easy_auth()
 @bp.route(route="async/tasks", methods=["POST"])
 @bp.durable_client_input(client_name="client")
-async def roku_async_endpoint_starter(
+async def oneview_endpoint_starter(
     req: HttpRequest, client: DurableOrchestrationClient
 ):
     """

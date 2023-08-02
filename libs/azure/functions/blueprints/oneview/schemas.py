@@ -65,12 +65,21 @@ class DateRangeSchema(Schema):
             The modified input data.
         """
         if "start" in data and "end" in data:
-            start = date.fromisoformat(data["start"])
-            end = date.fromisoformat(data["end"])
+            if isinstance(data["start"], str):
+                start = date.fromisoformat(data["start"])
+            else:
+                start = data["start"]
+            if isinstance(data["end"], str):
+                end = date.fromisoformat(data["end"])
+            else:
+                end = data["end"]
             rel = relativedelta(end, start)
             data["months"] = rel.months + rel.years * 12
         elif "start" in data and "months" in data:
-            start = date.fromisoformat(data["start"])
+            if isinstance(data["start"], str):
+                start = date.fromisoformat(data["start"])
+            else:
+                start = data["start"]
             months = int(data["months"])
             data["end"] = (start + relativedelta(months=months)).isoformat()
         return data
@@ -119,7 +128,7 @@ class BaseSchema(Schema):
             CARIBBEAN_ISO + CENTRAL_AMERICA_ISO + NORTH_AMERICA_ISO + SOUTH_AMERICA_ISO
         ),
     )
-    zips = fields.List(fields.Int())
+    zips = fields.List(fields.Str())
 
 
 class TargetingSchema(Schema):
@@ -291,7 +300,7 @@ class FlightRecordSchema(Schema):
         The end date. Required.
     """
 
-    PartitionKey = fields.UUID(required=True)
+    PartitionKey = fields.Str(required=True)
     RowKey = fields.UUID(required=True)
     OneView_FlightID = fields.Str(required=True)
     Start = fields.Date(format="%Y-%m-%d", required=True)
@@ -418,9 +427,20 @@ class RequestSchema(Schema):
 
     request = fields.Nested(CampaignSchema)
     links = fields.Nested(OrchestratorStatusSchema)
-    existing = fields.Nested(StateSchema)
-    md5 = fields.Str()
-    lease = fields.Nested(LeaseSchema)
+    existing = fields.Nested(
+        StateSchema,
+        required=False,
+        allow_none=True,
+    )
+    md5 = fields.Str(
+        required=False,
+        allow_none=True,
+    )
+    lease = fields.Nested(
+        LeaseSchema,
+        required=False,
+        allow_none=True,
+    )
     errors = fields.List(
         fields.Nested(ErrorSchema),
         required=False,

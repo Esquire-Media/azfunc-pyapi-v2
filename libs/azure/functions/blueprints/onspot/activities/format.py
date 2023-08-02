@@ -16,9 +16,22 @@ bp = Blueprint()
 
 @bp.activity_trigger(input_name="ingress")
 @bp.durable_client_input(client_name="client")
-async def onspot_activity_format(
-    ingress: dict, client: DurableOrchestrationClient
-):
+async def onspot_activity_format(ingress: dict, client: DurableOrchestrationClient):
+    """
+    Formats the request for a specific orchestrator instance.
+
+    This function generates a shared access signature (SAS) token for Azure
+    blob storage, prepares the event URL for the orchestrator instance, and
+    updates the request with callback and output location information.
+
+    Parameters
+    ----------
+    ingress : dict
+        The input for the activity function, including the instance ID and
+        request.
+    client : DurableOrchestrationClient
+        The client to manage the durable orchestration.
+    """
     container = ContainerClient.from_connection_string(
         os.environ.get("ONSPOT_CONN_STR", os.environ["AzureWebJobsStorage"]),
         container_name="general",

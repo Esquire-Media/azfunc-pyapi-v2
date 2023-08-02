@@ -38,7 +38,7 @@ def onspot_orchestrator(context: DurableOrchestrationContext):
     >>>     "onspot_orchestrator",
     >>>     None,
     >>>     {
-    >>>         "endpoint": endpoint,
+    >>>         "endpoint": "/save/geoframe/all/devices",
     >>>         "request": req.get_json(),
     >>>     },
     >>> )

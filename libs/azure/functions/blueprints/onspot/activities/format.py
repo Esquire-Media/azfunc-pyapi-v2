@@ -49,17 +49,18 @@ async def onspot_activity_format(ingress: dict, client: DurableOrchestrationClie
             permission=ContainerSasPermissions(write=True, read=True),
             expiry=datetime.utcnow() + relativedelta(days=2),
         )
-        event_url = client._orchestration_bindings.management_urls[
-            "sendEventPostUri"
-        ].replace(
-            client._orchestration_bindings.management_urls["id"],
-            ingress["instance_id"],
+        
+    event_url = client._orchestration_bindings.management_urls[
+        "sendEventPostUri"
+    ].replace(
+        client._orchestration_bindings.management_urls["id"],
+        ingress["instance_id"],
+    )
+    if os.environ.get("REVERSE_PROXY", None):
+        event_url = client._replace_url_origin(
+            os.environ["REVERSE_PROXY"],
+            event_url,
         )
-        if os.environ.get("REVERSE_PROXY", None):
-            event_url = client._replace_url_origin(
-                os.environ["REVERSE_PROXY"],
-                event_url,
-            )
 
     if ingress["request"].get("type", None) == "FeatureCollection":
         for feature in ingress["request"]["features"]:

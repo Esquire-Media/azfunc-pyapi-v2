@@ -52,6 +52,7 @@ async def daily_dashboard_onspot_activity_geoframes(ingress: dict):
             tables["GeoJSON_Location__c"].IsDeleted == False,
             tables["Account"].Account_Status__c == "Active",
             tables["Audience__c"].Active_Audience__c == True,
+            tables["Audience__c"].Audience_Type__c == "Competitor Location",
             tables["GeoJSON_Join__c"].Active_Location__c == True,
         )
         .distinct()

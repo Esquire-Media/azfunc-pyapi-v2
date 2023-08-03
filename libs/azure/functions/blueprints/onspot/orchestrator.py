@@ -51,13 +51,13 @@ def onspot_orchestrator(context: DurableOrchestrationContext):
     >>>     }
     >>> )
     """
-    
+
     # Format the request
     request = yield context.call_activity(
         name="onspot_activity_format",
         input_={
             "instance_id": context.instance_id,
-            "request": context.get_input()["request"],
+            **context.get_input(),
         },
     )
 

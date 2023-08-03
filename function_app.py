@@ -7,6 +7,8 @@ app.register_blueprints([
     # "libs/azure/functions/blueprints/daily_audience_generation/*",
     # "libs/azure/functions/blueprints/keepalive",
     # "libs/azure/functions/blueprints/oneview/*",
+    "libs/azure/functions/blueprints/datalake/*",
+    "libs/azure/functions/blueprints/synapse/*",
     "libs/azure/functions/blueprints/onspot/*",
-    "examples/blueprints/*",
+    "example/blueprints/daily_dashboard_onspot/*",
 ])

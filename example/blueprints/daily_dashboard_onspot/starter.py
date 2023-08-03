@@ -1,4 +1,4 @@
-# File: blueprints/starter.py
+# File: example/blueprints/daily_dashboard_onspot/starter.py
 
 from azure.durable_functions import DurableOrchestrationClient
 from azure.functions import TimerRequest

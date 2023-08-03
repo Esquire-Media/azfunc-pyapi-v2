@@ -1,4 +1,4 @@
-# File: blueprints/activities/geoframes.py
+# File: example/blueprints/daily_dashboard_onspot/activities/geoframes.py
 
 from libs.azure.functions import Blueprint
 from libs.data import from_bind

@@ -2,8 +2,9 @@
 
 from libs.azure.functions import Blueprint
 from libs.openapi.clients.onspot import OnSpotAPI
+import os
 
-OSA = OnSpotAPI()
+OSA = OnSpotAPI(production=os.environ.get("ONSPOT_SERVER", "").lower() == "production")
 bp = Blueprint()
 
 

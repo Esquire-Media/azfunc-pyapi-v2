@@ -1063,7 +1063,7 @@ class OnSpotAPI:
                         "application/json": {
                             "schema": {
                                 "type": "array",
-                                "items": {"$ref": "#/components/schemas/AsyncSave"}
+                                "items": {"$ref": "#/components/schemas/AsyncSave"},
                             }
                         }
                     },
@@ -2716,7 +2716,7 @@ class OnSpotAPI:
                             "type": "object",
                             "example": "False",
                             "description": "Include device Ids found within the polygon but where there is no match against the household or secondary address databases",
-                        },
+                        }
                     },
                 },
                 "PropertiesDemographics": {
@@ -4879,6 +4879,50 @@ class OnSpotAPI:
                     },
                     "description": "Save all demographic records found within the given feature.",
                     "operationId": "saveFilesDemographicsAll",
+                    "requestBody": {
+                        "$ref": "#/components/requestBodies/FilesWithMinMaxDevicesSave"
+                    },
+                    "responses": {
+                        "200": {
+                            "$ref": "#/components/responses/200-ServerResponse-AsyncSave"
+                        },
+                        "400": {"$ref": "#/components/responses/400"},
+                        "403": {"$ref": "#/components/responses/403"},
+                        "415": {"$ref": "#/components/responses/415"},
+                        "500": {"$ref": "#/components/responses/500"},
+                    },
+                    "security": [{"apiKey": [], "sigv4": []}],
+                    "summary": "Save all demographics",
+                    "tags": ["Demographics"],
+                }
+            },
+            "/save/files/household": {
+                "post": {
+                    "callbacks": {
+                        "successCallback": {
+                            "To callback provided": {
+                                "post": {
+                                    "requestBody": {
+                                        "content": {
+                                            "application/json": {
+                                                "schema": {
+                                                    "$ref": "#/components/schemas/CallbackResponse"
+                                                }
+                                            }
+                                        },
+                                        "description": "Callback payload",
+                                    },
+                                    "responses": {
+                                        "200": {
+                                            "$ref": "#/components/responses/200-Callback-Response"
+                                        }
+                                    },
+                                }
+                            }
+                        }
+                    },
+                    "description": "Save all demographic records found within the given feature.",
+                    "operationId": "saveFilesHousehold",
                     "requestBody": {
                         "$ref": "#/components/requestBodies/FilesWithMinMaxDevicesSave"
                     },

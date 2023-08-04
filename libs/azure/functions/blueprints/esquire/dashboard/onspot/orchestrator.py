@@ -1,9 +1,9 @@
-# File: example/blueprints/daily_dashboard_onspot/orchestrator.py
+# File: libs/azure/functions/blueprints/esquire/dashboard/onspot/orchestrator.py
 
 from azure.durable_functions import DurableOrchestrationContext
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from example.blueprints.daily_dashboard_onspot.helpers import (
+from libs.azure.functions.blueprints.esquire.dashboard.onspot.helpers import (
     cetas_query_unique_deviceids,
     cetas_query_sisense,
 )
@@ -14,12 +14,12 @@ bp = Blueprint()
 
 
 @bp.orchestration_trigger(context_name="context")
-def daily_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
+def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
     conn_str = "ONSPOT_CONN_STR" if "ONSPOT_CONN_STR" in os.environ.keys() else None
     container = "dashboard"
 
     yield context.call_activity(
-        "daily_dashboard_onspot_activity_locations",
+        "esquire_dashboard_onspot_activity_locations",
         {
             "instance_id": context.instance_id,
             "conn_str": conn_str,
@@ -29,7 +29,7 @@ def daily_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
     )
 
     geoframes = yield context.call_activity(
-        name="daily_dashboard_onspot_activity_geoframes"
+        name="esquire_dashboard_onspot_activity_geoframes"
     )
 
     now = datetime.utcnow()
@@ -149,12 +149,12 @@ def daily_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
         },
     )
 
-    # yield context.call_activity(
-    #     "datalake_activity_delete_directory",
-    #     {
-    #         "instance_id": context.instance_id,
-    #         "conn_str": conn_str,
-    #         "container": container,
-    #         "prefix": "raw"
-    #     },
-    # )
+    yield context.call_activity(
+        "datalake_activity_delete_directory",
+        {
+            "instance_id": context.instance_id,
+            "conn_str": conn_str,
+            "container": container,
+            "prefix": "raw"
+        },
+    )

@@ -5,7 +5,10 @@ __blobstorage__
 __queuestorage__
 dev.settings.json
 local.settings.json
+config.py.example
+getting_started.md
 test
 .venv
 logs
 *.ipynb
+example

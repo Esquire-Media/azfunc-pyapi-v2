@@ -1,4 +1,4 @@
-# File: example/blueprints/daily_dashboard_onspot/helpers.py
+# File: libs/azure/functions/blueprints/esquire/dashboard/onspot/helpers.py
 
 def cetas_query_unique_deviceids(instance_id):
     return f"""

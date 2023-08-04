@@ -1,4 +1,4 @@
-# File: example/blueprints/daily_dashboard_onspot/activities/geoframes.py
+# File: libs/azure/functions/blueprints/esquire/dashboard/onspot/activities/geoframes.py
 
 from libs.azure.functions import Blueprint
 from libs.data import from_bind
@@ -9,7 +9,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-async def daily_dashboard_onspot_activity_geoframes(ingress: dict):
+async def esquire_dashboard_onspot_activity_geoframes(ingress: dict):
     provider: SQLAlchemyStructuredProvider = from_bind("salesforce")
     tables = provider.models["dbo"]
     session = provider.connect()

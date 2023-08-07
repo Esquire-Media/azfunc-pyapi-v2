@@ -1,0 +1,3283 @@
+info:
+  title: Xandr/AppNexus API
+  version: 1.18.1955
+openapi: 3.1.0
+components:
+  requestBodies:
+    AccountRecovery:
+      description: Account Recovery request body
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              account-recovery:
+                type: object
+                properties:
+                  username:
+                    type: string
+                  email:
+                    type: string
+                    format: email
+            required:
+              - account-recovery
+    AccountRecoveryConfirm:
+      description: Account Recovery request body
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              account-recovery:
+                type: object
+                properties:
+                  username:
+                    type: string
+                  password:
+                    type: string
+                    description: New password
+                  token:
+                    type: string
+                    description: Provided in email
+                required:
+                  - username
+                  - password
+                  - token
+            required:
+              - account-recovery
+    AppInstallation:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AppInstallation'
+      required: true
+    ChangeLog:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ChangeLog'
+    ChangeLogDetail:
+      description: Change Log Detail request body
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              change-log-detail:
+                type: object
+                properties:
+                  service:
+                    type: string
+                  transaction_id:
+                    type: integer
+                required:
+                  - service
+                  - transaction_id
+    Credential:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Credential'
+      description: Authentication credentials
+      required: true
+    Developer:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Developer'
+      required: true
+    DomainList:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DomainList'
+      required: true
+    Member:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Member'
+      description: Member details
+      required: true
+    MemberProfile:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MemberProfile'
+      description: Member profile details
+      required: true
+    Report:
+      content:
+        application/json:
+          schema:
+            properties:
+              report:
+                $ref: '#/components/schemas/Report'
+            type: object
+      description: Report details
+      required: true
+    User:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/User'
+      description: User details
+      required: true
+  responses:
+    AccountRecovery:
+      description: Account Recovery response
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              response:
+                $ref: '#/components/schemas/Response'
+    AdSize:
+      content:
+        application/json:
+          schema:
+            properties:
+              response:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - $ref: '#/components/schemas/Pagination'
+                properties:
+                  adsize:
+                    $ref: '#/components/schemas/AdSize'
+                  adsizes:
+                    items:
+                      $ref: '#/components/schemas/AdSize'
+                    type: array
+      description: A list of ad sizes
+    AppInstallation:
+      description: Successful operation
+      content:
+        application/json:
+          schema:
+            properties:
+              response:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - $ref: '#/components/schemas/Pagination'
+                properties:
+                  app-installation:
+                    $ref: '#/components/schemas/AppInstallation'
+                  app-installations:
+                    items:
+                      $ref: '#/components/schemas/AppInstallation'
+                    type: array
+    ChangeLog:
+      description: Successful operation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ChangeLog'
+    ChangeLogDetail:
+      description: Change Log Detail response
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              response:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - $ref: '#/components/schemas/Pagination'
+                properties:
+                  app-installation:
+                    $ref: '#/components/schemas/ChangeLogDetail'
+                  app-installations:
+                    items:
+                      $ref: '#/components/schemas/ChangeLogDetail'
+                    type: array
+    Credential:
+      content:
+        application/json:
+          schema:
+            properties:
+              response:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                properties:
+                  token:
+                    description: The token issued after successful authentication
+                    type: string
+                required:
+                  - status
+                  - token
+                type: object
+            required:
+              - response
+            type: object
+      description: Authentication successful
+    Country:
+      content:
+        application/json:
+          schema:
+            properties:
+              response:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - $ref: '#/components/schemas/Pagination'
+                properties:
+                  country:
+                    $ref: '#/components/schemas/Country'
+                  countries:
+                    items:
+                      $ref: '#/components/schemas/Country'
+                    type: array
+      description: A list of countries or a specific country
+    Developer:
+      content:
+        application/json:
+          schema:
+            properties:
+              response:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - $ref: '#/components/schemas/Pagination'
+                properties:
+                  developer:
+                    $ref: '#/components/schemas/Developer'
+                  developers:
+                    items:
+                      $ref: '#/components/schemas/Developer'
+                    type: array
+      description: A list of countries or a specific country
+    DomainList:
+      content:
+        application/json:
+          schema:
+            properties:
+              response:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - $ref: '#/components/schemas/Pagination'
+                properties:
+                  domain-list:
+                    $ref: '#/components/schemas/DomainList'
+                  domain-lists:
+                    items:
+                      $ref: '#/components/schemas/DomainList'
+                    type: array
+      description: A Domain
+    Error:
+      content:
+        application/json:
+          schema:
+            properties:
+              code:
+                description: A machine-readable error code
+                type: integer
+              message:
+                description: A human-readable description of the error
+                type: string
+              more_info:
+                description: A URL to more information about the error code
+                type: string
+              status:
+                description: HTTP status code
+                type: string
+            required:
+              - status
+              - message
+      description: Error
+    Member:
+      content:
+        application/json:
+          schema:
+            properties:
+              response:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - $ref: '#/components/schemas/Pagination'
+                properties:
+                  member:
+                    $ref: '#/components/schemas/Member'
+                  members:
+                    items:
+                      $ref: '#/components/schemas/Member'
+                    type: array
+      description: Successful operation
+    MemberProfile:
+      content:
+        application/json:
+          schema:
+            properties:
+              response:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - $ref: '#/components/schemas/Pagination'
+                properties:
+                  member-profile:
+                    $ref: '#/components/schemas/MemberProfile'
+                  member-profiles:
+                    items:
+                      $ref: '#/components/schemas/MemberProfile'
+                    type: array
+      description: Successful operation
+    ReportCreate:
+      content:
+        application/json:
+          schema:
+            properties:
+              response:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                properties:
+                  report_id:
+                    type: string
+      description: Successful operation
+    ReportStatus:
+      content:
+        application/json:
+          schema:
+            properties:
+              response:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                properties:
+                  execution_status:
+                    type: string
+                  report:
+                    properties:
+                      cache_hit:
+                        type: boolean
+                      created_on:
+                        format: date-time
+                        type: string
+                      fact_cache_hit:
+                        type: boolean
+                      header_info:
+                        type: string
+                      json_request:
+                        type: string
+                      name:
+                        type: string
+                      report_size:
+                        type: string
+                      row_count:
+                        type: string
+                      url:
+                        type: string
+                    type: object
+      description: Successful operation
+    ReportDownload:
+      content:
+        application/octet-stream:
+          schema:
+            format: binary
+            type: string
+      description: Successful operation
+    ReportStatuses:
+      content:
+        application/json:
+          schema:
+            properties:
+              response:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                properties:
+                  reports:
+                    properties:
+                      PSP_health_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      admin_PSP_health_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      admin_backdoor:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      admin_bid_error_report:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      admin_buyer_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      admin_buyer_transparency:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      admin_completed_creative_audits:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      admin_network_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      admin_platform_buyer:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      admin_segment_load:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      admin_seller_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      admin_seller_fill:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      admin_video_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      admin_video_analytics_snowflake:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      admin_vmkp_site_domain_performance:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      advertiser_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      advertiser_frequency:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      advertiser_frequency_recency:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      agg_rr_dw_curator_analytics_lifetime:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      attributed_conversions:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      audio_analytics_network:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      audio_analytics_network_snowflake:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      bid_landscape_summary:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      bidder_bid_error_report:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      bidder_deal_metrics_2:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      bidder_deals_report_a:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      bidder_platform_buyer:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      bidder_pricing_report:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      broker_billing_report:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      buyer_analytics_hourly_singlestore:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      buyer_approximate_unique_users_hourly:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      buyer_bid_error_report:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      buyer_data_usage_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      buyer_deal_metrics_report:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      buyer_invoice_report:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      buyer_platform_video_supply:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      buyer_platform_video_supply_snowflake:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      buyer_pricing_report:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      buyer_segment_performance:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      buyer_untargeted_segment_performance:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      buyer_vendor_usage_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      campaign_group:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      campaign_group_meta:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      cg_flight_status_counts:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      chandler_test_1:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      clicktrackers:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      cmp_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      completed_creative_audits:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      content_category_volume:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      curator_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      curator_analytics_network_advertiser:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      curator_bid_error_report:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      curator_segment_performance:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      curator_transparency:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      curator_vendor_usage_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      data_usage_analytics_for_data_providers:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      data_usage_analytics_for_data_providers_view:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      dsp_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      engagement_metrics_network:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      engagement_report_for_buyers:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      erica_test:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      geo_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      identity_reporting_combination:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      identity_reporting_distinct:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      identity_reporting_rtss_performance:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      identity_reporting_rtss_usage_external:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      identity_reporting_rtss_usage_internal:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      identity_rtss_performance_test:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      insertion_order_frequency:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      inventory_daily_uniques:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      key_value_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      key_value_analytics_snowflake:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      line_item_frequency:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      mediation_adjustments:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      mt_test_network_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      multi_buyer_seller_deal_metrics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      multi_key_value_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      network_advertiser_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      network_advertiser_analytics_provisional:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      network_advertiser_frequency_recency:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      network_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      network_analytics_feed:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      network_analytics_provisional:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      network_attributed_conversions:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      network_carrier_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      network_creative_search:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      network_device_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      network_device_analytics_snowflake:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      network_device_analytics_snowflake_clone_test:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      network_publisher_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      network_publisher_analytics_provisional:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      network_site_domain_performance:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      offline_attribution:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      offline_attribution_adsquare:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      opt_discovery_inventory_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      opt_discovery_inventory_analytics_singlestore:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      partner_center_buy_side:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      partner_center_sell_side:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      periscope_forecast:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      pixel_fired:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      platform_buyer:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      platform_imp_dashboard:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      platform_inventory_avail:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      platform_inventory_availability:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      platform_seller:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      prebid_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      prebid_health_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      prebid_server_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      publisher_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      publisher_brand_review:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      publisher_creative_search:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_admin_buyer_analytics_hourly:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_agg_daily_segment_metrics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_ali_analytics_daily:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_ali_analytics_daily_singlestore:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_ali_analytics_hourly:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_ali_analytics_hourly_singlestore:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_buyer_analytics_billing_period:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_buyer_analytics_daily:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_buyer_analytics_daily_singlestore:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_buyer_analytics_hourly:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_buyer_analytics_hourly_complete_singlestore:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_buyer_analytics_io_provisional:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_buyer_analytics_lifetime:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_buyer_analytics_lifetime_singlestore:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_cross_device_analytics_hourly:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_cross_device_analytics_hourly_singlestore:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_curator_bid_error_report:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_rare_conversion_objects:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_rare_conversion_objects_vertica:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_segment_manager_derived_object:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_seller_bid_error_report:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_seller_video_error_report:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_smw_buyer_analytics_hourly:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_smw_creative_audit:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_smw_creative_review:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_smw_deal_metrics_reject_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_smw_deal_metrics_troubleshooting:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_smw_grid:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_targeted_segment_analytics_daily:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_targeted_segment_analytics_daily_singlestore:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_targeted_segment_analytics_hourly:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_test_bmw_report_admin:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_unique_user_metrics_synopsis:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_unique_user_metrics_synopsis_singlestore:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_video_indemo_stat:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      rr_video_indemo_stat_singlestore:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      segment_load:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      seller_analytics_daily:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      seller_analytics_hourly:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      seller_analytics_lifetime:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      seller_bid_error_report:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      seller_brand_review:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      seller_brand_review_hourly:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      seller_deal_metrics_report:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      seller_fill_and_delivery_network:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      seller_fill_and_delivery_publisher:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      seller_invoice_report:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      seller_monetization:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      seller_podded_video_report_network_new:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      seller_pricing_report:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      seller_segment_performance:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      seller_site_domain:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      seller_slot_video_report_network:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      seller_vendor_usage_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      site_domain_performance:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      test_report_identity:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      video_analytics_network:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      video_analytics_network_advertiser:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      video_analytics_network_advertiser_snowflake:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      video_analytics_network_publisher:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      video_analytics_network_publisher_snowflake:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      video_analytics_network_snowflake:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      video_error_analytics_network:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      video_error_analytics_network_snowflake:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      video_indemo_audience_profile:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      video_indemo_site_split:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      video_mediation_demand_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      video_pod_analytics_network:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      video_pod_analytics_network_snowflake:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      viewability_analytics_hourly:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      viewability_js_message:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      viewability_overall_metrics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      virtual_marketplace_analytics:
+                        $ref: "#/components/schemas/ReportStatuses"
+                      yx_an_ssp:
+                        $ref: "#/components/schemas/ReportStatuses"
+      description: Successful operation
+    User:
+      content:
+        application/json:
+          schema:
+            properties:
+              response:
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - $ref: '#/components/schemas/Pagination'
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  users:
+                    items:
+                      $ref: '#/components/schemas/User'
+                    type: array
+      description: Successful operation
+  schemas:
+    AdSize:
+      properties:
+        height:
+          description: The height of the ad size.
+          type: integer
+        is_standard:
+          description: >-
+            If true, the size is a standard size for a creative, and it is not a
+            custom size added to the member.
+          type: boolean
+        width:
+          description: The width of the ad size.
+          type: integer
+      type: object
+    AppInstallation:
+      type: object
+      properties:
+        accepted_permissions:
+          type: boolean
+          description: >-
+            Indicates whether permission was received to access the areas
+            required by the app for use.
+        addendum:
+          type: string
+          description: >-
+            This contains the text of the agreement that appears when a user
+            installs the app. This field can be edited using the Markdown markup
+            language.
+        has_payment_access:
+          type: boolean
+          description: Indicates whether payment terms and fees can be applied to this app.
+          default: true
+        id:
+          type: integer
+          description: The unique identification number of each installation instance.
+        installed_on:
+          type: string
+          format: date-time
+          description: The date and time that this app was installed by the user.
+        installer_user_id:
+          type: integer
+          description: >-
+            The unique identification of the user with permission to install
+            apps from the Apps Marketplace. This is also the user who can accept
+            or reject addendum agreements.
+        log_level_data_fee:
+          type: integer
+          description: The fee being charged to the user to consume log-level data.
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permission'
+          description: >-
+            The operations that the app can perform on behalf of the currently
+            logged in user.
+        plugin_id:
+          type: integer
+          description: >-
+            The unique identification number of the plugin installed in this
+            instance.
+        subscriber_email:
+          type: string
+          description: >-
+            The email address of the specified contact person at the app
+            installer.
+        subscriber_entity_id:
+          type: integer
+          description: >-
+            The unique identification number of the parent of the user that
+            installed the app.
+        subscriber_entity_type:
+          type: string
+          enum:
+            - member
+            - bidder
+          description: >-
+            The parent organization of the user that installed the app. Possible
+            values include 'member' or 'bidder'.
+        subscriber_name:
+          type: string
+          description: The name of the contact person at the app installer.
+        subscriber_phone:
+          type: string
+          description: >-
+            The phone number of the specified contact person at the app
+            installer.
+      required:
+        - plugin_id
+        - subscriber_entity_id
+    ChangeLog:
+      type: object
+      properties:
+        service:
+          type: string
+          description: The service used to make the change.
+        resource_id:
+          type: integer
+          description: The ID of the object used to make the change.
+        additional_fields:
+          type: string
+          description: Additional data to be included in the response.
+    ChangeLogDetail:
+      type: object
+      properties:
+        created_on:
+          type: string
+          format: date-time
+        user_id:
+          type: integer
+        method:
+          type: string
+          enum:
+            - put
+            - post
+            - delete
+        url:
+          type: string
+        transaction_id:
+          type: string
+        member_id:
+          type: integer
+        raw_json:
+          type: string
+        plugin_id:
+          type: string
+        changes:
+          type: array
+          items:
+            type: object
+            properties:
+              field_name:
+                type: string
+              old_value:
+                type: string
+              new_value:
+                type: string
+              changed:
+                type: boolean
+        session_id:
+          type: string
+        internal_txn:
+          type: boolean
+        request_source:
+          type: string
+        num_of_changes:
+          type: integer
+        modified_by_admin:
+          type: boolean
+        admin_id:
+          type: integer
+        user_full_name:
+          type: string
+        resource_id:
+          type: integer
+        client_ip:
+          type: string
+        ip_info:
+          type: string
+    Credential:
+      properties:
+        auth:
+          properties:
+            password:
+              description: User's password
+              type: string
+            username:
+              description: User's username
+              type: string
+          required:
+            - username
+            - password
+          type: object
+      required:
+        - auth
+      type: object
+    ContentCategory:
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+      type: object
+    Country:
+      properties:
+        active:
+          description: >-
+            If true, the country is available for targeting. If false, there is
+            no geolocation data for the country and so delivery is not possible.
+          type: boolean
+        code:
+          description: The ISO code for the country.
+          type: string
+        id:
+          description: The ID of the country.
+          type: integer
+        name:
+          description: The name of the country.
+          type: string
+      type: object
+    DealType:
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+      type: object
+    Developer:
+      properties:
+        billing_address_1:
+          description: The first line of the developer address.
+          type: string
+        billing_address_2:
+          default: null
+          description: The second line of the developer address.
+          type: string
+        billing_city:
+          description: The city in which the developer resides.
+          type: string
+        billing_country:
+          description: The country in which the developer lives.
+          type: string
+        billing_postal_code:
+          description: The developer ZIP code.
+          type: string
+        billing_region:
+          description: The region in which the developer resides.
+          type: string
+        email:
+          description: The developer email address.
+          type: string
+        entity_id:
+          description: The entity ID of the developer.
+          type: integer
+        id:
+          description: The ID of the developer.
+          type: integer
+        last_modified:
+          description: The date and time on which this information was last modified.
+          format: date-time
+          type: string
+        name:
+          description: The name of the developer.
+          type: string
+        phone:
+          description: The developer contact phone number.
+          type: string
+      required:
+        - phone
+        - email
+        - billing_address_1
+        - billing_city
+        - billing_country
+        - billing_region
+        - billing_postal_code
+      type: object
+    DomainList:
+      properties:
+        description:
+          description: A description of the domain list.
+          maxLength: 100
+          type: string
+        domains:
+          description: >-
+            Array of domains in the format ["domain1.com", "domain2.com", ... ,
+            "domain10.com"].
+          items:
+            type: string
+          type: array
+        id:
+          description: The internal system identifier for the domain list.
+          type: integer
+        last_modified:
+          description: Read-only timestamp of when the domain list was last changed.
+          format: date-time
+          readOnly: true
+          type: string
+        name:
+          description: >-
+            The name of the domain list as specified by the user. This name must
+            be unique.
+          maxLength: 100
+          type: string
+        type:
+          default: white
+          description: >-
+            The type of domain list. Possible values are black and white. This
+            value is strictly informational; it does not determine whether the
+            list is included or excluded in targeting.
+          enum:
+            - black
+            - white
+          type: string
+      required:
+        - name
+        - domains
+      type: object
+    FloorOptimization:
+      properties:
+        active:
+          description: If true, this member has floor optimization enabled.
+          type: boolean
+        bidder_id:
+          description: >-
+            The ID of an internal real-time price provider that performs the
+            floor optimization.
+          type: integer
+      type: object
+    InventoryList:
+      properties:
+        deleted:
+          description: Indicates whether the inventory list has been deleted.
+          readOnly: true
+          type: boolean
+        exclude:
+          description: >-
+            If true, the inventory list will be excluded from targeting (i.e.,
+            treated as a blocklist). If false, the inventory list will be
+            included in targeting (i.e., treated as an allowlist). This field is
+            solely dependent on the inventory list_type field described above.
+          readOnly: true
+          type: boolean
+        id:
+          description: The ID of the allowlist or blocklist to be applied.
+          type: integer
+        list_type:
+          description: >-
+            Denotes whether the list is a blocklist or allowlist. Valid values
+            are whitelist or blacklist.
+          readOnly: true
+          type: string
+        name:
+          description: Name of the allowlist or blocklist.
+          readOnly: true
+          type: string
+      required:
+        - id
+      type: object
+    InventoryTrust:
+      properties:
+        default_allow_unaudited:
+          description: >-
+            If true, campaigns using inventory quality filtering will allow
+            unaudited inventory from sellers unless overridden in the members
+            array.
+          type: boolean
+        default_trust:
+          description: >-
+            Possible values: 'appnexus': Campaigns using inventory quality
+            filtering will only buy Xandr-audited inventory from sellers unless
+            overridden in the members array. 'seller': Inventory quality
+            filtering will allow inventory that has been audited by the selling
+            member in Xandr.
+          enum:
+            - appnexus
+            - seller
+          type: string
+        members:
+          description: >-
+            For each selling member, controls banned/eligible for selling to
+            you, whether you trust their inventory audit, and whether you allow
+            unaudited inventory from them.
+          items:
+            $ref: '#/components/schemas/Member'
+          type: array
+      type: object
+    Pagination:
+      properties:
+        count:
+          type: integer
+        start_element:
+          type: integer
+        num_elements:
+          type: integer
+      type: object
+    Permission:
+      type: object
+      properties:
+        privileges:
+          type: array
+          items:
+            $ref: '#/components/schemas/Privilege'
+          description: >-
+            The types of calls that the app can make to the API service and the
+            specific fields that can be used.
+        service:
+          type: string
+          description: The name of the API service that the app is permitted to use.
+    Privilege:
+      type: object
+      properties:
+        method:
+          type: string
+          description: >-
+            The calls that can be made to the service ('get', 'post', 'put', or
+            'delete').
+        fields:
+          type: array
+          items:
+            type: string
+          description: >-
+            The fields the permissions apply to in the service. If null, the
+            permissions apply to all fields in the service.
+    Mediation:
+      properties:
+        auto_bid_adjustment_enabled:
+          description: >-
+            If true , this member can use the automatic bid adjustment feature,
+            in which Xandr suggests a bid based on an estimate what the network
+            will pay and automatically updates the bid as conditions change.
+          type: boolean
+        reporting_sync_enabled:
+          description: >-
+            If true, this member can use the reporting sync feature, in which
+            reporting data from third-party networks can be pulled from that
+            network's servers. This data is used to create daily reports and
+            monitor trends directly from within Xandr.
+          type: boolean
+      type: object
+    Member:
+      properties:
+        allow_ad_profile_override:
+          default: true
+          description: >-
+            If true, the ad quality restrictions in default_ad_profile_id will
+            take precedence over ad quality restrictions defined at the
+            placement level. For example, if you restrict Advertiser X in the
+            default ad quality profile at the network level, but do not restrict
+            Advertiser X at the placement level, Advertiser X will still be
+            restricted. If you set this to false , settings at the placement
+            level will take precedence. Note: If you set this to true, you must
+            set the default_ad_profile_id as well.
+          type: boolean
+        allow_non_cpm_payment:
+          default: true
+          type: boolean
+        app_contract_accepted:
+          default: false
+          description: >-
+            Not yet supported. Indicates whether the member has agreed to the
+            Xandr terms of service contract for Xandr's exchange. Non-admin
+            users can only change this field from False to True. In order to set
+            it from True to False, contact your Xandr representative.
+          type: boolean
+        audit_notify_email:
+          description: >-
+            Each time Xandr audits a creative belonging to this member, a
+            detailed response is sent to this email address. The response
+            includes the creative's audit status and any reasons why the
+            creative has not passed audit. This field supports multiple
+            comma-separated email addresses. Could also be used for domain audit
+            notification ( see domain_blacklist_email below).
+          type: string
+        buyer_clearing_fee_pct:
+          description: >-
+            Admin-only. The percent of the CPM paid for inventory charged as a
+            fee in certain cases. See your contract for more information.
+          type: number
+        buyer_credit_limit:
+          description: >-
+            Admin-only. The credit limit with Xandr taken into consideration
+            when the member is buying inventory.
+          type: number
+        contact_email:
+          description: The email contact for this member.
+          type: string
+        content_categories:
+          description: >-
+            A list of available categories that you can apply to publishers,
+            sites, and placements. Can be customized by the member.
+          items:
+            $ref: '#/components/schemas/ContentCategory'
+          type: array
+        contract_allows_unaudited:
+          default: true
+          description: >-
+            Admin-only. See default_campaign_trust and
+            default_campaign_allow_unaudited for information about
+            Xandr-reviewed inventory. If your contract does not allow you to run
+            on non-Xandr-reviewed inventory for some reason, this will be false.
+          type: boolean
+        creative_size_fee_per_gb:
+          description: >-
+            Read-only. The fee that is charged per GB for a creative that
+            exceeds the creative_size_minimum_bytes.
+          type: number
+        creative_size_minimum_bytes:
+          description: >-
+            Read-only. The size above which a creative is considered over-sized.
+            The member is charged a creative overage fee for serving an
+            over-sized creative.
+          type: integer
+        daily_budget:
+          description: >-
+            The safety budget for your member, in U.S. dollars. The safety
+            budget establishes a member-wide cap for your daily CPM media cost
+            on third-party inventory. This helps limit the risk of unintentional
+            overspend due to trafficking and campaign setup errors. Your safety
+            budget always operates on the timezone of your member and resets
+            each day at 12am. To control who receives email notifications when
+            your safety budget is approached, use the
+            send_safety_budget_notifications field on the User Service.
+          type: number
+        daily_budget_imps:
+          description: >-
+            The safety budget for your member, in impressions. See daily_budget
+            above for more details.
+          type: integer
+        daily_imps_self_audited:
+          type: integer
+        daily_imps_unaudited:
+          type: integer
+        daily_imps_verified:
+          type: integer
+        deal_types:
+          items:
+            $ref: '#/components/schemas/DealType'
+          type: array
+        default_accept_data_provider_usersync:
+          default: true
+          description: See default_accept_supply_partner_usersync.
+          type: boolean
+        default_accept_deals:
+          default: true
+          description: >-
+            If true, the acceptance_status field of the Deal Buyer Setting
+            Service defaults to active, if false, the acceptance_status defaults
+            to pending.
+          type: boolean
+        default_accept_demand_partner_usersync:
+          default: true
+          description: >-
+            We use pixels to sync user IDs between Xandr and our major
+            non-platform supply partners, such as Google, and third party data
+            providers. This increases our ability to apply frequency and recency
+            caps and segment data across the Internet. You can opt not to
+            participate in user syncing; however this reduces our ability to
+            apply the right information to your campaigns.
+          type: boolean
+        default_ad_profile_id:
+          description: >-
+            The ID of the default Ad Profile to use. This is required when
+            allow_ad_profile_override is true.
+          type: integer
+        default_allow_cpa:
+          default: true
+          type: boolean
+        default_allow_cpc:
+          default: true
+          type: boolean
+        default_buyer_group_id:
+          description: Currently used for an alpha feature.
+          type: integer
+        default_campaign_allow_unaudited:
+          default: false
+          description: >-
+            You can choose to apply Inventory Quality criteria to your campaigns
+            (sensitive attributes, intended audience, etc.). If this field is
+            false, then certain inventory quality criteria will be applied by
+            default to each campaign. You can override it at any time in the
+            Campaign Manager or through the campaign's profile. If true, no
+            inventory quality criteria will be applied to your campaigns unless
+            you manually apply it.
+          type: boolean
+        default_campaign_trust:
+          default: appnexus
+          description: >-
+            Xandr reviews a significant portion of inventory and applies quality
+            attributes, and also encourages members who sell on our platform to
+            review their inventory in the same manner. If you would like
+            campaigns to by default run only on Xandr-reviewed inventory, then
+            set this field to "appnexus". If you want to default to your seller
+            trust settings, which may include seller-reviewed and unreviewed
+            inventory, set this field to "seller". You can override this with
+            the campaign's profile.
+          enum:
+            - seller
+            - appnexus
+          type: string
+        default_content_retrieval_timeout_ms:
+          default: 0
+          description: >-
+            The default timeout, specified in milliseconds, for all placements
+            created by this member. The default value of 0 will mean that
+            mediated content will not be served. Note: This setting can still be
+            overridden by the content_retrieval_timeout_ms field on the
+            placement itself.
+          type: integer
+        default_country:
+          description: >-
+            Default country for the member. The objects are 'country_id',
+            'country_name', 'country_code'.
+          items:
+            $ref: '#/components/schemas/Country'
+          type: array
+        default_currency:
+          default: USD
+          description: >-
+            The default currency for this member. Can be overridden at more
+            granular levels. For possible currency values, please use the
+            Currency Service.
+          type: string
+        default_enable_for_mediation:
+          default: false
+          description: >-
+            Whether placements created by this member are enabled to serve
+            mediation creatives by default. Even if this field is set to false,
+            the enable_for_mediation field on the placement itself can still
+            override the behavior defined here.
+          type: boolean
+        default_placement_id:
+          description: >-
+            The placement ID to be used as a default when an inactive or
+            nonexistent seller tag is called.
+          type: integer
+        developer_id:
+          description: >-
+            Read-only. The ID of the developer, if the member is developing on
+            Xandr's platform (e.g., for the Apps Marketplace).
+          type: integer
+        domain_blacklist_email:
+          description: >-
+            When Xandr finds domains belonging to this member to be in violation
+            of its standards and auditing policies, the domains are put into a
+            blocklist, and an email is sent to this email address. The email
+            identifies the domain URL, average daily impressions, and blocklist
+            reason(s) for each domain that averaged at least 10,000 daily
+            impressions over the last 7 days. Blocked domains that averaged less
+            than 10,000 daily impressions over the last 7 days are not included
+            in the email. Note: If no email address is provided here, the email
+            address in the audit_notify_email is used instead.
+          type: string
+        dongle:
+          description: A code that is used as a password for a member's debug output.
+          type: string
+        email_code:
+          description: >-
+            Email code is a unique value used when placements are processed via
+            our email tag processing tool. Must be an alphanumeric value.
+          type: string
+        enable_click_and_imp_trackers:
+          default: false
+          description: >-
+            Admin-only. If true, external click and impression trackers can be
+            created in.
+          type: boolean
+        entity_type:
+          default: reseller
+          description: >-
+            Admin-only. A legacy field that may be used in the future.
+            (deprecated)
+          enum:
+            - reseller
+            - direct
+          type: string
+        expose_eap_ecp_placement_settings:
+          description: Deprecated as of March 2011.
+          type: boolean
+        expose_optimization_levers:
+          default: false
+          description: Admin-only. If true, optimization levers are shown in.
+          type: boolean
+        floor_optimization:
+          description: >-
+            Read-only. Indicates if floor optimization is enabled for this
+            member and provides the bidder ID of a real-time price provider. See
+            Floor Optimization below for the definitions of the objects in this
+            array. May also be set to null to disable the feature.
+          items:
+            $ref: '#/components/schemas/FloorOptimization'
+          type: array
+        id:
+          description: The ID of the member.
+          type: integer
+        interface_domain:
+          description: This field is being deprecated.
+          type: string
+        interface_domain_beta:
+          description: This field is being deprecated.
+          type: string
+        inventory_trust:
+          $ref: '#/components/schemas/InventoryTrust'
+        is_iash_compliant:
+          default: false
+          description: >-
+            Admin-only. If a selling member is IASH compliant, a logo will be
+            placed next to the member's name in Partner Center.
+          type: boolean
+        last_modified:
+          description: The timestamp of last modification to this member.
+          type: string
+        max_hosted_video_size:
+          description: >-
+            Admin-only. The maximum file size for hosted in-stream video
+            creatives. In addition to limiting file size, setting this field
+            enables the member to host videos with Xandr.
+          type: integer
+        mediation:
+          $ref: '#/components/schemas/Mediation'
+        member_brand_exceptions:
+          default: true
+          description: >-
+            An array of brand IDs. Creatives associated with these brands will
+            be allowed to serve more than once per page load on your publishers'
+            pages (4 on those publishers' pages who have enabled sell-side page
+            caps via the seller_page_cap_enabled field of the Publisher
+            Service). You can also add per-publisher brand exceptions using the
+            publisher_brand_exceptions field of the Publisher Service. See
+            Member Brand Exceptions for the definitions of the objects stored in
+            this array.
+          type: boolean
+        name:
+          description: The name of the member.
+          type: string
+        native_custom_keys:
+          default: null
+          description: >-
+            Some sellers of native advertising require buyers to use "custom
+            keys" to target their inventory. These keys will vary from member to
+            member. This field allows sellers to define what custom values
+            they'd like buyers to pass in via a native creative. For more
+            information, see Native Custom Keys below. Note: You can obtain a
+            list of native custom keys using the read-only Native Custom Key
+            Service.
+          items:
+            $ref: '#/components/schemas/NativeCustomKey'
+          type: array
+        no_reselling_priority:
+          description: >-
+            This value is used to determine whether RTB bids are allowed to
+            compete with your managed campaigns. In order for an RTB bid to be
+            able to compete with a managed bid for an impression, this field's
+            value must be greater than the priority of the managed bid.
+          type: integer
+        pitbull_segment_id:
+          description: 'Note: This field has been deprecated.'
+          type: integer
+        pitbull_segment_value:
+          description: 'Note: This field has been deprecated.'
+          type: integer
+        platform_exposure:
+          default: public
+          description: >-
+            Whether or not to expose the member's inventory to the platform for
+            reselling in the real-time marketplace.
+          enum:
+            - public
+            - private
+          type: string
+        plugins:
+          description: >-
+            The plugins that users see on the Apps tab in . See Plugins below
+            for more details.
+          items:
+            $ref: '#/components/schemas/Plugin'
+          type: array
+        plugins_enabled:
+          default: false
+          description: Admin-only. If true, the Apps tab is shown in.
+          type: boolean
+        pops_enabled_UI:
+          default: false
+          description: Admin-only. If true, pop ad support is shown in.
+          type: boolean
+        prioritize_margin:
+          default: false
+          description: >-
+            If set to true Xandr will perform a bid/no bid check for managed
+            campaigns based on line item minimum margin settings. If set to
+            false Xandr will not not perform any bid/no bid check for managed
+            campaigns based on the line item minimum.
+          type: boolean
+        reporting_decimal_type:
+          default: decimal
+          description: >-
+            The decimal mark used in reporting. This setting can be overridden
+            at the user and report levels (see "reporting_decimal_type" in the
+            User Service and Report Service). Possible values:
+          enum:
+            - comma
+            - decimal
+          type: string
+        reselling_description:
+          description: This description is not currently used in.
+          type: string
+        reselling_exposed_on:
+          description: >-
+            The date and time at which reselling_exposure was changed to
+            "public"
+          type: string
+        seller_member_groups:
+          description: >-
+            Admin-only. Specifies information about the groups of sellers to
+            which this member belongs. See Seller Member Group below for more
+            information.
+          items:
+            $ref: '#/components/schemas/SellerMemberGroup'
+          type: array
+        seller_revshare_pct:
+          description: >-
+            Admin-only. If this member is a seller and has a revenue sharing
+            agreement with Xandr, the Xandr portion of the revenue sharing is
+            indicated here.
+          type: integer
+        server_of_record:
+          $ref: '#/components/schemas/ServerOfRecord'
+        serving_domain:
+          description: Admin-only. The domain through which advertisements are served.
+          properties:
+            cname:
+              type: string
+            type:
+              type: string
+          type: object
+        sherlock_notify_email:
+          description: >-
+            Each time Sherlock scans a creative belonging to this member, a
+            response is sent to this email address. The response includes the
+            creative's audit status and any reasons why the creative has not
+            passed audit. This email address will also receiveobject limit
+            notifications , sent when you reach 85, 95, and 100 percent of your
+            limit for an object. This field supports multiple comma-separated
+            email addresses.
+          type: string
+        short_name:
+          description: URL-friendly name to be used as needed.
+          type: string
+        standard_sizes:
+          description: >-
+            The list of sizes which are included in the standard sizes dropdown
+            in when creating creatives.
+          items:
+            $ref: '#/components/schemas/AdSize'
+          type: array
+        state:
+          default: active
+          description: The state of the member.
+          enum:
+            - active
+            - inactive
+          type: string
+        thirdparty_pixels:
+          description: >-
+            Read-only. An array of third-party pixels associated with the
+            member. You can automatically attach these pixels to all creatives
+            owned by this member using the Third-party Pixel service or attach
+            them individually at the creative level using the Creative Service.
+          items:
+            $ref: '#/components/schemas/ThirdparyPixel'
+          type: array
+        timezone:
+          $ref: '#/components/schemas/Timezone'
+        use_insertion_orders:
+          default: false
+          description: >-
+            If true, use insertion orders (an organizational level above line
+            items) for this member.
+          type: boolean
+        visibility_profile_id:
+          description: >-
+            The ID of the optional visibility profile attached to the member.
+            See the Visibility Profile Service for more details.
+          type: integer
+        website_url:
+          description: >-
+            The ID of the optional visibility profile attached to the member.
+            See the Visibility Profile Service for more details.
+          type: string
+      type: object
+    MemberProfile:
+      properties:
+        country_targets:
+          description: The countries from which you will accept third-party impressions.
+          items:
+            $ref: '#/components/schemas/Country'
+          type: array
+        domain_list_action:
+          description: The action to perform on domain_list_targets.
+          enum:
+            - include
+            - exclude
+          type: string
+        domain_list_targets:
+          description: The domain lists to include or exclude.
+          items:
+            $ref: '#/components/schemas/DomainList'
+          type: array
+        id:
+          description: The ID of the member profile.
+          type: integer
+        inventory_url_list_targets:
+          description: Contains a list of inventory list IDs.
+          items:
+            $ref: '#/components/schemas/InventoryList'
+          type: array
+        last_modified:
+          description: The date on which the member profile was last modified.
+          type: string
+        require_transparency_and_consent_framework_string:
+          description: >-
+            If true, only allow associated objects to purchase inventory where
+            valid TCF string is present.
+          type: boolean
+      type: object
+    NativeCustomKey:
+      properties:
+        custom_key:
+          description: >-
+            A seller-defined key that defines what information the seller would
+            like the buyer to pass in via a native creative.
+          type: string
+      type: object
+    Plugin:
+      properties:
+        id:
+          description: The ID of the plugin.
+          type: integer
+        status:
+          description: >-
+            The state of the plugin. If 'available' the user has not yet
+            installed the plugin; if 'installed', the user has installed the
+            plugin; if 'accept_permissions', the user has installed the plugin,
+            but changes to the plugin require the user to explicitly accept the
+            changes before continuing to use it.
+          enum:
+            - available
+            - installed
+            - accept_permissions
+          type: string
+      type: object
+    Report:
+      type: object
+      required:
+        - report_type
+        - columns
+      properties:
+        report_type:
+          type: string
+          enum:
+            - network_analytics
+            - network_billing
+            - buyer_invoice_report
+            - seller_invoice_report
+            - network_advertiser_analytics
+            - network_publisher_analytics
+            - network_site_domain_performance
+            - advertiser_analytics
+            - video_analytics_network
+            - video_analytics_network_advertiser
+            - video_analytics_network_publisher
+            - buyer_segment_performance
+            - seller_brand_review
+            - publisher_brand_review
+            - publisher_analytics
+            - network_creative_search
+            - publisher_creative_search
+            - network_advertiser_frequency_recency
+            - advertiser_frequency_recency
+            - site_domain_performance
+            - seller_site_domain
+            - inventory_domain_analytics
+            - inventory_source_analytics
+            - inventory_daily_uniques
+            - segment_load
+            - attributed_conversions
+            - pixel_fired
+            - network_analytics_feed
+            - clicktrackers
+            - key_value_analytics
+            - prebid_server_analytics
+            - psp_health_analytics
+          description: Determines which information will be returned.
+        timezone:
+          $ref: '#/components/schemas/Timezone'
+        filters:
+          type: array
+          items:
+            type: object
+          description: The list of filter objects to apply to the report.
+        group_filters:
+          type: array
+          items:
+            type: object
+          description: >-
+            Allows you to specify an operation to perform on one or more
+            filters.
+        columns:
+          type: array
+          items:
+            type: string
+          description: The list of columns to include in the report.
+        row_per:
+          type: array
+          items:
+            type: string
+        groups:
+          type: array
+          items:
+            type: string
+        start_date:
+          type: string
+          description: The start date for the report.
+        end_date:
+          type: string
+          description: The end date for the report.
+        report_interval:
+          type: string
+          enum:
+            - current_hour
+            - last_hour
+            - today
+            - yesterday
+            - last_48_hours
+            - last_2_days
+            - last_7_days
+            - last_14_days
+            - month_to_yesterday
+            - month_to_date
+            - quarter_to_date
+            - last_month
+            - lifetime
+            - 30_days
+          description: The time range for the report.
+        orders:
+          type: array
+          items:
+            type: object
+          description: The list of columns to sort by.
+        format:
+          type: string
+          enum:
+            - csv
+            - excel
+            - html
+          description: The format in which the report data will be returned.
+        reporting_decimal_type:
+          type: string
+          enum:
+            - comma
+            - decimal
+          description: The decimal mark used in the report.
+        emails:
+          type: array
+          items:
+            type: string
+          description: >-
+            The list of email addresses to which the reporting data will be
+            sent.
+        escape_fields:
+          type: boolean
+          description: When true, it adds quotes around each field in the report output.
+    ReportStatuses:
+      properties:
+        max_hour_closed:
+          format: date-time
+          type: string
+        max_hour_closed_conversion:
+          deprecated: true
+          format: date-time
+          type: string
+      type: object
+    Response:
+      properties:
+        dbg_info:
+          description: Debug information
+          type: object
+        status:
+          description: The status of the authentication request
+          type: string
+      require:
+        - status
+      type: object
+    SellerMemberGroup:
+      properties:
+        created_on:
+          description: Timestamp that indicates when this seller member group was created.
+          format: date
+          type: string
+        description:
+          description: Specifies a description of this seller member group.
+          type: string
+        display_order:
+          description: >-
+            Specifies the order in which this seller member group will be
+            displayed in. Default is 5.
+          type: integer
+        id:
+          description: Specifies the unique ID of this seller member group.
+          type: integer
+        last_modified:
+          description: >-
+            Timestamp that indicates when this seller member group was last
+            modified.
+          format: date
+          type: string
+        name:
+          description: Specifies the name of this seller member group.
+          type: string
+      type: object
+    ServerOfRecord:
+      description: >-
+        For some line items, the most important performance indicator is that
+        the line item delivers its budget in full and evenly across its flight
+        dates. This object is used to hold configuration details related to
+        these line items.
+      properties:
+        enforce_true_priority_tiers:
+          description: Deprecated.
+          type: boolean
+        guaranteed_delivery_enabled:
+          description: If true, this member has access to guaranteed delivery features.
+          type: boolean
+        guaranteed_delivery_version:
+          description: >-
+            This temporary flag denotes the version of the Guaranteed Delivery
+            pacing algorithm being used.
+          type: integer
+      required:
+        - enforce_true_priority_tiers
+        - guaranteed_delivery_enabled
+        - guaranteed_delivery_version
+      type: object
+    ThirdparyPixel:
+      properties:
+        active:
+          description: Read-only. The current status of the pixel (true = active).
+          type: boolean
+        audit_status:
+          description: Read-only. Audit status of the pixel.
+          type: string
+        id:
+          description: Read-only. The pixel's ID.
+          type: integer
+        name:
+          description: Read-only. The full name of the pixel.
+          type: string
+      type: object
+    Timezone:
+      enum:
+        - Africa/Abidjan
+        - Africa/Accra
+        - Africa/Addis_Ababa
+        - Africa/Algiers
+        - Africa/Asmara
+        - Africa/Asmera
+        - Africa/Bamako
+        - Africa/Bangui
+        - Africa/Banjul
+        - Africa/Bissau
+        - Africa/Blantyre
+        - Africa/Brazzaville
+        - Africa/Bujumbura
+        - Africa/Cairo
+        - Africa/Casablanca
+        - Africa/Ceuta
+        - Africa/Conakry
+        - Africa/Dakar
+        - Africa/Dar_es_Salaam
+        - Africa/Djibouti
+        - Africa/Douala
+        - Africa/El_Aaiun
+        - Africa/Freetown
+        - Africa/Gaborone
+        - Africa/Harare
+        - Africa/Johannesburg
+        - Africa/Kampala
+        - Africa/Khartoum
+        - Africa/Kigali
+        - Africa/Kinshasa
+        - Africa/Lagos
+        - Africa/Libreville
+        - Africa/Lome
+        - Africa/Luanda
+        - Africa/Lubumbashi
+        - Africa/Lusaka
+        - Africa/Malabo
+        - Africa/Maputo
+        - Africa/Maseru
+        - Africa/Mbabane
+        - Africa/Mogadishu
+        - Africa/Monrovia
+        - Africa/Nairobi
+        - Africa/Ndjamena
+        - Africa/Niamey
+        - Africa/Nouakchott
+        - Africa/Ouagadougou
+        - Africa/Porto-Novo
+        - Africa/Sao_Tome
+        - Africa/Timbuktu
+        - Africa/Tripoli
+        - Africa/Tunis
+        - Africa/Windhoek
+        - America/Adak
+        - America/Anchorage
+        - America/Anguilla
+        - America/Antigua
+        - America/Araguaina
+        - America/Argentina/Buenos_Aires
+        - America/Argentina/Catamarca
+        - America/Argentina/ComodRivadavia
+        - America/Argentina/Cordoba
+        - America/Argentina/Jujuy
+        - America/Argentina/La_Rioja
+        - America/Argentina/Mendoza
+        - America/Argentina/Rio_Gallegos
+        - America/Argentina/Salta
+        - America/Argentina/San_Juan
+        - America/Argentina/San_Luis
+        - America/Argentina/Tucuman
+        - America/Argentina/Ushuaia
+        - America/Aruba
+        - America/Asuncion
+        - America/Atikokan
+        - America/Atka
+        - America/Bahia
+        - America/Barbados
+        - America/Belem
+        - America/Belize
+        - America/Blanc-Sablon
+        - America/Boa_Vista
+        - America/Bogota
+        - America/Boise
+        - America/Buenos_Aires
+        - America/Cambridge_Bay
+        - America/Campo_Grande
+        - America/Cancun
+        - America/Catamarca
+        - America/Cayenne
+        - America/Cayman
+        - America/Chicago
+        - America/Chihuahua
+        - America/Coral_Harbour
+        - America/Cordoba
+        - America/Costa_Rica
+        - America/Cuiaba
+        - America/Curacao
+        - America/Danmarkshavn
+        - America/Dawson
+        - America/Dawson_Creek
+        - America/Denver
+        - America/Detroit
+        - America/Dominica
+        - America/Edmonton
+        - America/Eirunepe
+        - America/El_Salvador
+        - America/Ensenada
+        - America/Fortaleza
+        - America/Fort_Wayne
+        - America/Glace_Bay
+        - America/Godthab
+        - America/Goose_Bay
+        - America/Grand_Turk
+        - America/Grenada
+        - America/Guadeloupe
+        - America/Guatemala
+        - America/Guayaquil
+        - America/Guyana
+        - America/Halifax
+        - America/Havana
+        - America/Hermosillo
+        - America/Indiana/Indianapolis
+        - America/Indiana/Knox
+        - America/Indiana/Marengo
+        - America/Indiana/Petersburg
+        - America/Indiana/Tell_City
+        - America/Indiana/Vevay
+        - America/Indiana/Vincennes
+        - America/Indiana/Winamac
+        - America/Indianapolis
+        - America/Inuvik
+        - America/Iqaluit
+        - America/Jamaica
+        - America/Jujuy
+        - America/Juneau
+        - America/Kentucky/Louisville
+        - America/Kentucky/Monticello
+        - America/Knox_IN
+        - America/La_Paz
+        - America/Lima
+        - America/Los_Angeles
+        - America/Louisville
+        - America/Maceio
+        - America/Managua
+        - America/Manaus
+        - America/Marigot
+        - America/Martinique
+        - America/Mazatlan
+        - America/Mendoza
+        - America/Menominee
+        - America/Merida
+        - America/Mexico_City
+        - America/Miquelon
+        - America/Moncton
+        - America/Monterrey
+        - America/Montevideo
+        - America/Montreal
+        - America/Montserrat
+        - America/Nassau
+        - America/New_York
+        - America/Nipigon
+        - America/Nome
+        - America/Noronha
+        - America/North_Dakota/Center
+        - America/North_Dakota/New_Salem
+        - America/Panama
+        - America/Pangnirtung
+        - America/Paramaribo
+        - America/Phoenix
+        - America/Port-au-Prince
+        - America/Porto_Acre
+        - America/Porto_Velho
+        - America/Port_of_Spain
+        - America/Puerto_Rico
+        - America/Rainy_River
+        - America/Rankin_Inlet
+        - America/Recife
+        - America/Regina
+        - America/Resolute
+        - America/Rio_Branco
+        - America/Rosario
+        - America/Santarem
+        - America/Santiago
+        - America/Santo_Domingo
+        - America/Sao_Paulo
+        - America/Scoresbysund
+        - America/Shiprock
+        - America/St_Barthelemy
+        - America/St_Kitts
+        - America/St_Lucia
+        - America/St_Thomas
+        - America/St_Vincent
+        - America/Swift_Current
+        - America/Tegucigalpa
+        - America/Thule
+        - America/Thunder_Bay
+        - America/Tijuana
+        - America/Toronto
+        - America/Tortola
+        - America/Vancouver
+        - America/Virgin
+        - America/Whitehorse
+        - America/Winnipeg
+        - America/Yakutat
+        - America/Yellowknife
+        - Antarctica/Casey
+        - Antarctica/Davis
+        - Antarctica/DumontDUrville
+        - Antarctica/Mawson
+        - Antarctica/McMurdo
+        - Antarctica/Palmer
+        - Antarctica/Rothera
+        - Antarctica/South_Pole
+        - Antarctica/Syowa
+        - Antarctica/Vostok
+        - Arctic/Longyearbyen
+        - Asia/Aden
+        - Asia/Almaty
+        - Asia/Amman
+        - Asia/Anadyr
+        - Asia/Aqtau
+        - Asia/Aqtobe
+        - Asia/Ashgabat
+        - Asia/Ashkhabad
+        - Asia/Baghdad
+        - Asia/Bahrain
+        - Asia/Baku
+        - Asia/Bangkok
+        - Asia/Beirut
+        - Asia/Bishkek
+        - Asia/Brunei
+        - Asia/Calcutta
+        - Asia/Choibalsan
+        - Asia/Chongqing
+        - Asia/Chungking
+        - Asia/Colombo
+        - Asia/Dacca
+        - Asia/Damascus
+        - Asia/Dhaka
+        - Asia/Dili
+        - Asia/Dubai
+        - Asia/Dushanbe
+        - Asia/Gaza
+        - Asia/Harbin
+        - Asia/Hong_Kong
+        - Asia/Hovd
+        - Asia/Ho_Chi_Minh
+        - Asia/Irkutsk
+        - Asia/Istanbul
+        - Asia/Jakarta
+        - Asia/Jayapura
+        - Asia/Jerusalem
+        - Asia/Kamchatka
+        - Asia/Karachi
+        - Asia/Kashgar
+        - Asia/Kathmandu
+        - Asia/Krasnoyarsk
+        - Asia/Kuala_Lumpur
+        - Asia/Kuching
+        - Asia/Kuwait
+        - Asia/Macao
+        - Asia/Macau
+        - Asia/Magadan
+        - Asia/Makassar
+        - Asia/Manila
+        - Asia/Muscat
+        - Asia/Nicosia
+        - Asia/Novosibirsk
+        - Asia/Omsk
+        - Asia/Oral
+        - Asia/Phnom_Penh
+        - Asia/Pontianak
+        - Asia/Pyongyang
+        - Asia/Qatar
+        - Asia/Qyzylorda
+        - Asia/Rangoon
+        - Asia/Riyadh
+        - Asia/Saigon
+        - Asia/Sakhalin
+        - Asia/Samarkand
+        - Asia/Seoul
+        - Asia/Shanghai
+        - Asia/Singapore
+        - Asia/Taipei
+        - Asia/Tashkent
+        - Asia/Tbilisi
+        - Asia/Tel_Aviv
+        - Asia/Thimbu
+        - Asia/Thimphu
+        - Asia/Tokyo
+        - Asia/Ujung_Pandang
+        - Asia/Ulaanbaatar
+        - Asia/Ulan_Bator
+        - Asia/Urumqi
+        - Asia/Vientiane
+        - Asia/Vladivostok
+        - Asia/Yakutsk
+        - Asia/Yekaterinburg
+        - Asia/Yerevan
+        - Atlantic/Azores
+        - Atlantic/Bermuda
+        - Atlantic/Canary
+        - Atlantic/Cape_Verde
+        - Atlantic/Faeroe
+        - Atlantic/Faroe
+        - Atlantic/Jan_Mayen
+        - Atlantic/Madeira
+        - Atlantic/Reykjavik
+        - Atlantic/South_Georgia
+        - Atlantic/Stanley
+        - Atlantic/St_Helena
+        - Australia/ACT
+        - Australia/Brisbane
+        - Australia/Broken_Hill
+        - Australia/Canberra
+        - Australia/Currie
+        - Australia/Darwin
+        - Australia/Eucla
+        - Australia/Hobart
+        - Australia/LHI
+        - Australia/Lindeman
+        - Australia/Lord_Howe
+        - Australia/Melbourne
+        - Australia/North
+        - Australia/NSW
+        - Australia/Perth
+        - Australia/Queensland
+        - Australia/South
+        - Australia/Sydney
+        - Australia/Tasmania
+        - Australia/Victoria
+        - Australia/West
+        - Australia/Yancowinna
+        - Brazil/Acre
+        - Brazil/DeNoronha
+        - Brazil/East
+        - Brazil/West
+        - Canada/Atlantic
+        - Canada/Central
+        - Canada/East-Saskatchewan
+        - Canada/Eastern
+        - Canada/Mountain
+        - Canada/Newfoundland
+        - Canada/Pacific
+        - Canada/Saskatchewan
+        - Canada/Yukon
+        - CET
+        - Chile/Continental
+        - Chile/EasterIsland
+        - CST6CDT
+        - Cuba
+        - EET
+        - Egypt
+        - Eire
+        - EST
+        - EST5EDT
+        - Etc/GMT
+        - Etc/GMT+0
+        - Etc/GMT+1
+        - Etc/GMT+10
+        - Etc/GMT+11
+        - Etc/GMT+12
+        - Etc/GMT+2
+        - Etc/GMT+3
+        - Etc/GMT+4
+        - Etc/GMT+5
+        - Etc/GMT+6
+        - Etc/GMT+7
+        - Etc/GMT+8
+        - Etc/GMT+9
+        - Etc/GMT-0
+        - Etc/GMT-1
+        - Etc/GMT-10
+        - Etc/GMT-11
+        - Etc/GMT-12
+        - Etc/GMT-13
+        - Etc/GMT-2
+        - Etc/GMT-3
+        - Etc/GMT-4
+        - Etc/GMT-5
+        - Etc/GMT-6
+        - Etc/GMT-7
+        - Etc/GMT-8
+        - Etc/GMT-9
+        - Etc/GMT0
+        - Etc/Greenwich
+        - Etc/UCT
+        - Etc/Universal
+        - Etc/UTC
+        - Etc/Zulu
+        - Europe/Amsterdam
+        - Europe/Andorra
+        - Europe/Athens
+        - Europe/Belfast
+        - Europe/Belgrade
+        - Europe/Berlin
+        - Europe/Bratislava
+        - Europe/Brussels
+        - Europe/Bucharest
+        - Europe/Budapest
+        - Europe/Chisinau
+        - Europe/Copenhagen
+        - Europe/Dublin
+        - Europe/Gibraltar
+        - Europe/Guernsey
+        - Europe/Helsinki
+        - Europe/Isle_of_Man
+        - Europe/Istanbul
+        - Europe/Jersey
+        - Europe/Kaliningrad
+        - Europe/Kiev
+        - Europe/Lisbon
+        - Europe/Ljubljana
+        - Europe/London
+        - Europe/Luxembourg
+        - Europe/Madrid
+        - Europe/Malta
+        - Europe/Mariehamn
+        - Europe/Minsk
+        - Europe/Monaco
+        - Europe/Moscow
+        - Europe/Nicosia
+        - Europe/Oslo
+        - Europe/Paris
+        - Europe/Podgorica
+        - Europe/Prague
+        - Europe/Riga
+        - Europe/Rome
+        - Europe/Samara
+        - Europe/San_Marino
+        - Europe/Sarajevo
+        - Europe/Simferopol
+        - Europe/Skopje
+        - Europe/Sofia
+        - Europe/Stockholm
+        - Europe/Tallinn
+        - Europe/Tirane
+        - Europe/Tiraspol
+        - Europe/Uzhgorod
+        - Europe/Vaduz
+        - Europe/Vatican
+        - Europe/Vienna
+        - Europe/Vilnius
+        - Europe/Volgograd
+        - Europe/Warsaw
+        - Europe/Zagreb
+        - Europe/Zaporozhye
+        - Europe/Zurich
+        - Factory
+        - GB
+        - GB-Eire
+        - GMT
+        - GMT+0
+        - GMT-0
+        - GMT0
+        - Greenwich
+        - Hongkong
+        - HST
+        - Iceland
+        - Indian/Antananarivo
+        - Indian/Chagos
+        - Indian/Christmas
+        - Indian/Comoro
+        - Indian/Kerguelen
+        - Indian/Mahe
+        - Indian/Maldives
+        - Indian/Mauritius
+        - Indian/Mayotte
+        - Indian/Reunion
+        - Iran
+        - Israel
+        - Jamaica
+        - Japan
+        - Kwajalein
+        - Libya
+        - MET
+        - Mexico/BajaNorte
+        - Mexico/BajaSur
+        - Mexico/General
+        - MST
+        - MST7MDT
+        - Navajo
+        - NZ
+        - NZ-CHAT
+        - Pacific/Apia
+        - Pacific/Auckland
+        - Pacific/Chatham
+        - Pacific/Easter
+        - Pacific/Efate
+        - Pacific/Enderbury
+        - Pacific/Fakaofo
+        - Pacific/Fiji
+        - Pacific/Funafuti
+        - Pacific/Galapagos
+        - Pacific/Gambier
+        - Pacific/Guadalcanal
+        - Pacific/Guam
+        - Pacific/Honolulu
+        - Pacific/Johnston
+        - Pacific/Kosrae
+        - Pacific/Kwajalein
+        - Pacific/Majuro
+        - Pacific/Marquesas
+        - Pacific/Midway
+        - Pacific/Nauru
+        - Pacific/Niue
+        - Pacific/Norfolk
+        - Pacific/Noumea
+        - Pacific/Pago_Pago
+        - Pacific/Palau
+        - Pacific/Pitcairn
+        - Pacific/Ponape
+        - Pacific/Port_Moresby
+        - Pacific/Rarotonga
+        - Pacific/Saipan
+        - Pacific/Samoa
+        - Pacific/Tahiti
+        - Pacific/Tarawa
+        - Pacific/Tongatapu
+        - Pacific/Truk
+        - Pacific/Wake
+        - Pacific/Wallis
+        - Pacific/Yap
+        - Poland
+        - Portugal
+        - PRC
+        - PST8PDT
+        - ROC
+        - ROK
+        - Singapore
+        - Turkey
+        - UCT
+        - Universal
+        - US/Alaska
+        - US/Aleutian
+        - US/Arizona
+        - US/Central
+        - US/East-Indiana
+        - US/Eastern
+        - US/Hawaii
+        - US/Indiana-Starke
+        - US/Michigan
+        - US/Mountain
+        - US/Pacific
+        - US/Samoa
+        - UTC
+        - W-SU
+        - WET
+        - Zulu
+      type: string
+      default: America/New_York
+    User:
+      properties:
+        advertiser_access:
+          description: >-
+            The advertiser(s) that the user can access, if user_type is
+            "member_advertiser".
+          items:
+            type: integer
+          type: array
+        advertiser_id:
+          description: >-
+            The ID of the advertiser with which the user is associated, if
+            user_type is "advertiser".
+          type: integer
+        api_login:
+          description: Admin-only. If true, the user can access and use the API.
+          type: boolean
+        custom_data:
+          description: Any information relevant to the user can be entered here.
+          type: string
+        decimal_mark:
+          description: >-
+            The character separating the integer part from the fractional part
+            of a number.
+          enum:
+            - period
+            - comma
+          type: string
+        email:
+          description: The email address of the user.
+          type: string
+        entity_id:
+          description: The ID of the entity (member or bidder) to which the user belongs.
+          type: integer
+        entity_name:
+          description: The name of the entity (member or bidder) to which the user belongs.
+          type: string
+        entity_reporting_decimal_type:
+          description: >-
+            Whether number values are separated by a comma or a decimal in
+            reports.
+          enum:
+            - decimal
+            - comma
+          type: string
+        first_name:
+          description: The user's first name.
+          type: string
+        id:
+          description: The internal ID associated with the user.
+          type: integer
+        is_developer:
+          description: >-
+            Read-only. This flag gives a user rights to access certain
+            developer-focused services such as the Plugin and Plugin Instance
+            services, which are used by apps.
+          type: boolean
+        last_modified:
+          description: The date and time when the user was last modified.
+          format: date-time
+          type: string
+        last_name:
+          description: The user's last name.
+          type: string
+        password_expires_on:
+          description: When the user's password expires.
+          format: date-time
+          type: string
+        phone:
+          description: The user's contact phone number.
+          type: string
+        publisher_access:
+          description: >-
+            The publisher(s) that the user can access, if user_type is
+            "member_publisher".
+          items:
+            type: integer
+          type: array
+        publisher_id:
+          description: >-
+            The ID of the publisher with which the user is associated, if
+            user_type is "publisher".
+          type: integer
+        read_only:
+          description: If true, the user is not allowed to make changes via the API.
+          type: boolean
+        reporting_decimal_type:
+          description: The character used for decimals in reporting.
+          enum:
+            - comma
+            - decimal
+          type: string
+        send_safety_budget_notifications:
+          description: >-
+            If true, the user will receive email notifications when the daily
+            safety budget threshold is approached.
+          type: boolean
+        state:
+          description: The state of the user.
+          enum:
+            - active
+            - inactive
+          type: string
+        thousand_separator:
+          description: The character separating digit groups in a number.
+          enum:
+            - comma
+            - space
+            - period
+          type: string
+        timezone:
+          description: The user's timezone.
+          type: string
+        user_type:
+          description: The type of user.
+          enum:
+            - member
+            - bidder
+            - publisher
+            - advertiser
+            - member_advertiser
+            - member_publisher
+          type: string
+        username:
+          description: The login name of the user.
+          type: string
+      type: object
+  securitySchemes:
+    token:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ID:
+      name: id
+      in: query
+      description: Comma-separated list of IDs
+      schema:
+        type: string
+      example: 1,2,3
+    Search:
+      name: search
+      in: query
+      description: >-
+        Some services support search as a query string parameter to look for ID
+        or name.
+      schema:
+        type: string
+      example: 17
+    Sort:
+      name: sort
+      in: query
+      description: >-
+        List of fields you'd like to sort by and whether you want them ascending
+        (asc) or descending (desc)
+      schema:
+        type: string
+      example: id.desc
+    Offset:
+      name: start_element
+      in: query
+      schema:
+        type: integer
+      example: 20
+    Limit:
+      name: num_elements
+      in: query
+      schema:
+        type: integer
+      example: 10
+    Append:
+      name: append
+      in: query
+      schema:
+        type: boolean
+      example: true
+    Service:
+      in: query
+      name: service
+      required: true
+      schema:
+        type: string
+      description: The service used to make the change.
+    ResourceID:
+      in: query
+      name: resource_id
+      required: true
+      schema:
+        type: integer
+      description: The ID of the object used to make the change.
+    TransactionID:
+      in: query
+      name: transaction_id
+      required: true
+      schema:
+        type: integer
+      description: The ID of the change transaction.
+paths:
+  /account-recovery:
+    post:
+      summary: Account recovery request
+      tags:
+        - Authentication
+      requestBody:
+        $ref: '#/components/requestBodies/AccountRecovery'
+      responses:
+        '200':
+          $ref: '#/components/responses/AccountRecovery'
+    put:
+      summary: Confirm password reset with token
+      tags:
+        - Authentication
+      requestBody:
+        $ref: '#/components/requestBodies/AccountRecoveryConfirm'
+      responses:
+        '200':
+          $ref: '#/components/responses/AccountRecovery'
+        default:
+          $ref: '#/components/responses/Error'
+  /app-installation:
+    get:
+      summary: View all installations or a specific installation
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum:
+              - developer
+              - subscriber
+          description: The unique identification number of the installation to view.
+      responses:
+        '200':
+          $ref: '#/components/responses/AppInstallation'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      tags:
+        - Apps Marketplace
+    post:
+      summary: Install an app for a client
+      requestBody:
+        $ref: '#/components/requestBodies/AppInstallation'
+      responses:
+        '200':
+          $ref: '#/components/responses/AppInstallation'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      tags:
+        - Apps Marketplace
+    put:
+      summary: Update an app installation
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/Append'
+      requestBody:
+        $ref: '#/components/requestBodies/AppInstallation'
+      responses:
+        '200':
+          $ref: '#/components/responses/AppInstallation'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      tags:
+        - Apps Marketplace
+    delete:
+      summary: Delete an app installation
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          $ref: '#/components/responses/AppInstallation'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      tags:
+        - Apps Marketplace
+  /auth:
+    post:
+      operationId: authenticate
+      requestBody:
+        $ref: '#/components/requestBodies/Credential'
+      responses:
+        '200':
+          $ref: '#/components/responses/Credential'
+        default:
+          $ref: '#/components/responses/Error'
+      summary: Authenticate and get a token
+      tags:
+        - Authentication
+  /change-log:
+    get:
+      summary: Retrieve ID of a change incurred to a resource
+      tags:
+        - Change Log
+      parameters:
+        - $ref: '#/components/parameters/Service'
+        - $ref: '#/components/parameters/ResourceID'
+        - in: query
+          name: additional_fields
+          schema:
+            type: string
+          description: Additional data to be included in the response.
+      responses:
+        '200':
+          $ref: '#/components/responses/ChangeLog'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+    post:
+      summary: Posting an ID of change for a resource
+      tags:
+        - Change Log
+      requestBody:
+        $ref: '#/components/requestBodies/ChangeLog'
+      responses:
+        '200':
+          $ref: '#/components/responses/ChangeLog'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+  /change-log-detail:
+    get:
+      summary: Fetch the details of a change to resource
+      tags:
+        - Change Log
+      parameters:
+        - $ref: '#/components/parameters/Service'
+        - $ref: '#/components/parameters/ResourceID'
+      responses:
+        '200':
+          $ref: '#/components/responses/ChangeLogDetail'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+    post:
+      summary: Post the details of a change to a resource
+      tags:
+        - Change Log
+      requestBody:
+        $ref: '#/components/requestBodies/ChangeLogDetail'
+      responses:
+        '200':
+          $ref: '#/components/responses/ChangeLogDetail'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+  /country:
+    get:
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+        - name: name
+          in: query
+          schema:
+            type: string
+          description: Name of the country
+        - name: code
+          in: query
+          schema:
+            type: string
+          description: ISO code of the country
+      responses:
+        '200':
+          $ref: '#/components/responses/Country'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: View all countries or a specific country by ID, NAME, or CODE
+      tags:
+        - Read-Only
+  /developer:
+    get:
+      summary: View all installations or a specific installation
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum:
+              - developer
+              - subscriber
+          description: The unique identification number of the installation to view.
+      responses:
+        '200':
+          $ref: '#/components/responses/Developer'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      tags:
+        - Apps Marketplace
+    post:
+      summary: Install an app for a client
+      requestBody:
+        $ref: '#/components/requestBodies/Developer'
+      responses:
+        '200':
+          $ref: '#/components/responses/Developer'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      tags:
+        - Apps Marketplace
+    put:
+      summary: Update an app installation
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/Append'
+      requestBody:
+        $ref: '#/components/requestBodies/Developer'
+      responses:
+        '200':
+          $ref: '#/components/responses/Developer'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      tags:
+        - Apps Marketplace
+    delete:
+      summary: Delete an app installation
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          $ref: '#/components/responses/Developer'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      tags:
+        - Apps Marketplace
+  /domain-list:
+    delete:
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          $ref: '#/components/responses/DomainList'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: Delete an existing domain list
+      tags:
+        - Buy-Side
+    get:
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: >-
+            Search term for domain lists with names or descriptions containing
+            certain characters
+      responses:
+        '200':
+          $ref: '#/components/responses/DomainList'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: View domain lists
+      tags:
+        - Buy-Side
+    post:
+      requestBody:
+        $ref: '#/components/requestBodies/DomainList'
+      responses:
+        '200':
+          $ref: '#/components/responses/DomainList'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: Add a new domain list
+      tags:
+        - Buy-Side
+    put:
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/Append'
+      requestBody:
+        $ref: '#/components/requestBodies/DomainList'
+      responses:
+        '200':
+          $ref: '#/components/responses/DomainList'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: Modify an existing domain list
+      tags:
+        - Buy-Side
+  /member:
+    get:
+      operationId: getMember
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/Member'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: Get member information
+      tags:
+        - Member
+    post:
+      operationId: addMember
+      requestBody:
+        $ref: '#/components/requestBodies/Member'
+      responses:
+        '200':
+          $ref: '#/components/responses/Member'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: Add a new member
+      tags:
+        - Member
+    put:
+      operationId: updateMember
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/Append'
+      responses:
+        '200':
+          $ref: '#/components/responses/Member'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: Update member information
+      tags:
+        - Member
+  /member-profile:
+    delete:
+      operationId: deleteMemberProfile
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          description: Successful operation
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: Delete the current member profile
+      tags:
+        - Member
+    get:
+      operationId: getMemberProfile
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/MemberProfile'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: Get the current member profile
+      tags:
+        - Member
+    post:
+      operationId: createMemberProfile
+      requestBody:
+        $ref: '#/components/requestBodies/MemberProfile'
+      responses:
+        '200':
+          $ref: '#/components/responses/MemberProfile'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: Create a new member profile
+      tags:
+        - Member
+    put:
+      operationId: updateMemberProfile
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/Append'
+      requestBody:
+        $ref: '#/components/requestBodies/MemberProfile'
+      responses:
+        '200':
+          $ref: '#/components/responses/MemberProfile'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: Update an existing member profile
+      tags:
+        - Member
+  /prebid/ad-sizes:
+    get:
+      responses:
+        '200':
+          $ref: '#/components/responses/AdSize'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: Return all ad sizes
+      tags:
+        - Sell-Side
+  /user:
+    get:
+      operationId: getUsers
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+        - name: current
+          in: query
+          schema:
+            type: boolean
+          description: If present, returns the current user
+      responses:
+        '200':
+          $ref: '#/components/responses/User'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: Get a list of users
+      tags:
+        - User
+    post:
+      operationId: createUser
+      requestBody:
+        $ref: '#/components/requestBodies/User'
+      responses:
+        '200':
+          $ref: '#/components/responses/User'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: Add a new user
+      tags:
+        - User
+    put:
+      operationId: updateUser
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/Append'
+      requestBody:
+        $ref: '#/components/requestBodies/User'
+      responses:
+        '200':
+          $ref: '#/components/responses/User'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: Modify an existing user
+      tags:
+        - User
+  /report:
+    get:
+      description: Request the status of a report using the report ID.
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          $ref: '#/components/responses/ReportStatus'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: Request the status of a report
+      tags:
+        - Reporting
+    post:
+      description: Request a report by sending a JSON-formatted report request.
+      requestBody:
+        $ref: '#/components/requestBodies/Report'
+      responses:
+        '200':
+          $ref: '#/components/responses/ReportCreate'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: Request a report
+      tags:
+        - Reporting
+  /report-download:
+    get:
+      description: Retrieve report data using the report ID.
+      parameters:
+        - $ref: '#/components/parameters/ID'
+      responses:
+        '200':
+          $ref: '#/components/responses/ReportDownload'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: Retrieve report data
+      tags:
+        - Reporting
+  /report-status:
+    get:
+      parameters:
+        - description: Filter the status of specific reports
+          explode: false
+          in: query
+          name: report_type
+          required: false
+          schema:
+            items:
+              type: string
+            type: array
+          style: form
+      responses:
+        '200':
+          $ref: '#/components/responses/ReportStatuses'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      summary: View the status of all reports
+      tags:
+        - Reporting
+servers:
+  - url: https://api.appnexus.com
+tags:
+  - name: Apps Marketplace
+    description: >-
+      These services give app developers the ability to view and control certain
+      aspects of the apps they have added to the marketplace.
+  - name: Authentication
+    description: >-
+      Before you can make calls to any of the Digital Platform API services or
+      reports, you must use your username and password to get an authorization
+      token. The token remains active for 2 hours, during which you do not need
+      to re-authenticate.
+  - name: Buy-Side
+  - name: Change Log
+    description: >-
+      The read-only Change Log and Change Log Detail Services are used in
+      conjunction with other services (listed below) to retrieve information
+      about changes that have been made to a set of objects.
+  - name: Member
+    description: >-
+      A member is any entity that has a financial relationship with Xandr, and
+      each client is a single member. Members are registered with the Member
+      Service by Xandr personnel, and all API activity must be associated with a
+      member.
+  - name: Profile
+    description: >-
+      A profile is a set of targeting parameters, such as gender, age,
+      geography, and frequency. It can be applied to several objects in the
+      system, most of which are listed below. The most common use of the profile
+      service is to run a campaign; you create a profile and then associate it
+      with the CampaignService.
+  - name: Read-Only
+    description: >-
+      These are reference services that provide IDs for things such as language
+      and cities. Once you have the ID you can use them elsewhere, as in the
+      Profile Service.
+  - name: Reporting
+    description: >-
+      The Report Service is used to provide access to many different types of
+      reports. It also ensures that each user types can only access the reports
+      that are appropriate for that type.
+  - name: Sell-Side
+  - name: Shared Platform
+    description: >-
+      The Xandr Privacy Service permits Xandr clients to delete and
+      accesspersonal data (personal information) to support complying with
+      privacy regulations related to the provision and deletion of personal
+      information such as the GDPR or CCPA. This enables Xandr customers to
+      build custom consumer privacy experiences and reply to data subject access
+      requests.
+  - name: User
+    description: >-
+      \"User\" refers to people or groups able to log in to or API. Users are
+      classified by a user_type, which determines what type of information they
+      have access to.

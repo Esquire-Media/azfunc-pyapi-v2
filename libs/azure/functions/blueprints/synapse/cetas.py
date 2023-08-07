@@ -44,6 +44,20 @@ async def synapse_activity_cetas(ingress: dict):
                 )
             )
             session.commit()
+    elif ingress.get("view", None):
+        session.execute(
+            text(
+                f"""
+                    CREATE OR ALTER VIEW [{ingress["table"].get("schema", "dbo")}].[{ingress["table"]["name"]}] AS
+                        SELECT * FROM OPENROWSET(
+                            BULK '{ingress["destination"]["container"]}/{ingress["destination"]["path"]}/*.{ingress["destination"].get("format", "PARQUET").lower()}',
+                            DATA_SOURCE = '{ingress["destination"]["handle"]}',  
+                            FILE_FORMAT = '{ingress["destination"].get("format", "PARQUET")}' 
+                        ) AS [data]
+                """
+            )
+        )
+        session.commit()
 
     if ingress.get("return_urls", None):
         filesystem = FileSystemClient.from_connection_string(

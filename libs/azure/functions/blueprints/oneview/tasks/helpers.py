@@ -1,11 +1,11 @@
-# File: libs/azure/functions/blueprints/async_tasks/helpers.py
+# File: libs/azure/functions/blueprints/oneview/tasks/helpers.py
 
 from azure.data.tables import TableServiceClient
 from azure.storage.blob import BlobServiceClient
 from azure.durable_functions import DurableOrchestrationClient
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
-from libs.azure.functions.blueprints.oneview.schemas import (
+from libs.azure.functions.blueprints.oneview.tasks.schemas import (
     RequestSchema,
     AdvertiserRecordSchema,
     CreativeRecordSchema,

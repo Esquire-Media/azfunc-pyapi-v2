@@ -1,15 +1,15 @@
-# File: libs/azure/functions/blueprints/async_tasks/endpoints/leasing/renew.py
+# File: libs/azure/functions/blueprints/oneview/tasks/endpoints/leasing/renew.py
 
 from azure.durable_functions import DurableOrchestrationClient
 from azure.durable_functions.models.DurableOrchestrationStatus import (
     DurableOrchestrationStatus,
 )
 from datetime import datetime
-from libs.azure.functions.blueprints.oneview.helpers import (
+from libs.azure.functions.blueprints.oneview.tasks.helpers import (
     state as OrchestratorState,
     process_state as OrchestartorStateOperation,
 )
-from libs.azure.functions.blueprints.oneview.schemas import (
+from libs.azure.functions.blueprints.oneview.tasks.schemas import (
     RequestSchema,
     StatusSchema,
 )

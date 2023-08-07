@@ -1,14 +1,13 @@
-# File: libs/azure/functions/blueprints/async_tasks/endpoints/leasing/break.py
+# File: libs/azure/functions/blueprints/oneview/tasks/endpoints/leasing/break.py
 
 from azure.durable_functions import DurableOrchestrationClient
 from datetime import datetime
-from libs.azure.functions.blueprints.oneview.helpers import (
+from libs.azure.functions.blueprints.oneview.tasks.helpers import (
     state as OrchestratorState,
     process_state as OrchestartorStateOperation,
 )
-from libs.azure.functions.blueprints.oneview.schemas import (
+from libs.azure.functions.blueprints.oneview.tasks.schemas import (
     RequestSchema,
-    StatusSchema,
 )
 from libs.azure.functions import Blueprint
 from libs.azure.functions.http import HttpRequest, HttpResponse

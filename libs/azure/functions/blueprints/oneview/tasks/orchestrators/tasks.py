@@ -1,13 +1,13 @@
 # File: libs/azure/functions/blueprints/orchestrators/tasks.py
 
 from azure.durable_functions import DurableOrchestrationContext
-from libs.azure.functions.blueprints.oneview.helpers import (
+from libs.azure.functions.blueprints.oneview.tasks.helpers import (
     calculate_missing_campaigns,
     calculate_missing_flights,
     state as OrchestartorState,
     process_state as OrchestartorStateOperation,
 )
-from libs.azure.functions.blueprints.oneview.schemas import RequestSchema
+from libs.azure.functions.blueprints.oneview.tasks.schemas import RequestSchema
 from libs.azure.functions import Blueprint
 
 bp = Blueprint()

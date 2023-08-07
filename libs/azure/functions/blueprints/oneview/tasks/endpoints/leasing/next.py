@@ -1,4 +1,4 @@
-# File: libs/azure/functions/blueprints/async_tasks/endpoints/leasing/next.py
+# File: libs/azure/functions/blueprints/oneview/tasks/endpoints/leasing/next.py
 
 from azure.durable_functions import (
     DurableOrchestrationClient,
@@ -7,11 +7,11 @@ from azure.durable_functions import (
 from azure.durable_functions.models.DurableOrchestrationStatus import (
     DurableOrchestrationStatus,
 )
-from libs.azure.functions.blueprints.oneview.schemas import (
+from libs.azure.functions.blueprints.oneview.tasks.schemas import (
     RequestSchema,
     StatusSchema,
 )
-from libs.azure.functions.blueprints.oneview.helpers import (
+from libs.azure.functions.blueprints.oneview.tasks.helpers import (
     state as OrchestratorState,
     process_state as OrchestartorStateOperation,
 )

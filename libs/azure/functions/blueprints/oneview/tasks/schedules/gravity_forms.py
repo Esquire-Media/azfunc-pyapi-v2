@@ -2,7 +2,7 @@
 
 from azure.durable_functions import DurableOrchestrationClient
 from azure.functions import TimerRequest
-from libs.azure.functions.blueprints.oneview.helpers import (
+from libs.azure.functions.blueprints.oneview.tasks.helpers import (
     TABLE_CLIENTS,
     request_initializer,
 )

@@ -1,6 +1,6 @@
-# File: libs/azure/functions/blueprints/async_tasks/endpoints/starter.py
+# File: libs/azure/functions/blueprints/oneview/tasks/endpoints/starter.py
 
-from libs.azure.functions.blueprints.oneview.helpers import request_initializer
+from libs.azure.functions.blueprints.oneview.tasks.helpers import request_initializer
 from azure.durable_functions import DurableOrchestrationClient
 from libs.azure.functions import Blueprint
 from libs.azure.functions.http import HttpRequest, HttpResponse

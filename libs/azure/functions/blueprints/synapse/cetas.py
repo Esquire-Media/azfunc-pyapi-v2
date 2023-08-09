@@ -52,7 +52,7 @@ async def synapse_activity_cetas(ingress: dict):
                         SELECT * FROM OPENROWSET(
                             BULK '{ingress["destination"]["container"]}/{ingress["destination"]["path"]}/*.{ingress["destination"].get("format", "PARQUET").lower()}',
                             DATA_SOURCE = '{ingress["destination"]["handle"]}',  
-                            FILE_FORMAT = '{ingress["destination"].get("format", "PARQUET")}' 
+                            FORMAT = '{ingress["destination"].get("format", "PARQUET")}' 
                         ) AS [data]
                 """
             )

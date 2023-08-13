@@ -1,5 +1,6 @@
 from aiopenapi3 import OpenAPI
 import httpx, pathlib, os, yaml
+from functools import cached_property
 
 
 class XandrAPI:
@@ -48,6 +49,8 @@ class XandrAPI:
         )
         return data.response.token
 
-    spec = yaml.safe_load(
-        open(pathlib.Path(pathlib.Path(__file__).parent.resolve(), "spec.yaml"))
-    )
+    @cached_property
+    def spec():
+        return yaml.safe_load(
+            open(pathlib.Path(pathlib.Path(__file__).parent.resolve(), "spec.yaml"))
+        )

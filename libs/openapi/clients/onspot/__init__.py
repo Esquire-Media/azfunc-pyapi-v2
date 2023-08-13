@@ -1,5 +1,6 @@
 from aiopenapi3 import OpenAPI
 from aiopenapi3.plugin import Init
+from functools import cached_property
 import httpx, os, pathlib, yaml
 
 
@@ -175,6 +176,8 @@ class OnSpotAPI:
         )
         return api
 
-    spec = yaml.safe_load(
-        open(pathlib.Path(pathlib.Path(__file__).parent.resolve(), "spec.yaml"))
-    )
+    @cached_property
+    def spec():
+        return yaml.safe_load(
+            open(pathlib.Path(pathlib.Path(__file__).parent.resolve(), "spec.yaml"))
+        )

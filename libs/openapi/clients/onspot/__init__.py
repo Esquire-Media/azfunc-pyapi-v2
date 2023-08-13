@@ -161,7 +161,7 @@ class OnSpotAPI:
         """
         api = OpenAPI(
             url=f'https://api.{"" if production else "qa."}onspotdata.com/openapi',
-            document=OnSpotAPI.spec,
+            document=OnSpotAPI.get_spec(),
             plugins=[OnSpotInitPlugin(production=production)],
             session_factory=httpx.AsyncClient if asynchronus else httpx.Client,
         )
@@ -176,8 +176,7 @@ class OnSpotAPI:
         )
         return api
 
-    @cached_property
-    def spec():
+    def get_spec():
         return yaml.safe_load(
             open(pathlib.Path(pathlib.Path(__file__).parent.resolve(), "spec.yaml"))
         )

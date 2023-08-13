@@ -12,7 +12,7 @@ bp = Blueprint()
 async def documentation_yaml(req: HttpRequest):
     if req.route_params.get("spec") in specifications.keys():
         return HttpResponse(
-            yaml.dump(specifications[req.route_params["spec"]]),
+            yaml.dump(specifications[req.route_params["spec"]]()),
             headers={"Content-Type": "text/vnd.yaml"},
         )
     return HttpResponse(status_code=404)
@@ -23,7 +23,7 @@ async def documentation_yaml(req: HttpRequest):
 async def documentation_json(req: HttpRequest):
     if req.route_params.get("spec") in specifications.keys():
         return HttpResponse(
-            json.dump(specifications[req.route_params["spec"]]),
+            json.dumps(specifications[req.route_params["spec"]]()),
             headers={"Content-Type": "application/json"},
         )
     return HttpResponse(status_code=404)

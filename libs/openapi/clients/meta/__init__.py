@@ -1,7 +1,7 @@
 from aiopenapi3 import OpenAPI
 from functools import cached_property
 from libs.openapi.clients.meta.parser import MetaSDKParser
-import httpx, os
+import httpx, pathlib, os, yaml
 
 class MetaAPI:
     def __new__(
@@ -20,8 +20,9 @@ class MetaAPI:
         )
         return api
 
-    @cached_property
-    def spec():
-        return MetaSDKParser().spec
+    def get_spec():
+        return yaml.safe_load(
+            open(pathlib.Path(pathlib.Path(__file__).parent.resolve(), "spec.yaml"))
+        )
         
 

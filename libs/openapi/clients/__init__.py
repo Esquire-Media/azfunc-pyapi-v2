@@ -4,8 +4,8 @@ from libs.openapi.clients.onspot import OnSpotAPI
 from libs.openapi.clients.xandr import XandrAPI
 
 specifications = {
-    "GravityForms": GravityFormsAPI.spec,
-    "Meta": MetaAPI.spec,
-    "OnSpot": OnSpotAPI.spec,
-    "Xandr": XandrAPI.spec,
+    "GravityForms": GravityFormsAPI.get_spec,
+    "Meta": MetaAPI.get_spec,
+    "OnSpot": OnSpotAPI.get_spec,
+    "Xandr": XandrAPI.get_spec,
 }

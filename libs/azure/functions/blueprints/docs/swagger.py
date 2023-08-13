@@ -1,9 +1,7 @@
 from libs.azure.functions import Blueprint
 from libs.azure.functions.http import HttpRequest, HttpResponse
 from libs.openapi.clients import specifications
-from urllib.parse import urlparse
 import simplejson as json
-import yaml
 
 # Create a Blueprint instance
 bp = Blueprint()
@@ -11,8 +9,6 @@ bp = Blueprint()
 
 @bp.route(route="swagger", methods=["GET"])
 async def swagger_ui(req: HttpRequest):
-    url = urlparse(req.url)
-    url = f"{url.scheme}://{url.hostname}{':'+str(url.port) if url.port else ''}/api/docs/yaml"
     return HttpResponse(
         f"""<!doctype html>
 <html lang="en">
@@ -37,7 +33,7 @@ async def swagger_ui(req: HttpRequest):
 </div>
 <script>
     const ui = SwaggerUIBundle({{
-        urls: {json.dumps([{"url": f"{url}/{key}", "name": key} for key in specifications.keys()])},
+        urls: {json.dumps([{"url": f"/api/docs/yaml/{key}", "name": key} for key in specifications.keys()])},
         dom_id: '#swagger-ui',
         defaultModelsExpandDepth: -1,
         deepLinking: true,

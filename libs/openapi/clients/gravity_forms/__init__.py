@@ -1,5 +1,6 @@
 from aiopenapi3 import OpenAPI
 from aiopenapi3.plugin import Init
+from functools import cached_property
 import copy, httpx, os, yaml, pathlib
 
 
@@ -24,7 +25,7 @@ class GravityFormsAPI:
             if url[-1] != "/":
                 url += "/"
             url += "gf/v2"
-        spec = copy.deepcopy(cls.spec)
+        spec = copy.deepcopy(cls.get_spec())
         spec["servers"].append({"url": url})
         api = OpenAPI(
             url=url,
@@ -39,6 +40,8 @@ class GravityFormsAPI:
         )
         return api
 
-    spec = yaml.safe_load(
-        open(pathlib.Path(pathlib.Path(__file__).parent.resolve(), "spec.yaml"))
-    )
+    @staticmethod
+    def get_spec():
+        return yaml.safe_load(
+            open(pathlib.Path(pathlib.Path(__file__).parent.resolve(), "spec.yaml"))
+        )

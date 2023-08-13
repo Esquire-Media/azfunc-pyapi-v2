@@ -18,7 +18,7 @@ class XandrAPI:
     ) -> OpenAPI:
         api = OpenAPI(
             url=f"https://api.appnexus.com",
-            document=XandrAPI.spec,
+            document=XandrAPI.get_spec(),
             session_factory=httpx.AsyncClient if asynchronus else httpx.Client,
         )
         if not api_key and username and password:
@@ -48,6 +48,7 @@ class XandrAPI:
         )
         return data.response.token
 
-    spec = yaml.safe_load(
-        open(pathlib.Path(pathlib.Path(__file__).parent.resolve(), "spec.yaml"))
-    )
+    def get_spec():
+        return yaml.safe_load(
+            open(pathlib.Path(pathlib.Path(__file__).parent.resolve(), "spec.yaml"))
+        )

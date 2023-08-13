@@ -1,5 +1,6 @@
 from aiopenapi3 import OpenAPI
 from aiopenapi3.plugin import Init
+from functools import cached_property
 import httpx, os, pathlib, yaml
 
 
@@ -160,7 +161,7 @@ class OnSpotAPI:
         """
         api = OpenAPI(
             url=f'https://api.{"" if production else "qa."}onspotdata.com/openapi',
-            document=OnSpotAPI.spec,
+            document=OnSpotAPI.get_spec(),
             plugins=[OnSpotInitPlugin(production=production)],
             session_factory=httpx.AsyncClient if asynchronus else httpx.Client,
         )
@@ -175,6 +176,7 @@ class OnSpotAPI:
         )
         return api
 
-    spec = yaml.safe_load(
-        open(pathlib.Path(pathlib.Path(__file__).parent.resolve(), "spec.yaml"))
-    )
+    def get_spec():
+        return yaml.safe_load(
+            open(pathlib.Path(pathlib.Path(__file__).parent.resolve(), "spec.yaml"))
+        )

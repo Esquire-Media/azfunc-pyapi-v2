@@ -78,6 +78,24 @@ class MetaSDKParser:
                 for a in MetaSDKParser.get_module_names()
             ]
 
+    @staticmethod
+    def find_refs(data, refs=None):
+        """Recursively search for $ref values in data."""
+        if refs is None:
+            refs = []
+
+        if isinstance(data, dict):
+            for key, value in data.items():
+                if key == "$ref":
+                    refs.append(value)
+                else:
+                    MetaSDKParser.find_refs(value, refs)
+        elif isinstance(data, list):
+            for item in data:
+                MetaSDKParser.find_refs(item, refs)
+
+        return refs
+
     # Generate schemas based on the classes
     def set_schemas(self, module):
         for member in inspect.getmembers(module):
@@ -94,6 +112,15 @@ class MetaSDKParser:
                     f = c.Field()
                     # Base Class
                     self.spec["components"]["schemas"][c.__name__] = {"properties": {}}
+                    self.spec["components"]["schemas"][c.__name__ + "_" + "List"] = {
+                        "allOf": [{"$ref": "#/components/schemas/PaginatedResponse"}],
+                        "properties": {
+                            "data": {
+                                "type": "array",
+                                "items": {"$ref": "#/components/schemas/" + c.__name__},
+                            }
+                        },
+                    }
                     # Enumeration Classes
                     for enums in inspect.getmembers(c):
                         for e in enums:
@@ -189,7 +216,9 @@ class MetaSDKParser:
                                     "schema": {"$ref": f"#/components/schemas/{_p}"},
                                     **({"required": True} if p == "id" else {}),
                                 }
-                        self.spec["components"]["parameters"][c.__name__ + "Fields"] = {
+                        self.spec["components"]["parameters"][
+                            c.__name__ + "_" + "Fields"
+                        ] = {
                             "in": "query",
                             "name": "fields",
                             "schema": {
@@ -211,16 +240,11 @@ class MetaSDKParser:
         primary_schemas = [
             s for s in self.spec["components"]["schemas"].keys() if "-" not in s
         ]
-        for member in inspect.getmembers(module):
-            for c in member:
+        for members in inspect.getmembers(module):
+            for c in members:
                 if inspect.isclass(c) and c.__name__ in primary_schemas:
-                    if [
-                        m.__name__[4:]
-                        for _member in inspect.getmembers(c)
-                        for m in _member
-                        if inspect.isfunction(m)
-                    ]:
-                        self.spec["components"]["responses"][c.__name__] = {
+                    for op in ["create", "get", "update", "delete"]:
+                        self.spec["components"]["responses"][c.__name__ + "_" + op] = {
                             "description": f"Results of a request related to {c.__name__} records.",
                             "content": {
                                 "application/json": {
@@ -231,18 +255,11 @@ class MetaSDKParser:
                                                 + c.__name__
                                             },
                                             {
-                                                "$ref": "#/components/schemas/PaginatedResponse"
+                                                "$ref": "#/components/schemas/{}{}{}".format(
+                                                    c.__name__, "_", "List"
+                                                )
                                             },
                                         ],
-                                        "properties": {
-                                            "data": {
-                                                "type": "array",
-                                                "items": {
-                                                    "$ref": "#/components/schemas/"
-                                                    + c.__name__
-                                                },
-                                            }
-                                        },
                                     }
                                 }
                             },
@@ -272,7 +289,9 @@ class MetaSDKParser:
                                         "$ref": f"#/components/parameters/{c.__name__}-id"
                                     },
                                     {
-                                        "$ref": f"#/components/parameters/{c.__name__}Fields"
+                                        "$ref": "#/components/parameters/{}{}{}".format(
+                                            c.__name__, "_", "Fields"
+                                        )
                                     },
                                 ]
                             }
@@ -292,10 +311,14 @@ class MetaSDKParser:
                                 else {}
                             ),
                             "responses": {
-                                "200": {"$ref": f"#/components/responses/{c.__name__}"},
+                                "200": {
+                                    "$ref": "#/components/responses/{}{}{}".format(
+                                        c.__name__, "_", op
+                                    )
+                                },
                                 "default": {"$ref": "#/components/responses/Generic"},
                             },
-                            "security": [{"token": []}],
+                            "security": [{"access_token": []}],
                             "tags": [c.__name__],
                         }
 
@@ -340,7 +363,9 @@ class MetaSDKParser:
                             "parameters": [
                                 {"$ref": f"#/components/parameters/{name}-id"},
                                 {
-                                    "$ref": f"#/components/parameters/{op['request']['target_class']}Fields"
+                                    "$ref": "#/components/parameters/{}{}{}".format(
+                                        op["request"]["target_class"], "_", "Fields"
+                                    )
                                 },
                             ]
                         }
@@ -393,12 +418,15 @@ class MetaSDKParser:
                         ],
                         "responses": {
                             "200": {
-                                "$ref": "#/components/responses/"
-                                + op["request"]["target_class"]
+                                "$ref": "#/components/responses/{}{}{}".format(
+                                    op["request"]["target_class"],
+                                    "_",
+                                    op["func"].__name__.split("_")[0],
+                                )
                             },
                             "default": {"$ref": "#/components/responses/Generic"},
                         },
-                        "security": [{"token": []}],
+                        "security": [{"access_token": []}],
                         "tags": list(set([name, op["request"]["target_class"]])),
                     }
 
@@ -417,6 +445,113 @@ class MetaSDKParser:
         tags.sort()
         self.spec["tags"] = [{"name": tag} for tag in tags]
 
+    @staticmethod
+    def get_by_tags(source, *tags):
+        spec = {
+            "openapi": source["openapi"],
+            "info": source["info"],
+            "servers": source["servers"],
+            "tags": [],
+        }
+        if not tags:
+            tags = [t["name"] for t in source["tags"]]
+        for tag in tags:
+            for path_key, path_value in source["paths"].items():
+                if tag in [
+                    t
+                    for op in path_value.values()
+                    if isinstance(op, dict) and "tags" in op.keys()
+                    for t in op["tags"]
+                ]:
+                    for op_key, op_value in path_value.items():
+                        if "paths" not in spec.keys():
+                            spec["paths"] = {}
+                        if path_key not in spec["paths"].keys():
+                            spec["paths"][path_key] = {}
+                        spec["paths"][path_key][op_key] = source["paths"][path_key][
+                            op_key
+                        ]
+                        if isinstance(op_value, dict):
+                            spec["tags"] += op_value["tags"]
+
+                            if "security" in op_value.keys():
+                                for security in op_value["security"]:
+                                    for security_key in security.keys():
+                                        if (
+                                            security_key
+                                            in source["components"][
+                                                "securitySchemes"
+                                            ].keys()
+                                        ):
+                                            if "components" not in spec.keys():
+                                                spec["components"] = {}
+                                            if (
+                                                "securitySchemes"
+                                                not in spec["components"]
+                                            ):
+                                                spec["components"][
+                                                    "securitySchemes"
+                                                ] = {}
+                                            spec["components"]["securitySchemes"][
+                                                security_key
+                                            ] = source["components"]["securitySchemes"][
+                                                security_key
+                                            ]
+
+        for ref in MetaSDKParser.find_refs(spec["paths"]):
+            src = source
+            dest = spec
+            parts = ref[2:].split("/")
+            for t in parts:
+                src = src[t]
+                if t not in dest.keys():
+                    dest[t] = {}
+                dest = dest[t]
+            dest.update(src)
+
+        for ref in MetaSDKParser.find_refs(spec["components"]["parameters"]):
+            src = source
+            dest = spec
+            parts = ref[2:].split("/")
+            for t in parts:
+                src = src[t]
+                if t not in dest.keys():
+                    dest[t] = {}
+                dest = dest[t]
+            dest.update(src)
+
+        for ref in MetaSDKParser.find_refs(spec["components"]["responses"]):
+            src = source
+            dest = spec
+            parts = ref[2:].split("/")
+            for t in parts:
+                src = src[t]
+                if t not in dest.keys():
+                    dest[t] = {}
+                dest = dest[t]
+            dest.update(src)
+
+        while refs := [
+            r
+            for r in MetaSDKParser.find_refs(spec["components"]["schemas"])
+            if r[2:].split("/")[-1] not in spec["components"]["schemas"].keys()
+        ]:
+            for ref in refs:
+                src = source
+                dest = spec
+                parts = ref[2:].split("/")
+                for t in parts:
+                    src = src[t]
+                    if t not in dest.keys():
+                        dest[t] = {}
+                    dest = dest[t]
+                dest.update(src)
+
+        tags = list(set(spec["tags"]))
+        tags.sort()
+        spec["tags"] = [{"name": tag} for tag in tags]
+        return spec
+
     def __init__(self, *names):
         self.spec = {
             "openapi": "3.1.0",
@@ -431,6 +566,13 @@ class MetaSDKParser:
             },
             "servers": [{"url": "https://graph.facebook.com/v17.0"}],
             "components": {
+                "securitySchemes": {
+                    "access_token": {
+                        "type": "apiKey",
+                        "in": "query",
+                        "name": "access_token",
+                    }
+                },
                 "parameters": {},
                 "responses": {
                     "Generic": {
@@ -457,9 +599,6 @@ class MetaSDKParser:
                         }
                     },
                 },
-                "securitySchemes": {
-                    "token": {"type": "apiKey", "in": "query", "name": "access_token"}
-                },
             },
             "paths": {},
             "tags": [],
@@ -473,6 +612,7 @@ class MetaSDKParser:
         for module in MetaSDKParser.get_modules(*names):
             self.set_edge_operations(module)
         self.set_tags()
+        # self.spec = self.get_by_tags(self.spec)
 
 
 class RequestVisitor(ast.NodeVisitor):

@@ -2,6 +2,7 @@ from aiopenapi3 import OpenAPI
 from libs.openapi.clients.meta.parser import MetaSDKParser
 import httpx, pathlib, os, yaml
 
+
 class MetaAPI:
     def __new__(
         cls,
@@ -13,10 +14,10 @@ class MetaAPI:
             url=f"https://graph.facebook.com",
             document=MetaSDKParser(*modules).spec,
             session_factory=httpx.AsyncClient if asynchronus else httpx.Client,
-            use_operation_tags=False
+            use_operation_tags=False,
         )
         api.authenticate(
-            token=access_token,
+            access_token=access_token,
         )
         return api
 
@@ -25,5 +26,3 @@ class MetaAPI:
         return yaml.safe_load(
             open(pathlib.Path(pathlib.Path(__file__).parent.resolve(), "spec.yaml"))
         )
-        
-

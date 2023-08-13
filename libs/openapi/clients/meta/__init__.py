@@ -1,5 +1,4 @@
 from aiopenapi3 import OpenAPI
-from functools import cached_property
 from libs.openapi.clients.meta.parser import MetaSDKParser
 import httpx, pathlib, os, yaml
 
@@ -14,13 +13,15 @@ class MetaAPI:
             url=f"https://graph.facebook.com",
             document=MetaSDKParser(*modules).spec,
             session_factory=httpx.AsyncClient if asynchronus else httpx.Client,
+            use_operation_tags=False
         )
         api.authenticate(
             token=access_token,
         )
         return api
 
-    def get_spec():
+    def get_spec(*modules):
+        return MetaSDKParser(*modules).spec
         return yaml.safe_load(
             open(pathlib.Path(pathlib.Path(__file__).parent.resolve(), "spec.yaml"))
         )

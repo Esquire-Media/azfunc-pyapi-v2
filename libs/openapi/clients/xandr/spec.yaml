@@ -113,10 +113,10 @@ components:
       content:
         application/json:
           schema:
+            type: object
             properties:
               report:
                 $ref: '#/components/schemas/Report'
-            type: object
       description: Report details
       required: true
     User:
@@ -140,6 +140,7 @@ components:
       content:
         application/json:
           schema:
+            type: object
             properties:
               response:
                 allOf:
@@ -158,8 +159,10 @@ components:
       content:
         application/json:
           schema:
+            type: object
             properties:
               response:
+                type: object
                 allOf:
                   - $ref: '#/components/schemas/Response'
                   - $ref: '#/components/schemas/Pagination'
@@ -184,6 +187,7 @@ components:
             type: object
             properties:
               response:
+                type: object
                 allOf:
                   - $ref: '#/components/schemas/Response'
                   - $ref: '#/components/schemas/Pagination'
@@ -198,6 +202,7 @@ components:
       content:
         application/json:
           schema:
+            type: object
             properties:
               response:
                 allOf:
@@ -212,14 +217,15 @@ components:
                 type: object
             required:
               - response
-            type: object
       description: Authentication successful
     Country:
       content:
         application/json:
           schema:
+            type: object
             properties:
               response:
+                type: object
                 allOf:
                   - $ref: '#/components/schemas/Response'
                   - $ref: '#/components/schemas/Pagination'
@@ -235,8 +241,10 @@ components:
       content:
         application/json:
           schema:
+            type: object
             properties:
               response:
+                type: object
                 allOf:
                   - $ref: '#/components/schemas/Response'
                   - $ref: '#/components/schemas/Pagination'
@@ -252,8 +260,10 @@ components:
       content:
         application/json:
           schema:
+            type: object
             properties:
               response:
+                type: object
                 allOf:
                   - $ref: '#/components/schemas/Response'
                   - $ref: '#/components/schemas/Pagination'
@@ -269,6 +279,7 @@ components:
       content:
         application/json:
           schema:
+            type: object
             properties:
               code:
                 description: A machine-readable error code
@@ -290,8 +301,10 @@ components:
       content:
         application/json:
           schema:
+            type: object
             properties:
               response:
+                type: object
                 allOf:
                   - $ref: '#/components/schemas/Response'
                   - $ref: '#/components/schemas/Pagination'
@@ -307,8 +320,10 @@ components:
       content:
         application/json:
           schema:
+            type: object
             properties:
               response:
+                type: object
                 allOf:
                   - $ref: '#/components/schemas/Response'
                   - $ref: '#/components/schemas/Pagination'
@@ -324,8 +339,10 @@ components:
       content:
         application/json:
           schema:
+            type: object
             properties:
               response:
+                type: object
                 allOf:
                   - $ref: '#/components/schemas/Response'
                 properties:
@@ -336,14 +353,17 @@ components:
       content:
         application/json:
           schema:
+            type: object
             properties:
               response:
+                type: object
                 allOf:
                   - $ref: '#/components/schemas/Response'
                 properties:
                   execution_status:
                     type: string
                   report:
+                    type: object
                     properties:
                       cache_hit:
                         type: boolean
@@ -356,33 +376,80 @@ components:
                         type: string
                       json_request:
                         type: string
+                        # properties:
+                        #   report:
+                        #     type: object
+                        #     properties:
+                        #       timezone:
+                        #         type: string
+                        #       report_type:
+                        #         type: string
+                        #       report_interval:
+                        #         type: string
+                        #       columns:
+                        #         type: array
+                        #         items:
+                        #           type: string
+                        #       format:
+                        #         type: string
+                        #       grouping:
+                        #         type: object
+                        #         properties:
+                        #           additional_grouping_sets:
+                        #             type: array
+                        #             items:
+                        #               type: string
+                        #           unselected_implicit_groupings:
+                        #             type: array
+                        #             items:
+                        #               type: string
+                        #           additional_groups_on_bottom:
+                        #             type: boolean
+                        #       filters:
+                        #         type: array
+                        #         items:
+                        #           type: object
+                        #           additionalProperties: True
+                        #       reporting_decimal_type:
+                        #         type: string
+                        #       use_cache:
+                        #         type: boolean
+                        #   extraction_version:
+                        #     type: string
+                        #   end_date:
+                        #     type: integer
+                        #   start_date:
+                        #     type: integer
+                        #   user_id:
+                        #     type: string
                       name:
                         type: string
                       report_size:
-                        type: string
+                        type: integer
                       row_count:
-                        type: string
+                        type: integer
                       url:
                         type: string
-                    type: object
       description: Successful operation
     ReportDownload:
       content:
-        application/octet-stream:
+        text/html:
           schema:
-            format: binary
-            type: string
+            additionalProperties: True
       description: Successful operation
     ReportStatuses:
       content:
         application/json:
           schema:
+            type: object
             properties:
               response:
+                type: object
                 allOf:
                   - $ref: '#/components/schemas/Response'
                 properties:
                   reports:
+                    type: object
                     properties:
                       PSP_health_analytics:
                         $ref: "#/components/schemas/ReportStatuses"
@@ -759,8 +826,10 @@ components:
       content:
         application/json:
           schema:
+            type: object
             properties:
               response:
+                type: object
                 allOf:
                   - $ref: '#/components/schemas/Response'
                   - $ref: '#/components/schemas/Pagination'
@@ -774,6 +843,7 @@ components:
       description: Successful operation
   schemas:
     AdSize:
+      type: object
       properties:
         height:
           description: The height of the ad size.
@@ -786,7 +856,6 @@ components:
         width:
           description: The width of the ad size.
           type: integer
-      type: object
     AppInstallation:
       type: object
       properties:
@@ -932,8 +1001,10 @@ components:
         ip_info:
           type: string
     Credential:
+      type: object
       properties:
         auth:
+          type: object
           properties:
             password:
               description: User's password
@@ -944,18 +1015,17 @@ components:
           required:
             - username
             - password
-          type: object
       required:
         - auth
-      type: object
     ContentCategory:
+      type: object
       properties:
         id:
           type: integer
         name:
           type: string
-      type: object
     Country:
+      type: object
       properties:
         active:
           description: >-
@@ -971,15 +1041,15 @@ components:
         name:
           description: The name of the country.
           type: string
-      type: object
     DealType:
+      type: object
       properties:
         id:
           type: integer
         name:
           type: string
-      type: object
     Developer:
+      type: object
       properties:
         billing_address_1:
           description: The first line of the developer address.
@@ -1027,8 +1097,8 @@ components:
         - billing_country
         - billing_region
         - billing_postal_code
-      type: object
     DomainList:
+      type: object
       properties:
         description:
           description: A description of the domain list.
@@ -1068,8 +1138,8 @@ components:
       required:
         - name
         - domains
-      type: object
     FloorOptimization:
+      type: object
       properties:
         active:
           description: If true, this member has floor optimization enabled.
@@ -1079,8 +1149,8 @@ components:
             The ID of an internal real-time price provider that performs the
             floor optimization.
           type: integer
-      type: object
     InventoryList:
+      type: object
       properties:
         deleted:
           description: Indicates whether the inventory list has been deleted.
@@ -1109,8 +1179,8 @@ components:
           type: string
       required:
         - id
-      type: object
     InventoryTrust:
+      type: object
       properties:
         default_allow_unaudited:
           description: >-
@@ -1137,8 +1207,8 @@ components:
           items:
             $ref: '#/components/schemas/Member'
           type: array
-      type: object
     Pagination:
+      type: object
       properties:
         count:
           type: integer
@@ -1146,7 +1216,6 @@ components:
           type: integer
         num_elements:
           type: integer
-      type: object
     Permission:
       type: object
       properties:
@@ -1176,6 +1245,7 @@ components:
             The fields the permissions apply to in the service. If null, the
             permissions apply to all fields in the service.
     Mediation:
+      type: object
       properties:
         auto_bid_adjustment_enabled:
           description: >-
@@ -1190,8 +1260,8 @@ components:
             network's servers. This data is used to create daily reports and
             monitor trends directly from within Xandr.
           type: boolean
-      type: object
     Member:
+      type: object
       properties:
         allow_ad_profile_override:
           default: true
@@ -1579,13 +1649,13 @@ components:
         server_of_record:
           $ref: '#/components/schemas/ServerOfRecord'
         serving_domain:
+          type: object
           description: Admin-only. The domain through which advertisements are served.
           properties:
             cname:
               type: string
             type:
               type: string
-          type: object
         sherlock_notify_email:
           description: >-
             Each time Sherlock scans a creative belonging to this member, a
@@ -1640,8 +1710,8 @@ components:
             The ID of the optional visibility profile attached to the member.
             See the Visibility Profile Service for more details.
           type: string
-      type: object
     MemberProfile:
+      type: object
       properties:
         country_targets:
           description: The countries from which you will accept third-party impressions.
@@ -1675,16 +1745,16 @@ components:
             If true, only allow associated objects to purchase inventory where
             valid TCF string is present.
           type: boolean
-      type: object
     NativeCustomKey:
+      type: object
       properties:
         custom_key:
           description: >-
             A seller-defined key that defines what information the seller would
             like the buyer to pass in via a native creative.
           type: string
-      type: object
     Plugin:
+      type: object
       properties:
         id:
           description: The ID of the plugin.
@@ -1701,7 +1771,6 @@ components:
             - installed
             - accept_permissions
           type: string
-      type: object
     Report:
       type: object
       required:
@@ -1824,6 +1893,7 @@ components:
           type: boolean
           description: When true, it adds quotes around each field in the report output.
     ReportStatuses:
+      type: object
       properties:
         max_hour_closed:
           format: date-time
@@ -1832,19 +1902,20 @@ components:
           deprecated: true
           format: date-time
           type: string
-      type: object
     Response:
+      type: object
       properties:
         dbg_info:
-          description: Debug information
           type: object
+          description: Debug information
+          additionalProperties: True
         status:
           description: The status of the authentication request
           type: string
       require:
         - status
-      type: object
     SellerMemberGroup:
+      type: object
       properties:
         created_on:
           description: Timestamp that indicates when this seller member group was created.
@@ -1870,8 +1941,8 @@ components:
         name:
           description: Specifies the name of this seller member group.
           type: string
-      type: object
     ServerOfRecord:
+      type: object
       description: >-
         For some line items, the most important performance indicator is that
         the line item delivers its budget in full and evenly across its flight
@@ -1893,8 +1964,8 @@ components:
         - enforce_true_priority_tiers
         - guaranteed_delivery_enabled
         - guaranteed_delivery_version
-      type: object
     ThirdparyPixel:
+      type: object
       properties:
         active:
           description: Read-only. The current status of the pixel (true = active).
@@ -1908,7 +1979,6 @@ components:
         name:
           description: Read-only. The full name of the pixel.
           type: string
-      type: object
     Timezone:
       enum:
         - Africa/Abidjan
@@ -2463,6 +2533,7 @@ components:
       type: string
       default: America/New_York
     User:
+      type: object
       properties:
         advertiser_access:
           description: >-
@@ -2588,7 +2659,6 @@ components:
         username:
           description: The login name of the user.
           type: string
-      type: object
   securitySchemes:
     token:
       type: http
@@ -2662,6 +2732,7 @@ components:
 paths:
   /account-recovery:
     post:
+      operationId: StartAccountRecovery
       summary: Account recovery request
       tags:
         - Authentication
@@ -2671,6 +2742,7 @@ paths:
         '200':
           $ref: '#/components/responses/AccountRecovery'
     put:
+      operationId: ConfirmAccountRecovery
       summary: Confirm password reset with token
       tags:
         - Authentication
@@ -2683,6 +2755,7 @@ paths:
           $ref: '#/components/responses/Error'
   /app-installation:
     get:
+      operationId: GetApps
       summary: View all installations or a specific installation
       parameters:
         - $ref: '#/components/parameters/ID'
@@ -2707,6 +2780,7 @@ paths:
       tags:
         - Apps Marketplace
     post:
+      operationId: InstallApp
       summary: Install an app for a client
       requestBody:
         $ref: '#/components/requestBodies/AppInstallation'
@@ -2720,6 +2794,7 @@ paths:
       tags:
         - Apps Marketplace
     put:
+      operationId: UpdateApp
       summary: Update an app installation
       parameters:
         - $ref: '#/components/parameters/ID'
@@ -2736,6 +2811,7 @@ paths:
       tags:
         - Apps Marketplace
     delete:
+      operationId: DeleteApp
       summary: Delete an app installation
       parameters:
         - $ref: '#/components/parameters/ID'
@@ -2750,7 +2826,7 @@ paths:
         - Apps Marketplace
   /auth:
     post:
-      operationId: authenticate
+      operationId: Authenticate
       requestBody:
         $ref: '#/components/requestBodies/Credential'
       responses:
@@ -2763,6 +2839,7 @@ paths:
         - Authentication
   /change-log:
     get:
+      operationId: GetChangeLog
       summary: Retrieve ID of a change incurred to a resource
       tags:
         - Change Log
@@ -2796,6 +2873,7 @@ paths:
         - token: []
   /change-log-detail:
     get:
+      operationId: GetChangeLogDetail
       summary: Fetch the details of a change to resource
       tags:
         - Change Log
@@ -2824,6 +2902,7 @@ paths:
         - token: []
   /country:
     get:
+      operationId: GetCountries
       parameters:
         - $ref: '#/components/parameters/ID'
         - $ref: '#/components/parameters/Sort'
@@ -2851,6 +2930,7 @@ paths:
         - Read-Only
   /developer:
     get:
+      operationId: GetDeveloperApp
       summary: View all installations or a specific installation
       parameters:
         - $ref: '#/components/parameters/ID'
@@ -2875,6 +2955,7 @@ paths:
       tags:
         - Apps Marketplace
     post:
+      operationId: InstallDeveloperApp
       summary: Install an app for a client
       requestBody:
         $ref: '#/components/requestBodies/Developer'
@@ -2888,6 +2969,7 @@ paths:
       tags:
         - Apps Marketplace
     put:
+      operationId: UpdateDeveloperApp
       summary: Update an app installation
       parameters:
         - $ref: '#/components/parameters/ID'
@@ -2904,6 +2986,7 @@ paths:
       tags:
         - Apps Marketplace
     delete:
+      operationId: DeleteDeveloperApp
       summary: Delete an app installation
       parameters:
         - $ref: '#/components/parameters/ID'
@@ -2918,6 +3001,7 @@ paths:
         - Apps Marketplace
   /domain-list:
     delete:
+      operationId: DeleteDomainList
       parameters:
         - $ref: '#/components/parameters/ID'
       responses:
@@ -2931,6 +3015,7 @@ paths:
       tags:
         - Buy-Side
     get:
+      operationId: GetDomainList
       parameters:
         - $ref: '#/components/parameters/ID'
         - $ref: '#/components/parameters/Sort'
@@ -2954,6 +3039,7 @@ paths:
       tags:
         - Buy-Side
     post:
+      operationId: CreateDomainList
       requestBody:
         $ref: '#/components/requestBodies/DomainList'
       responses:
@@ -2967,6 +3053,7 @@ paths:
       tags:
         - Buy-Side
     put:
+      operationId: UpdateDomainList
       parameters:
         - $ref: '#/components/parameters/ID'
         - $ref: '#/components/parameters/Append'
@@ -2984,7 +3071,7 @@ paths:
         - Buy-Side
   /member:
     get:
-      operationId: getMember
+      operationId: GetMember
       parameters:
         - $ref: '#/components/parameters/ID'
         - $ref: '#/components/parameters/Sort'
@@ -3001,7 +3088,7 @@ paths:
       tags:
         - Member
     post:
-      operationId: addMember
+      operationId: AddMember
       requestBody:
         $ref: '#/components/requestBodies/Member'
       responses:
@@ -3015,7 +3102,7 @@ paths:
       tags:
         - Member
     put:
-      operationId: updateMember
+      operationId: UpdateMember
       parameters:
         - $ref: '#/components/parameters/ID'
         - $ref: '#/components/parameters/Append'
@@ -3031,7 +3118,7 @@ paths:
         - Member
   /member-profile:
     delete:
-      operationId: deleteMemberProfile
+      operationId: DeleteMemberProfile
       parameters:
         - $ref: '#/components/parameters/ID'
       responses:
@@ -3045,7 +3132,7 @@ paths:
       tags:
         - Member
     get:
-      operationId: getMemberProfile
+      operationId: GetMemberProfile
       parameters:
         - $ref: '#/components/parameters/ID'
         - $ref: '#/components/parameters/Sort'
@@ -3062,7 +3149,7 @@ paths:
       tags:
         - Member
     post:
-      operationId: createMemberProfile
+      operationId: CreateMemberProfile
       requestBody:
         $ref: '#/components/requestBodies/MemberProfile'
       responses:
@@ -3076,7 +3163,7 @@ paths:
       tags:
         - Member
     put:
-      operationId: updateMemberProfile
+      operationId: UpdateMemberProfile
       parameters:
         - $ref: '#/components/parameters/ID'
         - $ref: '#/components/parameters/Append'
@@ -3106,7 +3193,7 @@ paths:
         - Sell-Side
   /user:
     get:
-      operationId: getUsers
+      operationId: GetUsers
       parameters:
         - $ref: '#/components/parameters/ID'
         - $ref: '#/components/parameters/Sort'
@@ -3128,7 +3215,7 @@ paths:
       tags:
         - User
     post:
-      operationId: createUser
+      operationId: CreateUser
       requestBody:
         $ref: '#/components/requestBodies/User'
       responses:
@@ -3142,7 +3229,7 @@ paths:
       tags:
         - User
     put:
-      operationId: updateUser
+      operationId: UpdateUser
       parameters:
         - $ref: '#/components/parameters/ID'
         - $ref: '#/components/parameters/Append'
@@ -3160,6 +3247,7 @@ paths:
         - User
   /report:
     get:
+      operationId: GetReportStatus
       description: Request the status of a report using the report ID.
       parameters:
         - $ref: '#/components/parameters/ID'
@@ -3174,6 +3262,7 @@ paths:
       tags:
         - Reporting
     post:
+      operationId: GenerateReport
       description: Request a report by sending a JSON-formatted report request.
       requestBody:
         $ref: '#/components/requestBodies/Report'
@@ -3189,6 +3278,7 @@ paths:
         - Reporting
   /report-download:
     get:
+      operationId: DownloadReport
       description: Retrieve report data using the report ID.
       parameters:
         - $ref: '#/components/parameters/ID'
@@ -3204,6 +3294,7 @@ paths:
         - Reporting
   /report-status:
     get:
+      operationId: GetReportStatuses
       parameters:
         - description: Filter the status of specific reports
           explode: false

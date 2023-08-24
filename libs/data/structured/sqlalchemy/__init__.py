@@ -260,15 +260,16 @@ class SQLAlchemyStructuredProvider:
         self.models = self.base.by_module.get(self.id)
 
         # Extend the models with additional functionality
-        for func in MODEL_EXTENSION_STEPS:
-            func(
-                models=[
-                    self.models[schema][model]
-                    for schema in self.models.keys()
-                    for model in self.models[schema].keys()
-                ],
-                session=self.session,
-            )
+        if hasattr(self.models, "keys"):
+            for func in MODEL_EXTENSION_STEPS:
+                func(
+                    models=[
+                        self.models[schema][model]
+                        for schema in self.models.keys()
+                        for model in self.models[schema].keys()
+                    ],
+                    session=self.session,
+                )
 
     def __getitem__(self, handle):
         """

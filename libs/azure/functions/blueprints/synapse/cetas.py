@@ -32,9 +32,9 @@ async def synapse_activity_cetas(ingress: dict):
 
     session: Session = from_bind(ingress["bind"]).connect()
     session.execute(text(query))
-    if ingress.get("commit", None):
+    if ingress.get("commit", False):
         session.commit()
-        if ingress.get("view", None):
+        if ingress.get("view", False):
             session.execute(
                 text(
                     f"""
@@ -44,7 +44,9 @@ async def synapse_activity_cetas(ingress: dict):
                 )
             )
             session.commit()
-    elif ingress.get("view", None):
+    elif ingress.get("view", False):
+        session.close()
+        session: Session = from_bind(ingress["bind"]).connect()
         session.execute(
             text(
                 f"""

@@ -58,7 +58,7 @@ def oneview_orchestrator_tasks(context: DurableOrchestrationContext):
         # does not exist in the current state, wait for an event signaling its
         # registration, and then update the state
         for task in ["advertiser", "creative"]:
-            if not state["existing"][task]:
+            while not state["existing"][task]:
                 context.set_custom_status(f"Awaiting: {task.capitalize()} Registration")
                 event = yield context.wait_for_external_event(task)
                 state = schema.load(

@@ -111,8 +111,12 @@ class MetaSDKParser:
 
                     f = c.Field()
                     # Base Class
-                    self.spec["components"]["schemas"][c.__name__] = {"properties": {}}
+                    self.spec["components"]["schemas"][c.__name__] = {
+                        "type": "object",
+                        "properties": {},
+                    }
                     self.spec["components"]["schemas"][c.__name__ + "_" + "List"] = {
+                        "type": "object",
                         "allOf": [{"$ref": "#/components/schemas/PaginatedResponse"}],
                         "properties": {
                             "data": {
@@ -166,7 +170,7 @@ class MetaSDKParser:
                             elif _t := next(
                                 (s for s in schemas if t == s),
                                 next(
-                                    (s for s in schemas if t in s),
+                                    (s for s in schemas if s.endswith(t)),
                                     False,
                                 ),
                             ):
@@ -213,6 +217,14 @@ class MetaSDKParser:
                                 self.spec["components"]["parameters"][_p] = {
                                     "in": "path" if p == "id" else "query",
                                     "name": _p if p == "id" else p,
+                                    **(
+                                        {}
+                                        if p == "id"
+                                        else {
+                                            "style": "form",
+                                            "explode": False,
+                                        }
+                                    ),
                                     "schema": {"$ref": f"#/components/schemas/{_p}"},
                                     **({"required": True} if p == "id" else {}),
                                 }
@@ -221,6 +233,8 @@ class MetaSDKParser:
                         ] = {
                             "in": "query",
                             "name": "fields",
+                            "style": "form",
+                            "explode": False,
                             "schema": {
                                 "type": "array",
                                 "items": {
@@ -228,7 +242,7 @@ class MetaSDKParser:
                                     "enum": [
                                         p
                                         for p in properties
-                                        if p
+                                        if "{}{}{}".format(c.__name__, "-", p)
                                         in self.spec["components"]["schemas"].keys()
                                     ],
                                 },
@@ -249,18 +263,32 @@ class MetaSDKParser:
                             "content": {
                                 "application/json": {
                                     "schema": {
-                                        "allOf": [
-                                            {
-                                                "$ref": "#/components/schemas/"
-                                                + c.__name__
-                                            },
-                                            {
-                                                "$ref": "#/components/schemas/{}{}{}".format(
-                                                    c.__name__, "_", "List"
-                                                )
-                                            },
-                                        ],
+                                        "$ref": "#/components/schemas/" + c.__name__
                                     }
+                                }
+                            },
+                            "headers": {
+                                "X-Business-Use-Case-Usage": {
+                                    "$ref": "#/components/headers/X-Business-Use-Case-Usage"
+                                }
+                            },
+                        }
+                        self.spec["components"]["responses"][
+                            c.__name__ + "_" + op + "_List"
+                        ] = {
+                            "description": f"Results of a request related to {c.__name__} records.",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/{}{}{}".format(
+                                            c.__name__, "_", "List"
+                                        )
+                                    },
+                                }
+                            },
+                            "headers": {
+                                "X-Business-Use-Case-Usage": {
+                                    "$ref": "#/components/headers/X-Business-Use-Case-Usage"
                                 }
                             },
                         }
@@ -335,7 +363,6 @@ class MetaSDKParser:
                 and member.__name__ not in self.ignore_functions
                 and (parts := member.__name__.split("_"))[0]
                 in ["create", "get", "delete"]
-                and "async" not in parts
             ]
             for members in inspect.getmembers(module)
             for node in members
@@ -367,6 +394,7 @@ class MetaSDKParser:
                                         op["request"]["target_class"], "_", "Fields"
                                     )
                                 },
+                                {"$ref": f"#/components/parameters/Filtering"},
                             ]
                         }
                     field_checker = TypeChecker(op["param_types"], op["enums"])
@@ -397,6 +425,11 @@ class MetaSDKParser:
                             parameters[k] = r
                         elif t in schemas:
                             parameters[k] = {"$ref": f"#/components/schemas/{t}"}
+                        elif "." in t:
+                            parameters[k] = {
+                                "$ref": f"#/components/schemas/{t.replace('.','-')}"
+                            }
+
                         if k in parameters.keys():
                             for _ in range(0, l):
                                 parameters[k] = {
@@ -405,20 +438,37 @@ class MetaSDKParser:
                                 }
 
                     self.spec["paths"][path][op["request"]["method"].lower()] = {
-                        "operationId": "{}.{}".format(
+                        "operationId": "{}{}{}".format(
                             name,
+                            "_",
                             op["func"]
                             .__name__.replace("_", " ")
                             .title()
                             .replace(" ", ""),
                         ),
                         "parameters": [
-                            {"in": "query", "name": k, "schema": v}
+                            {
+                                "in": "query",
+                                "name": k,
+                                "style": "form",
+                                "explode": False,
+                                "schema": v,
+                            }
                             for k, v in parameters.items()
-                        ],
+                            if k != "fields"
+                        ]
+                        + (
+                            [
+                                {"$ref": "#/components/parameters/Limit"},
+                                {"$ref": "#/components/parameters/After"},
+                                {"$ref": "#/components/parameters/Before"},
+                            ]
+                            if op["request"]["method"].lower() == "get"
+                            else []
+                        ),
                         "responses": {
                             "200": {
-                                "$ref": "#/components/responses/{}{}{}".format(
+                                "$ref": "#/components/responses/{}{}{}_List".format(
                                     op["request"]["target_class"],
                                     "_",
                                     op["func"].__name__.split("_")[0],
@@ -573,34 +623,146 @@ class MetaSDKParser:
                         "name": "access_token",
                     }
                 },
-                "parameters": {},
+                "headers": {
+                    "X-Business-Use-Case-Usage": {
+                        "description": "Contains usage and throttling data.",
+                        "schema": {"$ref": "#/components/schemas/BusinessUseCase"},
+                    },
+                },
+                "parameters": {
+                    "Limit": {
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {"type": "integer"},
+                    },
+                    "After": {
+                        "in": "query",
+                        "name": "after",
+                        "schema": {"type": "string"},
+                    },
+                    "Before": {
+                        "in": "query",
+                        "name": "before",
+                        "schema": {"type": "string"},
+                    },
+                    "Filtering": {
+                        "in": "query",
+                        "name": "filtering",
+                        "schema": {"$ref": "#/components/schemas/Filtering"},
+                        "style": "form",
+                        "explode": False,
+                    },
+                },
                 "responses": {
                     "Generic": {
                         "description": f"Results of a request who's schema is not implemented yet.",
                         "content": {
                             "application/json": {
-                                "schema": {"additionalProperties": True}
+                                "schema": {
+                                    "additionalProperties": True,
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Business-Use-Case-Usage": {
+                                "$ref": "#/components/headers/X-Business-Use-Case-Usage"
                             }
                         },
                     },
                 },
                 "schemas": {
+                    "BusinessUseCase": {
+                        "type": "string"
+                        # "type": "object",
+                        # "additionalProperties": {
+                        #     "type": "array",
+                        #     "items": {
+                        #         "type": "object",
+                        #         "properties": {
+                        #             "type": {"type": "string"},
+                        #             "call_count": {"type": "integer"},
+                        #             "total_cpu_time": {"type": "integer"},
+                        #             "total_time": {"type": "integer"},
+                        #             "estimated_time_to_regain_access": {
+                        #                 "type": "integer"
+                        #             },
+                        #         },
+                        #     },
+                        # },
+                    },
+                    "Filtering": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "field": {"type": "string"},
+                                "operator": {"type": "string"},
+                                "value": {"type": "string"},
+                            },
+                        },
+                    },
                     "Generic": {"additionalProperties": True},
                     "PaginatedResponse": {
+                        "type": "object",
                         "properties": {
-                            "cursors": {
+                            "paging": {
+                                "type": "object",
                                 "properties": {
-                                    "after": {"type": "string"},
-                                    "before": {"type": "string"},
-                                }
-                            },
-                            "previous": {"type": "string"},
-                            "next": {"type": "string"},
-                        }
+                                    "cursors": {
+                                        "type": "object",
+                                        "properties": {
+                                            "after": {"type": "string"},
+                                            "before": {"type": "string"},
+                                        },
+                                    },
+                                    "previous": {"type": "string"},
+                                    "next": {"type": "string"},
+                                },
+                            }
+                        },
                     },
                 },
             },
-            "paths": {},
+            "paths": {
+                "/": {
+                    "post": {
+                        "operationId": "Batch",
+                        "requestBody": {
+                            "required": True,
+                            "content": {
+                                "application/x-www-form-urlencoded": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "batch": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "method": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                                "POST",
+                                                                "GET",
+                                                                "PUT",
+                                                                "DELETE",
+                                                            ],
+                                                        },
+                                                        "relative_url": {
+                                                            "type": "string"
+                                                        },
+                                                    },
+                                                    "additionalProperties": True,
+                                                },
+                                            }
+                                        },
+                                    }
+                                }
+                            },
+                        },
+                    }
+                }
+            },
             "tags": [],
         }
         for module in MetaSDKParser.get_modules(*names):

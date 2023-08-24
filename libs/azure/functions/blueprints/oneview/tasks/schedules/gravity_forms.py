@@ -124,6 +124,7 @@ async def oneview_schedule_gravity_forms(
                                     "cpm_client": agency["CPM_Client"],
                                     "cpm_tenant": agency["CPM_Tenant"],
                                 },
+                                "title": entry["59"],
                                 "creative": entry["7"],
                                 "landing_page": entry["58"],
                                 "targeting": [

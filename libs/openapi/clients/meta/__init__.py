@@ -1,6 +1,6 @@
 from aiopenapi3 import OpenAPI
 from libs.openapi.clients.meta.parser import MetaSDKParser
-import httpx, pathlib, os, yaml
+import httpx, os, yaml
 
 
 class MetaAPI:
@@ -13,7 +13,9 @@ class MetaAPI:
         api = OpenAPI(
             url=f"https://graph.facebook.com",
             document=MetaSDKParser(*modules).spec,
-            session_factory=httpx.AsyncClient if asynchronus else httpx.Client,
+            session_factory=cls.async_session_factory
+            if asynchronus
+            else cls.session_factory,
             use_operation_tags=False,
         )
         api.authenticate(
@@ -21,8 +23,21 @@ class MetaAPI:
         )
         return api
 
+    def session_factory(*args, **kwargs) -> httpx.Client:
+        return httpx.Client(*args, timeout=None, **kwargs)
+
+    def async_session_factory(*args, **kwargs) -> httpx.AsyncClient:
+        return httpx.AsyncClient(*args, timeout=None, **kwargs)
+
     def get_spec(*modules):
         return MetaSDKParser(*modules).spec
-        return yaml.safe_load(
-            open(pathlib.Path(pathlib.Path(__file__).parent.resolve(), "spec.yaml"))
-        )
+
+    def generate_yaml_file(*modules):
+        yaml.representer.Representer.ignore_aliases = lambda *data: True
+
+        # Generate spec.yaml
+        with open("libs/openapi/clients/meta/spec.yaml", "w") as file:
+            yaml.dump(
+                MetaAPI.get_spec(*modules),
+                file,
+            )

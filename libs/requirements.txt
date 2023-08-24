@@ -16,7 +16,7 @@ pandas>=2.0.0
 smart-open
 sqlalchemy>=2.0.0
 ## openapi
-aiopenapi3
+git+https://github.com/commonism/aiopenapi3
 httpx_auth
 ## tools
 frozendict
@@ -30,6 +30,7 @@ py-abac
 ## database connectors
 pymssql
 ## formatting
+pyarrow
 simplejson
 sql-formatter
 ## geometry/geography

@@ -1,37 +1,30 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/xandr/activities/download.py
 
-from azure.storage.filedatalake import DataLakeFileClient
+from azure.storage.blob import BlobClient
 from libs.azure.functions import Blueprint
 from libs.openapi.clients.xandr import XandrAPI
-import os, httpx, json
+import os
+import pandas as pd
 
 bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
 def esquire_dashboard_xandr_activity_download(ingress: dict):
-    token = XandrAPI.get_token()
-    XA = XandrAPI(token, asynchronus=False)
-    _, data, _ = XA.createRequest(("/report", "get")).request(
+    XA = XandrAPI(asynchronus=False)
+    _, report, _ = XA.createRequest("DownloadReport").request(
         parameters={"id": ingress["instance_id"]}
     )
-    file: DataLakeFileClient = DataLakeFileClient.from_connection_string(
-        conn_str=os.environ.get(ingress["conn_str"], os.environ["AzureWebJobsStorage"]),
-        file_system=ingress["container"],
-        file_path=ingress["outputPath"]
-        + json.loads(data.response.report.json_request)["report"]["report_type"],
+    if ingress.get("conn_str", False):
+        conn_str = ingress["conn_str"] or "AzureWebJobsStorage"
+    else:
+        conn_str = "AzureWebJobsStorage"
+    
+    blob: BlobClient = BlobClient.from_connection_string(
+        conn_str=os.environ.get(conn_str),
+        container_name=ingress["container"],
+        blob_name=ingress["outputPath"],
     )
-    with httpx.Client() as client:
-        with client.stream(
-            method="GET",
-            url=str(XA.url) + "/report_download",
-            params={"id": ingress["instance_id"]},
-            headers={"Authorization": token},
-        ) as response:
-            offset = 0
-            for chunk in response.iter_bytes():
-                file.append_data(data=chunk, offset=offset, length=len(chunk))
-                offset += len(chunk)
-            file.flush_data(offset)
+    blob.upload_blob(pd.DataFrame(report).to_parquet(), overwrite=True)
 
     return ""

@@ -192,8 +192,9 @@ class CampaignSchema(Schema):
     advertiser = fields.Nested(AdvertiserSchema, required=True)
     date_range = fields.Nested(DateRangeSchema, required=True)
     budget = fields.Nested(BudgetingSchema, required=True)
-    landing_page = fields.Url(required=True)
+    title = fields.Str(required=True)
     creative = fields.Url(required=True)
+    landing_page = fields.Url(required=True)
     targeting = fields.List(fields.Nested(TargetingSchema))
 
 

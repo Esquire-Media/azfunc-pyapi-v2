@@ -1474,6 +1474,12 @@ components:
           PointAndRadius: '#/components/schemas/PointAndRadius'
           Polygon: '#/components/schemas/Polygon'
         propertyName: type
+      oneOf:
+      - $ref: '#/components/schemas/MultiPolygon'
+      - $ref: '#/components/schemas/PointAndRadius'
+      - $ref: '#/components/schemas/Polygon'
+      required:
+      - type
       type: object
     MinMaxProperties:
       properties:

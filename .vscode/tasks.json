@@ -7,6 +7,12 @@
       "command": "host start",
       "problemMatcher": "$func-python-watch",
       "isBackground": true,
+      "dependsOn": "start azurite"
+    },
+    {
+      "label": "start azurite",
+      "type": "shell",
+      "command": "${command:azurite.start}",
       "dependsOn": "pip install (functions)"
     },
     {

@@ -14,25 +14,24 @@ bp = Blueprint()
 def esquire_dashboard_xandr_orchestrator_reporting(
     context: DurableOrchestrationContext,
 ):
+    pull_time = datetime.utcnow().isoformat()
     retry = RetryOptions(15000, 3)
     conn_str = "XANDR_CONN_STR" if "XANDR_CONN_STR" in os.environ.keys() else None
     container = "general"
-
-    XA = XandrAPI(
-        username=os.environ["XANDR_USERNAME"],
-        password=os.environ["XANDR_PASSWORD"],
-        asynchronus=False,
-    )
-    get_report_status = XA.createRequest("GetReportStatus")
+    
     while True:
-        _, status, _ = get_report_status.request(parameters={"id": context.instance_id})
-        if status.response.execution_status == "ready":
-            break
+        state = yield context.call_activity_with_retry(
+            "esquire_dashboard_xandr_activity_status",
+            retry,
+            {"instance_id": context.instance_id},
+        )
+        match state["status"]:
+            case "ready":
+                break
+            case "error":
+                raise Exception(state["error"])
         yield context.create_timer(datetime.utcnow() + timedelta(minutes=5))
 
-    report_type = json.loads(status.response.report.json_request)["report"][
-        "report_type"
-    ]
     yield context.call_activity_with_retry(
         "esquire_dashboard_xandr_activity_download",
         retry,
@@ -41,8 +40,8 @@ def esquire_dashboard_xandr_orchestrator_reporting(
             "conn_str": conn_str,
             "container": container,
             "outputPath": "xandr/deltas/{}/{}.parquet".format(
-                report_type,
-                datetime.utcnow().isoformat(),
+                state["report_type"],
+                pull_time,
             ),
         },
     )
@@ -53,14 +52,14 @@ def esquire_dashboard_xandr_orchestrator_reporting(
         {
             "instance_id": context.instance_id,
             "bind": "xandr_dashboard",
-            "table": {"schema": "dashboard", "name": report_type},
+            "table": {"schema": "dashboard", "name": state["report_type"]},
             "destination": {
                 "conn_str": conn_str,
                 "container": container,
                 "handle": "sa_esquiregeneral",
-                "path": f"xandr/tables/{report_type}/{context.instance_id}",
+                "path": f"xandr/tables/{state['report_type']}/{pull_time}",
             },
-            "query": CETAS[report_type],
+            "query": CETAS[state["report_type"]],
             "view": True,
         },
     )

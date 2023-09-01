@@ -20,6 +20,7 @@ git+https://github.com/commonism/aiopenapi3
 httpx_auth
 ## tools
 frozendict
+fuzzywuzzy
 querystring-parser
 werkzeug
 ## security
@@ -27,11 +28,14 @@ itsdangerous
 py-abac
 
 # optional
+## local dev
+dotenv
 ## database connectors
 pymssql
 ## formatting
 pyarrow
-simplejson
+ujson # fast (de)serialization
+simplejson # flexible (de)serialization
 sql-formatter
 ## geometry/geography
 geoalchemy2 @ git+https://github.com/Esquire-Media/geoalchemy2
@@ -39,7 +43,8 @@ geojson
 marshmallow-geojson
 pyproj
 shapely
-## onspot
+## security
 requests-auth-aws-sigv4
-## facebook/meta
+## temporary necessities
 facebook-business
+smartystreets-python-sdk

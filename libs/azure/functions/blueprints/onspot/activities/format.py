@@ -73,5 +73,15 @@ async def onspot_activity_format(ingress: dict, client: DurableOrchestrationClie
                     + "/{}?".format(ingress.get("outputPath", ingress["instance_id"]))
                     + sas_token
                 )
+    elif isinstance(ingress["request"].get("sources"), list):
+        ingress["request"]["callback"] = event_url.replace(
+                "{eventName}", uuid.uuid4().hex
+            )
+        if ingress["endpoint"].startswith("/save/"):
+            ingress["request"]["outputLocation"] = (
+                container.url.replace("https://", "az://")
+                + "/{}?".format(ingress.get("outputPath", ingress["instance_id"]))
+                + sas_token
+            )
 
     return ingress["request"]

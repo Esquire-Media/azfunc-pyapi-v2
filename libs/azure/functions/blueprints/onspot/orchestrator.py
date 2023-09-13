@@ -62,12 +62,20 @@ def onspot_orchestrator(context: DurableOrchestrationContext):
     )
 
     # Prepare for callbacks using external events
-    events = [
-        context.wait_for_external_event(
-            urlparse(f["properties"]["callback"]).path.split("/")[-1]
-        )
-        for f in request["features"]
-    ]
+    if request.get("type", None) == "FeatureCollection":
+        events = [
+            context.wait_for_external_event(
+                urlparse(f["properties"]["callback"]).path.split("/")[-1]
+            )
+            for f in request["features"]
+        ]
+    elif isinstance(request.get("sources"), list):
+        events = [
+            context.wait_for_external_event(
+                urlparse(request["callback"]).path.split("/")[-1]
+            )
+        ]
+        
 
     # Submit request
     jobs = yield context.call_activity(

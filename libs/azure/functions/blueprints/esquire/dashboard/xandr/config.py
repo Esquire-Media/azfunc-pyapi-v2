@@ -31,7 +31,7 @@ CETAS = {
                 *,
                 ROW_NUMBER()
                     OVER(
-                        PARTITION BY day, line_item_id 
+                        PARTITION BY day, advertiser_id, insertion_order_id, line_item_id, creative_id 
                         ORDER BY CONVERT(DATETIME2,data.filepath(1)) DESC
                     ) AS rank
             FROM OPENROWSET(
@@ -53,7 +53,14 @@ CETAS = {
                 [cost] VARCHAR(12),
                 [revenue] VARCHAR(12)
             ) AS [data]
-            WHERE line_item_id != 0
+            WHERE 
+                advertiser_id != 0
+                AND
+                insertion_order_id != 0
+                AND
+                line_item_id != 0
+                AND
+                creative_id != 0
         ) AS [data]
         WHERE rank = 1
     """,

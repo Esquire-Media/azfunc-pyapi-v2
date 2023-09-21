@@ -59,7 +59,7 @@ def bulk_validate(df, address_col, city_col=None, state_col=None, zip_col=None, 
     # authentication
     credentials = StaticCredentials(auth_id, auth_token)
     # launch the street lookup client
-    client = ClientBuilder(credentials).with_licenses(["us-standard-cloud"]).build_us_street_api_client()
+    client = ClientBuilder(credentials).with_licenses(["us-core-enterprise-cloud"]).build_us_street_api_client()
 
     # initialize the first batch and the list to store results
     batch = Batch()

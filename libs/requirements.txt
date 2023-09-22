@@ -16,7 +16,7 @@ pandas>=2.0.0
 smart-open
 sqlalchemy>=2.0.0
 ## openapi
-git+https://github.com/commonism/aiopenapi3
+git+https://github.com/ggpwnkthx/aiopenapi3
 httpx_auth
 ## tools
 frozendict
@@ -28,8 +28,6 @@ itsdangerous
 py-abac
 
 # optional
-## local dev
-dotenv
 ## database connectors
 pymssql
 ## formatting

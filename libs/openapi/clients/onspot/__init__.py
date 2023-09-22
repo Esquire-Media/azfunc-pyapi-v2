@@ -1,6 +1,5 @@
 from aiopenapi3 import OpenAPI
 from aiopenapi3.plugin import Init
-from functools import cached_property
 import httpx, os, pathlib, yaml
 
 

@@ -14,7 +14,6 @@ bp = Blueprint()
 async def daily_dashboard_meta_starter(
     timer: TimerRequest, client: DurableOrchestrationClient
 ):
-    instance_id = await client.start_new(
+    await client.start_new(
         "esquire_dashboard_meta_orchestrator_report_batch", None, None
     )
-    logging.warn(client.create_http_management_payload(instance_id))

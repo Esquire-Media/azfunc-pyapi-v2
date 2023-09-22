@@ -4,7 +4,6 @@ from azure.durable_functions import DurableOrchestrationClient
 from azure.functions import TimerRequest
 from libs.azure.functions import Blueprint
 from libs.openapi.clients.xandr import XandrAPI
-import logging
 
 # Create a Blueprint instance
 bp = Blueprint()
@@ -80,8 +79,7 @@ async def daily_dashboard_xandr_starter(
         _, data, _ = await generate_report.request(data=request)
         if data.response.status == "error":
             raise Exception(data.response.error)
-        instance_id = await client.start_new(
+        await client.start_new(
             "esquire_dashboard_xandr_orchestrator_reporting",
             data.response.report_id,
         )
-        logging.warn(client.create_http_management_payload(instance_id))

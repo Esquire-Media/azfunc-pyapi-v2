@@ -19,5 +19,6 @@
     "durableTask": {
       "hubName": "%TASK_HUB_NAME%"
     }
-  }
+  },
+  "functionTimeout": "00:05:00"
 }

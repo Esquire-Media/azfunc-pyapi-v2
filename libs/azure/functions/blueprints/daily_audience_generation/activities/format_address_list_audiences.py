@@ -2,16 +2,11 @@
 
 from libs.azure.functions import Blueprint
 import pandas as pd
-import os, json, uuid
-from azure.storage.blob import (
-    ContainerClient,
-    ContainerSasPermissions,
-    generate_container_sas,
-)
+import os
+from azure.storage.blob import ContainerClient
+
 from sqlalchemy.orm import Session
 from libs.data import from_bind
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
 import logging
 
 bp: Blueprint = Blueprint()
@@ -55,7 +50,7 @@ INCOME_MAP = {
     "900 K": 900000,
     "950 K": 950000,
     "1 M": 1000000,
-    "2 M": 2000000
+    "2 M": 2000000,
 }
 PREMIUM_HOME_VALUE_MAP = {
     "50 K": 50000,
@@ -79,88 +74,82 @@ PREMIUM_HOME_VALUE_MAP = {
     "950 K": 950000,
     "1 M": 1000000,
     "1.5 M": 1500000,
-    "2 M": 2000000
+    "2 M": 2000000,
 }
 STATE_ABBREVIATIONS_MAP = {
-    'AL': 'Alabama',
-    'AK': 'Alaska',
-    'AZ': 'Arizona',
-    'AR': 'Arkansas',
-    'CA': 'California',
-    'CO': 'Colorado',
-    'CT': 'Connecticut',
-    'DE': 'Delaware',
-    'FL': 'Florida',
-    'GA': 'Georgia',
-    'HI': 'Hawaii',
-    'ID': 'Idaho',
-    'IL': 'Illinois',
-    'IN': 'Indiana',
-    'IA': 'Iowa',
-    'KS': 'Kansas',
-    'KY': 'Kentucky',
-    'LA': 'Louisiana',
-    'ME': 'Maine',
-    'MD': 'Maryland',
-    'MA': 'Massachusetts',
-    'MI': 'Michigan',
-    'MN': 'Minnesota',
-    'MS': 'Mississippi',
-    'MO': 'Missouri',
-    'MT': 'Montana',
-    'NE': 'Nebraska',
-    'NV': 'Nevada',
-    'NH': 'New Hampshire',
-    'NJ': 'New Jersey',
-    'NM': 'New Mexico',
-    'NY': 'New York',
-    'NC': 'North Carolina',
-    'ND': 'North Dakota',
-    'OH': 'Ohio',
-    'OK': 'Oklahoma',
-    'OR': 'Oregon',
-    'PA': 'Pennsylvania',
-    'RI': 'Rhode Island',
-    'SC': 'South Carolina',
-    'SD': 'South Dakota',
-    'TN': 'Tennessee',
-    'TX': 'Texas',
-    'UT': 'Utah',
-    'VT': 'Vermont',
-    'VA': 'Virginia',
-    'WA': 'Washington',
-    'WV': 'West Virginia',
-    'WI': 'Wisconsin',
-    'WY': 'Wyoming'
+    "AL": "Alabama",
+    "AK": "Alaska",
+    "AZ": "Arizona",
+    "AR": "Arkansas",
+    "CA": "California",
+    "CO": "Colorado",
+    "CT": "Connecticut",
+    "DE": "Delaware",
+    "FL": "Florida",
+    "GA": "Georgia",
+    "HI": "Hawaii",
+    "ID": "Idaho",
+    "IL": "Illinois",
+    "IN": "Indiana",
+    "IA": "Iowa",
+    "KS": "Kansas",
+    "KY": "Kentucky",
+    "LA": "Louisiana",
+    "ME": "Maine",
+    "MD": "Maryland",
+    "MA": "Massachusetts",
+    "MI": "Michigan",
+    "MN": "Minnesota",
+    "MS": "Mississippi",
+    "MO": "Missouri",
+    "MT": "Montana",
+    "NE": "Nebraska",
+    "NV": "Nevada",
+    "NH": "New Hampshire",
+    "NJ": "New Jersey",
+    "NM": "New Mexico",
+    "NY": "New York",
+    "NC": "North Carolina",
+    "ND": "North Dakota",
+    "OH": "Ohio",
+    "OK": "Oklahoma",
+    "OR": "Oregon",
+    "PA": "Pennsylvania",
+    "RI": "Rhode Island",
+    "SC": "South Carolina",
+    "SD": "South Dakota",
+    "TN": "Tennessee",
+    "TX": "Texas",
+    "UT": "Utah",
+    "VT": "Vermont",
+    "VA": "Virginia",
+    "WA": "Washington",
+    "WV": "West Virginia",
+    "WI": "Wisconsin",
+    "WY": "Wyoming",
 }
+
 
 # activity to fill in the geo data for each audience object
 @bp.activity_trigger(input_name="ingress")
 def activity_format_address_lists(ingress: dict):
-    # logging.error(ingress["Id"])
     addresses = activity_new_mover(audience_id=ingress["Id"])
-    
-    # logging.warning(addresses)
+
     # send addresses to blob as csv
     container_client = ContainerClient.from_connection_string(
         conn_str=os.environ["ONSPOT_CONN_STR"],
         container_name="general",
     )
-    
+
     # some of these are empty and I don't want to upload empty files
     if not addresses.empty:
-        logging.warning('Upload to blob.')
-        # logging.warning(addresses)
         container_client.upload_blob(
-            name=f"{ingress['blob_prefix']}/{ingress['instance_id']}/audiencefiles/{ingress['Id']}.csv",
+            name=f"{ingress['blob_prefix']}/{ingress['instance_id']}/audiences/{ingress['Id']}/{ingress['Id']}.csv",
             data=addresses.to_csv(index=False),
             overwrite=True,
         )
-    else:
-        logging.warning(f"Dataframe for audience {ingress['Id']} was empty")
 
     return {}
-
 
 def activity_new_mover(audience_id: str):
     # connect to Synapse salesforce database
@@ -193,7 +182,7 @@ def activity_new_mover(audience_id: str):
         .iloc[0]
         .to_dict()
     )
-    
+
     zips = [
         row[0]
         for row in session.query(zipcodes.Name)
@@ -205,10 +194,8 @@ def activity_new_mover(audience_id: str):
         .all()
     ]
 
-    # try closing the session here?
-        # closing here did not fix the issue, code still runs though.
     session.close()
-    
+
     aud_provider = from_bind("audiences")
     aud_session: Session = aud_provider.connect()
     movers = aud_provider.models["dbo"]["movers"]
@@ -226,32 +213,41 @@ def activity_new_mover(audience_id: str):
         pass
     if aud_details["New_Homeowner__c"]:
         pass
-    if aud_details["Moved_to_State__c"]: # MIGHT need map for full state names/abbreviations, CAN HAVE MULTIPLE VALES ()
+    if aud_details[
+        "Moved_to_State__c"
+    ]:  # MIGHT need map for full state names/abbreviations, CAN HAVE MULTIPLE VALES ()
         address_query = address_query.filter(
             movers.state in aud_details["Moved_to_State__c"]
-        ) #check distinct to see what multiple items looks like to format this
+        )  # check distinct to see what multiple items looks like to format this
         # Select Distinct came up with only 'Null'
     if aud_details["Move_from_State__c"]:
         address_query = address_query.filter(
             movers.oldState == aud_details["Move_from_State__c"]
         )
         # Select Distinct came up with only 'Null'
-    if aud_details["Income_Greater_Than__c"]: #
+    if aud_details["Income_Greater_Than__c"]:  #
         address_query = address_query.filter(
-            movers.estimatedIncome > INCOME_MAP.get(aud_details["Income_Greater_Than__c"], 0)
+            movers.estimatedIncome
+            > INCOME_MAP.get(aud_details["Income_Greater_Than__c"], 0)
         )
     if aud_details["Income_Less_Than__c"]:
         address_query = address_query.filter(
-            movers.estimatedIncome < INCOME_MAP.get(aud_details["Income_Less_Than__c"], 0)
+            movers.estimatedIncome
+            < INCOME_MAP.get(aud_details["Income_Less_Than__c"], 0)
         )
     if aud_details["Premium_Home_Value_Greater_Than__c"]:
         address_query = address_query.filter(
             movers.estimatedHomeValue
-            > PREMIUM_HOME_VALUE_MAP.get(aud_details["Premium_Home_Value_Greater_Than__c"], 0)
+            > PREMIUM_HOME_VALUE_MAP.get(
+                aud_details["Premium_Home_Value_Greater_Than__c"], 0
+            )
         )
     if aud_details["Premium_Home_Value_Less_Than__c"]:
         address_query = address_query.filter(
-            movers.estimatedHomeValue < PREMIUM_HOME_VALUE_MAP.get(aud_details["Premium_Home_Value_Greater_Than__c"], 0)
+            movers.estimatedHomeValue
+            < PREMIUM_HOME_VALUE_MAP.get(
+                aud_details["Premium_Home_Value_Greater_Than__c"], 0
+            )
         )
     if aud_details["Age_Greater_Than__c"]:
         address_query = address_query.filter(
@@ -261,11 +257,11 @@ def activity_new_mover(audience_id: str):
         address_query = address_query.filter(
             movers.estimatedAge < aud_details["Age_Less_Than__c"]
         )
-    if aud_details["Move_to_a_Different__c"]: 
-        #different filter based on value of move to different if it is zip code, city, or state
+    if aud_details["Move_to_a_Different__c"]:
+        # different filter based on value of move to different if it is zip code, city, or state
         address_query = address_query.filter(movers.state != movers.oldState)
         # Select Distinct came up with only 'Null'
-    if aud_details["Moved_to_the_Same__c"]: # same as above
+    if aud_details["Moved_to_the_Same__c"]:  # same as above
         address_query = address_query.filter(movers.state == movers.oldState)
         # Select Distinct came up with only 'Null'
     if aud_details["Single_Family__c"]:

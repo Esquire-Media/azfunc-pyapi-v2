@@ -3,7 +3,11 @@
 from libs.azure.functions import Blueprint
 import pandas as pd
 import os, json, uuid
-from azure.storage.blob import ContainerClient, ContainerSasPermissions, generate_container_sas
+from azure.storage.blob import (
+    ContainerClient,
+    ContainerSasPermissions,
+    generate_container_sas,
+)
 from sqlalchemy.orm import Session
 from libs.data import from_bind
 import geojson
@@ -46,19 +50,23 @@ def activity_load_salesforce_geojsons(ingress: dict):
         # put the start and end date per each polygon in the audience
         for feature in feature_collection["features"]:
             feature["properties"]["name"] = feature["properties"]["location_id"]
+            feature["properties"]["fileName"] = "{}_{}".format(
+                ingress["Id"],
+                feature["properties"]["location_id"],
+            )
             feature["properties"]["start"] = (
                 end_time
                 - lookback.get(
-                    ingress["Lookback_Window__c"][0],
+                    ingress["Lookback_Window__c"],
                     default_lookback.get(
-                        ingress["Audience_Type__c"][0],
+                        ingress["Audience_Type__c"],
                         relativedelta(days=60),
                     ),
                 )
             ).isoformat()
             feature["properties"]["end"] = end_time.isoformat()
             feature["properties"]["hash"] = False
-            
+
             # set output location
             sas_token = generate_container_sas(
                 account_name=container_client.account_name,
@@ -69,14 +77,13 @@ def activity_load_salesforce_geojsons(ingress: dict):
             )
             output_location = (
                 container_client.url.replace("https://", "az://")
-                + f"test/onspot/audiences/{ingress['Id']}?"
+                + f"{ingress['blob_prefix']}/{ingress['instance_id']}/audiences/{ingress['Id']}/{ingress['Id']}?"
                 + sas_token
             )
             feature["properties"]["outputLocation"] = output_location
-            
-            
+
         container_client.upload_blob(
-            name=f"{ingress['blob_prefix']}/{ingress['instance_id']}/{ingress['Id']}.geojson",
+            name=f"{ingress['blob_prefix']}/{ingress['instance_id']}/audiences/{ingress['Id']}/{ingress['Id']}.geojson",
             data=json.dumps(feature_collection),
             overwrite=True,
         )

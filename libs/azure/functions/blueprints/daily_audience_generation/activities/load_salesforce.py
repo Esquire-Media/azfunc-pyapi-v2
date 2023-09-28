@@ -20,7 +20,7 @@ def activity_load_salesforce(ingress: dict):
     account = provider.models["dbo"]["Account"]
 
     # query for the list of audience objects which are active and not deleted
-    df = pd.DataFrame(
+    return pd.DataFrame(
         session.query(
             audience.Id,
             audience.Audience_Name__c,
@@ -44,17 +44,4 @@ def activity_load_salesforce(ingress: dict):
             account.Account_Status__c == "Active",
         )
         .all()
-    )
-
-    # iterate by audience type and then ID
-    return [
-        {
-            "Id": aud_id,
-            "Audience_Name__c": str(audiences_by_id["Audience_Name__c"].values[0]),
-            "Audience_Type__c": str(audiences_by_id["Audience_Type__c"].values[0]),
-            "Lookback_Window__c": str(audiences_by_id["Lookback_Window__c"].values[0]),
-            "ESQ_id": str(audiences_by_id["Name"].values[0]),
-        }
-        for aud_type, audiences_by_type in df.groupby("Audience_Type__c")
-        for aud_id, audiences_by_id in audiences_by_type.groupby("Id")
-    ]
+    ).to_dict(orient="records")

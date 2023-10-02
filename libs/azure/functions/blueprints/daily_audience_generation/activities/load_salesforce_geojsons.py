@@ -1,44 +1,97 @@
+# File: libs/azure/functions/blueprints/daily_audience_generation/activities/load_salesforce_geojsons.py
+
 from libs.azure.functions import Blueprint
 import pandas as pd
-import os
-import json
-from io import BytesIO
-from azure.durable_functions import (
-    DurableOrchestrationClient,
-    DurableOrchestrationContext,
-    EntityId,
-    RetryOptions
+import os, json, uuid
+from azure.storage.blob import (
+    ContainerClient,
+    ContainerSasPermissions,
+    generate_container_sas,
 )
-from azure.storage.blob import BlobServiceClient
-from libs.azure.functions.http import HttpRequest, HttpResponse
 from sqlalchemy.orm import Session
 from libs.data import from_bind
 import geojson
-import uuid
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 
-bp:Blueprint = Blueprint()
+bp: Blueprint = Blueprint()
 
-# activity to fill in the geo data for each audience object
-@bp.activity_trigger(input_name='ingress')
-def activity_load_salesforce_geojsons(ingress:dict):
 
+# activity to grab the geojson data and format the request files for OnSpot
+@bp.activity_trigger(input_name="ingress")
+def activity_load_salesforce_geojsons(ingress: dict):
     # load competitor location geometries from salesforce
-    audience_id = ingress['blob_name'].split('/')[-2]
     feature_collection = {
-        "type":"FeatureCollection",
-        "features":get_geojson(audience_id)
+        "type": "FeatureCollection",
+        "features": get_geojson(ingress["Id"]),
     }
 
     # upload each featurecollection to blob storage under the audienceID
-    if len(feature_collection['features']):
-        container_client = BlobServiceClient.from_connection_string(os.environ['AzureWebJobsStorage']).get_container_client('daily-audience-generation')
-        blob_name = f"{'/'.join(ingress['blob_name'].split('/')[:-1])}/features.geojson"
-        container_client.upload_blob(name=blob_name, data=json.dumps(feature_collection, indent=2), overwrite=True)
+    # Investigate here for lack of geojson SalesForce records
+    if len(feature_collection["features"]):
+        container_client = ContainerClient.from_connection_string(
+            conn_str=os.environ["ONSPOT_CONN_STR"],
+            container_name="general",
+        )
+        now = datetime.utcnow()
+        end_time = datetime(now.year, now.month, now.day) - relativedelta(days=2)
+        default_lookback = {
+            "New Mover": relativedelta(months=3),
+            "In Market Shoppers": relativedelta(months=6),
+            "Digital Neighbors": relativedelta(months=4),
+            "Competitor Location": relativedelta(days=75),
+        }
+        lookback = {
+            "1 Month": relativedelta(months=1),
+            "3 Months": relativedelta(months=3),
+            "6 Months": relativedelta(months=6),
+        }
+
+        # put the start and end date per each polygon in the audience
+        for feature in feature_collection["features"]:
+            feature["properties"]["name"] = feature["properties"]["location_id"]
+            feature["properties"]["fileName"] = "{}_{}".format(
+                ingress["Id"],
+                feature["properties"]["location_id"],
+            )
+            feature["properties"]["start"] = (
+                end_time
+                - lookback.get(
+                    ingress["Lookback_Window__c"],
+                    default_lookback.get(
+                        ingress["Audience_Type__c"],
+                        relativedelta(days=60),
+                    ),
+                )
+            ).isoformat()
+            feature["properties"]["end"] = end_time.isoformat()
+            feature["properties"]["hash"] = False
+
+            # set output location
+            sas_token = generate_container_sas(
+                account_name=container_client.account_name,
+                account_key=container_client.credential.account_key,
+                container_name=container_client.container_name,
+                permission=ContainerSasPermissions(write=True, read=True),
+                expiry=datetime.utcnow() + relativedelta(days=2),
+            )
+            output_location = (
+                container_client.url.replace("https://", "az://")
+                + f"{ingress['blob_prefix']}/{ingress['instance_id']}/audiences/{ingress['Id']}/{ingress['Id']}?"
+                + sas_token
+            )
+            feature["properties"]["outputLocation"] = output_location
+
+        container_client.upload_blob(
+            name=f"{ingress['blob_prefix']}/{ingress['instance_id']}/audiences/{ingress['Id']}/{ingress['Id']}.geojson",
+            data=json.dumps(feature_collection),
+            overwrite=True,
+        )
 
     return {}
 
 
-def get_geojson(audienceID:str) -> list:
+def get_geojson(audienceID: str) -> list:
     provider = from_bind("salesforce")
     session: Session = provider.connect()
 

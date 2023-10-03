@@ -1,7 +1,7 @@
 # File: libs/azure/functions/blueprints/meta/activities/request.py
 
 from libs.azure.functions import Blueprint
-from libs.openapi.clients import MetaAPI
+from libs.openapi.clients import Meta
 import json, os
 
 bp = Blueprint()
@@ -9,16 +9,14 @@ bp = Blueprint()
 
 @bp.activity_trigger(input_name="ingress")
 def meta_activity_request(ingress: dict):
-    access_token = os.environ.get("META_ACCESS_TOKEN")
-    if "access_token" in ingress.keys():
-        access_token = os.environ[ingress["access_token"]]
-    API = MetaAPI(
-        access_token=access_token,
-        modules=ingress.get("modules", []),
-        asynchronus=False,
+    factory = Meta[ingress["operationId"]]
+    factory.security.setdefault(
+        "access_token",
+        os.environ.get(
+            ingress.get("access_token", ""), 
+            os.environ.get("META_ACCESS_TOKEN", "")
+        ),
     )
-
-    factory = API.createRequest(ingress["operationId"])
     headers, response, _ = factory.request(
         data=ingress.get("data", None),
         parameters=ingress.get("parameters", None),

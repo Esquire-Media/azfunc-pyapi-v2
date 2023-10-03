@@ -7,7 +7,7 @@ from libs.azure.functions.blueprints.esquire.dashboard.meta.config import (
     PARAMETERS,
     CETAS,
 )
-import os, logging, json
+import os
 
 bp = Blueprint()
 
@@ -25,48 +25,48 @@ def esquire_dashboard_meta_orchestrator_report_batch(
     )
     container = "general"
 
-    # adaccounts = yield context.call_sub_orchestrator(
-    #     "meta_orchestrator_request",
-    #     {
-    #         "access_token": "META_ACCESS_TOKEN",
-    #         "modules": ["User", "AdAccount"],
-    #         "operationId": "User_GetAdAccounts",
-    #         "parameters": {
-    #             **PARAMETERS["User_GetAdAccounts"],
-    #             "User-id": "me",
-    #         },
-    #         "recursive": True,
-    #         "destination": {
-    #             "conn_str": conn_str,
-    #             "container": container,
-    #             "path": f"meta/delta/adaccounts/{pull_time}",
-    #         },
-    #     },
-    # )
+    adaccounts = yield context.call_sub_orchestrator(
+        "meta_orchestrator_request",
+        {
+            "access_token": "META_ACCESS_TOKEN",
+            "modules": ["User", "AdAccount"],
+            "operationId": "User_GetAdAccounts",
+            "parameters": {
+                **PARAMETERS["User_GetAdAccounts"],
+                "User-id": "me",
+            },
+            "recursive": True,
+            "destination": {
+                "conn_str": conn_str,
+                "container": container,
+                "path": f"meta/delta/adaccounts/{pull_time}",
+            },
+        },
+    )
     
-    # try:
-    #     yield context.task_all(
-    #         [
-    #             context.call_sub_orchestrator(
-    #                 "esquire_dashboard_meta_orchestrator_reporting",
-    #                 {
-    #                     "instance_id": context.instance_id,
-    #                     "conn_str": conn_str,
-    #                     "container": container,
-    #                     "account_id": adaccount["id"],
-    #                     "pull_time": pull_time,
-    #                 },
-    #             )
-    #             for adaccount in adaccounts
-    #             if adaccount["id"]
-    #             not in [
-    #                 "act_147888709160457",
-    #             ]
-    #             and "do no use" not in adaccount["name"].lower()
-    #         ]
-    #     )
-    # except:
-    #     pass
+    try:
+        yield context.task_all(
+            [
+                context.call_sub_orchestrator(
+                    "esquire_dashboard_meta_orchestrator_reporting",
+                    {
+                        "instance_id": context.instance_id,
+                        "conn_str": conn_str,
+                        "container": container,
+                        "account_id": adaccount["id"],
+                        "pull_time": pull_time,
+                    },
+                )
+                for adaccount in adaccounts
+                if adaccount["id"]
+                not in [
+                    "act_147888709160457",
+                ]
+                and "do no use" not in adaccount["name"].lower()
+            ]
+        )
+    except:
+        pass
 
     yield context.call_activity_with_retry(
         "synapse_activity_cetas",
@@ -153,21 +153,21 @@ def esquire_dashboard_meta_orchestrator_report_batch(
         },
     )
 
-    # yield context.call_activity_with_retry(
-    #     "synapse_activity_cetas",
-    #     retry,
-    #     {
-    #         "instance_id": context.instance_id,
-    #         "bind": "facebook_dashboard",
-    #         "table": {"schema": "dashboard", "name": "adcreatives"},
-    #         "destination": {
-    #             "container": container,
-    #             "handle": "sa_esquiregeneral",
-    #             "path": f"meta/tables/AdCreatives/{context.instance_id}",
-    #         },
-    #         "query": CETAS["AdAccount_GetCreatives"],
-    #         "view": True,
-    #     },
-    # )
+    yield context.call_activity_with_retry(
+        "synapse_activity_cetas",
+        retry,
+        {
+            "instance_id": context.instance_id,
+            "bind": "facebook_dashboard",
+            "table": {"schema": "dashboard", "name": "adcreatives"},
+            "destination": {
+                "container": container,
+                "handle": "sa_esquiregeneral",
+                "path": f"meta/tables/AdCreatives/{context.instance_id}",
+            },
+            "query": CETAS["AdAccount_GetCreatives"],
+            "view": True,
+        },
+    )
 
-    return ""
+    return adaccounts

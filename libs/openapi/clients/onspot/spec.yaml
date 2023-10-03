@@ -4423,6 +4423,30 @@ paths:
         radius of a geoframe.
       tags:
       - Trade Area
+  /status/queue:
+    get:
+      operationId: getQueueStatus
+      description: Get the queue status
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    count:
+                      type: number
+                    owner:
+                      type: string
+          description: Default
+      security:
+      - apiKey: []
+        sigv4: []
+
 servers:
 - description: Production Server
   url: https://api.onspotdata.com

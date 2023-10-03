@@ -1,7 +1,1 @@
 -r libs/requirements.txt
-
-chardet
-fsspec[http]
-git+https://github.com/ggpwnkthx/pyisobmff
-reportlab
-openpyxl

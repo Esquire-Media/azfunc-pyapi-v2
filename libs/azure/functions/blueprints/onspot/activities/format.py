@@ -9,7 +9,7 @@ from azure.storage.blob import (
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
-import uuid, os
+import uuid, os, logging
 
 bp = Blueprint()
 
@@ -58,7 +58,7 @@ async def onspot_activity_format(ingress: dict, client: DurableOrchestrationClie
     )
     if os.environ.get("REVERSE_PROXY", None):
         event_url = client._replace_url_origin(
-            os.environ["REVERSE_PROXY"],
+            "https://"+os.environ["REVERSE_PROXY"],
             event_url,
         )
 

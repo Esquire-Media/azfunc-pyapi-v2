@@ -1,6 +1,29 @@
-from aiopenapi3 import OpenAPI
 from libs.openapi.clients.meta.parser import MetaSDKParser
-import httpx, os, yaml
+from libs.openapi.clients.base import OpenAPIClient
+
+
+class Meta(OpenAPIClient):
+    class Loader(OpenAPIClient.Loader):
+        @classmethod
+        def load(cls) -> dict:
+            return MetaSDKParser().spec
+
+    class Plugins(OpenAPIClient.Plugins):
+        class Cull(OpenAPIClient.Plugins.Cull):
+            def parsed(self, ctx):
+                ctx = super().parsed(ctx)
+                ctx.document.setdefault("components", {}).setdefault(
+                    "securitySchemes", {}
+                ).setdefault(
+                    "access_token",
+                    {"type": "apiKey", "in": "query", "name": "access_token"},
+                )
+                return ctx
+
+
+# Legacy
+from aiopenapi3 import OpenAPI
+import httpx, yaml, os
 
 
 class MetaAPI:

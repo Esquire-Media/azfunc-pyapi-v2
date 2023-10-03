@@ -32,7 +32,7 @@ py-abac
 pymssql
 ## formatting
 pyarrow
-ujson # fast (de)serialization
+orjson # fast (de)serialization
 simplejson # flexible (de)serialization
 sql-formatter
 ## geometry/geography

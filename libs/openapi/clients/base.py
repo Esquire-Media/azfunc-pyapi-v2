@@ -3,29 +3,37 @@ from aiopenapi3.extra import Cull
 from functools import cache
 from pathlib import Path
 from typing import Dict, List, Literal, Pattern, Tuple, Union
-import gzip, httpx, io, orjson, yaml, yarl
+import gzip, httpx, io, orjson, yaml, yarl, re
 
 
 class OperationSelector(type):
     @cache
-    def __getitem__(cls, item: Tuple[str, str]):
-        path, method = item
-        assert isinstance(path, str)
-        assert isinstance(method, str)
-        return cls.__new__(cls, operations={path: [method]})._[item]
-    
-    def keys(cls):
-        for k, v in cls.load()["paths"].items():
+    def __getitem__(cls, item: Union[str, Tuple[str, str]]):
+        match item:
+            case str():
+                return cls.__new__(cls, operations=[item])._[item]
+            case re.Pattern():
+                api = cls.__new__(cls, operations=[item])
+                return api._[[op for op in api._][0]]
+            case tuple():
+                path, method = item
+                assert isinstance(path, str)
+                assert isinstance(method, str)
+                api = cls.__new__(cls, operations=[(path, [method])])
+                return api._[[op for op in api._][0]]
+
+    def paths(cls):
+        for k, v in cls.load()["paths"].keys():
             for m, o in v.items():
                 if isinstance(o, dict):
                     yield (k, m)
-    
+
     def items(cls):
         for k, v in cls.load()["paths"].items():
             for m, o in v.items():
                 if isinstance(o, dict):
                     yield ((k, m), cls[k, m])
-    
+
     def values(cls):
         for k, v in cls.load()["paths"].items():
             for m, o in v.items():
@@ -37,7 +45,7 @@ class OpenAPIClient(metaclass=OperationSelector):
     class Loader:
         url: yarl.URL
         format: Literal["json", "yaml"]
-        
+
         @classmethod
         def load(cls) -> dict:
             assert isinstance(cls.url, yarl.URL)

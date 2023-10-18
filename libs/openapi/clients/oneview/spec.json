@@ -1,0 +1,4705 @@
+{
+  "info": {
+    "description": "Unofficial OneView OpenAPI spec",
+    "title": "OneView",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "servers": [{ "url": "https://oneview.roku.com/v2/mgmt" }],
+  "security": [
+    {
+      "auth0": [],
+      "auth0_compat": [],
+      "did": [],
+      "did_compat": [],
+      "_session": [],
+      "dxauth": []
+    }
+  ],
+  "components": {
+    "headers": {
+      "StatusHeader": {
+        "description": "Custom header status",
+        "schema": { "type": "string" }
+      },
+      "XCountHeader": {
+        "description": "Custom header x-count",
+        "schema": { "type": "string" }
+      },
+      "XRuntimeHeader": {
+        "description": "Custom header x-runtime",
+        "schema": { "type": "string" }
+      },
+      "XTotalCountHeader": {
+        "description": "Custom header x-total-count",
+        "schema": { "type": "string" }
+      }
+    },
+    "parameters": {
+      "active": {
+        "description": "active",
+        "in": "query",
+        "name": "active",
+        "schema": { "type": "boolean" }
+      },
+      "activity_uid": {
+        "description": "Description for activity_uid.",
+        "in": "query",
+        "name": "activity_uid",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "advertiser_organization_uid": {
+        "description": "Description for advertiser_organization_uid.",
+        "in": "query",
+        "name": "advertiser_organization_uid",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "ancestor_uid": {
+        "description": "Description for ancestor_uid.",
+        "in": "query",
+        "name": "ancestor_uid",
+        "schema": { "type": "string" }
+      },
+      "asset_uid": {
+        "description": "Description for asset_uid.",
+        "in": "query",
+        "name": "asset_uid",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "audience_uid": {
+        "description": "Description for audience_uid.",
+        "in": "query",
+        "name": "audience_uid",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "automatic": {
+        "description": "automatic",
+        "in": "query",
+        "name": "automatic",
+        "schema": { "type": "boolean" }
+      },
+      "bypass_cache": {
+        "description": "Allows the API request to bypass the cache, ensuring retrieval of the most recent data.",
+        "in": "query",
+        "name": "bypass_cache",
+        "schema": { "type": "string" }
+      },
+      "contract_level": {
+        "description": "Description for contract_level.",
+        "in": "query",
+        "name": "contract_level",
+        "schema": { "type": "string" }
+      },
+      "contract_uid": {
+        "description": "Description for contract_uid.",
+        "in": "query",
+        "name": "contract_uid",
+        "schema": { "type": "string" }
+      },
+      "creative_asset_role": {
+        "description": "Description for creative_asset_role.",
+        "in": "query",
+        "name": "creative_asset_role",
+        "schema": { "type": "string" }
+      },
+      "creative_domain_type": {
+        "description": "Description for creative_domain_type.",
+        "in": "query",
+        "name": "creative_domain_type",
+        "schema": { "type": "string" }
+      },
+      "creative_uid": {
+        "description": "Description for creative_uid.",
+        "in": "query",
+        "name": "creative_uid",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "descendant_insertion_order_unit_uid": {
+        "description": "Description for descendant_insertion_order_unit_uid.",
+        "in": "query",
+        "name": "descendant_insertion_order_unit_uid",
+        "schema": { "type": "string" }
+      },
+      "end_at": {
+        "description": "Description for end_at.",
+        "in": "query",
+        "name": "end_at",
+        "schema": {
+          "anyOf": [
+            { "format": "date-time", "type": "string" },
+            { "type": "null" }
+          ]
+        }
+      },
+      "end_time": {
+        "description": "Description for end_time.",
+        "in": "query",
+        "name": "end_time",
+        "schema": {
+          "anyOf": [
+            { "format": "date-time", "type": "string" },
+            { "type": "null" }
+          ]
+        }
+      },
+      "expand": {
+        "description": "Allows additional related data to be included in the API response, enhancing the detail of the returned data.",
+        "in": "query",
+        "name": "expand",
+        "schema": { "type": "string" }
+      },
+      "fields": {
+        "description": "Description for fields.",
+        "in": "query",
+        "name": "fields",
+        "schema": { "items": { "type": "string" }, "type": "array" }
+      },
+      "filter": {
+        "description": "Enables filtering of API results based on specified conditions to refine the data retrieval.",
+        "in": "query",
+        "name": "filter",
+        "schema": { "type": "string" }
+      },
+      "functions": {
+        "description": "Description for functions.",
+        "in": "query",
+        "name": "functions",
+        "schema": { "type": "string" }
+      },
+      "group_by": {
+        "description": "Description for group_by.",
+        "in": "query",
+        "name": "group_by",
+        "schema": { "items": { "type": "string" }, "type": "array" }
+      },
+      "inherited": {
+        "description": "Description for inherited.",
+        "in": "query",
+        "name": "inherited",
+        "schema": { "type": "string" }
+      },
+      "insertion_order_uid": {
+        "description": "Description for insertion_order_uid.",
+        "in": "query",
+        "name": "insertion_order_uid",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "insertion_order_unit": {
+        "description": "Description for insertion_order_unit.",
+        "in": "query",
+        "name": "insertion_order_unit",
+        "schema": { "type": "string" }
+      },
+      "insertion_order_unit.type": {
+        "description": "Description for insertion_order_unit.type.",
+        "in": "query",
+        "name": "insertion_order_unit.type",
+        "schema": { "type": "string" }
+      },
+      "insertion_order_unit_uid": {
+        "description": "Description for insertion_order_unit_uid.",
+        "in": "query",
+        "name": "insertion_order_unit_uid",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "inventory_deal_uid": {
+        "description": "Description for inventory_deal_uid.",
+        "in": "query",
+        "name": "inventory_deal_uid",
+        "schema": { "type": "string" }
+      },
+      "is_archived": {
+        "description": "is_archived",
+        "in": "query",
+        "name": "is_archived",
+        "schema": { "type": "boolean" }
+      },
+      "is_deal_id_supported": {
+        "description": "is_deal_id_supported",
+        "in": "query",
+        "name": "is_deal_id_supported",
+        "schema": { "type": "boolean" }
+      },
+      "is_enabled": {
+        "description": "is_enabled",
+        "in": "query",
+        "name": "is_enabled",
+        "schema": { "type": "boolean" }
+      },
+      "is_guaranteed": {
+        "description": "is_guaranteed",
+        "in": "query",
+        "name": "is_guaranteed",
+        "schema": { "type": "boolean" }
+      },
+      "is_included": {
+        "description": "is_included",
+        "in": "query",
+        "name": "is_included",
+        "schema": { "type": "boolean" }
+      },
+      "is_package": {
+        "description": "is_package",
+        "in": "query",
+        "name": "is_package",
+        "schema": { "type": "boolean" }
+      },
+      "is_parent": {
+        "description": "is_parent",
+        "in": "query",
+        "name": "is_parent",
+        "schema": { "type": "boolean" }
+      },
+      "item_uid": {
+        "description": "Description for item_uid.",
+        "in": "query",
+        "name": "item_uid",
+        "schema": { "type": "string" }
+      },
+      "limit": {
+        "description": "Specifies the maximum number of results to retrieve in a single API request, useful for pagination.",
+        "in": "query",
+        "name": "limit",
+        "schema": { "type": "string" }
+      },
+      "open_exchange_uid": {
+        "description": "Description for open_exchange_uid.",
+        "in": "query",
+        "name": "open_exchange_uid",
+        "schema": { "type": "string" }
+      },
+      "order": {
+        "description": "Description for order.",
+        "in": "query",
+        "name": "order",
+        "schema": { "type": "string" }
+      },
+      "organization_uid": {
+        "description": "Description for organization_uid.",
+        "in": "query",
+        "name": "organization_uid",
+        "schema": { "type": "string" }
+      },
+      "owner_type": {
+        "description": "Description for owner_type.",
+        "in": "query",
+        "name": "owner_type",
+        "schema": { "type": "string" }
+      },
+      "owner_uid": {
+        "description": "Description for owner_uid.",
+        "in": "query",
+        "name": "owner_uid",
+        "schema": { "type": "string" }
+      },
+      "parent_term_op": {
+        "description": "Description for parent_term_op.",
+        "in": "query",
+        "name": "parent_term_op",
+        "schema": { "type": ["string", "null"] }
+      },
+      "parent_uid": {
+        "description": "Description for parent_uid.",
+        "in": "query",
+        "name": "parent_uid",
+        "schema": { "type": "string" }
+      },
+      "parent_uids": {
+        "description": "Description for parent_uids.",
+        "in": "query",
+        "name": "parent_uids",
+        "schema": { "items": { "type": "string" }, "type": "array" }
+      },
+      "product_feature_uid": {
+        "description": "Description for product_feature_uid.",
+        "in": "query",
+        "name": "product_feature_uid",
+        "schema": { "items": { "type": "string" }, "type": "array" }
+      },
+      "q": {
+        "description": "Description for type.",
+        "in": "query",
+        "name": "q",
+        "schema": { "type": "string" }
+      },
+      "report_timeframe": {
+        "description": "Description for report_timeframe.",
+        "in": "query",
+        "name": "report_timeframe",
+        "schema": { "type": "string" }
+      },
+      "resource_uids": {
+        "description": "Description for resource_uids.",
+        "in": "query",
+        "name": "resource_uids",
+        "schema": { "items": { "type": "string" }, "type": "array" }
+      },
+      "shareability": {
+        "description": "Description for shareability.",
+        "in": "query",
+        "name": "shareability",
+        "schema": {
+          "enum": ["platform_operator", "advertiser"],
+          "type": "string"
+        }
+      },
+      "source": {
+        "description": "Description for source.",
+        "in": "query",
+        "name": "source",
+        "schema": { "items": { "type": "string" }, "type": "array" }
+      },
+      "start_at": {
+        "description": "Description for start_at.",
+        "in": "query",
+        "name": "start_at",
+        "schema": {
+          "anyOf": [
+            { "format": "date-time", "type": "string" },
+            { "type": "null" }
+          ]
+        }
+      },
+      "start_time": {
+        "description": "Description for start_time.",
+        "in": "query",
+        "name": "start_time",
+        "schema": {
+          "anyOf": [
+            { "format": "date-time", "type": "string" },
+            { "type": "null" }
+          ]
+        }
+      },
+      "taxonomy_type": {
+        "description": "Description for taxonomy_type.",
+        "in": "query",
+        "name": "taxonomy_type",
+        "schema": { "enum": ["v2"], "type": "string" }
+      },
+      "termable_type": {
+        "description": "Description for termable_type.",
+        "in": "query",
+        "name": "termable_type",
+        "schema": { "type": "string" }
+      },
+      "type": {
+        "description": "Description for type.",
+        "in": "query",
+        "name": "type",
+        "schema": { "type": "string" }
+      },
+      "uid": {
+        "description": "Description for uid.",
+        "in": "query",
+        "name": "uid",
+        "schema": { "type": "string" }
+      },
+      "unique": {
+        "description": "Description for unique.",
+        "in": "query",
+        "name": "unique",
+        "schema": { "items": { "type": "string" }, "type": "array" }
+      }
+    },
+    "responses": {
+      "activities": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "activities": { "$ref": "#/components/schemas/activities" },
+                "organizations": {
+                  "$ref": "#/components/schemas/organizations"
+                },
+                "permissions": { "$ref": "#/components/schemas/permissions" }
+              },
+              "required": [],
+              "title": "ActivitiesGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "activity": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "activity": { "$ref": "#/components/schemas/activity" },
+                "permissions": { "$ref": "#/components/schemas/permissions" }
+              },
+              "required": [],
+              "title": "ActivityGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" }
+        }
+      },
+      "activity_type": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "activity_type": {
+                  "$ref": "#/components/schemas/activity_type"
+                }
+              },
+              "required": [],
+              "title": "ActivityTypeGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" }
+        }
+      },
+      "activity_types": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "activity_type": {
+                  "$ref": "#/components/schemas/activity_types"
+                }
+              }
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "ad_tag_versions": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "ad_tag_versions": {
+                  "$ref": "#/components/schemas/ad_tag_versions"
+                }
+              },
+              "required": [],
+              "title": "CreativeTagVersionsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "algorithms": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "algorithms": { "$ref": "#/components/schemas/algorithms" }
+              },
+              "required": [],
+              "title": "AlgorithmsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "asset": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "asset": { "$ref": "#/components/schemas/asset" },
+                "organization": { "$ref": "#/components/schemas/organization" },
+                "permissions": { "$ref": "#/components/schemas/permissions" }
+              },
+              "required": [],
+              "title": "AssetGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" }
+        }
+      },
+      "assets": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "assets": { "$ref": "#/components/schemas/assets" },
+                "organizations": {
+                  "$ref": "#/components/schemas/organizations"
+                },
+                "permissions": { "$ref": "#/components/schemas/permissions" }
+              },
+              "required": [],
+              "title": "AssetsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "audience": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "audience": { "$ref": "#/components/schemas/audience" },
+                "data_vendor": { "$ref": "#/components/schemas/data_vendor" },
+                "organization": { "$ref": "#/components/schemas/organization" },
+                "permissions": { "$ref": "#/components/schemas/permissions" }
+              },
+              "required": [],
+              "title": "AudienceGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" }
+        }
+      },
+      "audience_activities": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "activities": { "$ref": "#/components/schemas/activities" },
+                "audiences": { "$ref": "#/components/schemas/audiences" },
+                "audiences_activities": {
+                  "$ref": "#/components/schemas/audience_activities"
+                }
+              },
+              "required": [],
+              "title": "AudiencesActivitiesItemsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "audiences": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "audiences": { "$ref": "#/components/schemas/audiences" },
+                "contained_audiences": {
+                  "$ref": "#/components/schemas/combined_audiences"
+                },
+                "organizations": {
+                  "$ref": "#/components/schemas/organizations"
+                },
+                "permissions": { "$ref": "#/components/schemas/permissions" }
+              },
+              "required": [],
+              "title": "AudiencesGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "brand_safety_levels": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "brand_safety_levels": {
+                  "$ref": "#/components/schemas/brand_safety_levels"
+                }
+              },
+              "required": [],
+              "title": "BrandSafetyLevelsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "content_channels": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "content_channels": {
+                  "$ref": "#/components/schemas/content_channels"
+                },
+                "creatives_content_channels": {
+                  "$ref": "#/components/schemas/creative_content_channels"
+                }
+              },
+              "required": [],
+              "title": "ContentChannelsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "contracts": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "contracts": { "$ref": "#/components/schemas/contracts" }
+              },
+              "required": [],
+              "title": "ContractsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "countries": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "countries": { "$ref": "#/components/schemas/countries" }
+              },
+              "required": [],
+              "title": "CountriesGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "creative": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "activity_types": {
+                  "$ref": "#/components/schemas/activity_types"
+                },
+                "ad_platform_channels": {
+                  "$ref": "#/components/schemas/ad_platform_channels"
+                },
+                "ad_service_vendors": {
+                  "$ref": "#/components/schemas/ad_service_vendors"
+                },
+                "assets": { "$ref": "#/components/schemas/assets" },
+                "creative": { "$ref": "#/components/schemas/creative" },
+                "organization": { "$ref": "#/components/schemas/organization" },
+                "permissions": { "$ref": "#/components/schemas/permissions" }
+              },
+              "required": [],
+              "title": "CreativeGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" }
+        }
+      },
+      "creative_addons": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "add_ons": { "$ref": "#/components/schemas/creative_add_ons" }
+              },
+              "required": [],
+              "title": "CreativesAddOnsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" }
+        }
+      },
+      "creative_rotation_strategies": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "creative_rotation_strategies": {
+                  "$ref": "#/components/schemas/creative_rotation_strategies"
+                }
+              },
+              "required": [],
+              "title": "CreativeRotationStrategiesGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "creative_sizes": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "creative_sizes": {
+                  "$ref": "#/components/schemas/creative_sizes"
+                }
+              },
+              "required": [],
+              "title": "CreativeSizesGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "creatives": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "assets": { "$ref": "#/components/schemas/assets" },
+                "creatives": { "$ref": "#/components/schemas/creatives" },
+                "optimization_groups": {
+                  "$ref": "#/components/schemas/optimization_groups"
+                },
+                "organizations": {
+                  "$ref": "#/components/schemas/organizations"
+                },
+                "permissions": { "$ref": "#/components/schemas/permissions" }
+              },
+              "required": [],
+              "title": "CreativesGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "creatives_activities": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "activities": { "$ref": "#/components/schemas/activities" },
+                "creatives_activities": {
+                  "$ref": "#/components/schemas/creative_activities"
+                }
+              },
+              "required": [],
+              "title": "CreativesActivitiesItemsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "creatives_assets": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "assets": { "$ref": "#/components/schemas/assets" },
+                "creatives_assets": {
+                  "$ref": "#/components/schemas/creative_assets"
+                }
+              },
+              "required": [],
+              "title": "CreativesAssetsItemsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "creatives_domains": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "creatives_domains": {
+                  "$ref": "#/components/schemas/creative_domains"
+                },
+                "domains": { "$ref": "#/components/schemas/domains" }
+              },
+              "required": [],
+              "title": "CreativesDomainsItemsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "creatives_registrations": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "creatives_registrations": {
+                  "$ref": "#/components/schemas/creative_registrations"
+                },
+                "exchanges": { "$ref": "#/components/schemas/exchanges" }
+              },
+              "required": [],
+              "title": "CreativesRegistrationsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "currencies": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "currencies": { "$ref": "#/components/schemas/currencies" }
+              },
+              "required": [],
+              "title": "CurrenciesGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "data_vendors": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "data_vendors": { "$ref": "#/components/schemas/data_vendors" }
+              },
+              "required": [],
+              "title": "DataVendorsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "enums": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "enums": { "$ref": "#/components/schemas/enums" }
+              },
+              "required": [],
+              "title": "EnumsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" }
+        }
+      },
+      "external_ids": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "external_ids": { "items": {}, "type": "array" }
+              },
+              "required": [],
+              "title": "ExternalIDSGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "insertion_order_unit": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "insertion_order_unit": {
+                  "$ref": "#/components/schemas/insertion_order_unit"
+                }
+              },
+              "required": [],
+              "title": "InsertionOrderUnitsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" }
+        }
+      },
+      "insertion_order_units": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "assignments": { "$ref": "#/components/schemas/assignments" },
+                "dar_demographics": { "items": {}, "type": "array" },
+                "insertion_order_units": {
+                  "$ref": "#/components/schemas/insertion_order_units"
+                },
+                "metrics": { "$ref": "#/components/schemas/metrics" },
+                "organizations": {
+                  "$ref": "#/components/schemas/organizations"
+                },
+                "parents": { "items": {}, "type": "array" }
+              },
+              "required": [],
+              "title": "InsertionOrderUnitsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "invalid_traffic_filters": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "invalid_traffic_filters": {
+                  "$ref": "#/components/schemas/invalid_traffic_filters"
+                }
+              },
+              "required": [],
+              "title": "InvalidTrafficFiltersGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "inventory_deal": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "inventory_deal": {
+                  "$ref": "#/components/schemas/inventory_deal"
+                }
+              },
+              "required": [],
+              "title": "InventoryDealGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" }
+        }
+      },
+      "inventory_deals": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "exchanges": { "$ref": "#/components/schemas/exchanges" },
+                "inventory_deals": {
+                  "$ref": "#/components/schemas/inventory_deals"
+                },
+                "media_contexts": {
+                  "$ref": "#/components/schemas/media_contexts"
+                },
+                "metrics": { "$ref": "#/components/schemas/metrics" },
+                "owner_organizations": {
+                  "$ref": "#/components/schemas/owner_organizations"
+                },
+                "permissions": { "$ref": "#/components/schemas/permissions" }
+              },
+              "required": [],
+              "title": "InventoryDealsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "inventory_deals_creatives": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "inventory_deals": {
+                  "$ref": "#/components/schemas/inventory_deals"
+                },
+                "inventory_deals_creatives": {
+                  "$ref": "#/components/schemas/inventory_deals_creatives"
+                }
+              },
+              "required": [],
+              "title": "InventoryDealsCreativesGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "match_rate_metrics": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "match_rate_metrics": {
+                  "$ref": "#/components/schemas/match_rate_metrics"
+                }
+              },
+              "required": [],
+              "title": "InsertionOrderUnitRateMetricsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" }
+        }
+      },
+      "me": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "organization": { "$ref": "#/components/schemas/organization" },
+                "user": { "$ref": "#/components/schemas/user" }
+              },
+              "required": [],
+              "title": "MeGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" }
+        }
+      },
+      "media_contexts": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "media_contexts": {
+                  "$ref": "#/components/schemas/media_contexts"
+                }
+              },
+              "required": [],
+              "title": "MediaContextsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "oneview_policies": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "oneview_policies": {
+                  "$ref": "#/components/schemas/oneview_policies"
+                }
+              },
+              "required": [],
+              "title": "OneviewPoliciesGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "open_exchange": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "open_exchange": {
+                  "$ref": "#/components/schemas/open_exchange"
+                }
+              },
+              "required": [],
+              "title": "OpenExchangeGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" }
+        }
+      },
+      "open_exchanges": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "open_exchanges": {
+                  "$ref": "#/components/schemas/open_exchanges"
+                }
+              },
+              "required": [],
+              "title": "OpenExchangesGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "organization": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "organization": { "$ref": "#/components/schemas/organization" }
+              },
+              "required": [],
+              "title": "OrganizationGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" }
+        }
+      },
+      "organizations": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "organizations": {
+                  "$ref": "#/components/schemas/organizations"
+                }
+              },
+              "required": [],
+              "title": "OrganizationsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "product_feature_enrollments": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "product_feature_enrollments": { "items": {}, "type": "array" }
+              },
+              "required": [],
+              "title": "Product Feature Enrollments",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" }
+        }
+      },
+      "products": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "permissions": { "$ref": "#/components/schemas/permissions" },
+                "products": { "$ref": "#/components/schemas/products" }
+              },
+              "required": [],
+              "title": "ProductsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "reporting_response": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "reporting_response": {
+                  "$ref": "#/components/schemas/reporting_response"
+                }
+              },
+              "required": [],
+              "title": "ReportingRealTimeMetricsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" }
+        }
+      },
+      "sets": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": { "sets": { "$ref": "#/components/schemas/sets" } },
+              "required": [],
+              "title": "SetsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "term_insertion_order_units": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "grandparents": { "items": {}, "type": "array" },
+                "insertion_order_units": {
+                  "$ref": "#/components/schemas/insertion_order_units"
+                },
+                "metrics": { "$ref": "#/components/schemas/metrics" },
+                "organizations": {
+                  "$ref": "#/components/schemas/organizations"
+                },
+                "terms": { "$ref": "#/components/schemas/terms" }
+              },
+              "required": [],
+              "title": "TermsInsertionOrderUnitsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "term_items": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "exchanges": { "$ref": "#/components/schemas/exchanges" },
+                "items": { "$ref": "#/components/schemas/term_items" },
+                "permissions": { "$ref": "#/components/schemas/permissions" },
+                "terms": { "$ref": "#/components/schemas/terms" }
+              },
+              "required": [],
+              "title": "TermsItemsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "term_products": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "permissions": { "$ref": "#/components/schemas/permissions" },
+                "products": { "$ref": "#/components/schemas/products" },
+                "terms": { "$ref": "#/components/schemas/terms" }
+              },
+              "required": [],
+              "title": "TermsProductsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "terms": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "terms": { "$ref": "#/components/schemas/terms" }
+              },
+              "required": [],
+              "title": "TermsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "timezones": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "timezones": { "$ref": "#/components/schemas/timezones" }
+              },
+              "required": [],
+              "title": "TimezonesGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      },
+      "universal_ad_id_registries": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "universal_ad_id_registries": {
+                  "$ref": "#/components/schemas/universal_ad_id_registries"
+                }
+              },
+              "required": [],
+              "title": "UniversalAdIDRegistriesGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
+        }
+      }
+    },
+    "schemas": {
+      "activities": {
+        "items": { "$ref": "#/components/schemas/activity" },
+        "type": "array"
+      },
+      "activity": {
+        "additionalProperties": false,
+        "properties": {
+          "activity_type_uid": { "type": "string" },
+          "created_at": { "format": "date-time", "type": "string" },
+          "is_archived": { "type": "boolean" },
+          "metrics": {
+            "additionalProperties": false,
+            "properties": {
+              "average_trigger_count": { "type": ["string", "null"] },
+              "fire_counts_by_date": { "type": ["string", "null"] },
+              "last_fired_on": { "type": ["string", "null"] }
+            },
+            "required": [],
+            "title": "Metrics",
+            "type": "object"
+          },
+          "name": { "type": "string" },
+          "organization_uid": { "type": "string" },
+          "pixel_id": { "type": "string" },
+          "pixel_url": {
+            "format": "uri",
+            "type": "string",
+            "x-qt-uri-protocols": ["https"]
+          },
+          "secure": { "type": "boolean" },
+          "uid": { "type": "string" },
+          "updated_at": { "format": "date-time", "type": "string" }
+        },
+        "required": [],
+        "title": "Activity",
+        "type": "object"
+      },
+      "activity_type": {
+        "additionalProperties": false,
+        "properties": {
+          "abbreviation": { "type": "string" },
+          "category_uid": { "type": "string" },
+          "name": { "type": "string" },
+          "uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "ActivityType",
+        "type": "object"
+      },
+      "activity_types": {
+        "additionalProperties": false,
+        "properties": {
+          "activity_types": {
+            "items": { "$ref": "#/components/schemas/activity_type" },
+            "type": "array"
+          }
+        },
+        "required": [],
+        "title": "ActivityTypesGetRequest",
+        "type": "object"
+      },
+      "ad_platform_channel": {
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "Organization",
+        "type": "object"
+      },
+      "ad_platform_channels": {
+        "items": { "$ref": "#/components/schemas/ad_platform_channel" },
+        "type": "array"
+      },
+      "ad_service_vendor": {
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "Organization",
+        "type": "object"
+      },
+      "ad_service_vendors": {
+        "items": { "$ref": "#/components/schemas/ad_service_vendor" },
+        "type": "array"
+      },
+      "ad_tag_version": {
+        "additionalProperties": false,
+        "properties": {
+          "active": { "type": "boolean" },
+          "ad_tag_type_uid": { "type": "string" },
+          "created_at": { "format": "date-time", "type": "string" },
+          "name": { "type": "string" },
+          "uid": { "type": "string" },
+          "updated_at": { "format": "date-time", "type": "string" },
+          "version": { "type": "string" }
+        },
+        "required": [],
+        "title": "AdTagVersion",
+        "type": "object"
+      },
+      "ad_tag_versions": {
+        "items": { "$ref": "#/components/schemas/ad_tag_version" },
+        "type": "array"
+      },
+      "algorithm": {
+        "additionalProperties": false,
+        "properties": {
+          "budget": {
+            "additionalProperties": false,
+            "properties": {
+              "cpm": { "type": "boolean" },
+              "dynamic_cpm": { "type": "boolean" },
+              "local_budgets": { "type": "boolean" }
+            },
+            "required": [],
+            "title": "Budget",
+            "type": "object"
+          },
+          "description": {
+            "anyOf": [{ "type": ["string", "null"] }, { "type": "string" }]
+          },
+          "display_id": { "type": "string" },
+          "name": { "type": "string" },
+          "performance": {
+            "additionalProperties": false,
+            "properties": {
+              "actions": { "type": "boolean" },
+              "clicks": { "type": "boolean" },
+              "distribution": { "type": "boolean" },
+              "video_completions": { "type": "boolean" }
+            },
+            "required": [],
+            "title": "Performance",
+            "type": "object"
+          },
+          "targeting": {
+            "additionalProperties": false,
+            "properties": {
+              "retargeting": { "type": "boolean" },
+              "tightly_constrained": { "type": "boolean" },
+              "wide": { "type": "boolean" }
+            },
+            "required": [],
+            "title": "Targeting",
+            "type": "object"
+          },
+          "uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "Algorithm",
+        "type": "object"
+      },
+      "algorithms": {
+        "items": { "$ref": "#/components/schemas/algorithm" },
+        "type": "array"
+      },
+      "asset": {
+        "additionalProperties": false,
+        "properties": {
+          "bitrate": { "type": "integer" },
+          "cdn_url": {
+            "format": "uri",
+            "type": "string",
+            "x-qt-uri-extensions": [".mp4"],
+            "x-qt-uri-protocols": ["https"]
+          },
+          "created_at": { "format": "date-time", "type": "string" },
+          "duration": { "format": "integer", "type": "string" },
+          "filename": { "type": "string" },
+          "format": {
+            "enum": ["mpeg-4"],
+            "title": "AssetFormat",
+            "type": "string"
+          },
+          "height": { "format": "integer", "type": "string" },
+          "is_parent": { "type": "boolean" },
+          "media_type": {
+            "enum": ["video"],
+            "title": "MediaType",
+            "type": "string"
+          },
+          "name": { "type": "string" },
+          "organization_uid": { "type": "string" },
+          "state": {
+            "additionalProperties": false,
+            "properties": {
+              "processing": {
+                "enum": ["done"],
+                "title": "Ing",
+                "type": "string"
+              },
+              "uploading": {
+                "enum": ["done"],
+                "title": "Ing",
+                "type": "string"
+              }
+            },
+            "required": [],
+            "title": "State",
+            "type": "object"
+          },
+          "transcoding_metrics": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "audio_bitrate": { "type": "integer" },
+                "audio_channels": { "type": "integer" },
+                "audio_format": {
+                  "enum": ["AAC"],
+                  "title": "AudioFormat",
+                  "type": "string"
+                },
+                "audio_sampling_rate": { "type": "integer" },
+                "bitrate": { "type": "integer" },
+                "chromasubsampling": {
+                  "enum": ["4:2:0"],
+                  "title": "Chromasubsampling",
+                  "type": "string"
+                },
+                "colorspace": {
+                  "enum": ["YUV"],
+                  "title": "Colorspace",
+                  "type": "string"
+                },
+                "container_format": {
+                  "enum": ["MPEG-4"],
+                  "title": "ContainerFormatEnum",
+                  "type": "string"
+                },
+                "duration_in_milliseconds": { "type": "integer" },
+                "file_extension": {
+                  "enum": ["mp4"],
+                  "title": "FileExtension",
+                  "type": "string"
+                },
+                "filesize": { "type": "integer" },
+                "format": {
+                  "enum": ["MPEG-4"],
+                  "title": "ContainerFormatEnum",
+                  "type": "string"
+                },
+                "framerate": { "type": "number" },
+                "height": { "type": "integer" },
+                "video_format": {
+                  "enum": ["AVC"],
+                  "title": "VideoFormat",
+                  "type": "string"
+                },
+                "width": { "type": "integer" }
+              },
+              "required": [],
+              "title": "TranscodingMetric",
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "uid": { "type": "string" },
+          "updated_at": { "format": "date-time", "type": "string" },
+          "width": { "format": "integer", "type": "string" }
+        },
+        "required": [],
+        "title": "Asset",
+        "type": "object"
+      },
+      "assets": {
+        "items": { "$ref": "#/components/schemas/asset" },
+        "type": "array"
+      },
+      "assignment": {
+        "additionalProperties": false,
+        "properties": {
+          "constraints": {
+            "additionalProperties": false,
+            "properties": {
+              "constraint_cap_spend_schedule": {
+                "additionalProperties": false,
+                "properties": { "is_scheduled": { "type": "boolean" } },
+                "required": [],
+                "title": "ConstraintCapSpendSchedule",
+                "type": "object"
+              }
+            },
+            "required": [],
+            "title": "Constraints",
+            "type": "object"
+          },
+          "insertion_order_unit_uid": { "type": "string" },
+          "targets": {
+            "additionalProperties": false,
+            "properties": {
+              "creatives": {
+                "additionalProperties": false,
+                "properties": {
+                  "blacklist": { "type": ["string", "null"] },
+                  "whitelist": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "is_required": { "type": "boolean" },
+                      "is_supported": { "type": "boolean" },
+                      "is_targeted": { "type": "boolean" }
+                    },
+                    "required": [],
+                    "title": "Whitelist",
+                    "type": "object"
+                  }
+                },
+                "required": [],
+                "title": "Creatives",
+                "type": "object"
+              },
+              "deals": {
+                "additionalProperties": false,
+                "properties": {
+                  "blacklist": { "type": ["string", "null"] },
+                  "whitelist": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "is_required": { "type": "boolean" },
+                      "is_supported": { "type": "boolean" },
+                      "is_targeted": { "type": "boolean" }
+                    },
+                    "required": [],
+                    "title": "Whitelist",
+                    "type": "object"
+                  }
+                },
+                "required": [],
+                "title": "Creatives",
+                "type": "object"
+              },
+              "exchanges": {
+                "additionalProperties": false,
+                "properties": {
+                  "blacklist": { "type": ["string", "null"] },
+                  "whitelist": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "is_required": { "type": "boolean" },
+                      "is_supported": { "type": "boolean" },
+                      "is_targeted": { "type": "boolean" }
+                    },
+                    "required": [],
+                    "title": "Whitelist",
+                    "type": "object"
+                  }
+                },
+                "required": [],
+                "title": "Creatives",
+                "type": "object"
+              }
+            },
+            "required": [],
+            "title": "Targets",
+            "type": "object"
+          }
+        },
+        "required": [],
+        "title": "Assignment",
+        "type": "object"
+      },
+      "assignments": {
+        "items": { "$ref": "#/components/schemas/assignment" },
+        "type": "array"
+      },
+      "audience": {
+        "additionalProperties": false,
+        "properties": {
+          "active": { "type": "boolean" },
+          "alerts": { "items": {}, "type": "array" },
+          "audience_category_uid": { "type": ["string", "null"] },
+          "audience_library_uid": { "type": ["string", "null"] },
+          "audiences_config": { "type": ["string", "null"] },
+          "composite_prices": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "pricing": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "currency": { "type": "string" },
+                    "list_rate": { "type": "integer" },
+                    "rate_type": { "type": "string" }
+                  },
+                  "required": [],
+                  "title": "Pricing",
+                  "type": "object"
+                },
+                "uid": { "type": "string" }
+              },
+              "required": [],
+              "title": "CompositePrice",
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "contained_audience_uids": {
+            "items": { "type": "string" },
+            "type": "array"
+          },
+          "created_at": { "format": "date-time", "type": "string" },
+          "data_vendor_uid": {
+            "anyOf": [
+              { "title": "DataVendorUid", "type": "string" },
+              { "type": ["string", "null"] }
+            ]
+          },
+          "derivation_type": { "type": ["string", "null"] },
+          "display_type": {
+            "enum": ["composite", "third_party", "first_party", "roku_data"],
+            "title": "Type",
+            "type": "string"
+          },
+          "expiration": { "type": "integer" },
+          "expiration_units": {
+            "enum": ["day"],
+            "title": "ExpirationUnits",
+            "type": "string"
+          },
+          "expression": {
+            "anyOf": [{ "type": ["string", "null"] }, { "type": "string" }]
+          },
+          "external_id": {
+            "anyOf": [{ "type": ["string", "null"] }, { "type": "string" }]
+          },
+          "is_archived": { "type": "boolean" },
+          "is_first_party_only": { "type": "boolean" },
+          "last_built_at": { "type": ["string", "null"] },
+          "last_deployed_at": { "type": ["string", "null"] },
+          "lookalike_config": { "type": ["string", "null"] },
+          "lookback_end_at": { "type": ["string", "null"] },
+          "lookback_start_at": { "type": ["string", "null"] },
+          "lookback_unit_of_measure": { "type": ["string", "null"] },
+          "lookback_value": { "type": ["string", "null"] },
+          "minimum_activity_fire_count": { "type": "integer" },
+          "name": { "type": "string" },
+          "organization_uid": {
+            "anyOf": [
+              { "title": "Uid", "type": "string" },
+              { "type": ["string", "null"] }
+            ]
+          },
+          "pricing": { "type": ["string", "null"] },
+          "sharing_enabled": { "type": "boolean" },
+          "size": {
+            "additionalProperties": false,
+            "properties": {
+              "alias_types": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "alias_type": {
+                      "enum": [
+                        "DX",
+                        "GOOGLE_AD_ID",
+                        "IDFA",
+                        "STAT_HOUSEHOLD_ID",
+                        "RIDA",
+                        "DEVICE",
+                        "HH_DX",
+                        "HH_GOOGLE_AD_ID",
+                        "HH_IDFA",
+                        "HH_RIDA",
+                        "HH_DEVICE",
+                        "HH_DEVICE_WITH_RIDA",
+                        "HOUSEHOLD_CLUSTER_ID"
+                      ],
+                      "title": "AliasTypeEnum",
+                      "type": "string"
+                    },
+                    "size": {
+                      "anyOf": [
+                        { "type": "integer" },
+                        { "type": ["string", "null"] }
+                      ]
+                    }
+                  },
+                  "required": [],
+                  "title": "AliasTypeElement",
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "updated_at": {
+                "anyOf": [
+                  { "format": "date-time", "type": "string" },
+                  { "type": ["string", "null"] }
+                ]
+              }
+            },
+            "required": [],
+            "title": "Size",
+            "type": "object"
+          },
+          "state": { "type": ["string", "null"] },
+          "taxonomy": {
+            "additionalProperties": false,
+            "properties": {
+              "is_leaf_node": { "type": "boolean" },
+              "path": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": { "type": "string" },
+                    "uid": { "type": "string" }
+                  },
+                  "required": [],
+                  "title": "Path",
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "required": [],
+            "title": "Taxonomy",
+            "type": "object"
+          },
+          "type": {
+            "enum": ["composite", "third_party", "first_party", "roku_data"],
+            "title": "Type",
+            "type": "string"
+          },
+          "uid": { "type": "string" },
+          "updated_at": { "format": "date-time", "type": "string" }
+        },
+        "required": [],
+        "title": "Audience",
+        "type": "object"
+      },
+      "audience_activities": {
+        "items": { "$ref": "#/components/schemas/audience_activity" },
+        "type": "array"
+      },
+      "audience_activity": {
+        "additionalProperties": false,
+        "properties": {
+          "activity_uid": { "type": "string" },
+          "audience_uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "AudiencesActivity",
+        "type": "object"
+      },
+      "audiences": {
+        "items": { "$ref": "#/components/schemas/audience" },
+        "type": "array"
+      },
+      "brand_safety_level": {
+        "additionalProperties": false,
+        "properties": {
+          "description": { "type": "string" },
+          "level": { "type": "integer" },
+          "sku": { "type": ["string", "null"] },
+          "uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "BrandSafetyLevel",
+        "type": "object"
+      },
+      "brand_safety_levels": {
+        "items": { "$ref": "#/components/schemas/brand_safety_level" },
+        "type": "array"
+      },
+      "combined_audience": {
+        "additionalProperties": false,
+        "properties": {
+          "active": { "type": "boolean" },
+          "name": { "type": "string" },
+          "type": {
+            "enum": ["composite", "third_party", "first_party", "roku_data"],
+            "title": "Type",
+            "type": "string"
+          },
+          "uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "ContainedAudience",
+        "type": "object"
+      },
+      "combined_audiences": {
+        "items": { "$ref": "#/components/schemas/combined_audience" },
+        "type": "array"
+      },
+      "content_channel": {
+        "additionalProperties": false,
+        "properties": {
+          "ancestor_uids": { "items": { "type": "string" }, "type": "array" },
+          "brand_safety": { "type": ["string", "null"] },
+          "external_id": { "format": "integer", "type": "string" },
+          "name": { "type": "string" },
+          "parent_uid": {
+            "anyOf": [
+              { "title": "Uid", "type": "string" },
+              { "type": ["string", "null"] }
+            ]
+          },
+          "taxonomy": {
+            "additionalProperties": false,
+            "properties": {
+              "is_leaf_node": { "type": "boolean" },
+              "path": { "type": "string" }
+            },
+            "required": [],
+            "title": "Taxonomy",
+            "type": "object"
+          },
+          "taxonomy_type": {
+            "enum": ["v2"],
+            "title": "TaxonomyType",
+            "type": "string"
+          },
+          "tier": { "type": "integer" },
+          "uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "ContentChannel",
+        "type": "object"
+      },
+      "content_channels": {
+        "items": { "$ref": "#/components/schemas/content_channel" },
+        "type": "array"
+      },
+      "contract": {
+        "additionalProperties": false,
+        "properties": {
+          "advertiser_organization_uid": { "type": "string" },
+          "contract_service_level": { "type": ["string", "null"] },
+          "customer_organization_uid": { "type": "string" },
+          "end_at": { "type": ["string", "null"] },
+          "legal_ref": { "type": ["string", "null"] },
+          "name": { "type": "string" },
+          "parent_contract_uid": { "type": "string" },
+          "provider_organization_uid": { "type": "string" },
+          "start_at": { "format": "date-time", "type": "string" },
+          "type": { "type": "string" },
+          "uid": { "type": "string" },
+          "version": { "type": ["string", "null"] }
+        },
+        "required": [],
+        "title": "Contract",
+        "type": "object"
+      },
+      "contracts": {
+        "items": { "$ref": "#/components/schemas/contract" },
+        "type": "array"
+      },
+      "countries": {
+        "items": { "$ref": "#/components/schemas/country" },
+        "type": "array"
+      },
+      "country": {
+        "additionalProperties": false,
+        "properties": {
+          "code": { "type": "string" },
+          "name": { "type": "string" },
+          "targets_google_provinces": { "type": "boolean" },
+          "targets_metro_codes": { "type": "boolean" },
+          "targets_postal_codes": { "type": "boolean" },
+          "targets_regions": { "type": "boolean" },
+          "uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "Country",
+        "type": "object"
+      },
+      "creative": {
+        "additionalProperties": false,
+        "properties": {
+          "ad_tag_type": { "type": "string" },
+          "alerts": { "items": {}, "type": "array" },
+          "asset_uids": { "items": { "type": "string" }, "type": "array" },
+          "cdn_url": {
+            "format": "uri",
+            "type": "string",
+            "x-qt-uri-extensions": [".xml"],
+            "x-qt-uri-protocols": ["https"]
+          },
+          "click_tracking_enabled": { "type": "boolean" },
+          "created_at": { "format": "date-time", "type": "string" },
+          "duration": { "type": "integer" },
+          "end_at": { "type": ["string", "null"] },
+          "expand_direction": { "type": ["string", "null"] },
+          "expand_initiated_by": { "type": ["string", "null"] },
+          "format": { "type": "string" },
+          "height": { "type": "integer" },
+          "is_archived": { "type": "boolean" },
+          "is_enabled": { "type": "boolean" },
+          "is_published": { "type": "boolean" },
+          "landing_url": {
+            "format": "uri",
+            "type": "string",
+            "x-qt-uri-protocols": ["https"]
+          },
+          "language_uid": { "type": ["string", "null"] },
+          "lifecycle_status": { "type": "string" },
+          "name": { "type": "string" },
+          "oba_icon_position": { "type": "string" },
+          "optimization_group_uids": {
+            "items": { "type": "string" },
+            "type": "array"
+          },
+          "organization_uid": { "type": "string" },
+          "serving_status": { "type": "string" },
+          "start_at": { "type": ["string", "null"] },
+          "tag_type": {
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "uid": { "type": "string" }
+            },
+            "required": [],
+            "title": "OptimizationGroup",
+            "type": "object"
+          },
+          "type": { "type": "string" },
+          "uid": { "type": "string" },
+          "updated_at": { "format": "date-time", "type": "string" },
+          "width": { "type": "integer" }
+        },
+        "required": [],
+        "title": "Creative",
+        "type": "object"
+      },
+      "creative_activities": {
+        "items": { "$ref": "#/components/schemas/creative_activity" },
+        "type": "array"
+      },
+      "creative_activity": {
+        "additionalProperties": false,
+        "properties": {
+          "activity_uid": { "type": "string" },
+          "creative_uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "Exchange",
+        "type": "object"
+      },
+      "creative_add_on": {
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "CreativeAddOn",
+        "type": "object"
+      },
+      "creative_add_ons": {
+        "items": { "$ref": "#/components/schemas/creative_add_on" },
+        "type": "array"
+      },
+      "creative_asset": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_uid": { "type": "string" },
+          "creative_uid": { "type": "string" },
+          "role": { "type": "string" }
+        },
+        "required": [],
+        "title": "CreativesAsset",
+        "type": "object"
+      },
+      "creative_assets": {
+        "items": { "$ref": "#/components/schemas/creative_asset" },
+        "type": "array"
+      },
+      "creative_content_channel": {
+        "additionalProperties": false,
+        "properties": {
+          "content_channel_uid": { "type": "string" },
+          "creative_uid": { "type": "string" },
+          "type": { "type": "string" }
+        },
+        "required": [],
+        "title": "CreativesContentChannel",
+        "type": "object"
+      },
+      "creative_content_channels": {
+        "items": { "$ref": "#/components/schemas/creative_content_channel" },
+        "type": "array"
+      },
+      "creative_domain": {
+        "additionalProperties": false,
+        "properties": {
+          "creative_uid": { "type": "string" },
+          "domain_uid": { "type": "string" },
+          "type": { "type": "string" }
+        },
+        "required": [],
+        "title": "CreativesDomain",
+        "type": "object"
+      },
+      "creative_domains": {
+        "items": { "$ref": "#/components/schemas/creative_domain" },
+        "type": "array"
+      },
+      "creative_registration": {
+        "additionalProperties": false,
+        "properties": {
+          "audit_feedbacks": {
+            "items": {
+              "additionalProperties": false,
+              "properties": { "message": { "type": "string" } },
+              "required": [],
+              "title": "AuditFeedback",
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "created_at": { "format": "date-time", "type": "string" },
+          "creative_uid": { "type": "string" },
+          "exchange_uid": { "type": "string" },
+          "status": { "type": "string" },
+          "updated_at": { "format": "date-time", "type": "string" }
+        },
+        "required": [],
+        "title": "CreativesRegistration",
+        "type": "object"
+      },
+      "creative_registrations": {
+        "items": { "$ref": "#/components/schemas/creative_registration" },
+        "type": "array"
+      },
+      "creative_rotation_strategies": {
+        "items": { "$ref": "#/components/schemas/creative_rotation_strategy" },
+        "type": "array"
+      },
+      "creative_rotation_strategy": {
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "CreativeRotationStrategy",
+        "type": "object"
+      },
+      "creative_size": {
+        "additionalProperties": false,
+        "properties": {
+          "dimensions": {
+            "anyOf": [{ "type": ["string", "null"] }, { "type": "string" }]
+          },
+          "duration": {
+            "anyOf": [{ "type": ["string", "null"] }, { "type": "string" }]
+          },
+          "name": { "type": "string" },
+          "score": { "type": "number" },
+          "type": {
+            "enum": ["video", "banner"],
+            "title": "Type",
+            "type": "string"
+          },
+          "uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "CreativeSize",
+        "type": "object"
+      },
+      "creative_sizes": {
+        "items": { "$ref": "#/components/schemas/creative_size" },
+        "type": "array"
+      },
+      "creatives": {
+        "items": { "$ref": "#/components/schemas/creative" },
+        "type": "array"
+      },
+      "currencies": {
+        "items": { "$ref": "#/components/schemas/currency" },
+        "type": "array"
+      },
+      "currency": {
+        "additionalProperties": false,
+        "properties": {
+          "code": { "type": "string" },
+          "name": { "type": "string" },
+          "uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "Currency",
+        "type": "object"
+      },
+      "data_vendor": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": { "format": "date-time", "type": "string" },
+          "name": { "type": "string" },
+          "uid": { "type": "string" },
+          "updated_at": { "format": "date-time", "type": "string" }
+        },
+        "required": [],
+        "title": "DataVendor",
+        "type": "object"
+      },
+      "data_vendors": {
+        "items": { "$ref": "#/components/schemas/data_vendor" },
+        "type": "array"
+      },
+      "domain": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": { "format": "date-time", "type": "string" },
+          "uid": { "type": "string" },
+          "updated_at": { "format": "date-time", "type": "string" },
+          "url": {
+            "format": "uri",
+            "type": "string",
+            "x-qt-uri-protocols": ["http"]
+          }
+        },
+        "required": [],
+        "title": "Domain",
+        "type": "object"
+      },
+      "domains": {
+        "items": { "$ref": "#/components/schemas/domain" },
+        "type": "array"
+      },
+      "enum": {
+        "additionalProperties": false,
+        "properties": {
+          "resource_enums": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "key": { "type": "string" },
+                "values": { "items": { "type": "string" }, "type": "array" }
+              },
+              "required": [],
+              "title": "ResourceEnum",
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "resource_type": { "type": "string" }
+        },
+        "required": [],
+        "title": "Enum",
+        "type": "object"
+      },
+      "enums": {
+        "items": { "$ref": "#/components/schemas/enum" },
+        "type": "array"
+      },
+      "exchange": {
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "Exchange",
+        "type": "object"
+      },
+      "exchanges": {
+        "items": { "$ref": "#/components/schemas/exchange" },
+        "type": "array"
+      },
+      "insertion_order_unit": {
+        "additionalProperties": false,
+        "properties": {
+          "advertiser_uid": { "type": "string" },
+          "alerts": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": { "type": "string" },
+                "description": { "type": "string" }
+              },
+              "required": [],
+              "title": "Alert",
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "algorithm_uid": {
+            "anyOf": [{ "type": ["string", "null"] }, { "type": "string" }]
+          },
+          "allocated_budget": { "type": "integer" },
+          "attribution_lookback_last_click": { "type": ["string", "null"] },
+          "attribution_lookback_last_view": { "type": ["string", "null"] },
+          "attribution_type": { "type": ["string", "null"] },
+          "bid_settings_mode": { "type": ["string", "null"] },
+          "constraint.cap.bid": {
+            "anyOf": [{ "type": "number" }, { "type": ["string", "null"] }]
+          },
+          "constraint.cap.dar.demo.buffer.impression": {
+            "type": ["string", "null"]
+          },
+          "constraint.cap.impression": { "type": ["string", "null"] },
+          "constraint.cap.impression.contract": { "type": ["string", "null"] },
+          "constraint.cap.impression.daily": { "type": ["string", "null"] },
+          "constraint.cap.impression.user": { "type": ["string", "null"] },
+          "constraint.cap.impression.user.campaign": {
+            "type": ["string", "null"]
+          },
+          "constraint.cap.impression.user.campaign.level.1": {
+            "type": ["string", "null"]
+          },
+          "constraint.cap.impression.user.campaign.level.2": {
+            "type": ["string", "null"]
+          },
+          "constraint.cap.impression.user.level.1": {
+            "type": ["string", "null"]
+          },
+          "constraint.cap.impression.user.level.2": {
+            "type": ["string", "null"]
+          },
+          "constraint.cap.max.bid": { "type": ["string", "null"] },
+          "constraint.cap.spend": {
+            "anyOf": [{ "type": "number" }, { "type": ["string", "null"] }]
+          },
+          "constraint.cap.spend.daily": {
+            "anyOf": [{ "type": "number" }, { "type": ["string", "null"] }]
+          },
+          "constraint.cap.spend.daily.asap": {
+            "anyOf": [{ "type": "boolean" }, { "type": ["string", "null"] }]
+          },
+          "constraint.goal.cpa": {
+            "anyOf": [{ "type": "integer" }, { "type": ["string", "null"] }]
+          },
+          "constraint.goal.cpm": {
+            "anyOf": [{ "type": "integer" }, { "type": ["string", "null"] }]
+          },
+          "constraint.goal.ctr": {
+            "anyOf": [{ "type": "integer" }, { "type": ["string", "null"] }]
+          },
+          "constraint.goal.impression.user": { "type": ["string", "null"] },
+          "constraint.goal.margin": { "type": ["string", "null"] },
+          "constraint.lifetime.pacing.multiplier": {
+            "type": ["string", "null"]
+          },
+          "constraint.min.dar.demo.user.confidence": {
+            "type": ["string", "null"]
+          },
+          "cost_model": {
+            "anyOf": [
+              { "enum": ["dcpm"], "title": "CostModel", "type": "string" },
+              { "type": ["string", "null"] }
+            ]
+          },
+          "created_at": { "format": "date-time", "type": "string" },
+          "currency_uid": {
+            "enum": ["USD"],
+            "title": "CurrencyUid",
+            "type": "string"
+          },
+          "dar_demographic_uids": { "items": {}, "type": "array" },
+          "dayparts": { "type": ["string", "null"] },
+          "delivery_priority_tier": { "type": ["string", "null"] },
+          "delivery_status": {
+            "anyOf": [
+              {
+                "enum": ["active", "inactive"],
+                "title": "DeliveryStatusEnum",
+                "type": "string"
+              },
+              { "type": ["string", "null"] }
+            ]
+          },
+          "delivery_type": {
+            "anyOf": [{ "type": ["string", "null"] }, { "type": "string" }]
+          },
+          "description": { "type": ["string", "null"] },
+          "end_at": {
+            "anyOf": [
+              { "format": "date-time", "type": "string" },
+              { "type": ["string", "null"] }
+            ]
+          },
+          "excluded_geo_target_country_uid": {
+            "anyOf": [
+              { "title": "GeoTargetCountryUid", "type": "string" },
+              { "type": ["string", "null"] }
+            ]
+          },
+          "flight_count_by_lifecycle_status": {
+            "additionalProperties": false,
+            "properties": {
+              "active": { "type": "integer" },
+              "archived": { "type": "integer" },
+              "ended": { "type": "integer" },
+              "inactive": { "type": "integer" },
+              "total": { "type": "integer" }
+            },
+            "required": [],
+            "title": "FlightCountByLifecycleStatus",
+            "type": "object"
+          },
+          "io_label": { "type": ["string", "null"] },
+          "is_archived": { "type": "boolean" },
+          "is_enabled": { "type": "boolean" },
+          "is_published": { "type": "boolean" },
+          "legacy_geo_target_country_uid": {
+            "anyOf": [
+              { "title": "GeoTargetCountryUid", "type": "string" },
+              { "type": ["string", "null"] }
+            ]
+          },
+          "lifecycle_status": {
+            "anyOf": [
+              {
+                "enum": ["active", "inactive"],
+                "title": "DeliveryStatusEnum",
+                "type": "string"
+              },
+              { "type": ["string", "null"] }
+            ]
+          },
+          "media_type": {
+            "anyOf": [
+              {
+                "enum": ["omnichannel", "totaltv"],
+                "title": "MediaType",
+                "type": "string"
+              },
+              { "type": ["string", "null"] }
+            ]
+          },
+          "name": { "type": "string" },
+          "objective": {
+            "anyOf": [
+              {
+                "enum": ["distribution"],
+                "title": "Objective",
+                "type": "string"
+              },
+              { "type": ["string", "null"] }
+            ]
+          },
+          "pacing_strategy_uid": { "type": ["string", "null"] },
+          "pacing_unit_of_measure": {
+            "enum": [
+              "spend",
+              "ctr",
+              "video_75",
+              "margin",
+              "video_completion_rate",
+              "video_25",
+              "video_starts",
+              "actions_post_view",
+              "video_completed",
+              "actions_post_click",
+              "cpa",
+              "cogs_cpm",
+              "clicks",
+              "actions",
+              "video_50",
+              "impressions",
+              "ecpm"
+            ],
+            "title": "PacingUnitOfMeasure",
+            "type": "string"
+          },
+          "parent_uid": {
+            "anyOf": [
+              { "title": "ParentUid", "type": "string" },
+              { "type": ["string", "null"] }
+            ]
+          },
+          "run_state": {
+            "enum": ["running", "stopped"],
+            "title": "RunState",
+            "type": "string"
+          },
+          "start_at": {
+            "anyOf": [
+              { "format": "date-time", "type": "string" },
+              { "type": ["string", "null"] }
+            ]
+          },
+          "status": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "creatives": { "type": "boolean" },
+                  "inventories": { "type": "boolean" }
+                },
+                "required": [],
+                "title": "Status",
+                "type": "object"
+              },
+              { "type": ["string", "null"] }
+            ]
+          },
+          "timezone": { "title": "Timezone", "type": "string" },
+          "timezone_uid": { "title": "TimezoneUid", "type": "string" },
+          "type": {
+            "enum": ["Campaign", "Tactic", "Flight"],
+            "title": "Type",
+            "type": "string"
+          },
+          "uid": { "type": "string" },
+          "updated_at": { "format": "date-time", "type": "string" },
+          "visibility": {
+            "anyOf": [{ "type": ["string", "null"] }, { "type": "string" }]
+          }
+        },
+        "required": [],
+        "title": "InsertionOrderUnit",
+        "type": "object"
+      },
+      "insertion_order_units": {
+        "items": { "$ref": "#/components/schemas/insertion_order_unit" },
+        "type": "array"
+      },
+      "invalid_traffic_filter": {
+        "additionalProperties": false,
+        "properties": {
+          "description": { "type": "string" },
+          "label": { "type": "string" },
+          "level_config": {
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "order": { "type": "integer" }
+            },
+            "required": [],
+            "title": "LevelConfig",
+            "type": "object"
+          },
+          "uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "InvalidTrafficFilter",
+        "type": "object"
+      },
+      "invalid_traffic_filters": {
+        "items": { "$ref": "#/components/schemas/invalid_traffic_filter" },
+        "type": "array"
+      },
+      "inventory_deal": {
+        "additionalProperties": false,
+        "properties": {
+          "budget": { "type": ["string", "null"] },
+          "child_uids": { "items": { "type": "string" }, "type": "array" },
+          "created_at": { "format": "date-time", "type": "string" },
+          "deal_id": { "type": ["string", "null"] },
+          "deal_type": {
+            "enum": ["marketplace"],
+            "title": "DealType",
+            "type": "string"
+          },
+          "description": { "type": ["string", "null"] },
+          "end_at": { "format": "date-time", "type": "string" },
+          "exchange_uid": { "type": ["string", "null"] },
+          "is_active": { "type": "boolean" },
+          "is_archived": { "type": "boolean" },
+          "is_enhanced_guaranteed": { "type": "boolean" },
+          "is_guaranteed": { "type": "boolean" },
+          "is_package": { "type": "boolean" },
+          "lifecycle_status": {
+            "enum": ["active"],
+            "title": "LifecycleStatus",
+            "type": "string"
+          },
+          "max_pricing": {
+            "additionalProperties": false,
+            "properties": {
+              "currency": {
+                "enum": ["USD"],
+                "title": "Currency",
+                "type": "string"
+              },
+              "list_rate": { "type": "number" },
+              "rate_type": {
+                "enum": ["floor_price"],
+                "title": "RateType",
+                "type": "string"
+              }
+            },
+            "required": [],
+            "title": "Pricing",
+            "type": "object"
+          },
+          "media_context_uids": {
+            "items": { "type": "string" },
+            "type": "array"
+          },
+          "min_pricing": {
+            "additionalProperties": false,
+            "properties": {
+              "currency": {
+                "enum": ["USD"],
+                "title": "Currency",
+                "type": "string"
+              },
+              "list_rate": { "type": "number" },
+              "rate_type": {
+                "enum": ["floor_price"],
+                "title": "RateType",
+                "type": "string"
+              }
+            },
+            "required": [],
+            "title": "Pricing",
+            "type": "object"
+          },
+          "name": { "type": "string" },
+          "owner_organization_type": {
+            "enum": ["platform_operator"],
+            "title": "Type",
+            "type": "string"
+          },
+          "owner_organization_uid": {
+            "title": "OwnerOrganizationUidEnum",
+            "type": "string"
+          },
+          "parent_uids": { "items": { "type": "string" }, "type": "array" },
+          "pricing": {
+            "additionalProperties": false,
+            "properties": {
+              "currency": {
+                "enum": ["USD"],
+                "title": "Currency",
+                "type": "string"
+              },
+              "list_rate": { "type": "number" },
+              "rate_type": {
+                "enum": ["floor_price"],
+                "title": "RateType",
+                "type": "string"
+              }
+            },
+            "required": [],
+            "title": "Pricing",
+            "type": "object"
+          },
+          "start_at": { "format": "date-time", "type": "string" },
+          "uid": { "type": "string" },
+          "updated_at": { "format": "date-time", "type": "string" }
+        },
+        "required": [],
+        "title": "InventoryDeal",
+        "type": "object"
+      },
+      "inventory_deal_creative": {
+        "additionalProperties": false,
+        "properties": {
+          "creative_uid": { "type": "string" },
+          "inventory_deal_uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "InventoryDealCreative",
+        "type": "object"
+      },
+      "inventory_deals": {
+        "items": { "$ref": "#/components/schemas/inventory_deal" },
+        "type": "array"
+      },
+      "inventory_deals_creatives": {
+        "items": { "$ref": "#/components/schemas/inventory_deal_creative" },
+        "type": "array"
+      },
+      "match_rate_metrics": {
+        "additionalProperties": false,
+        "properties": {
+          "end_at": { "format": "date-time", "type": "string" },
+          "insertion_order_unit_uid": { "type": "string" },
+          "metrics": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "bid_rate": { "type": "number" },
+                "eligible_bid_requests": { "type": "integer" },
+                "impression_wins": { "type": "integer" },
+                "steps": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "label": { "type": "string" },
+                      "loss_count": { "type": "integer" },
+                      "name": { "type": "string" },
+                      "order": { "type": "integer" },
+                      "pass_count": { "type": "integer" },
+                      "request_count": { "type": "integer" }
+                    },
+                    "required": [],
+                    "title": "Step",
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "updated_at": { "format": "date-time", "type": "string" },
+                "version": { "format": "integer", "type": "string" },
+                "win_rate": { "type": "number" }
+              },
+              "required": [],
+              "title": "Metric",
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "start_at": { "format": "date-time", "type": "string" },
+          "status": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": { "format": "integer", "type": "string" },
+                "message": { "type": "string" },
+                "type": { "type": "string" }
+              },
+              "required": [],
+              "title": "Status",
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [],
+        "title": "MatchRateMetrics",
+        "type": "object"
+      },
+      "media_context": {
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "MediaContext",
+        "type": "object"
+      },
+      "media_contexts": {
+        "items": { "$ref": "#/components/schemas/media_context" },
+        "type": "array"
+      },
+      "metric": {
+        "additionalProperties": false,
+        "properties": {
+          "avg_clearing_price": { "type": "number" },
+          "avg_clearing_price_currency": {
+            "enum": ["USD"],
+            "title": "Currency",
+            "type": "string"
+          },
+          "bid_rate": { "type": "number" },
+          "bids": { "type": "integer" },
+          "current_schedule": {
+            "additionalProperties": false,
+            "properties": {
+              "ecpm": { "type": ["string", "null"] },
+              "impressions": { "type": ["string", "null"] },
+              "refreshed_at": {
+                "additionalProperties": false,
+                "properties": {
+                  "actions": { "format": "date-time", "type": "string" },
+                  "actions_post_click": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "actions_post_view": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "clicks": { "format": "date-time", "type": "string" },
+                  "cogs_cpm": { "format": "date-time", "type": "string" },
+                  "cpa": { "format": "date-time", "type": "string" },
+                  "ctr": { "format": "date-time", "type": "string" },
+                  "ecpm": { "format": "date-time", "type": "string" },
+                  "impressions": { "format": "date-time", "type": "string" },
+                  "margin": { "format": "date-time", "type": "string" },
+                  "spend": { "format": "date-time", "type": "string" },
+                  "video_25": { "format": "date-time", "type": "string" },
+                  "video_50": { "format": "date-time", "type": "string" },
+                  "video_75": { "format": "date-time", "type": "string" },
+                  "video_completed": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "video_completion_rate": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "video_starts": { "format": "date-time", "type": "string" }
+                },
+                "required": [],
+                "title": "RefreshedAt",
+                "type": "object"
+              },
+              "spend": { "type": ["string", "null"] }
+            },
+            "required": [],
+            "title": "CurrentSchedule",
+            "type": "object"
+          },
+          "insertion_order_unit_uid": { "type": "string" },
+          "inventory_deal_uid": { "type": "string" },
+          "lifetime": {
+            "additionalProperties": false,
+            "properties": {
+              "ecpm": { "type": "number" },
+              "impressions": { "type": "integer" },
+              "refreshed_at": { "format": "date-time", "type": "string" },
+              "spend": { "type": "number" }
+            },
+            "required": [],
+            "title": "Lifetime",
+            "type": "object"
+          },
+          "projections": {
+            "additionalProperties": false,
+            "properties": {
+              "lifetime_spend": {
+                "additionalProperties": false,
+                "properties": {
+                  "current_schedule_7day": { "type": ["string", "null"] },
+                  "current_schedule_yesterday": { "type": ["string", "null"] },
+                  "entirety": {
+                    "anyOf": [
+                      { "type": "number" },
+                      { "type": ["string", "null"] }
+                    ]
+                  },
+                  "seven_day": {
+                    "anyOf": [
+                      { "type": "number" },
+                      { "type": ["string", "null"] }
+                    ]
+                  },
+                  "yesterday": {
+                    "anyOf": [
+                      { "type": "number" },
+                      { "type": ["string", "null"] }
+                    ]
+                  }
+                },
+                "required": [],
+                "title": "LifetimeSpend",
+                "type": "object"
+              },
+              "pace": {
+                "additionalProperties": false,
+                "properties": {
+                  "current_schedule_7day": { "type": ["string", "null"] },
+                  "current_schedule_yesterday": { "type": ["string", "null"] },
+                  "entirety": {
+                    "anyOf": [
+                      { "type": "number" },
+                      { "type": ["string", "null"] }
+                    ]
+                  },
+                  "seven_day": {
+                    "anyOf": [
+                      { "type": "number" },
+                      { "type": ["string", "null"] }
+                    ]
+                  },
+                  "yesterday": {
+                    "anyOf": [
+                      { "type": "number" },
+                      { "type": ["string", "null"] }
+                    ]
+                  }
+                },
+                "required": [],
+                "title": "LifetimeSpend",
+                "type": "object"
+              },
+              "refreshed_at": { "format": "date-time", "type": "string" }
+            },
+            "required": [],
+            "title": "Projections",
+            "type": "object"
+          },
+          "reports": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "end_at": { "format": "date-time", "type": "string" },
+                "meta": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "refreshed_at": {
+                      "additionalProperties": {
+                        "items": {
+                          "enum": [
+                            "spend",
+                            "ctr",
+                            "video_75",
+                            "margin",
+                            "video_completion_rate",
+                            "video_25",
+                            "video_starts",
+                            "actions_post_view",
+                            "video_completed",
+                            "actions_post_click",
+                            "cpa",
+                            "cogs_cpm",
+                            "clicks",
+                            "actions",
+                            "video_50",
+                            "impressions",
+                            "ecpm"
+                          ],
+                          "title": "PacingUnitOfMeasure",
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "required": [],
+                  "title": "Meta",
+                  "type": "object"
+                },
+                "metrics": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      { "type": "number" },
+                      { "type": ["string", "null"] }
+                    ]
+                  },
+                  "type": "object"
+                },
+                "start_at": { "format": "date-time", "type": "string" },
+                "timeframe": {
+                  "enum": ["lifetime", "yesterday"],
+                  "title": "Timeframe",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "Report",
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "requests": { "type": "integer" },
+          "time_series": {
+            "additionalProperties": false,
+            "properties": {
+              "actions": { "type": ["integer", "null"] },
+              "actions_post_click": { "type": ["integer", "null"] },
+              "actions_post_view": { "type": ["integer", "null"] },
+              "cpa": { "type": ["integer", "null"] },
+              "errors": { "items": {}, "type": "array" },
+              "refreshed_at": { "format": "date-time", "type": "string" },
+              "spend": {
+                "additionalProperties": {
+                  "anyOf": [
+                    { "type": "number" },
+                    { "type": ["string", "null"] }
+                  ]
+                },
+                "type": "object"
+              }
+            },
+            "required": [],
+            "title": "TimeSeries",
+            "type": "object"
+          },
+          "win_rate": { "type": "number" },
+          "wins": { "type": "integer" }
+        },
+        "required": [],
+        "title": "Metric",
+        "type": "object"
+      },
+      "metrics": {
+        "items": { "$ref": "#/components/schemas/metric" },
+        "type": "array"
+      },
+      "oneview_policies": {
+        "items": { "$ref": "#/components/schemas/oneview_policy" },
+        "type": "array"
+      },
+      "oneview_policy": {
+        "additionalProperties": false,
+        "properties": {
+          "description": { "type": "string" },
+          "is_default": { "type": "boolean" },
+          "name": { "type": "string" },
+          "sku": { "type": ["string", "null"] },
+          "uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "OneviewPolicy",
+        "type": "object"
+      },
+      "open_exchange": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": { "format": "date-time", "type": "string" },
+          "is_deal_id_supported": { "type": "boolean" },
+          "is_enhanced_guaranteed_deal_supported": { "type": "boolean" },
+          "is_guaranteed_deal_supported": { "type": "boolean" },
+          "name": { "type": "string" },
+          "uid": { "type": "string" },
+          "updated_at": { "format": "date-time", "type": "string" }
+        },
+        "required": [],
+        "title": "OpenExchange",
+        "type": "object"
+      },
+      "open_exchanges": {
+        "items": { "$ref": "#/components/schemas/open_exchange" },
+        "type": "array"
+      },
+      "optimization_group": {
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "OptimizationGroup",
+        "type": "object"
+      },
+      "optimization_groups": {
+        "items": { "$ref": "#/components/schemas/optimization_group" },
+        "type": "array"
+      },
+      "organization": {
+        "additionalProperties": false,
+        "properties": {
+          "active": { "type": "boolean" },
+          "contact_email": { "type": ["string", "null"] },
+          "contact_name": { "type": ["string", "null"] },
+          "content_category": { "type": ["string", "null"] },
+          "content_category_uid": { "type": ["string", "null"] },
+          "contract_service_level": { "type": ["string", "null"] },
+          "contractual_currency_uid": { "enum": ["USD", null], "type": "string"},
+          "country_uid": { "type": ["string", "null"] },
+          "created_at": { "format": "date-time", "type": "string" },
+          "created_by_user_uid": { "type": ["string", "null"] },
+          "name": { "type": "string" },
+          "operating_model": { "type": ["string", "null"] },
+          "owner_uid": { "type": ["string", "null"] },
+          "parent_uid": { "type": ["string", "null"] },
+          "primary_domain": { "type": ["string", "null"] },
+          "status": { "type": ["string", "null"] },
+          "timezone_uid": { "type": ["string", "null"] },
+          "type": {
+            "enum": [
+              "advertiser",
+              "data_vendor",
+              "platform_owner",
+              "bundle_app_name_provider",
+              "ad_server",
+              "creative_auditor",
+              "publisher",
+              "platform_operator",
+              "agency"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "uid": { "type": "string" },
+          "updated_at": { "format": "date-time", "type": "string" },
+          "updated_by_user_uid": { "type": ["string", "null"] }
+        },
+        "required": [],
+        "title": "organizations",
+        "type": "object"
+      },
+      "organizations": {
+        "items": { "$ref": "#/components/schemas/organization" },
+        "type": "array"
+      },
+      "owner_organization": {
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "enum": ["platform_operator"], "type": "string" },
+          "uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "OwnerOrganization",
+        "type": "object"
+      },
+      "owner_organizations": {
+        "items": { "$ref": "#/components/schemas/owner_organization" },
+        "type": "array"
+      },
+      "permission": {
+        "properties": {
+          "actions": { "items": {}, "type": "array" },
+          "object_uid": { "type": "string" }
+        },
+        "type": "object"
+      },
+      "permissions": {
+        "items": { "$ref": "#/components/schemas/permission" },
+        "type": "array"
+      },
+      "product": {
+        "additionalProperties": false,
+        "properties": {
+          "automatic": { "type": "boolean" },
+          "billable": { "type": "boolean" },
+          "category": { "type": ["string", "null"] },
+          "created_at": { "format": "date-time", "type": "string" },
+          "fee_type_uid": { "type": "string" },
+          "name": { "type": "string" },
+          "owner_organization_uid": { "type": "string" },
+          "pricing": {
+            "additionalProperties": false,
+            "properties": {
+              "currency": {
+                "enum": ["USD"],
+                "title": "Currency",
+                "type": "string"
+              },
+              "list_rate": { "type": "number" },
+              "rate_type": {
+                "enum": ["cpm", "pos"],
+                "title": "RateType",
+                "type": "string"
+              }
+            },
+            "required": [],
+            "title": "Pricing",
+            "type": "object"
+          },
+          "sku": { "type": "string" },
+          "target_media_type": { "type": ["string", "null"] },
+          "uid": { "type": "string" },
+          "updated_at": { "format": "date-time", "type": "string" }
+        },
+        "required": [],
+        "title": "Product",
+        "type": "object"
+      },
+      "products": {
+        "items": { "$ref": "#/components/schemas/product" },
+        "type": "array"
+      },
+      "reporting_response": {
+        "additionalProperties": false,
+        "properties": {
+          "report_name": {
+            "enum": ["Real_Time_Metrics"],
+            "title": "ReportName",
+            "type": "string"
+          },
+          "request_time": { "format": "date-time", "type": "string" },
+          "response_body": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "count": { "type": "integer" },
+                "currency": { "type": "string" },
+                "items": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "sum_LoadedSpendRate": { "type": "number" },
+                      "sum_bids": { "type": "integer" },
+                      "sum_rawSpend": { "type": "number" },
+                      "sum_requests": { "type": "integer" },
+                      "sum_wins": { "type": "integer" },
+                      "time": { "format": "date-time", "type": "string" }
+                    },
+                    "required": [],
+                    "title": "Item",
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "metric": {
+                  "enum": ["flight", "deal"],
+                  "title": "Metric",
+                  "type": "string"
+                },
+                "uid": { "title": "Uid", "type": "string" }
+              },
+              "required": [],
+              "title": "ResponseBody",
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "response_time": { "format": "date-time", "type": "string" }
+        },
+        "required": [],
+        "title": "ReportingResponse",
+        "type": "object"
+      },
+      "set": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": { "format": "date-time", "type": "string" },
+          "is_archived": { "type": "boolean" },
+          "item_count": { "type": "integer" },
+          "md5": { "type": "string" },
+          "name": { "type": "string" },
+          "organization_uid": { "type": "string" },
+          "shareability": { "type": "string" },
+          "tag": { "type": ["string", "null"] },
+          "type": { "type": "string" },
+          "uid": { "type": "string" },
+          "updated_at": { "format": "date-time", "type": "string" }
+        },
+        "required": [],
+        "title": "Set",
+        "type": "object"
+      },
+      "sets": {
+        "items": { "$ref": "#/components/schemas/set" },
+        "type": "array"
+      },
+      "term": {
+        "additionalProperties": false,
+        "properties": {
+          "contract_level": { "enum": ["none", "org"], "type": "string" },
+          "contract_uid": { "type": ["string", "null"] },
+          "created_at": { "format": "date-time", "type": "string" },
+          "insertion_order_unit_uid": { "type": ["string", "null"] },
+          "is_included": { "type": "boolean" },
+          "item_uid": { "type": ["string", "null"] },
+          "parent_term_op": { "type": ["string", "null"] },
+          "pricing": {
+            "additionalProperties": false,
+            "properties": {
+              "currency": { "type": "string" },
+              "list_rate": { "type": "number" },
+              "product_uid": { "type": "string" },
+              "rate_type": { "type": "string" },
+              "sku": { "type": "string" }
+            },
+            "required": [],
+            "title": "TermPricing",
+            "type": "object"
+          },
+          "type": { "type": "string" },
+          "uid": { "type": "string" }
+        },
+        "required": [],
+        "title": "Term",
+        "type": "object"
+      },
+      "term_item": {
+        "additionalProperties": false,
+        "properties": {
+          "ad_tag_type": { "type": "string" },
+          "alerts": { "items": {}, "type": "array" },
+          "ancestor_uids": { "items": {}, "type": "array" },
+          "brand_safety": { "type": ["string", "null"] },
+          "budget": { "type": ["string", "null"] },
+          "cdn_url": {
+            "format": "uri",
+            "type": "string",
+            "x-qt-uri-extensions": [".xml"],
+            "x-qt-uri-protocols": ["https"]
+          },
+          "child_uids": { "items": { "type": "string" }, "type": "array" },
+          "click_tracking_enabled": { "type": "boolean" },
+          "code": { "type": "string" },
+          "created_at": { "format": "date-time", "type": "string" },
+          "deal_id": { "type": ["string", "null"] },
+          "deal_type": {
+            "enum": ["marketplace", "shared"],
+            "title": "DealType",
+            "type": "string"
+          },
+          "description": { "type": "string" },
+          "duration": { "type": "integer" },
+          "end_at": { "type": ["string", "null"] },
+          "exchange_uid": { "type": ["string", "null"] },
+          "expand_direction": { "type": ["string", "null"] },
+          "expand_initiated_by": { "type": ["string", "null"] },
+          "external_id": { "format": "integer", "type": "string" },
+          "format": { "type": "string" },
+          "height": { "type": "integer" },
+          "is_active": { "type": "boolean" },
+          "is_archived": { "type": "boolean" },
+          "is_enabled": { "type": "boolean" },
+          "is_enhanced_guaranteed": { "type": "boolean" },
+          "is_guaranteed": { "type": "boolean" },
+          "is_package": { "type": "boolean" },
+          "is_published": { "type": "boolean" },
+          "item_count": { "type": "integer" },
+          "landing_url": {
+            "format": "uri",
+            "type": "string",
+            "x-qt-uri-protocols": ["https"]
+          },
+          "language_uid": { "type": ["string", "null"] },
+          "lifecycle_status": {
+            "enum": ["active"],
+            "title": "LifecycleStatus",
+            "type": "string"
+          },
+          "max_pricing": {
+            "additionalProperties": false,
+            "properties": {
+              "currency": {
+                "enum": ["USD"],
+                "title": "Currency",
+                "type": "string"
+              },
+              "list_rate": { "type": "number" },
+              "rate_type": {
+                "enum": ["floor_price"],
+                "title": "RateType",
+                "type": "string"
+              }
+            },
+            "required": [],
+            "title": "Pricing",
+            "type": "object"
+          },
+          "md5": { "type": "string" },
+          "media_context_uids": {
+            "items": { "title": "MediaContextUid", "type": "string" },
+            "type": "array"
+          },
+          "min_pricing": {
+            "additionalProperties": false,
+            "properties": {
+              "currency": {
+                "enum": ["USD"],
+                "title": "Currency",
+                "type": "string"
+              },
+              "list_rate": { "type": "number" },
+              "rate_type": {
+                "enum": ["floor_price"],
+                "title": "RateType",
+                "type": "string"
+              }
+            },
+            "required": [],
+            "title": "Pricing",
+            "type": "object"
+          },
+          "name": { "type": "string" },
+          "oba_icon_position": { "type": "string" },
+          "organization_uid": { "type": "string" },
+          "owner_organization_type": {
+            "enum": ["platform_operator", "advertiser"],
+            "title": "OwnerOrganizationType",
+            "type": "string"
+          },
+          "owner_organization_uid": {
+            "title": "OwnerOrganizationUid",
+            "type": "string"
+          },
+          "parent_uid": { "type": ["string", "null"] },
+          "parent_uids": { "items": {}, "type": "array" },
+          "pricing": { "type": ["string", "null"] },
+          "serving_status": { "type": "string" },
+          "shareability": {
+            "enum": ["platform_operator", "advertiser"],
+            "title": "OwnerOrganizationType",
+            "type": "string"
+          },
+          "start_at": {
+            "anyOf": [
+              { "format": "date-time", "type": "string" },
+              { "type": ["string", "null"] }
+            ]
+          },
+          "tag": { "type": ["string", "null"] },
+          "tag_type": {
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "uid": { "type": "string" }
+            },
+            "required": [],
+            "title": "TagType",
+            "type": "object"
+          },
+          "targets_google_provinces": { "type": "boolean" },
+          "targets_metro_codes": { "type": "boolean" },
+          "targets_postal_codes": { "type": "boolean" },
+          "targets_regions": { "type": "boolean" },
+          "taxonomy": {
+            "additionalProperties": false,
+            "properties": {
+              "is_leaf_node": { "type": "boolean" },
+              "path": { "type": "string" }
+            },
+            "required": [],
+            "title": "Taxonomy",
+            "type": "object"
+          },
+          "taxonomy_type": { "type": "string" },
+          "tier": { "type": "integer" },
+          "type": { "type": "string" },
+          "uid": { "type": "string" },
+          "updated_at": { "format": "date-time", "type": "string" },
+          "width": { "type": "integer" }
+        },
+        "required": [],
+        "title": "TermItem",
+        "type": "object"
+      },
+      "term_items": {
+        "items": { "$ref": "#/components/schemas/term_item" },
+        "type": "array"
+      },
+      "terms": {
+        "items": { "$ref": "#/components/schemas/term" },
+        "type": "array"
+      },
+      "timezone": {
+        "additionalProperties": false,
+        "properties": {
+          "country_code": { "type": "string" },
+          "display_name": { "type": "string" },
+          "is_enabled": { "type": "boolean" },
+          "name": { "type": "string" },
+          "uid": { "type": "string" },
+          "utc_offset": { "type": "string" }
+        },
+        "required": [],
+        "title": "Timezone",
+        "type": "object"
+      },
+      "timezones": {
+        "items": { "$ref": "#/components/schemas/timezone" },
+        "type": "array"
+      },
+      "universal_ad_id_registries": {
+        "items": { "$ref": "#/components/schemas/universal_ad_id_registry" },
+        "type": "array"
+      },
+      "universal_ad_id_registry": {
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "uid": { "type": "string" },
+          "url": { "type": "string" }
+        },
+        "required": [],
+        "title": "UniversalAdIDRegistry",
+        "type": "object"
+      },
+      "user": {
+        "additionalProperties": false,
+        "properties": {
+          "active": { "type": "boolean" },
+          "created_at": { "format": "date-time", "type": "string" },
+          "email": { "type": "string" },
+          "first_name": { "type": ["string", "null"] },
+          "last_name": { "type": ["string", "null"] },
+          "mfa_required": { "type": ["string", "null"] },
+          "organization_uid": {
+            "title": "OrganizationUidEnum",
+            "type": "string"
+          },
+          "sso_enabled": { "type": "boolean" },
+          "status": { "type": "string" },
+          "uid": { "title": "UserUserUid", "type": "string" },
+          "updated_at": { "format": "date-time", "type": "string" },
+          "user_roles": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "role_uid": { "type": "string" },
+                "scope_type": {
+                  "enum": ["organization"],
+                  "title": "ScopeType",
+                  "type": "string"
+                },
+                "scope_uid": {
+                  "title": "OrganizationUidEnum",
+                  "type": "string"
+                },
+                "uid": { "type": "string" },
+                "user_uid": { "title": "UserUserUid", "type": "string" }
+              },
+              "required": [],
+              "title": "UserRole",
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [],
+        "title": "User",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "auth0": { "in": "cookie", "name": "auth0", "type": "apiKey" },
+      "auth0_compat": {
+        "in": "cookie",
+        "name": "auth0_compat",
+        "type": "apiKey"
+      },
+      "did": { "in": "cookie", "name": "did", "type": "apiKey" },
+      "did_compat": { "in": "cookie", "name": "did_compat", "type": "apiKey" },
+      "dxauth": { "in": "cookie", "name": "dxauth", "type": "apiKey" },
+      "_session": { "in": "cookie", "name": "_session", "type": "apiKey" }
+    }
+  },
+  "paths": {
+    "/activities": {
+      "get": {
+        "description": "",
+        "operationId": "getActivities",
+        "parameters": [
+          { "$ref": "#/components/parameters/filter" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/organization_uid" },
+          { "$ref": "#/components/parameters/bypass_cache" },
+          { "$ref": "#/components/parameters/expand" },
+          { "$ref": "#/components/parameters/is_archived" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/activities" } },
+        "summary": "Get Activities"
+      }
+    },
+    "/activities/{activity_uid}": {
+      "get": {
+        "description": "",
+        "operationId": "getActivity",
+        "parameters": [{ "$ref": "#/components/parameters/expand" }],
+        "responses": { "200": { "$ref": "#/components/responses/activity" } },
+        "summary": "Get Activity"
+      },
+      "parameters": [
+        {
+          "description": "Description for activity_uid.",
+          "in": "path",
+          "name": "activity_uid",
+          "required": true,
+          "schema": { "type": "string" }
+        }
+      ]
+    },
+    "/activity_types": {
+      "get": {
+        "description": "",
+        "operationId": "getActivityTypes",
+        "parameters": [{ "$ref": "#/components/parameters/filter" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/activity_types" },
+          "304": { "$ref": "#/components/responses/activity_types" }
+        },
+        "summary": "Get Activity Types"
+      }
+    },
+    "/activity_types/{activity_uid}": {
+      "get": {
+        "description": "",
+        "operationId": "getActivityType",
+        "parameters": [],
+        "responses": {
+          "200": { "$ref": "#/components/responses/activity_type" }
+        },
+        "summary": "Get Activity Types"
+      },
+      "parameters": [
+        {
+          "description": "Description for activity_uid.",
+          "in": "path",
+          "name": "activity_uid",
+          "required": true,
+          "schema": { "type": "string" }
+        }
+      ]
+    },
+    "/algorithms": {
+      "get": {
+        "description": "",
+        "operationId": "getAlgorithms",
+        "parameters": [
+          { "$ref": "#/components/parameters/insertion_order_unit" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/algorithms" } },
+        "summary": "Get Algorithms"
+      }
+    },
+    "/assets": {
+      "get": {
+        "description": "",
+        "operationId": "getAssets",
+        "parameters": [
+          { "$ref": "#/components/parameters/expand" },
+          { "$ref": "#/components/parameters/uid" },
+          { "$ref": "#/components/parameters/bypass_cache" },
+          { "$ref": "#/components/parameters/is_parent" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/order" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/assets" } },
+        "summary": "Get Assets"
+      }
+    },
+    "/assets/{asset_uid}": {
+      "get": {
+        "description": "",
+        "operationId": "getAsset",
+        "parameters": [{ "$ref": "#/components/parameters/expand" }],
+        "responses": { "200": { "$ref": "#/components/responses/asset" } },
+        "summary": "Get Assets"
+      },
+      "parameters": [
+        {
+          "description": "Description for asset_uid.",
+          "in": "path",
+          "name": "asset_uid",
+          "required": true,
+          "schema": { "type": "string" }
+        }
+      ]
+    },
+    "/audiences": {
+      "get": {
+        "description": "",
+        "operationId": "getAudiences",
+        "parameters": [
+          { "$ref": "#/components/parameters/bypass_cache" },
+          { "$ref": "#/components/parameters/expand" },
+          { "$ref": "#/components/parameters/filter" },
+          { "$ref": "#/components/parameters/insertion_order_unit" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/uid" },
+          { "$ref": "#/components/parameters/active" },
+          { "$ref": "#/components/parameters/is_archived" },
+          { "$ref": "#/components/parameters/order" },
+          { "$ref": "#/components/parameters/organization_uid" },
+          { "$ref": "#/components/parameters/q" },
+          { "$ref": "#/components/parameters/unique" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/audiences" } },
+        "summary": "Get Audiences"
+      }
+    },
+    "/audiences/{audience_uid}": {
+      "get": {
+        "description": "",
+        "operationId": "getAudience",
+        "parameters": [{ "$ref": "#/components/parameters/expand" }],
+        "responses": { "200": { "$ref": "#/components/responses/audience" } },
+        "summary": "Get Audience"
+      },
+      "parameters": [
+        {
+          "description": "Description for audience_uid.",
+          "in": "path",
+          "name": "audience_uid",
+          "required": true,
+          "schema": { "type": "string" }
+        }
+      ]
+    },
+    "/audiences_activities/items": {
+      "get": {
+        "description": "",
+        "operationId": "getAudiencesActivitiesItems",
+        "parameters": [
+          { "$ref": "#/components/parameters/bypass_cache" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/expand" },
+          { "$ref": "#/components/parameters/audience_uid" },
+          { "$ref": "#/components/parameters/activity_uid" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/audience_activities" },
+          "304": { "$ref": "#/components/responses/audience_activities" }
+        },
+        "summary": "Get Audiences Activities Items"
+      }
+    },
+    "/brand_safety_levels": {
+      "get": {
+        "description": "",
+        "operationId": "getBrandSafetyLevels",
+        "parameters": [
+          { "$ref": "#/components/parameters/insertion_order_unit" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/brand_safety_levels" }
+        },
+        "summary": "Get Brand Safety Levels"
+      }
+    },
+    "/content_channels": {
+      "get": {
+        "description": "",
+        "operationId": "getContentChannels",
+        "parameters": [
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/taxonomy_type" },
+          { "$ref": "#/components/parameters/uid" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/content_channels" }
+        },
+        "summary": "Get Content Channels"
+      }
+    },
+    "/contracts": {
+      "get": {
+        "description": "",
+        "operationId": "getContracts",
+        "parameters": [
+          { "$ref": "#/components/parameters/filter" },
+          { "$ref": "#/components/parameters/advertiser_organization_uid" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/contracts" } },
+        "summary": "Get Contracts"
+      }
+    },
+    "/countries": {
+      "get": {
+        "description": "",
+        "operationId": "getCountries",
+        "parameters": [
+          { "$ref": "#/components/parameters/insertion_order_unit" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/countries" },
+          "304": { "$ref": "#/components/responses/countries" }
+        },
+        "summary": "Get Countries"
+      }
+    },
+    "/creative_rotation_strategies": {
+      "get": {
+        "description": "",
+        "operationId": "getCreativeRotationStrategies",
+        "parameters": [
+          { "$ref": "#/components/parameters/termable_type" },
+          { "$ref": "#/components/parameters/insertion_order_unit_uid" }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/creative_rotation_strategies"
+          }
+        },
+        "summary": "Get Creative Rotation Strategies"
+      }
+    },
+    "/creative_sizes": {
+      "get": {
+        "description": "",
+        "operationId": "getCreativeSizes",
+        "parameters": [
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/order" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/creative_sizes" },
+          "304": { "$ref": "#/components/responses/creative_sizes" }
+        },
+        "summary": "Get Creative Sizes"
+      }
+    },
+    "/creative_tag_versions": {
+      "get": {
+        "description": "",
+        "operationId": "getCreativeTagVersions",
+        "responses": {
+          "200": { "$ref": "#/components/responses/ad_tag_versions" }
+        },
+        "summary": "Get Creative Tag Versions"
+      }
+    },
+    "/creatives": {
+      "get": {
+        "description": "",
+        "operationId": "getCreatives",
+        "parameters": [
+          { "$ref": "#/components/parameters/bypass_cache" },
+          { "$ref": "#/components/parameters/expand" },
+          { "$ref": "#/components/parameters/insertion_order_unit" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/order" },
+          { "$ref": "#/components/parameters/filter" },
+          { "$ref": "#/components/parameters/organization_uid" },
+          { "$ref": "#/components/parameters/uid" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/creatives" } },
+        "summary": "Get Creatives"
+      }
+    },
+    "/creatives/registrations": {
+      "get": {
+        "description": "",
+        "operationId": "getCreativesRegistrations",
+        "parameters": [
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/expand" },
+          {
+            "description": "Description for creative_uid.",
+            "in": "query",
+            "name": "creative_uid",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/creatives_registrations" }
+        },
+        "summary": "Get Creatives Registrations"
+      }
+    },
+    "/creatives/{creative_uid}": {
+      "get": {
+        "description": "",
+        "operationId": "getCreative",
+        "parameters": [{ "$ref": "#/components/parameters/expand" }],
+        "responses": { "200": { "$ref": "#/components/responses/creative" } },
+        "summary": "Get Creative"
+      },
+      "parameters": [
+        {
+          "description": "Description for creative_uid.",
+          "in": "path",
+          "name": "creative_uid",
+          "required": true,
+          "schema": { "type": "string" }
+        }
+      ]
+    },
+    "/creatives/{creative_uid}/add_ons": {
+      "get": {
+        "description": "",
+        "operationId": "getCreativeAddOns",
+        "parameters": [{ "$ref": "#/components/parameters/type" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/creative_addons" }
+        },
+        "summary": "Get Creative Add Ons"
+      },
+      "parameters": [
+        {
+          "description": "Description for creative_uid.",
+          "in": "path",
+          "name": "creative_uid",
+          "required": true,
+          "schema": { "type": "string" }
+        }
+      ]
+    },
+    "/creatives_activities/items": {
+      "get": {
+        "description": "",
+        "operationId": "getCreativesActivitiesItems",
+        "parameters": [{ "$ref": "#/components/parameters/creative_uid" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/creatives_activities" }
+        },
+        "summary": "Get Creatives Activities Items"
+      }
+    },
+    "/creatives_assets/items": {
+      "get": {
+        "description": "",
+        "operationId": "getCreativesAssetsItems",
+        "parameters": [
+          { "$ref": "#/components/parameters/creative_asset_role" },
+          { "$ref": "#/components/parameters/creative_uid" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/creatives_assets" }
+        },
+        "summary": "Get Creatives Assets Items"
+      }
+    },
+    "/creatives_content_channels/items": {
+      "get": {
+        "description": "",
+        "operationId": "getCreativesContentChannelsItems",
+        "parameters": [{ "$ref": "#/components/parameters/creative_uid" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/content_channels" }
+        },
+        "summary": "Get Creatives Content Channels Items"
+      }
+    },
+    "/creatives_domains/items": {
+      "get": {
+        "description": "",
+        "operationId": "getCreativesDomainsItems",
+        "parameters": [
+          { "$ref": "#/components/parameters/creative_domain_type" },
+          { "$ref": "#/components/parameters/bypass_cache" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/creative_uid" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/creatives_domains" }
+        },
+        "summary": "Get Creatives Domains Items"
+      }
+    },
+    "/currencies": {
+      "get": {
+        "description": "",
+        "operationId": "getCurrencies",
+        "responses": { "200": { "$ref": "#/components/responses/currencies" } },
+        "summary": "Get Currencies"
+      }
+    },
+    "/data_vendors": {
+      "get": {
+        "description": "",
+        "operationId": "getDataVendors",
+        "parameters": [{ "$ref": "#/components/parameters/filter" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/data_vendors" },
+          "304": { "$ref": "#/components/responses/data_vendors" }
+        },
+        "summary": "Get Data Vendors"
+      }
+    },
+    "/enums": {
+      "get": {
+        "description": "",
+        "operationId": "getEnums",
+        "responses": {
+          "200": { "$ref": "#/components/responses/enums" },
+          "304": { "$ref": "#/components/responses/enums" }
+        },
+        "summary": "Get Enums"
+      }
+    },
+    "/external_ids": {
+      "get": {
+        "description": "",
+        "operationId": "getExternalIds",
+        "parameters": [
+          { "$ref": "#/components/parameters/owner_type" },
+          { "$ref": "#/components/parameters/owner_uid" },
+          { "$ref": "#/components/parameters/source" },
+          { "$ref": "#/components/parameters/order" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/external_ids" }
+        },
+        "summary": "Get External Ids"
+      }
+    },
+    "/insertion_order_units": {
+      "get": {
+        "description": "",
+        "operationId": "getInsertionOrderUnits",
+        "parameters": [
+          { "$ref": "#/components/parameters/bypass_cache" },
+          { "$ref": "#/components/parameters/expand" },
+          { "$ref": "#/components/parameters/filter" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/order" },
+          { "$ref": "#/components/parameters/report_timeframe" },
+          { "$ref": "#/components/parameters/type" },
+          { "$ref": "#/components/parameters/uid" },
+          { "$ref": "#/components/parameters/ancestor_uid" },
+          {
+            "$ref": "#/components/parameters/descendant_insertion_order_unit_uid"
+          }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/insertion_order_units" }
+        },
+        "summary": "Get Insertion Order Units"
+      }
+    },
+    "/insertion_order_units/{insertion_order_uid}": {
+      "get": {
+        "description": "",
+        "operationId": "getInsertionOrderUnit",
+        "parameters": [],
+        "responses": {
+          "200": { "$ref": "#/components/responses/insertion_order_unit" }
+        },
+        "summary": "Get Insertion Order Units"
+      },
+      "parameters": [
+        {
+          "description": "Description for insertion_order_uid.",
+          "in": "path",
+          "name": "insertion_order_uid",
+          "required": true,
+          "schema": { "type": "string" }
+        }
+      ]
+    },
+    "/insertion_order_units/{insertion_order_uid}/match_rate_metrics": {
+      "get": {
+        "description": "",
+        "operationId": "getInsertionOrderUnitMatchRateMetrics",
+        "parameters": [
+          { "$ref": "#/components/parameters/end_at" },
+          { "$ref": "#/components/parameters/start_at" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/match_rate_metrics" }
+        },
+        "summary": "Get Insertion Order Unit Match Rate Metrics"
+      },
+      "parameters": [
+        {
+          "description": "Description for insertion_order_uid.",
+          "in": "path",
+          "name": "insertion_order_uid",
+          "required": true,
+          "schema": { "type": "string" }
+        }
+      ]
+    },
+    "/invalid_traffic_filters": {
+      "get": {
+        "description": "",
+        "operationId": "getInvalidTrafficFilters",
+        "parameters": [
+          { "$ref": "#/components/parameters/insertion_order_unit" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/invalid_traffic_filters" }
+        },
+        "summary": "Get Invalid Traffic Filters"
+      }
+    },
+    "/inventory_deals": {
+      "get": {
+        "description": "",
+        "operationId": "getInventoryDeals",
+        "parameters": [
+          { "$ref": "#/components/parameters/bypass_cache" },
+          { "$ref": "#/components/parameters/expand" },
+          { "$ref": "#/components/parameters/insertion_order_unit" },
+          { "$ref": "#/components/parameters/is_archived" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/order" },
+          { "$ref": "#/components/parameters/filter" },
+          { "$ref": "#/components/parameters/is_package" },
+          { "$ref": "#/components/parameters/uid" },
+          { "$ref": "#/components/parameters/is_guaranteed" },
+          { "$ref": "#/components/parameters/parent_uid" },
+          { "$ref": "#/components/parameters/parent_uids" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/inventory_deals" }
+        },
+        "summary": "Get Inventory Deals"
+      }
+    },
+    "/inventory_deals/{inventory_deal_uid}": {
+      "get": {
+        "description": "",
+        "operationId": "getInventoryDeal",
+        "responses": {
+          "200": { "$ref": "#/components/responses/inventory_deal" }
+        },
+        "parameters": [
+          {
+            "description": "Description for inventory_deal_uid.",
+            "in": "path",
+            "required": true,
+            "name": "inventory_deal_uid",
+            "schema": { "type": "string" }
+          }
+        ],
+        "summary": "Get Inventory Deal"
+      }
+    },
+    "/inventory_deals_creatives": {
+      "get": {
+        "description": "",
+        "operationId": "getInventoryDealsCreatives",
+        "parameters": [
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/expand" },
+          { "$ref": "#/components/parameters/creative_uid" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/inventory_deals_creatives" }
+        },
+        "summary": "Get Inventory Deals Creatives"
+      }
+    },
+    "/me": {
+      "get": {
+        "description": "",
+        "operationId": "getMe",
+        "parameters": [{ "$ref": "#/components/parameters/expand" }],
+        "responses": { "200": { "$ref": "#/components/responses/me" } },
+        "summary": "Get Me"
+      }
+    },
+    "/media_contexts": {
+      "get": {
+        "description": "",
+        "operationId": "getMediaContexts",
+        "parameters": [
+          { "$ref": "#/components/parameters/order" },
+          { "$ref": "#/components/parameters/uid" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/media_contexts" },
+          "304": { "$ref": "#/components/responses/media_contexts" }
+        },
+        "summary": "Get Media Contexts"
+      }
+    },
+    "/oneview_policies": {
+      "get": {
+        "description": "",
+        "operationId": "getOneviewPolicies",
+        "parameters": [
+          { "$ref": "#/components/parameters/insertion_order_unit" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/oneview_policies" }
+        },
+        "summary": "Get Oneview Policies"
+      }
+    },
+    "/open_exchanges": {
+      "get": {
+        "description": "",
+        "operationId": "getOpenExchanges",
+        "parameters": [
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/is_deal_id_supported" },
+          { "$ref": "#/components/parameters/order" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/open_exchanges" },
+          "304": { "$ref": "#/components/responses/open_exchanges" }
+        },
+        "summary": "Get Open Exchanges"
+      }
+    },
+    "/open_exchanges/{open_exchange_uid}": {
+      "get": {
+        "description": "",
+        "operationId": "getOpenExchange",
+        "responses": {
+          "200": { "$ref": "#/components/responses/open_exchange" }
+        },
+        "parameters": [
+          {
+            "description": "Description for open_exchange_uid.",
+            "in": "path",
+            "required": true,
+            "name": "open_exchange_uid",
+            "schema": { "type": "string" }
+          }
+        ],
+        "summary": "Get Open Exchange"
+      }
+    },
+    "/organizations": {
+      "get": {
+        "description": "",
+        "operationId": "getOrganizations",
+        "parameters": [
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/type" },
+          { "$ref": "#/components/parameters/uid" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/organizations" }
+        },
+        "summary": "Get Organizations"
+      }
+    },
+    "/organizations/{organization_uid}": {
+      "get": {
+        "description": "",
+        "operationId": "getOrganization",
+        "responses": {
+          "200": { "$ref": "#/components/responses/organization" }
+        },
+        "parameters": [
+          {
+            "description": "Description for organization_uid.",
+            "in": "path",
+            "required": true,
+            "name": "organization_uid",
+            "schema": { "type": "string" }
+          }
+        ],
+        "summary": "Get Organization"
+      }
+    },
+    "/product_feature_enrollments": {
+      "get": {
+        "description": "",
+        "operationId": "getProductFeatureEnrollments",
+        "parameters": [
+          { "$ref": "#/components/parameters/organization_uid" },
+          { "$ref": "#/components/parameters/product_feature_uid" }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/product_feature_enrollments"
+          },
+          "304": {
+            "$ref": "#/components/responses/product_feature_enrollments"
+          }
+        },
+        "summary": "Get Product Feature Enrollments"
+      }
+    },
+    "/products": {
+      "get": {
+        "description": "",
+        "operationId": "getProducts",
+        "parameters": [
+          { "$ref": "#/components/parameters/expand" },
+          { "$ref": "#/components/parameters/insertion_order_unit" },
+          { "$ref": "#/components/parameters/automatic" },
+          { "$ref": "#/components/parameters/bypass_cache" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/filter" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/products" } },
+        "summary": "Get Products"
+      }
+    },
+    "/reporting/real_time_metrics": {
+      "get": {
+        "description": "",
+        "operationId": "getReportingRealTimeMetrics",
+        "parameters": [
+          { "$ref": "#/components/parameters/end_time" },
+          { "$ref": "#/components/parameters/fields" },
+          { "$ref": "#/components/parameters/functions" },
+          { "$ref": "#/components/parameters/group_by" },
+          { "$ref": "#/components/parameters/resource_uids" },
+          { "$ref": "#/components/parameters/start_time" },
+          { "$ref": "#/components/parameters/type" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/reporting_response" }
+        },
+        "summary": "Get Reporting Real Time Metrics"
+      }
+    },
+    "/sets": {
+      "get": {
+        "description": "",
+        "operationId": "getSets",
+        "parameters": [
+          { "$ref": "#/components/parameters/bypass_cache" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/organization_uid" },
+          { "$ref": "#/components/parameters/shareability" },
+          { "$ref": "#/components/parameters/type" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/sets" } },
+        "summary": "Get Sets"
+      }
+    },
+    "/terms": {
+      "get": {
+        "description": "",
+        "operationId": "getTerms",
+        "parameters": [
+          { "$ref": "#/components/parameters/type" },
+          { "$ref": "#/components/parameters/parent_term_op" },
+          { "$ref": "#/components/parameters/is_included" },
+          { "$ref": "#/components/parameters/item_uid" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/contract_level" },
+          { "$ref": "#/components/parameters/insertion_order_unit_uid" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/terms" } },
+        "summary": "Get Terms"
+      }
+    },
+    "/terms/insertion_order_units": {
+      "get": {
+        "description": "",
+        "operationId": "getTermsInsertionOrderUnits",
+        "parameters": [
+          { "$ref": "#/components/parameters/bypass_cache" },
+          { "$ref": "#/components/parameters/expand" },
+          { "$ref": "#/components/parameters/insertion_order_unit.type" },
+          { "$ref": "#/components/parameters/item_uid" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/order" },
+          { "$ref": "#/components/parameters/type" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/term_insertion_order_units" }
+        },
+        "summary": "Get Terms Insertion Order Units"
+      }
+    },
+    "/terms/items": {
+      "get": {
+        "description": "",
+        "operationId": "getTermsItems",
+        "parameters": [
+          { "$ref": "#/components/parameters/expand" },
+          { "$ref": "#/components/parameters/is_included" },
+          { "$ref": "#/components/parameters/type" },
+          { "$ref": "#/components/parameters/bypass_cache" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/order" },
+          { "$ref": "#/components/parameters/contract_uid" },
+          { "$ref": "#/components/parameters/insertion_order_unit_uid" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/term_items" } },
+        "summary": "Get Terms Items"
+      }
+    },
+    "/terms/products": {
+      "get": {
+        "description": "",
+        "operationId": "getTermsProducts",
+        "parameters": [
+          { "$ref": "#/components/parameters/bypass_cache" },
+          { "$ref": "#/components/parameters/expand" },
+          { "$ref": "#/components/parameters/inherited" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/filter" },
+          { "$ref": "#/components/parameters/is_included" },
+          { "$ref": "#/components/parameters/insertion_order_unit_uid" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/term_products" }
+        },
+        "summary": "Get Terms Products"
+      }
+    },
+    "/timezones": {
+      "get": {
+        "description": "",
+        "operationId": "getTimezones",
+        "parameters": [{ "$ref": "#/components/parameters/is_enabled" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/timezones" },
+          "304": { "$ref": "#/components/responses/timezones" }
+        },
+        "summary": "Get Timezones"
+      }
+    },
+    "/universal_ad_id_registries": {
+      "get": {
+        "description": "",
+        "operationId": "getUniversalAdIdRegistries",
+        "responses": {
+          "200": { "$ref": "#/components/responses/universal_ad_id_registries" }
+        },
+        "summary": "Get Universal Ad Id Registries"
+      }
+    }
+  }
+}

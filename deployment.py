@@ -11,15 +11,12 @@ BLUEPRINTS = {
     "esquire-oneview-tasks": [
         "libs/azure/functions/blueprints/oneview/tasks/*",
     ],
-    "esq-dev-asyncapi": [
-        # "libs/azure/functions/blueprints/onspot/*",
-        # "libs/azure/functions/blueprints/esquire/dashboard/*",
-        # "libs/azure/functions/blueprints/daily_audience_generation/*",
-        "libs/azure/functions/blueprints/esquire/dashboard/xandr/*",
-        "libs/azure/functions/blueprints/esquire/dashboard/meta/*",
-        "libs/azure/functions/blueprints/meta/*",
+    "esquire-dashboard-data": [
         "libs/azure/functions/blueprints/datalake/*",
+        "libs/azure/functions/blueprints/meta/*",
+        "libs/azure/functions/blueprints/onspot/*",
         "libs/azure/functions/blueprints/synapse/*",
+        "libs/azure/functions/blueprints/esquire/dashboard/*",
     ],
     "debug": [
         "libs/azure/functions/blueprints/keep_alive",

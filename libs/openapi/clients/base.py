@@ -2,7 +2,7 @@ from aiopenapi3 import OpenAPI
 from aiopenapi3.extra import Cull
 from functools import cache
 from pathlib import Path
-from typing import Dict, List, Literal, Pattern, Tuple, Union
+from typing import Any, Dict, List, Literal, Pattern, Tuple, Union
 import gzip, httpx, io, orjson, yaml, yarl, re
 
 
@@ -68,18 +68,18 @@ class OpenAPIClient(metaclass=OperationSelector):
     def __new__(
         cls,
         operations: Dict[Union[str, Pattern], List[Union[str, Pattern]]] = None,
+        sync: bool = True,
         **kwargs,
     ) -> OpenAPI:
-        def session_factory(*args, **kwargs) -> httpx.Client:
-            return httpx.Client(*args, timeout=None, **kwargs)
-
         if operations:
             kwargs["plugins"] = kwargs.get("plugins", []) + [
                 cls.Plugins.Cull(operations)
             ]
+        if hasattr(cls, "plugins"):
+            kwargs["plugins"] = kwargs.get("plugins", []) + cls.plugins()
 
         api = OpenAPI.loads(
-            session_factory=session_factory,
+            session_factory=cls.session_sync if sync else cls.session_async,
             **kwargs,
             url=f"openapi.json",
             data=cls.load_bytes().decode(),
@@ -88,6 +88,14 @@ class OpenAPIClient(metaclass=OperationSelector):
             api.authenticate(**cls.authenticate())
 
         return api
+
+    @classmethod
+    def session_sync(cls, *args, **kwargs) -> httpx.Client:
+        return httpx.Client(*args, timeout=None, **kwargs)
+
+    @classmethod
+    def session_async(cls, *args, **kwargs) -> httpx.AsyncClient:
+        return httpx.AsyncClient(*args, timeout=None, **kwargs)
 
     @classmethod
     def load_bytes(cls) -> bytes:

@@ -27,6 +27,6 @@ async def onspot_activity_submit(ingress: dict):
         The response from the OnSpotAPI as a JSON object.
     """
     factory = OSA.createRequest((ingress["endpoint"], "post"))
-    _, _, response = await factory.request(ingress["request"])
+    _, data, _ = await factory.request(ingress["request"])
 
-    return response.json()
+    return data.model_dump()

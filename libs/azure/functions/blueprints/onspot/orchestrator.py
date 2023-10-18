@@ -75,7 +75,6 @@ def onspot_orchestrator(context: DurableOrchestrationContext):
                 urlparse(request["callback"]).path.split("/")[-1]
             )
         ]
-        
 
     # Submit request
     jobs = yield context.call_activity(
@@ -89,4 +88,4 @@ def onspot_orchestrator(context: DurableOrchestrationContext):
     # Wait for all of the callbacks
     callbacks = yield context.task_all(events)
 
-    return {"jobs": jobs, "callbacks": callbacks}
+    return {"jobs": jobs if isinstance(jobs, list) else [jobs], "callbacks": callbacks}

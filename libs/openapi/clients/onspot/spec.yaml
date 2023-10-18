@@ -635,6 +635,12 @@ components:
             items:
               $ref: '#/components/schemas/AsyncSave'
       description: Successful operation
+    200-ServerResponse-AsyncSave-One:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AsyncSave'
+      description: Successful operation
     200-ServerResponse-AsyncPublish:
       content:
         application/json:
@@ -4074,7 +4080,7 @@ paths:
         $ref: '#/components/requestBodies/Address'
       responses:
         '200':
-          $ref: '#/components/responses/200-ServerResponse-AsyncSave'
+          $ref: '#/components/responses/200-ServerResponse-AsyncSave-One'
         '400':
           $ref: '#/components/responses/400'
         '403':

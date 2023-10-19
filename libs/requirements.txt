@@ -9,6 +9,7 @@ azure-storage-file-datalake
 
 # required
 ## data handling
+boto3
 marshmallow
 marshmallow-jsonapi
 marshmallow-sqlalchemy>=0.29.0

@@ -1,4 +1,5 @@
 import os
+
 try:
     from development import BLUEPRINTS as DEV_BPS
 except:
@@ -18,6 +19,13 @@ BLUEPRINTS = {
         "libs/azure/functions/blueprints/synapse/*",
         "libs/azure/functions/blueprints/esquire/dashboard/*",
     ],
+    "esquire-roku-sync": [
+        "libs/azure/functions/blueprints/datalake/*",
+        "libs/azure/functions/blueprints/synapse/*",
+        "libs/azure/functions/blueprints/oneview/segments/*",
+        "libs/azure/functions/blueprints/onspot/*",
+        "libs/azure/functions/blueprints/purge_instance_history",
+    ],
     "debug": [
         "libs/azure/functions/blueprints/keep_alive",
         "libs/azure/functions/blueprints/logger",
@@ -36,5 +44,6 @@ def get_bps(debug=False) -> list:
             BLUEPRINTS["debug_env"]
             if debug and not os.environ.get("WEBSITE_SITE_NAME")
             else []
-        ) + DEV_BPS
+        )
+        + DEV_BPS
     )

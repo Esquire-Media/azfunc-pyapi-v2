@@ -1,4 +1,4 @@
-# File: libs/azure/functions/blueprints/oneview/segments/triggers/schedule_daily.py
+# File: libs/azure/functions/blueprints/esquire/audiences/oneview/triggers/schedule_daily.py
 
 from azure.durable_functions import DurableOrchestrationClient
 from azure.functions import TimerRequest

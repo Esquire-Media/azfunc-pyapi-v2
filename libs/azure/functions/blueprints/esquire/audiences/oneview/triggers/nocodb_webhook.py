@@ -1,4 +1,4 @@
-# File: libs/azure/functions/blueprints/oneview/segments/triggers/nocodb_webhook.py
+# File: libs/azure/functions/blueprints/esquire/audiences/oneview/triggers/nocodb_webhook.py
 
 from azure.durable_functions import DurableOrchestrationClient
 from libs.azure.functions import Blueprint
@@ -9,7 +9,7 @@ bp = Blueprint()
 
 @bp.route(route="oneview/segment/nocodb", methods=["POST"])
 @bp.durable_client_input(client_name="client")
-async def oneview_segments_nocodb_webhook(
+async def esquire_audiences_oneview_nocodb_webhook(
     req: HttpRequest, client: DurableOrchestrationClient
 ) -> HttpResponse:
     """

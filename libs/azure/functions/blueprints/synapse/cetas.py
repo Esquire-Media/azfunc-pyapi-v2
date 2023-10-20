@@ -63,10 +63,10 @@ async def synapse_activity_cetas(ingress: dict):
 
     if ingress.get("return_urls", None):
         filesystem = FileSystemClient.from_connection_string(
-            os.environ[ingress["destination"]["conn_str"]]
+            conn_str=os.environ[ingress["destination"]["conn_str"]]
             if ingress["destination"].get("conn_str", None) in os.environ.keys()
             else os.environ["AzureWebJobsStorage"],
-            ingress["destination"]["container"],
+            file_system_name=ingress["destination"]["container"],
         )
 
         return [
@@ -84,9 +84,7 @@ async def synapse_activity_cetas(ingress: dict):
             for item in filesystem.get_paths(ingress["destination"]["path"])
             if not item["is_directory"]
             if (file := filesystem.get_file_client(item))
-            if file.path_name.endswith(
-                ingress["destination"].get("format", "PARQUET").lower()
-            )
+            if not file.path_name.endswith("_")
         ]
 
     return ""

@@ -138,3 +138,5 @@ __azurite_db*__.json
 logs
 
 /*.ipynb
+*.csv
+/development.py

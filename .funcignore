@@ -13,3 +13,4 @@ logs
 *.ipynb
 example
 development.py
+*.csv

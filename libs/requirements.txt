@@ -9,7 +9,6 @@ azure-storage-file-datalake
 
 # required
 ## data handling
-boto3
 marshmallow
 marshmallow-jsonapi
 marshmallow-sqlalchemy>=0.29.0
@@ -47,3 +46,8 @@ requests-auth-aws-sigv4
 ## temporary necessities
 facebook-business
 smartystreets-python-sdk
+fuzzywuzzy
+python-dotenv
+pydantic==2.4.2
+plotly
+haversine

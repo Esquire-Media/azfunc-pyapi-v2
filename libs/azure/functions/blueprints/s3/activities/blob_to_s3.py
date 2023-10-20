@@ -1,14 +1,7 @@
 # File: libs/azure/functions/blueprints/s3/activities/blob_to_s3.py
 
-from azure.storage.blob import (
-    BlobClient,
-    BlobSasPermissions,
-    generate_blob_sas,
-)
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
+from azure.storage.blob import BlobClient
 from libs.azure.functions import Blueprint
-from urllib.parse import unquote
 import boto3, os
 
 bp = Blueprint()
@@ -17,52 +10,82 @@ bp = Blueprint()
 @bp.activity_trigger(input_name="ingress")
 def blob_to_s3(ingress: dict):
     """
-    Upload segment data from Azure Blob Storage to AWS S3.
+    Transfer data from an Azure Blob to an Amazon S3 object.
 
-    This function retrieves a segment data blob from Azure Blob Storage and uploads it
-    to a specified S3 bucket. Depending on the blob's size, it either performs a single
-    upload or a multipart upload.
+    This function fetches data from a specified Azure Blob and uploads it to an Amazon S3 object.
+    For larger blobs, the data is uploaded using the S3 multipart upload feature to enhance efficiency.
 
     Parameters
     ----------
     ingress : dict
-        Dictionary containing details about the Azure Blob Storage, the blob's name,
-        and the record's SegmentID.
+        Configuration details for the transfer:
+        - source (str/dict): Specifies the Azure Blob to fetch data from.
+            If provided as a string, it is assumed to be the Blob URL with a SAS token that has read permissions.
+            If provided as a dict, it should contain:
+                - conn_str (str): Azure connection string key in environment variables.
+                - container_name (str): Azure Blob storage container name.
+                - blob_name (str): Azure Blob name.
+        - target (dict): Specifies the Amazon S3 object to upload data to. It should contain:
+            - access_key (str): AWS access key or environment variable key containing it.
+            - secret_key (str): AWS secret access key or environment variable key containing it.
+            - bucket (str): S3 bucket name or environment variable key containing it.
+            - object_key (str): S3 object key.
 
     Returns
     -------
-    str
-        A SAS URL to the blob in Azure Blob Storage.
+    dict
+        Response from the S3 upload operation.
+
+    Examples
+    --------
+    To transfer data from an Azure Blob to an S3 object using an orchestrator function:
+
+    .. code-block:: python
+
+        import azure.durable_functions as df
+
+        def orchestrator_function(context: df.DurableOrchestrationContext):
+            response = yield context.call_activity('blob_to_s3', {
+                "source": "https://yourazurebloburl",
+                "target": {
+                    "access_key": "YOUR_AWS_ACCESS_KEY_ENV_VARIABLE",
+                    "secret_key": "YOUR_AWS_SECRET_KEY_ENV_VARIABLE",
+                    "bucket": "your-s3-bucket",
+                    "object_key": "your/s3/object/key"
+                }
+            })
+            return response
 
     Notes
     -----
-    This function uses the azure.storage.blob library to interact with Azure Blob Storage
-    and the boto3 library to interact with AWS S3.
+    - If the Azure Blob's size exceeds the predefined chunk size (5MB), the data is uploaded to S3 using multipart upload.
+    - Ensure that the provided AWS credentials have the necessary permissions for the S3 upload operation.
+    - The Azure Blob's size is retrieved to determine the upload method (single or multipart).
     """
 
     chunk_size = 5 * 1024 * 1024  # Define the size of each chunk for multipart upload
 
-    # Initialize Azure Blob client using connection string from environment variables
-    blob: BlobClient = BlobClient.from_connection_string(
-        conn_str=os.environ[ingress["output"]["conn_str"]],
-        container_name=ingress["output"]["container_name"],
-        blob_name=ingress["blob_name"],
-        max_chunk_get_size=chunk_size,
-    )
+    # Initialize Azure Blob client
+    if isinstance(ingress["source"], str):
+        blob = BlobClient.from_blob_url(ingress["source"])
+    else:
+        blob = BlobClient.from_connection_string(
+            conn_str=os.environ[ingress["source"]["conn_str"]],
+            container_name=ingress["source"]["container_name"],
+            blob_name=ingress["source"]["blob_name"],
+        )
 
     # Initialize S3 client using credentials from environment variables
     s3_client = boto3.Session(
         aws_access_key_id=os.getenv(
-            ingress["input"]["access_key"], ingress["input"]["access_key"]
+            ingress["target"]["access_key"], ingress["target"]["access_key"]
         ),
         aws_secret_access_key=os.getenv(
-            ingress["input"]["secret_key"], ingress["input"]["secret_key"]
+            ingress["target"]["secret_key"], ingress["target"]["secret_key"]
         ),
     ).client("s3")
-    s3_bucket = os.getenv(
-            ingress["input"]["bucket"], ingress["input"]["bucket"]
-        )
-    s3_key = ingress["input"]["object_key"]
+    s3_bucket = os.getenv(ingress["target"]["bucket"], ingress["target"]["bucket"])
+    s3_key = ingress["target"]["object_key"]
 
     # If the blob's size exceeds the chunk size, perform a multipart upload to S3
     blob_size = blob.get_blob_properties().size
@@ -76,18 +99,19 @@ def blob_to_s3(ingress: dict):
         s3_chunks = []
 
         # Upload each chunk to S3
-        for index, chunk in enumerate(blob.download_blob().chunks()):
+        # for index, chunk in enumerate(blob.download_blob().chunks()):
+        for index, offset in enumerate(range(0, blob_size, chunk_size)):
             r = s3_client.upload_part(
                 Bucket=s3_bucket,
                 Key=s3_key,
                 PartNumber=index + 1,
                 UploadId=s3_upload_id,
-                Body=chunk,
+                Body=blob.download_blob(offset=offset, length=chunk_size).read(),
             )
             s3_chunks.append({"PartNumber": index + 1, "ETag": r["ETag"]})
 
         # Complete the multipart upload on S3
-        response = s3_client.complete_multipart_upload(
+        s3_client.complete_multipart_upload(
             Bucket=s3_bucket,
             Key=s3_key,
             UploadId=s3_upload_id,
@@ -95,46 +119,10 @@ def blob_to_s3(ingress: dict):
         )
     # If the blob's size is within the chunk size, perform a single upload to S3
     else:
-        response = s3_client.upload_fileobj(
+        s3_client.upload_fileobj(
             Fileobj=blob.download_blob(),
             Bucket=s3_bucket,
             Key=s3_key,
         )
-    
-    return response
-
-    # # Retain a copy
-    # source_url = (
-    #     unquote(blob.url)
-    #     + "?"
-    #     + generate_blob_sas(
-    #         account_name=blob.account_name,
-    #         container_name=blob.container_name,
-    #         blob_name=blob.blob_name,
-    #         account_key=blob.credential.account_key,
-    #         permission=BlobSasPermissions(read=True),
-    #         expiry=datetime.utcnow() + relativedelta(days=2),
-    #     )
-    # )
-    # blob = BlobClient.from_connection_string(
-    #     conn_str=os.environ[ingress["output"]["conn_str"]],
-    #     container_name=ingress["output"]["container_name"],
-    #     blob_name="segments/{}.csv".format(ingress["record"]["SegmentID"]),
-    # )
-    # blob.upload_blob_from_url(
-    #     source_url=source_url,
-    #     overwrite=True,
-    # )
-
-    # return (
-    #     unquote(blob.url)
-    #     + "?"
-    #     + generate_blob_sas(
-    #         account_name=blob.account_name,
-    #         container_name=blob.container_name,
-    #         blob_name=blob.blob_name,
-    #         account_key=blob.credential.account_key,
-    #         permission=BlobSasPermissions(read=True),
-    #         expiry=datetime.utcnow() + relativedelta(days=2),
-    #     )
-    # )
+        
+    return ""

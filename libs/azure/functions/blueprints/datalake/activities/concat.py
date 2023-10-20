@@ -1,7 +1,10 @@
-# File: libs/azure/functions/blueprints/datalake/activities/concat_blobs.py
+# File: libs/azure/functions/blueprints/datalake/activities/concat.py
 
-from azure.storage.blob import BlobClient
+from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
+from urllib.parse import unquote
 import os
 
 bp = Blueprint()
@@ -9,35 +12,39 @@ bp = Blueprint()
 @bp.activity_trigger(input_name="ingress")
 def datalake_concat_blobs(ingress: dict) -> str:
     """
-    Combine multiple blobs into a single append blob in Azure Data Lake.
+    Concatenate multiple Azure blobs into a single blob.
+
+    Given a list of source blob URLs, this function fetches each blob and appends its content to a new 
+    or existing target blob in Azure Blob storage. The blobs are processed in chunks, allowing for efficient 
+    concatenation, especially for large blobs.
 
     Parameters
     ----------
     ingress : dict
-        A dictionary containing necessary parameters, specified as follows:
-        - conn_str (str): The name of the environment variable that stores the connection string for Azure Blob Storage.
-        - container_name (str): The name of the Azure Blob Storage container where the blobs reside.
-        - blob_name (str): The name designated for the output blob, which will contain the concatenated data.
-        - copy_source_urls (list of str): A list of URLs, each pointing to a blob to be included in the concatenation process.
+        Configuration details for concatenation:
+        - conn_str (str): Name of the environment variable that contains the Azure connection string.
+        - container_name (str): Name of the Azure Blob storage container where the combined blob will be stored.
+        - blob_name (str): Name of the combined blob.
+        - copy_source_urls (list[str]): List of source blob URLs to be concatenated.
 
     Returns
     -------
     str
-        The name of the resulting combined blob.
+        SAS URL of the combined blob in Azure Blob storage.
 
     Examples
     --------
-    Here's how you can call 'datalake_concat_blobs' from an Azure Durable Functions orchestrator function:
+    To concatenate blobs using an orchestrator function:
 
     .. code-block:: python
 
         import azure.durable_functions as df
 
         def orchestrator_function(context: df.DurableOrchestrationContext):
-            result = yield context.call_activity('datalake_concat_blobs', {
-                "conn_str": "AZURE_CONNECTION_STRING",
-                "container_name": "mycontainer",
-                "blob_name": "/path/to/combined_blob",
+            combined_blob_url = yield context.call_activity('datalake_concat_blobs', {
+                "conn_str": "YOUR_AZURE_CONNECTION_STRING_ENV_VARIABLE",
+                "container_name": "your-azure-blob-container",
+                "blob_name": "combined-blob-name",
                 "copy_source_urls": [
                     "https://storage_account_name.blob.core.windows.net/container_name/path/to/blob_01?sastoken_with_read_permission",
                     "https://storage_account_name.blob.core.windows.net/container_name/path/to/blob_02?sastoken_with_read_permission",
@@ -45,14 +52,14 @@ def datalake_concat_blobs(ingress: dict) -> str:
                     "https://storage_account_name.blob.core.windows.net/container_name/path/to/blob_99?sastoken_with_read_permission",
                 ]
             })
-            return result
+            return combined_blob_url
 
     Notes
     -----
-    - The function employs the `append_block_from_url` method of Azure Blob Storage to perform the concatenation, making it suitable for both text and binary data.
-    - To optimize the data transfer process, the function divides each blob into 4MB chunks during the append operation.
+    - The function uses the append blob type in Azure Blob storage, which is optimized for append operations.
+    - Data from the source blobs is fetched and written in chunks, allowing efficient processing of large blobs.
+    - The resulting combined blob's SAS URL provides read access for two days from the time of its generation.
     """
-
 
     # Extract connection string from environment variables using the provided key
     connection_string = os.environ[ingress["conn_str"]]
@@ -94,4 +101,15 @@ def datalake_concat_blobs(ingress: dict) -> str:
             )
 
     # Once all source blobs have been appended, return the name of the combined blob
-    return output_blob.blob_name
+    return (
+        unquote(output_blob.url)
+        + "?"
+        + generate_blob_sas(
+            account_name=output_blob.account_name,
+            container_name=output_blob.container_name,
+            blob_name=output_blob.blob_name,
+            account_key=output_blob.credential.account_key,
+            permission=BlobSasPermissions(read=True),
+            expiry=datetime.utcnow() + relativedelta(days=2),
+        )
+    )

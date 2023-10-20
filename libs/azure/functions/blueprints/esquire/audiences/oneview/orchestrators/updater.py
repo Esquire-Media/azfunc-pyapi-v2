@@ -2,13 +2,16 @@
 
 from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
+from urllib.parse import urlparse
 import os
 
 bp = Blueprint()
 
 
 @bp.orchestration_trigger(context_name="context")
-def oneview_orchestrator_segment_updater(context: DurableOrchestrationContext) -> None:
+def esquire_audiences_oneview_segment_updater(
+    context: DurableOrchestrationContext,
+) -> None:
     """
     Orchestration function to update audience segments in OneView.
 
@@ -54,26 +57,23 @@ def oneview_orchestrator_segment_updater(context: DurableOrchestrationContext) -
 
     # Extract input from the context
     record = context.get_input()
-
-    # Define egress configuration details
-    egress = {
-        "output": {
-            "conn_str": "ONEVIEW_CONN_STR",
-            "container_name": os.environ["TASK_HUB_NAME"] + "-largemessages",
-            "prefix": context.instance_id,
-        },
-        "record": record,
+    azure = {
+        "conn_str": "ONEVIEW_CONN_STR",
+        "container_name": os.environ["TASK_HUB_NAME"] + "-largemessages",
     }
 
     if record:
+        s3 = {
+            "access_key": "REPORTS_AWS_ACCESS_KEY",
+            "secret_key": "REPOSTS_AWS_SECRET_KEY",
+            "region": "REPORTS_AWS_REGION",
+            "bucket": record["Bucket"],
+        }
         # Fetch the audience data from S3 keys
         s3_keys = yield context.call_activity(
             "s3_list_objects",
             {
-                "access_key": "REPORTS_AWS_ACCESS_KEY",
-                "secret_key": "REPOSTS_AWS_SECRET_KEY",
-                "region": "REPORTS_AWS_REGION",
-                "bucket": record["Bucket"],
+                **s3,
                 "prefix": record["Folder"],
             },
         )
@@ -84,12 +84,21 @@ def oneview_orchestrator_segment_updater(context: DurableOrchestrationContext) -
                 "No S3 files found in {}/{}".format(record["Bucket"], record["Folder"])
             )
 
-        # Retrieve audience data for each S3 key
+        # Retrieve and normalize the first 12 audience objects from s3
         audiences = yield context.task_all(
             [
                 context.call_activity(
                     "esquire_audiences_oneview_fetch_s3_data",
-                    {**egress, "s3_key": key},
+                    {
+                        "source": {
+                            **s3,
+                            "key": key,
+                        },
+                        "target": {
+                            **azure,
+                            "prefix": "{}/raw".format(context.instance_id),
+                        },
+                    },
                 )
                 for key in s3_keys[:11]
             ]
@@ -105,11 +114,8 @@ def oneview_orchestrator_segment_updater(context: DurableOrchestrationContext) -
             header_url = yield context.call_activity(
                 "datalake_simple_write",
                 {
-                    "conn_str": egress["output"]["conn_str"],
-                    "container_name": egress["output"]["container_name"],
-                    "blob_name": "{}/raw/{}".format(
-                        egress["output"]["prefix"], "header.csv"
-                    ),
+                    **azure,
+                    "blob_name": "{}/raw/{}".format(context.instance_id, "header.csv"),
                     "content": "street,city,state,zip,zip4",
                 },
             )
@@ -118,9 +124,9 @@ def oneview_orchestrator_segment_updater(context: DurableOrchestrationContext) -
             onspot_results = yield context.call_sub_orchestrator(
                 "onspot_orchestrator",
                 {
-                    "conn_str": egress["output"]["conn_str"],
-                    "container": egress["output"]["container_name"],
-                    "outputPath": "{}/devices".format(egress["output"]["prefix"]),
+                    "conn_str": azure["conn_str"],
+                    "container": azure["container_name"],
+                    "outputPath": "{}/devices".format(context.instance_id),
                     "endpoint": "/save/addresses/all/devices",
                     "request": {
                         "hash": False,
@@ -160,15 +166,34 @@ def oneview_orchestrator_segment_updater(context: DurableOrchestrationContext) -
             ]
 
         segment_url = yield context.call_sub_orchestrator(
-            "oneview_orchestrator_segment_uplaoder",
+            "oneview_orchestrator_segment_uploader",
             {
-                "SegmentID": record["segmentID"],
-                "output": {
-                    **egress["output"],
-                    "blob_name": "{}/{}.csv".format(
-                        egress["output"]["prefix"],
-                        record["segmentID"],
-                    ),
+                "source": {
+                    **azure,
+                    "prefix": context.instance_id,
+                    "blob_names": [
+                        "/".join(urlparse(b["url"]).path.split("/")[2:])
+                        for b in devices_blobs
+                    ],
+                },
+                "segment_id": record["SegmentID"],
+                "target": {
+                    "access_key": "ONEVIEW_SEGMENTS_AWS_ACCESS_KEY",
+                    "secret_key": "ONEVIEW_SEGMENTS_AWS_SECRET_KEY",
+                    "bucket": "ONEVIEW_SEGMENTS_S3_BUCKET",
+                    "prefix": os.environ["ONEVIEW_SEGMENTS_S3_PREFIX"],
+                },
+            },
+        )
+
+        # Retain a copy of the segment file
+        yield context.call_activity(
+            "datalake_copy_blob",
+            {
+                "source": segment_url,
+                "target": {
+                    **azure,
+                    "blob_name": "segments/{}.csv".format(record["SegmentID"]),
                 },
             },
         )
@@ -177,8 +202,7 @@ def oneview_orchestrator_segment_updater(context: DurableOrchestrationContext) -
     yield context.call_activity(
         "datalake_activity_delete_directory",
         {
-            "conn_str": egress["output"]["conn_str"],
-            "container": egress["output"]["container_name"],
+            **azure,
             "prefix": context.instance_id,
         },
     )

@@ -40,7 +40,7 @@ async def datalake_activity_delete_directory(ingress: dict) -> str:
         def orchestrator_function(context: df.DurableOrchestrationContext):
             result = yield context.call_activity('datalake_activity_delete_directory', {
                 "conn_str": "AZURE_DATALAKE_CONNECTION_STRING",
-                "container": "my-container",
+                "container_name": "my-container",
                 "prefix": "data_prefix"
             })
             return result
@@ -55,7 +55,7 @@ async def datalake_activity_delete_directory(ingress: dict) -> str:
         os.environ[ingress["conn_str"]]
         if ingress.get("conn_str", None) in os.environ.keys()
         else os.environ["AzureWebJobsStorage"],
-        ingress["container"],
+        ingress.get("container", ingress["container_name"]),
     )
     for item in filesystem.get_paths(recursive=False):
         if item["is_directory"] and item["name"].startswith(ingress["prefix"]):

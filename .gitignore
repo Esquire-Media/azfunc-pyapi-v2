@@ -141,3 +141,4 @@ logs
 *.csv
 /development.py
 development.py
+*.har

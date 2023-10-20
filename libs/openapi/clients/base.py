@@ -11,9 +11,9 @@ class OperationSelector(type):
     def __getitem__(cls, item: Union[str, Tuple[str, str]]):
         match item:
             case str():
-                return cls.__new__(cls, operations=[item])._[item]
+                return cls.__new__(cls, operations=item)._[item]
             case re.Pattern():
-                api = cls.__new__(cls, operations=[item])
+                api = cls.__new__(cls, operations=item)
                 return api._[[op for op in api._][0]]
             case tuple():
                 path, method = item

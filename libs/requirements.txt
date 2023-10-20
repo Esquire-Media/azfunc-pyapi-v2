@@ -9,6 +9,7 @@ azure-storage-file-datalake
 
 # required
 ## data handling
+boto3
 marshmallow
 marshmallow-jsonapi
 marshmallow-sqlalchemy>=0.29.0
@@ -16,7 +17,7 @@ pandas>=2.0.0
 smart-open
 sqlalchemy>=2.0.0
 ## openapi
-git+https://github.com/ggpwnkthx/aiopenapi3
+git+https://github.com/commonism/aiopenapi3
 httpx_auth
 ## tools
 frozendict

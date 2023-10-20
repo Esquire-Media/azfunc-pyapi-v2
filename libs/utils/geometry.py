@@ -18,6 +18,7 @@ import numpy as np
 import geojson
 import shapely.wkb
 import shapely.wkt
+import pandas as pd
 
 # Define type aliases
 GeoJsonType: type = Union[geojson.Feature, geojson.FeatureCollection]
@@ -376,3 +377,32 @@ def points_in_poly_numpy(x: np.array, y: np.array, poly: np.array) -> np.array:
         p1x, p1y = p2x, p2y
 
     return inside
+
+def points_in_multipoly_numpy(x:np.array, y:np.array, multipoly:shape) -> np.array:
+    """
+    Finds points that are within given multipolygon coordinates.
+    Uses numpy to vectorize and check all points quickly
+
+    Args:
+        x            : x-coordinates of the points to check
+        y            : y-coordinates of the points to check
+        multipoly    : a shapely shape object representing a multipolygon
+
+    Returns:
+        inside: boolean array the length of the points. True if the point is inside the multipolygon, False otherwise
+    """
+
+    # loop through the component polygons and return a boolean mask for each polygon
+    bool_arrays = []
+    for geom in multipoly.geoms:
+        bool_arrays.append(
+            points_in_poly_numpy(
+                x=x,
+                y=y,
+                poly=np.array(geom.exterior.coords)
+            )
+        )
+    inside_df = pd.DataFrame(bool_arrays).T
+    inside_df['inside'] = inside_df.max(axis=1)
+
+    return np.array(inside_df['inside'].tolist())

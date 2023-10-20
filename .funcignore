@@ -14,3 +14,4 @@ logs
 example
 development.py
 *.csv
+.tools

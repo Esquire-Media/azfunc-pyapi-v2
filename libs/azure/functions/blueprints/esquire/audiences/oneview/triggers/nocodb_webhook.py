@@ -1,22 +1,27 @@
-# File: libs/azure/functions/blueprints/oneview/segments/triggers/nocodb_webhook.py
+# File: libs/azure/functions/blueprints/esquire/audiences/oneview/triggers/nocodb_webhook.py
 
 from azure.durable_functions import DurableOrchestrationClient
+from azure.functions import AuthLevel
 from libs.azure.functions import Blueprint
 from libs.azure.functions.http import HttpRequest, HttpResponse
 
 bp = Blueprint()
 
 
-@bp.route(route="oneview/segment/nocodb", methods=["POST"])
+@bp.route(
+    route="oneview/segment/nocodb",
+    methods=["POST"],
+    auth_level=AuthLevel.FUNCTION,
+)
 @bp.durable_client_input(client_name="client")
-async def oneview_segments_nocodb_webhook(
+async def esquire_audiences_oneview_nocodb_webhook(
     req: HttpRequest, client: DurableOrchestrationClient
 ) -> HttpResponse:
     """
     Webhook trigger for NocoDB updates related to OneView segments.
 
     This webhook is triggered when there are updates in the NocoDB related to
-    OneView segments. It initiates the `oneview_orchestrator_segment_updater`
+    OneView segments. It initiates the `esquire_audiences_oneview_segment_updater`
     orchestrator for each record received in the webhook payload.
 
     Parameters
@@ -34,9 +39,9 @@ async def oneview_segments_nocodb_webhook(
 
     # Loop through the rows in the received data and initiate orchestrators
     for record in [None] + req.get_json()["data"]["rows"]:
-        # Start the `oneview_orchestrator_segment_updater` orchestrator
+        # Start the `esquire_audiences_oneview_segment_updater` orchestrator
         await client.start_new(
-            "oneview_orchestrator_segment_updater",
+            "esquire_audiences_oneview_segment_updater",
             None,
             record,
         )

@@ -8,6 +8,7 @@ from azure.storage.blob import (
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
+from urllib.parse import unquote
 import boto3, os
 
 bp = Blueprint()
@@ -61,7 +62,10 @@ def oneview_segments_upload_segment_file(ingress: dict):
     )
 
     # If the blob's size exceeds the chunk size, perform a multipart upload to S3
-    if blob.get_blob_properties().size > chunk_size:
+    blob_size = blob.get_blob_properties().size
+    if blob_size == 0:
+        raise Exception("Segment blob is empty.")
+    elif blob_size > chunk_size:
         s3_upload_id = s3_client.create_multipart_upload(
             Bucket=s3_bucket,
             Key=s3_key,
@@ -94,9 +98,31 @@ def oneview_segments_upload_segment_file(ingress: dict):
             Key=s3_key,
         )
 
-    # Generate a SAS token for the blob in Azure Blob Storage and return the URL
+    # Retain a copy
+    source_url = (
+        unquote(blob.url)
+        + "?"
+        + generate_blob_sas(
+            account_name=blob.account_name,
+            container_name=blob.container_name,
+            blob_name=blob.blob_name,
+            account_key=blob.credential.account_key,
+            permission=BlobSasPermissions(read=True),
+            expiry=datetime.utcnow() + relativedelta(days=2),
+        )
+    )
+    blob = BlobClient.from_connection_string(
+        conn_str=os.environ[ingress["output"]["conn_str"]],
+        container_name=ingress["output"]["container_name"],
+        blob_name="segments/{}.csv".format(ingress["record"]["SegmentID"]),
+    )
+    blob.upload_blob_from_url(
+        source_url=source_url,
+        overwrite=True,
+    )
+
     return (
-        blob.url
+        unquote(blob.url)
         + "?"
         + generate_blob_sas(
             account_name=blob.account_name,

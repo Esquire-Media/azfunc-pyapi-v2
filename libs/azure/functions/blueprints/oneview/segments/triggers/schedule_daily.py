@@ -47,7 +47,7 @@ async def oneview_segments_schedule_daily(
 
     # Start an orchestrator instance for each record
     for record in [None] + api.createRequest(("/OneView Segments", "get"))(
-        parameters={"limit": 1000}
+        parameters={"limit": 1000, "where": "(Enabled,eq,1)"}
     ).list:
         # Start the `oneview_orchestrator_segment_updater` orchestrator
         # If the record is not None, dump its model data as input

@@ -45,8 +45,18 @@ def oneview_segments_combine_devices_blobs(ingress: dict):
     output_blob.create_append_blob()
 
     # Iterate over the list of blob URLs and append each blob's data to the output blob
-    for blob in ingress["blobs"]:
-        output_blob.append_block_from_url(blob)
+    chunk_size = 4 * 1024 * 1024
+    for copy_source_url in ingress["blobs"]:
+        input_blob = BlobClient.from_blob_url(copy_source_url)
+        input_size = input_blob.get_blob_properties().size
+        for i in range(0, input_size, chunk_size):
+            output_blob.append_block_from_url(
+                copy_source_url=copy_source_url,
+                source_offset=i,
+                source_length=chunk_size
+                if (i + chunk_size) < input_size
+                else (input_size - i),
+            )
 
     # Return the name of the combined blob
     return output_blob.blob_name

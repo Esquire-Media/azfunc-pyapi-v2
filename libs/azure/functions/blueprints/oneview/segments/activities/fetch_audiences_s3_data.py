@@ -1,13 +1,15 @@
 # File: libs/azure/functions/blueprints/oneview/segments/activities/fetch_audiences_s3_data.py
 
-from azure.storage.filedatalake import (
-    FileSystemClient,
-    FileSasPermissions,
-    generate_file_sas,
+from azure.storage.filedatalake import DataLakeFileClient
+from azure.storage.blob import (
+    BlobClient,
+    BlobSasPermissions,
+    generate_blob_sas,
 )
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
+from urllib.parse import unquote
 import boto3, os, pandas as pd
 
 bp = Blueprint()
@@ -38,13 +40,10 @@ def oneview_segments_fetch_audiences_s3_data(ingress: dict):
     azure.storage.filedatalake library to interact with Azure Data Lake.
     """
 
-    # Initialize Azure Data Lake client using connection string from environment variables
-    filesystem: FileSystemClient = FileSystemClient.from_connection_string(
+    # Define the path in Azure Data Lake to store the data
+    file = DataLakeFileClient.from_connection_string(
         conn_str=os.environ[ingress["output"]["conn_str"]],
         file_system_name=ingress["output"]["container_name"],
-    )
-    # Define the path in Azure Data Lake to store the data
-    file = filesystem.get_file_client(
         file_path="{}/raw/{}".format(
             ingress["output"]["prefix"], ingress["s3_key"].split("/")[-1]
         ),
@@ -119,19 +118,25 @@ def oneview_segments_fetch_audiences_s3_data(ingress: dict):
     file.flush_data(offset=offset)
 
     # Generate a SAS token for the stored data in Azure Data Lake and return the URL
+    blob = BlobClient.from_connection_string(
+        conn_str=os.environ[ingress["output"]["conn_str"]],
+        container_name=ingress["output"]["container_name"],
+        blob_name="{}/raw/{}".format(
+            ingress["output"]["prefix"], ingress["s3_key"].split("/")[-1]
+        ),
+    )
     return {
         "url": (
-            file.url
+            unquote(blob.url)
             + "?"
-            + generate_file_sas(
-                file.account_name,
-                file.file_system_name,
-                "/".join(file.path_name.split("/")[:-1]),
-                file.path_name.split("/")[-1],
-                filesystem.credential.account_key,
-                FileSasPermissions(read=True),
-                datetime.utcnow() + relativedelta(days=2),
+            + generate_blob_sas(
+                account_name=blob.account_name,
+                container_name=blob.container_name,
+                blob_name=blob.blob_name,
+                account_key=blob.credential.account_key,
+                permission=BlobSasPermissions(read=True),
+                expiry=datetime.utcnow() + relativedelta(days=2),
             )
-        ).replace("https://", "az://"),
+        ),
         "columns": columns,
     }

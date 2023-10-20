@@ -2,7 +2,8 @@
 
 from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
-import os
+from urllib.parse import urlparse
+import os, logging
 
 bp = Blueprint()
 
@@ -115,6 +116,12 @@ def oneview_orchestrator_segment_updater(context: DurableOrchestrationContext):
                 },
             )
 
+            onspot_errors = [
+                e["message"] for e in onspot_results["callbacks"] if not e["success"]
+            ]
+            if onspot_errors:
+                raise Exception(*onspot_errors)
+
             # Add the processed device blobs to the list
             devices_blobs += [
                 {"url": j["location"].replace("az://", "https://"), "columns": None}
@@ -122,6 +129,34 @@ def oneview_orchestrator_segment_updater(context: DurableOrchestrationContext):
             ]
 
         # Format segment data using Synapse
+        query = f"""
+            WITH [devices] AS (
+                SELECT DISTINCT
+                    [devices] AS [deviceid]
+                FROM OPENROWSET(
+                    BULK ('{"','".join([urlparse(blob["url"]).path for blob in devices_blobs])}'),
+                    DATA_SOURCE = 'sa_esquireroku',
+                    FORMAT = 'CSV',
+                    PARSER_VERSION = '2.0'
+                ) WITH (
+                    [devices] VARCHAR(128)
+                ) AS [data]
+                WHERE LEN([devices]) = 36
+            )
+            SELECT
+                [deviceid],
+                'IDFA' AS [type],
+                '{record["SegmentID"]}' AS [segmentid]
+            FROM [devices]
+            UNION
+            SELECT
+                [deviceid],
+                'GOOGLE_AD_ID' AS [type],
+                '{record["SegmentID"]}' AS [segmentid]
+            FROM [devices]
+        """
+        context.set_custom_status(query)
+        logging.warning(query)
         segment_blobs = yield context.call_activity(
             "synapse_activity_cetas",
             {
@@ -135,32 +170,7 @@ def oneview_orchestrator_segment_updater(context: DurableOrchestrationContext):
                     "format": "CSV_NOHEADER",
                     "path": f"{context.instance_id}/segment",
                 },
-                "query": f"""
-                    WITH [devices] AS (
-                        SELECT DISTINCT
-                            [devices] AS [deviceid]
-                        FROM OPENROWSET(
-                            BULK ('{"','".join(["/".join(blob["url"].split("/")[3:]).split("?")[0] for blob in devices_blobs])}'),
-                            DATA_SOURCE = 'sa_esquireroku',
-                            FORMAT = 'CSV',
-                            PARSER_VERSION = '2.0'
-                        ) WITH (
-                            [devices] VARCHAR(128)
-                        ) AS [data]
-                        WHERE LEN([devices]) = 36
-                    )
-                    SELECT
-                        [deviceid],
-                        'IDFA' AS [type],
-                        '{record["SegmentID"]}' AS [segmentid]
-                    FROM [devices]
-                    UNION
-                    SELECT
-                        [deviceid],
-                        'GOOGLE_AD_ID' AS [type],
-                        '{record["SegmentID"]}' AS [segmentid]
-                    FROM [devices]
-                """,
+                "query": query,
                 "return_urls": True,
             },
         )

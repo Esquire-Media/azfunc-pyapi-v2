@@ -1,4 +1,4 @@
-# File: libs/azure/functions/blueprints/oneview/segments/activities/upload_segment_file.py
+# File: libs/azure/functions/blueprints/s3/activities/blob_to_s3.py
 
 from azure.storage.blob import (
     BlobClient,
@@ -15,7 +15,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def oneview_segments_upload_segment_file(ingress: dict):
+def blob_to_s3(ingress: dict):
     """
     Upload segment data from Azure Blob Storage to AWS S3.
 
@@ -52,14 +52,17 @@ def oneview_segments_upload_segment_file(ingress: dict):
 
     # Initialize S3 client using credentials from environment variables
     s3_client = boto3.Session(
-        aws_access_key_id=os.environ["ONEVIEW_SEGMENTS_AWS_ACCESS_KEY"],
-        aws_secret_access_key=os.environ["ONEVIEW_SEGMENTS_AWS_SECRET_KEY"],
+        aws_access_key_id=os.getenv(
+            ingress["input"]["access_key"], ingress["input"]["access_key"]
+        ),
+        aws_secret_access_key=os.getenv(
+            ingress["input"]["secret_key"], ingress["input"]["secret_key"]
+        ),
     ).client("s3")
-    s3_bucket = os.environ["ONEVIEW_SEGMENTS_S3_BUCKET"]
-    s3_key = "{}/{}.csv".format(
-        os.environ["ONEVIEW_SEGMENTS_S3_PREFIX"],
-        ingress["record"]["SegmentID"],
-    )
+    s3_bucket = os.getenv(
+            ingress["input"]["bucket"], ingress["input"]["bucket"]
+        )
+    s3_key = ingress["input"]["object_key"]
 
     # If the blob's size exceeds the chunk size, perform a multipart upload to S3
     blob_size = blob.get_blob_properties().size
@@ -84,7 +87,7 @@ def oneview_segments_upload_segment_file(ingress: dict):
             s3_chunks.append({"PartNumber": index + 1, "ETag": r["ETag"]})
 
         # Complete the multipart upload on S3
-        s3_client.complete_multipart_upload(
+        response = s3_client.complete_multipart_upload(
             Bucket=s3_bucket,
             Key=s3_key,
             UploadId=s3_upload_id,
@@ -92,44 +95,46 @@ def oneview_segments_upload_segment_file(ingress: dict):
         )
     # If the blob's size is within the chunk size, perform a single upload to S3
     else:
-        s3_client.upload_fileobj(
+        response = s3_client.upload_fileobj(
             Fileobj=blob.download_blob(),
             Bucket=s3_bucket,
             Key=s3_key,
         )
+    
+    return response
 
-    # Retain a copy
-    source_url = (
-        unquote(blob.url)
-        + "?"
-        + generate_blob_sas(
-            account_name=blob.account_name,
-            container_name=blob.container_name,
-            blob_name=blob.blob_name,
-            account_key=blob.credential.account_key,
-            permission=BlobSasPermissions(read=True),
-            expiry=datetime.utcnow() + relativedelta(days=2),
-        )
-    )
-    blob = BlobClient.from_connection_string(
-        conn_str=os.environ[ingress["output"]["conn_str"]],
-        container_name=ingress["output"]["container_name"],
-        blob_name="segments/{}.csv".format(ingress["record"]["SegmentID"]),
-    )
-    blob.upload_blob_from_url(
-        source_url=source_url,
-        overwrite=True,
-    )
+    # # Retain a copy
+    # source_url = (
+    #     unquote(blob.url)
+    #     + "?"
+    #     + generate_blob_sas(
+    #         account_name=blob.account_name,
+    #         container_name=blob.container_name,
+    #         blob_name=blob.blob_name,
+    #         account_key=blob.credential.account_key,
+    #         permission=BlobSasPermissions(read=True),
+    #         expiry=datetime.utcnow() + relativedelta(days=2),
+    #     )
+    # )
+    # blob = BlobClient.from_connection_string(
+    #     conn_str=os.environ[ingress["output"]["conn_str"]],
+    #     container_name=ingress["output"]["container_name"],
+    #     blob_name="segments/{}.csv".format(ingress["record"]["SegmentID"]),
+    # )
+    # blob.upload_blob_from_url(
+    #     source_url=source_url,
+    #     overwrite=True,
+    # )
 
-    return (
-        unquote(blob.url)
-        + "?"
-        + generate_blob_sas(
-            account_name=blob.account_name,
-            container_name=blob.container_name,
-            blob_name=blob.blob_name,
-            account_key=blob.credential.account_key,
-            permission=BlobSasPermissions(read=True),
-            expiry=datetime.utcnow() + relativedelta(days=2),
-        )
-    )
+    # return (
+    #     unquote(blob.url)
+    #     + "?"
+    #     + generate_blob_sas(
+    #         account_name=blob.account_name,
+    #         container_name=blob.container_name,
+    #         blob_name=blob.blob_name,
+    #         account_key=blob.credential.account_key,
+    #         permission=BlobSasPermissions(read=True),
+    #         expiry=datetime.utcnow() + relativedelta(days=2),
+    #     )
+    # )

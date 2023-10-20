@@ -1,40 +1,55 @@
-# File: libs/azure/functions/blueprints/oneview/segments/orchestrators/updater.py
+# File: libs/azure/functions/blueprints/esquire/audiences/oneview/orchestrators/updater.py
 
 from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
-from urllib.parse import urlparse
-import os, logging
+import os
 
 bp = Blueprint()
 
 
 @bp.orchestration_trigger(context_name="context")
-def oneview_orchestrator_segment_updater(context: DurableOrchestrationContext):
+def oneview_orchestrator_segment_updater(context: DurableOrchestrationContext) -> None:
     """
-    Orchestration function to update OneView segment data.
+    Orchestration function to update audience segments in OneView.
 
-    This orchestrator fetches audience data, establishes device lists from the blobs,
-    gets device ids from addresses, formats segment data, combines segment blobs, and
-    uploads the segment. Finally, it cleans up the data and purges instance history.
+    This orchestrator function is responsible for processing audience data from S3,
+    storing the processed data in Azure Data Lake, and uploading the consolidated
+    data to OneView. The function employs both activity and sub-orchestration calls
+    to achieve the desired outcome.
 
     Parameters
     ----------
     context : DurableOrchestrationContext
-        The durable function context.
+        The orchestration context object that provides methods and properties
+        used for orchestrator function execution. The input for the orchestrator
+        should be a dictionary with details related to the record, such as the bucket name
+        and folder for the S3 data.
 
     Returns
     -------
     None
 
-    Raises
-    ------
-    Exception
-        If no S3 files are found in the specified bucket/folder.
+    Examples
+    --------
+    In an orchestrator function:
+
+    .. code-block:: python
+
+        import azure.durable_functions as df
+
+        def main_function(context: df.DurableOrchestrationContext):
+            result = yield context.call_sub_orchestrator('oneview_orchestrator_segment_updater', {
+                "Bucket": "my-s3-bucket",
+                "Folder": "path/to/s3/data",
+                "SegmentID": "segment_1234"
+            })
+            return result
 
     Notes
     -----
-    This orchestrator depends on multiple Azure Durable Functions activities and sub-orchestrators
-    for its execution.
+    - The function retrieves and processes audience data from specified S3 paths.
+    - Processed data is stored in Azure Data Lake and then uploaded to OneView.
+    - Temporary data and history related to the orchestration are cleaned up at the end.
     """
 
     # Extract input from the context
@@ -53,7 +68,14 @@ def oneview_orchestrator_segment_updater(context: DurableOrchestrationContext):
     if record:
         # Fetch the audience data from S3 keys
         s3_keys = yield context.call_activity(
-            "oneview_segments_fetch_audiences_s3_keys", egress
+            "s3_list_objects",
+            {
+                "access_key": "REPORTS_AWS_ACCESS_KEY",
+                "secret_key": "REPOSTS_AWS_SECRET_KEY",
+                "region": "REPORTS_AWS_REGION",
+                "bucket": record["Bucket"],
+                "prefix": record["Folder"],
+            },
         )
 
         # Raise exception if no S3 keys are found
@@ -66,10 +88,10 @@ def oneview_orchestrator_segment_updater(context: DurableOrchestrationContext):
         audiences = yield context.task_all(
             [
                 context.call_activity(
-                    "oneview_segments_fetch_audiences_s3_data",
+                    "esquire_audiences_oneview_fetch_s3_data",
                     {**egress, "s3_key": key},
                 )
-                for key in s3_keys
+                for key in s3_keys[:11]
             ]
         )
 
@@ -80,9 +102,16 @@ def oneview_orchestrator_segment_updater(context: DurableOrchestrationContext):
         addresses_blobs = [a for a in audiences if "street" in a["columns"]]
         if len(addresses_blobs):
             # Generate header for on-spot processing
-            header = yield context.call_activity(
-                "oneview_segments_generate_onspot_header",
-                {**egress},
+            header_url = yield context.call_activity(
+                "datalake_simple_write",
+                {
+                    "conn_str": egress["output"]["conn_str"],
+                    "container_name": egress["output"]["container_name"],
+                    "blob_name": "{}/raw/{}".format(
+                        egress["output"]["prefix"], "header.csv"
+                    ),
+                    "content": "street,city,state,zip,zip4",
+                },
             )
 
             # Call sub-orchestrator for on-spot processing
@@ -110,7 +139,9 @@ def oneview_orchestrator_segment_updater(context: DurableOrchestrationContext):
                         "matchAcceptanceThreshold": 29.9,
                         "sources": [
                             a["url"].replace("https://", "az://")
-                            for a in ([header] + addresses_blobs)
+                            for a in (
+                                [{"url": header_url, "columns": None}] + addresses_blobs
+                            )
                         ],
                     },
                 },
@@ -128,63 +159,18 @@ def oneview_orchestrator_segment_updater(context: DurableOrchestrationContext):
                 for j in onspot_results["jobs"]
             ]
 
-        # Format segment data using Synapse
-        query = f"""
-            WITH [devices] AS (
-                SELECT DISTINCT
-                    [devices] AS [deviceid]
-                FROM OPENROWSET(
-                    BULK ('{"','".join([urlparse(blob["url"]).path for blob in devices_blobs])}'),
-                    DATA_SOURCE = 'sa_esquireroku',
-                    FORMAT = 'CSV',
-                    PARSER_VERSION = '2.0'
-                ) WITH (
-                    [devices] VARCHAR(128)
-                ) AS [data]
-                WHERE LEN([devices]) = 36
-            )
-            SELECT
-                [deviceid],
-                'IDFA' AS [type],
-                '{record["SegmentID"]}' AS [segmentid]
-            FROM [devices]
-            UNION
-            SELECT
-                [deviceid],
-                'GOOGLE_AD_ID' AS [type],
-                '{record["SegmentID"]}' AS [segmentid]
-            FROM [devices]
-        """
-        context.set_custom_status(query)
-        logging.warning(query)
-        segment_blobs = yield context.call_activity(
-            "synapse_activity_cetas",
+        segment_url = yield context.call_sub_orchestrator(
+            "oneview_orchestrator_segment_uplaoder",
             {
-                "instance_id": context.instance_id,
-                "bind": "general",
-                "table": {"name": f'{context.instance_id}_{record["SegmentID"]}'},
-                "destination": {
-                    "conn_str": egress["output"]["conn_str"],
-                    "container": egress["output"]["container_name"],
-                    "handle": "sa_esquireroku",
-                    "format": "CSV_NOHEADER",
-                    "path": f"{context.instance_id}/segment",
+                "SegmentID": record["segmentID"],
+                "output": {
+                    **egress["output"],
+                    "blob_name": "{}/{}.csv".format(
+                        egress["output"]["prefix"],
+                        record["segmentID"],
+                    ),
                 },
-                "query": query,
-                "return_urls": True,
             },
-        )
-
-        # Combine individual device blobs into a single blob
-        segment_blob = yield context.call_activity(
-            "oneview_segments_combine_devices_blobs",
-            {**egress, "blobs": segment_blobs},
-        )
-
-        # Upload the consolidated segment to S3
-        segment_url = yield context.call_activity(
-            "oneview_segments_upload_segment_file",
-            {**egress, "blob_name": segment_blob},
         )
 
     # Cleanup - remove temporary data

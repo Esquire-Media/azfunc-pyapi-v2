@@ -21,18 +21,24 @@ BLUEPRINTS = {
     ],
     "esquire-roku-sync": [
         "libs/azure/functions/blueprints/datalake/*",
-        "libs/azure/functions/blueprints/synapse/*",
+        "libs/azure/functions/blueprints/esquire/audiences/oneview/*",
         "libs/azure/functions/blueprints/oneview/segments/*",
         "libs/azure/functions/blueprints/onspot/*",
         "libs/azure/functions/blueprints/purge_instance_history",
+        "libs/azure/functions/blueprints/s3/*",
+        "libs/azure/functions/blueprints/synapse/*",
     ],
     "debug": [
         "libs/azure/functions/blueprints/keep_alive",
         "libs/azure/functions/blueprints/logger",
     ],
+    # !!! DANGER ZONE !!!
     "debug_env": [
-        "libs/azure/functions/blueprints/env",  # DO NOT ENABLE THIS IN ANY PUBLIC ENVIRONMENT
+        # !!! CAUTION !!!
+        "libs/azure/functions/blueprints/env",  # DO NOT EVER ENABLE THIS IN ANY PUBLIC ENVIRONMENT
+        # !!! WARNING !!!
     ],
+    # !!! SECRET DATA !!!
 }
 
 

@@ -1,4 +1,4 @@
-# File: libs/azure/functions/blueprints/oneview/segments/activities/fetch_audiences_s3_data.py
+# File: libs/azure/functions/blueprints/esquire/audiences/oneview/activities/fetch_s3_data.py
 
 from azure.storage.filedatalake import DataLakeFileClient
 from azure.storage.blob import (
@@ -16,28 +16,57 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def oneview_segments_fetch_audiences_s3_data(ingress: dict):
+def esquire_audiences_oneview_fetch_s3_data(ingress: dict) -> dict:
     """
-    Fetch audience data from S3 and store it in Azure Data Lake.
+    Fetch data from S3, process it, store in Azure Data Lake, and return a SAS token URL.
 
-    This function retrieves audience data from an S3 bucket based on a given key,
-    processes and transforms the data, and then stores it in an Azure Data Lake.
-    The function returns a URL to the stored data in the Azure Data Lake.
+    This function retrieves specified data from an S3 bucket, processes it,
+    and then stores the processed data in Azure Data Lake. After storing, it
+    generates a SAS token URL for accessing the data from the Data Lake.
 
     Parameters
     ----------
     ingress : dict
-        Dictionary containing details about the S3 bucket, key, and Azure Data Lake storage.
+        A dictionary containing necessary parameters, specified as follows:
+        - output (dict): Contains keys like "conn_str", "container_name", and "prefix" for Azure Data Lake.
+        - s3_key (str): Key (path) of the object in the S3 bucket to be fetched.
+        - record (dict): Contains the "Bucket" key specifying the S3 bucket name.
 
     Returns
     -------
     dict
-        A dictionary containing the URL to the stored data in Azure Data Lake and the columns of the data.
+        A dictionary containing:
+        - url (str): The SAS token URL for accessing the stored data in Azure Data Lake.
+        - columns (list): List of column names in the processed data.
+
+    Examples
+    --------
+    In an orchestrator function:
+
+    .. code-block:: python
+
+        import azure.durable_functions as df
+
+        def orchestrator_function(context: df.DurableOrchestrationContext):
+            data_info = yield context.call_activity('esquire_audiences_oneview_fetch_s3_data', {
+                "output": {
+                    "conn_str": "AZURE_DATALAKE_CONNECTION_STRING",
+                    "container_name": "my-container",
+                    "prefix": "data_prefix"
+                },
+                "s3_key": "path/to/s3/object",
+                "record": {
+                    "Bucket": "my-s3-bucket"
+                }
+            })
+            return data_info
 
     Notes
     -----
-    This function uses the boto3 library to interact with AWS S3 and the
-    azure.storage.filedatalake library to interact with Azure Data Lake.
+    - The function uses pandas to process the data in chunks.
+    - It first determines the type of data (device or address) and processes it accordingly.
+    - The processed data is then stored in Azure Data Lake.
+    - A SAS token URL is generated for the stored data, which provides read access for two days.
     """
 
     # Define the path in Azure Data Lake to store the data

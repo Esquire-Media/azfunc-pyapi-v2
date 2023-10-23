@@ -2,9 +2,6 @@ import msal
 import httpx
 import os
 from libs.azure.functions import Blueprint
-from azure.durable_functions import (
-    DurableOrchestrationClient,
-)
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()

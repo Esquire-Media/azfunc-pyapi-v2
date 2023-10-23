@@ -133,7 +133,7 @@ STATE_ABBREVIATIONS_MAP = {
 # activity to fill in the geo data for each audience object
 @bp.activity_trigger(input_name="ingress")
 def activity_format_address_lists(ingress: dict):
-    addresses = activity_new_mover(audience_id=ingress["Id"])
+    addresses = get_addresses(audience_id=ingress["Id"])
 
     # send addresses to blob as csv
     container_client = ContainerClient.from_connection_string(
@@ -141,17 +141,27 @@ def activity_format_address_lists(ingress: dict):
         container_name="general",
     )
 
-    # some of these are empty and I don't want to upload empty files
+    # some of these are empty and we don't want to upload empty files
     if not addresses.empty:
-        container_client.upload_blob(
-            name=f"{ingress['blob_prefix']}/{ingress['instance_id']}/audiences/{ingress['Id']}/{ingress['Id']}.csv",
-            data=addresses.to_csv(index=False),
-            overwrite=True,
-        )
+        # if a new mover
+        if ingress['Audience_Type__c'] == 'New Movers':
+            container_client.upload_blob(
+                name=f"{ingress['blob_prefix']}/{ingress['instance_id']}/audiences/{ingress['Id']}/{ingress['Id']}.csv",
+                data=addresses.to_csv(index=False),
+                overwrite=True,
+            )
+        else: # if it is digital neighbor, save the file in a different location
+            container_client.upload_blob(
+                name=f"{ingress['blob_prefix']}/{ingress['instance_id']}/audiences/{ingress['Id']}/{ingress['Id']}.csv",
+                data=addresses.to_csv(index=False),
+                overwrite=True,
+            )
+            
 
     return {}
 
-def activity_new_mover(audience_id: str):
+
+def get_addresses(audience_id: str):
     # connect to Synapse salesforce database
     provider = from_bind("salesforce")
     session: Session = provider.connect()

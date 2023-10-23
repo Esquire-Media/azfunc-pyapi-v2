@@ -1,4 +1,4 @@
-# File: libs/azure/functions/blueprints/daily_audience_generation/activities/root.py
+# File: libs/azure/functions/blueprints/daily_audience_generation/orchestrators/root.py
 
 from libs.azure.functions import Blueprint
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
@@ -35,47 +35,96 @@ def orchestrator_daily_audience_generation(context: DurableOrchestrationContext)
         name="activity_load_salesforce", retry_options=retry, input_={**egress}
     )
 
-    # FIRST SEPARATE THE AUDIENCES INTO LISTS OF HOW THE DEVICE IDS ARE GENERATED
+    # create testing information
+    test_friends_family = {
+        "Id": "a0H6e00000bNazEEAS_test",
+        "Audience_Name__c": "FF_Test",
+        "Audience_Type__c": "Friends Family",
+        "Lookback_Window__c": None,
+        "Name": "EF~00499",
+    }
+    # this will move the test file from general into the file path it would be in if the code was fully automated
+    ## the intention of this is to simulate as much as possible the automated process, until the address
+    ## files are actually automated like the other audiences.
+    yield context.call_activity_with_retry(
+        "activity_testing",
+        retry_options=retry,
+        input_={**egress},
+    )
+
+    # # FIRST SEPARATE THE AUDIENCES INTO LISTS OF HOW THE DEVICE IDS ARE GENERATED
     yield context.task_all(
         [
-            # setup items for the suborchestrators for the geoframed audiences
+            # testing for friends and family with sample file
             context.call_sub_orchestrator_with_retry(
-                "suborchestrator_geoframed_audiences",
+                "suborchestrator_friends_family",
                 retry,
                 {
                     "conn_str": conn_str,
                     "container": container,
                     "blob_prefix": blob_prefix,
                     "path": f"{blob_prefix}/{context.instance_id}/audiences",
-                    "audiences": [
-                        audience
-                        for audience in audiences
-                        if audience["Audience_Type__c"]
-                        in ["Competitor Location", "InMarket Shoppers"]
-                    ][:10],
+                    "audiences": [test_friends_family],
                     "instance_id": context.instance_id,
                 },
             ),
-            # setup items for the suborchestrators for the addressed audiences
-            context.call_sub_orchestrator_with_retry(
-                "suborchestrator_addressed_audiences",
-                retry,
-                {
-                    "conn_str": conn_str,
-                    "container": container,
-                    "blob_prefix": blob_prefix,
-                    "path": f"{blob_prefix}/{context.instance_id}/audiences",
-                    "instance_id": context.instance_id,
-                    "audiences": [
-                        audience
-                        for audience in audiences
-                        if audience["Audience_Type__c"] in ["New Movers"]
-                    ][:10],
-                },
-            ),
+            ## setupitems for the friends and family suborchestrator
+            # context.call_sub_orchestrator_with_retry(
+            #     "suborchestrator_friends_family",
+            #     retry,
+            #     {
+            #         "conn_str": conn_str,
+            #         "container": container,
+            #         "blob_prefix": blob_prefix,
+            #         "path": f"{blob_prefix}/{context.instance_id}/audiences",
+            #         "audiences": [
+            #             audience
+            #             for audience in audiences
+            #             if audience["Audience_Type__c"]
+            #             in ["Friends Family"]
+            #         ][:2],
+            #         "instance_id": context.instance_id,
+            #     },
+            # ),
+            ## setup items for the suborchestrators for the geoframed audiences
+            # context.call_sub_orchestrator_with_retry(
+            #     "suborchestrator_geoframed_audiences",
+            #     retry,
+            #     {
+            #         "conn_str": conn_str,
+            #         "container": container,
+            #         "blob_prefix": blob_prefix,
+            #         "path": f"{blob_prefix}/{context.instance_id}/audiences",
+            #         "audiences": [
+            #             audience
+            #             for audience in audiences
+            #             if audience["Audience_Type__c"]
+            #             in ["Competitor Location", "InMarket Shoppers"]
+            #         ][:2],
+            #         "instance_id": context.instance_id,
+            #     },
+            # ),
+            ## setup items for the suborchestrators for the addressed audiences
+            # context.call_sub_orchestrator_with_retry(
+            #     "suborchestrator_addressed_audiences",
+            #     retry,
+            #     {
+            #         "conn_str": conn_str,
+            #         "container": container,
+            #         "blob_prefix": blob_prefix,
+            #         "path": f"{blob_prefix}/{context.instance_id}/audiences",
+            #         "instance_id": context.instance_id,
+            #         "audiences": [
+            #             audience
+            #             for audience in audiences
+            #             if audience["Audience_Type__c"] in ["New Movers"] #["New Movers", "Digital Neighbors"]
+            #         ][:2],
+            #     },
+            # ),
         ]
     )
-    
+
+    # logging.warning(audiences)
     # use CETAS to generate parquet files for InMarket Shoppers and Competitor Location
     # yield context.call_activity_with_retry(
     #     "synapse_activity_cetas",
@@ -90,8 +139,8 @@ def orchestrator_daily_audience_generation(context: DurableOrchestrationContext)
     #             "path": f"tables/{context.instance_id}/maids",
     #         },
     #         "query": """
-    #             SELECT DISTINCT 
-    #                 [data].filepath(1) AS [audience], 
+    #             SELECT DISTINCT
+    #                 [data].filepath(1) AS [audience],
     #                 [deviceid]
     #             FROM OPENROWSET(
     #                 BULK '{}/{}/{}/audiences/*/devices/*',

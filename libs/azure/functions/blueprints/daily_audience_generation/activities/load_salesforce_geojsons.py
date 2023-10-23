@@ -2,7 +2,7 @@
 
 from libs.azure.functions import Blueprint
 import pandas as pd
-import os, json, uuid
+import os, json
 from azure.storage.blob import (
     ContainerClient,
     ContainerSasPermissions,

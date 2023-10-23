@@ -1,16 +1,16 @@
 from libs.data import register_binding, from_bind
 import os
 
-if not from_bind("onspot"):
-    register_binding(
-        "onspot",
-        "Structured",
-        "sql",
-        url=os.environ["DATABIND_SQL_ONSPOT"],
-        schemas=["dbo"],
-        pool_size=1000,
-        max_overflow=100
-    )
+# if not from_bind("onspot"):
+#     register_binding(
+#         "onspot",
+#         "Structured",
+#         "sql",
+#         url=os.environ["DATABIND_SQL_ONSPOT"],
+#         schemas=["dbo"],
+#         pool_size=1000,
+#         max_overflow=100
+#     )
 
 if not from_bind("audiences"):
     register_binding(
@@ -40,5 +40,15 @@ if not from_bind("universal"):
         "Structured",
         "sql",
         url=os.environ["DATABIND_SQL_UNIVERSAL"],
+        schemas=["dbo"],
+    )
+
+# binding for checking rooftopcache
+if not from_bind("sisense-etl"):
+    register_binding(
+        "sisense-etl",
+        "Structured",
+        "sql",
+        url=os.environ["DATABIND_SQL_ROOFTOPS"],
         schemas=["dbo"],
     )

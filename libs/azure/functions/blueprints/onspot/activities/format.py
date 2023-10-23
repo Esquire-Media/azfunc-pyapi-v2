@@ -9,7 +9,7 @@ from azure.storage.blob import (
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
-import uuid, os
+import uuid, os, logging
 
 bp = Blueprint()
 

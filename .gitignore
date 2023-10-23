@@ -139,6 +139,3 @@ logs
 
 /*.ipynb
 *.csv
-/development.py
-development.py
-*.har

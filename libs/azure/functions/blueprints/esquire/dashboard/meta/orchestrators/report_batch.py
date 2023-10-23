@@ -153,21 +153,21 @@ def esquire_dashboard_meta_orchestrator_report_batch(
         },
     )
 
-    # yield context.call_activity_with_retry(
-    #     "synapse_activity_cetas",
-    #     retry,
-    #     {
-    #         "instance_id": context.instance_id,
-    #         "bind": "facebook_dashboard",
-    #         "table": {"schema": "dashboard", "name": "adcreatives"},
-    #         "destination": {
-    #             "container": container,
-    #             "handle": "sa_esquiregeneral",
-    #             "path": f"meta/tables/AdCreatives/{context.instance_id}",
-    #         },
-    #         "query": CETAS["AdAccount_GetCreatives"],
-    #         "view": True,
-    #     },
-    # )
+    yield context.call_activity_with_retry(
+        "synapse_activity_cetas",
+        retry,
+        {
+            "instance_id": context.instance_id,
+            "bind": "facebook_dashboard",
+            "table": {"schema": "dashboard", "name": "adcreatives"},
+            "destination": {
+                "container": container,
+                "handle": "sa_esquiregeneral",
+                "path": f"meta/tables/AdCreatives/{context.instance_id}",
+            },
+            "query": CETAS["AdAccount_GetCreatives"],
+            "view": True,
+        },
+    )
 
     return adaccounts

@@ -329,6 +329,12 @@
         "name": "q",
         "schema": { "type": "string" }
       },
+      "report_template_uid": {
+        "description": "Description for report_template_uid.",
+        "in": "path",
+        "name": "report_template_uid",
+        "schema": { "type": "string" }
+      },
       "report_timeframe": {
         "description": "Description for report_timeframe.",
         "in": "query",
@@ -1486,6 +1492,31 @@
         "headers": {
           "status": { "$ref": "#/components/headers/StatusHeader" },
           "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" }
+        }
+      },
+      "reports": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "additionalProperties": false,
+              "properties": {
+                "reports": { "$ref": "#/components/schemas/reports" },
+                "organizations": {
+                  "$ref": "#/components/schemas/organizations"
+                }
+              },
+              "required": [],
+              "title": "ProductsGetRequest",
+              "type": "object"
+            }
+          }
+        },
+        "description": "",
+        "headers": {
+          "status": { "$ref": "#/components/headers/StatusHeader" },
+          "x-count": { "$ref": "#/components/headers/XCountHeader" },
+          "x-runtime": { "$ref": "#/components/headers/XRuntimeHeader" },
+          "x-total-count": { "$ref": "#/components/headers/XTotalCountHeader" }
         }
       },
       "sets": {
@@ -3384,7 +3415,10 @@
           "content_category": { "type": ["string", "null"] },
           "content_category_uid": { "type": ["string", "null"] },
           "contract_service_level": { "type": ["string", "null"] },
-          "contractual_currency_uid": { "enum": ["USD", null], "type": "string"},
+          "contractual_currency_uid": {
+            "enum": ["USD", null],
+            "type": "string"
+          },
           "country_uid": { "type": ["string", "null"] },
           "created_at": { "format": "date-time", "type": "string" },
           "created_by_user_uid": { "type": ["string", "null"] },
@@ -3540,6 +3574,47 @@
         "required": [],
         "title": "ReportingResponse",
         "type": "object"
+      },
+      "report": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": { "format": "date-time", "type": "string" },
+          "created_by": { "type": "string" },
+          "delivered_at": { "format": "date-time", "type": "string" },
+          "delivery_address": { "type": "string" },
+          "delivery_type": { "type": "string" },
+          "description": { "type": "string" },
+          "dimensions": { "type": "array", "items": { "type": "string" } },
+          "download_url": { "type": "string" },
+          "end_at": { "format": "date-time", "type": "string" },
+          "fields": { "type": "array", "items": { "type": "string" } },
+          "filters": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": { "type": "string" },
+                "filter": { "type": "string" }
+              }
+            }
+          },
+          "name": { "type": "string" },
+          "organization_uid": { "type": "string" },
+          "report_errors": { "type": "string" },
+          "report_template_uid": { "type": "string" },
+          "start_at": { "format": "date-time", "type": "string" },
+          "status": { "type": "string" },
+          "uid": { "type": "string" },
+          "user_uid": { "type": "string" },
+          "updated_at": { "format": "date-time", "type": "string" }
+        },
+        "required": [],
+        "title": "Report",
+        "type": "object"
+      },
+      "reports": {
+        "items": { "$ref": "#/components/schemas/report" },
+        "type": "array"
       },
       "set": {
         "additionalProperties": false,
@@ -4572,6 +4647,17 @@
         "summary": "Get Products"
       }
     },
+    "/report_templates/{report_template_uid}/run": {
+      "post": {
+        "description": "",
+        "operationId": "postReportTemplateRun",
+        "parameters": [
+          { "$ref": "#/components/parameters/report_template_uid" }
+        ],
+        "responses": { "204": { "description": "No content." } },
+        "summary": "Run Report Template"
+      }
+    },
     "/reporting/real_time_metrics": {
       "get": {
         "description": "",
@@ -4589,6 +4675,21 @@
           "200": { "$ref": "#/components/responses/reporting_response" }
         },
         "summary": "Get Reporting Real Time Metrics"
+      }
+    },
+    "/reports": {
+      "get": {
+        "description": "",
+        "operationId": "getReports",
+        "parameters": [
+          { "$ref": "#/components/parameters/expand" },
+          { "$ref": "#/components/parameters/bypass_cache" },
+          { "$ref": "#/components/parameters/limit" },
+          { "$ref": "#/components/parameters/order" },
+          { "$ref": "#/components/parameters/filter" }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/reports" } },
+        "summary": "Get Reports"
       }
     },
     "/sets": {

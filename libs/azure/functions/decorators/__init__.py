@@ -78,6 +78,7 @@ class Blueprint(DFBlueprint, HttpDecoratorApi):
                                 "method": trigger_arg.method,
                                 "headers": dict(trigger_arg.headers),
                                 "params": dict(trigger_arg.route_params),
+                                "body": trigger_arg.get_body(),
                             }
                         ),
                     }

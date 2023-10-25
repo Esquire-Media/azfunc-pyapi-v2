@@ -1,4 +1,5 @@
 from typing import Any, List
+from pydantic import BaseModel
 import azure.functions as func
 
 
@@ -24,6 +25,10 @@ class HttpRequest(func.HttpRequest):
         self.jsonapi: dict = (kwargs.pop("jsonapi", None),)
         self.session: dict = (kwargs.pop("session", None),)
         super().__init__(*args, **kwargs)
+
+    @staticmethod
+    def pydantize_body(request: "HttpRequest", base: BaseModel):
+        return base.model_validate_json(request.get_body())
 
 
 class HttpResponse(func.HttpResponse):

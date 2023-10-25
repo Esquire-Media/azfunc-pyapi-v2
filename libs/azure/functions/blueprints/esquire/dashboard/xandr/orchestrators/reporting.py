@@ -18,59 +18,78 @@ def esquire_dashboard_xandr_orchestrator_reporting(
     retry = RetryOptions(15000, 3)
     conn_str = "XANDR_CONN_STR" if "XANDR_CONN_STR" in os.environ.keys() else None
     container = "general"
-    
-    while True:
-        state = yield context.call_activity_with_retry(
-            "esquire_dashboard_xandr_activity_status",
+
+    try:
+        while True:
+            state = yield context.call_activity_with_retry(
+                "esquire_dashboard_xandr_activity_status",
+                retry,
+                {"instance_id": context.instance_id},
+            )
+            match state["status"]:
+                case "ready":
+                    break
+                case "error":
+                    raise Exception(state["error"])
+            yield context.create_timer(datetime.utcnow() + timedelta(minutes=5))
+
+        yield context.call_activity_with_retry(
+            "esquire_dashboard_xandr_activity_download",
             retry,
-            {"instance_id": context.instance_id},
-        )
-        match state["status"]:
-            case "ready":
-                break
-            case "error":
-                raise Exception(state["error"])
-        yield context.create_timer(datetime.utcnow() + timedelta(minutes=5))
-
-    yield context.call_activity_with_retry(
-        "esquire_dashboard_xandr_activity_download",
-        retry,
-        {
-            "instance_id": context.instance_id,
-            "conn_str": conn_str,
-            "container": container,
-            "outputPath": "xandr/deltas/{}/{}.parquet".format(
-                state["report_type"],
-                pull_time,
-            ),
-        },
-    )
-
-    yield context.call_activity_with_retry(
-        "synapse_activity_cetas",
-        retry,
-        {
-            "instance_id": context.instance_id,
-            "bind": "xandr_dashboard",
-            "table": {"schema": "dashboard", "name": state["report_type"]},
-            "destination": {
+            {
+                "instance_id": context.instance_id,
                 "conn_str": conn_str,
                 "container": container,
-                "handle": "sa_esquiregeneral",
-                "path": f"xandr/tables/{state['report_type']}/{pull_time}",
+                "outputPath": "xandr/deltas/{}/{}.parquet".format(
+                    state["report_type"],
+                    pull_time,
+                ),
             },
-            "query": CETAS[state["report_type"]],
-            "view": True,
-        },
-    )
+        )
 
-    # yield context.call_activity_with_retry(
-    #     "datalake_activity_delete_directory",
-    #     retry,
-    #     {
-    #         "instance_id": context.instance_id,
-    #         "conn_str": conn_str,
-    #         "container": container,
-    #         "prefix": "raw"
-    #     },
-    # )
+        yield context.call_activity_with_retry(
+            "synapse_activity_cetas",
+            retry,
+            {
+                "instance_id": context.instance_id,
+                "bind": "xandr_dashboard",
+                "table": {"schema": "dashboard", "name": state["report_type"]},
+                "destination": {
+                    "conn_str": conn_str,
+                    "container": container,
+                    "handle": "sa_esquiregeneral",
+                    "path": f"xandr/tables/{state['report_type']}/{pull_time}",
+                },
+                "query": CETAS[state["report_type"]],
+                "view": True,
+            },
+        )
+
+        # Purge history related to this instance
+        yield context.call_activity(
+            "purge_instance_history",
+            {"instance_id": context.instance_id},
+        )
+    except Exception as e:
+        yield context.call_http(
+            method="POST",
+            uri=os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
+            content={
+                "@type": "MessageCard",
+                "@context": "http://schema.org/extensions",
+                "themeColor": "EE2A3D",
+                "summary": "Xandr Report Injestion Failed",
+                "sections": [
+                    {
+                        "activityTitle": "Xandr Report Injestion Failed",
+                        "activitySubtitle": "{}{}".format(
+                            str(e)[0:128], "..." if len(str(e)) > 128 else ""
+                        ),
+                        "facts": [
+                            {"name": "InstanceID", "value": context.instance_id},
+                        ],
+                        "markdown": True,
+                    }
+                ],
+            },
+        )

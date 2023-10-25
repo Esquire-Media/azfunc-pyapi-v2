@@ -261,15 +261,6 @@ def esquire_audiences_oneview_segment_updater(
             },
         )
 
-    # Cleanup - remove temporary data
-    yield context.call_activity(
-        "datalake_activity_delete_directory",
-        {
-            **azure,
-            "prefix": context.instance_id,
-        },
-    )
-
     # Purge history related to this instance
     yield context.call_activity(
         "purge_instance_history",

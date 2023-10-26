@@ -127,6 +127,7 @@ bin
 obj
 appsettings.json
 local.settings.json
+development.py
 
 # Azurite artifacts
 __blobstorage__

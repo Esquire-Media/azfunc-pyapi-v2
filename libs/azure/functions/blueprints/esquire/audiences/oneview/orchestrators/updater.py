@@ -250,8 +250,9 @@ def esquire_audiences_oneview_segment_updater(
                         "targets": [
                             {
                                 "os": "default",
-                                "uri": "https://s3.console.aws.amazon.com/s3/buckets/adops-team-bucket?region=us-east-2&prefix={}/&showversions=false".format(
-                                    record["Folder"]
+                                "uri": "https://s3.console.aws.amazon.com/s3/buckets/{}?region=us-east-2&prefix={}/&showversions=false".format(
+                                    record["Bucket"],
+                                    record["Folder"],
                                 ),
                             }
                         ],
@@ -259,15 +260,6 @@ def esquire_audiences_oneview_segment_updater(
                 ],
             },
         )
-
-    # Cleanup - remove temporary data
-    yield context.call_activity(
-        "datalake_activity_delete_directory",
-        {
-            **azure,
-            "prefix": context.instance_id,
-        },
-    )
 
     # Purge history related to this instance
     yield context.call_activity(

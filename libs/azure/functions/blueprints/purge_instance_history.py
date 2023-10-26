@@ -2,50 +2,12 @@
 
 from azure.durable_functions import DurableOrchestrationClient
 from azure.data.tables import TableClient
+from azure.storage.filedatalake import FileSystemClient
 from libs.azure.functions import Blueprint
+from libs.azure.functions.suborchestrators import get_sub_orchestrator_ids
 import os
 
 bp = Blueprint()
-
-
-def get_sub_orchestrator_ids(table: TableClient, parent_instance_id: str):
-    """
-    Retrieve sub-orchestrator IDs associated with a parent orchestrator instance.
-
-    Parameters
-    ----------
-    table : TableClient
-        Azure Table Client instance to interact with Azure Table Storage.
-    parent_instance_id : str
-        ID of the parent orchestrator instance.
-
-    Returns
-    -------
-    list
-        List of sub-orchestrator IDs.
-    """
-    entities = list(
-        table.query_entities(
-            f"PartitionKey eq '{parent_instance_id}'", select=["ExecutionId"]
-        )
-    )
-
-    if not entities:
-        return []
-
-    ids = []
-    for e in entities:
-        for i in table.query_entities(
-            "PartitionKey ge '{}' and PartitionKey le '{}'".format(
-                e["ExecutionId"] + ":",
-                e["ExecutionId"] + chr(ord(":") + 1),
-            ),
-            select=["PartitionKey"],
-        ):
-            ids.append(i["PartitionKey"])
-            ids.extend(get_sub_orchestrator_ids(table, i["PartitionKey"]))
-
-    return ids
 
 
 @bp.activity_trigger(input_name="ingress")
@@ -70,19 +32,35 @@ async def purge_instance_history(ingress: dict, client: DurableOrchestrationClie
         An empty string indicating completion.
     """
 
+    conn_str = (
+        os.environ[ingress["conn_str"]]
+        if ingress.get("conn_str", None) in os.environ.keys()
+        else os.environ["AzureWebJobsStorage"]
+    )
+
     # Initialize Azure Table client to interact with Azure Table Storage
     table = TableClient.from_connection_string(
-        conn_str=os.getenv(
-            ingress.get("conn_str", ""), os.environ["AzureWebJobsStorage"]
-        ),
+        conn_str=conn_str,
         table_name=ingress.get("task_hub_name", os.environ["TASK_HUB_NAME"])
         + "Instances",
     )
 
+    filesystem = FileSystemClient.from_connection_string(
+        conn_str=conn_str,
+        file_system_name=ingress.get("task_hub_name", os.environ["TASK_HUB_NAME"])
+        + "-largemessages",
+    )
+
     # Purge the history for each sub-orchestrator associated with the main instance
     for instance_id in get_sub_orchestrator_ids(table, ingress["instance_id"]):
+        for item in filesystem.get_paths(recursive=False):
+            if item["is_directory"] and item["name"].startswith(instance_id):
+                filesystem.get_directory_client(item).delete_directory()
         await client.purge_instance_history(instance_id=instance_id)
 
     # Purge the history of the main orchestration instance
+    for item in filesystem.get_paths(recursive=False):
+        if item["is_directory"] and item["name"].startswith(ingress["instance_id"]):
+            filesystem.get_directory_client(item).delete_directory()
     await client.purge_instance_history(instance_id=ingress["instance_id"])
     return ""

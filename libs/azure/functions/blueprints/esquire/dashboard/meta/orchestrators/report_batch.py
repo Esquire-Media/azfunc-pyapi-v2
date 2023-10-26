@@ -24,27 +24,26 @@ def esquire_dashboard_meta_orchestrator_report_batch(
         else "AzureWebJobsStorage"
     )
     container = "general"
-
-    adaccounts = yield context.call_sub_orchestrator(
-        "meta_orchestrator_request",
-        {
-            "access_token": "META_ACCESS_TOKEN",
-            "modules": ["User", "AdAccount"],
-            "operationId": "User_GetAdAccounts",
-            "parameters": {
-                **PARAMETERS["User_GetAdAccounts"],
-                "User-id": "me",
-            },
-            "recursive": True,
-            "destination": {
-                "conn_str": conn_str,
-                "container": container,
-                "path": f"meta/delta/adaccounts/{pull_time}",
-            },
-        },
-    )
-    
     try:
+        adaccounts = yield context.call_sub_orchestrator(
+            "meta_orchestrator_request",
+            {
+                "access_token": "META_ACCESS_TOKEN",
+                "modules": ["User", "AdAccount"],
+                "operationId": "User_GetAdAccounts",
+                "parameters": {
+                    **PARAMETERS["User_GetAdAccounts"],
+                    "User-id": "me",
+                },
+                "recursive": True,
+                "destination": {
+                    "conn_str": conn_str,
+                    "container": container,
+                    "path": f"meta/delta/adaccounts/{pull_time}",
+                },
+            },
+        )
+        
         yield context.task_all(
             [
                 context.call_sub_orchestrator(
@@ -65,109 +64,136 @@ def esquire_dashboard_meta_orchestrator_report_batch(
                 and "do no use" not in adaccount["name"].lower()
             ]
         )
-    except:
-        pass
 
-    yield context.call_activity_with_retry(
-        "synapse_activity_cetas",
-        retry,
-        {
-            "instance_id": context.instance_id,
-            "bind": "facebook_dashboard",
-            "table": {"schema": "dashboard", "name": "adaccounts"},
-            "destination": {
-                "container": container,
-                "handle": "sa_esquiregeneral",
-                "path": f"meta/tables/AdAccounts/{pull_time}",
+        yield context.call_activity_with_retry(
+            "synapse_activity_cetas",
+            retry,
+            {
+                "instance_id": context.instance_id,
+                "bind": "facebook_dashboard",
+                "table": {"schema": "dashboard", "name": "adaccounts"},
+                "destination": {
+                    "container": container,
+                    "handle": "sa_esquiregeneral",
+                    "path": f"meta/tables/AdAccounts/{pull_time}",
+                },
+                "query": CETAS["User_GetAdAccounts"],
+                "view": True,
             },
-            "query": CETAS["User_GetAdAccounts"],
-            "view": True,
-        },
-    )
+        )
 
-    yield context.call_activity_with_retry(
-        "synapse_activity_cetas",
-        retry,
-        {
-            "instance_id": context.instance_id,
-            "bind": "facebook_dashboard",
-            "table": {"schema": "dashboard", "name": "adsinsights"},
-            "destination": {
-                "container": container,
-                "handle": "sa_esquiregeneral",
-                "path": f"meta/tables/AdsInsights/{pull_time}",
+        yield context.call_activity_with_retry(
+            "synapse_activity_cetas",
+            retry,
+            {
+                "instance_id": context.instance_id,
+                "bind": "facebook_dashboard",
+                "table": {"schema": "dashboard", "name": "adsinsights"},
+                "destination": {
+                    "container": container,
+                    "handle": "sa_esquiregeneral",
+                    "path": f"meta/tables/AdsInsights/{pull_time}",
+                },
+                "query": CETAS["AdAccount_GetInsightsAsync"],
+                "view": True,
             },
-            "query": CETAS["AdAccount_GetInsightsAsync"],
-            "view": True,
-        },
-    )
+        )
 
-    yield context.call_activity_with_retry(
-        "synapse_activity_cetas",
-        retry,
-        {
-            "instance_id": context.instance_id,
-            "bind": "facebook_dashboard",
-            "table": {"schema": "dashboard", "name": "ads"},
-            "destination": {
-                "container": container,
-                "handle": "sa_esquiregeneral",
-                "path": f"meta/tables/Ads/{pull_time}",
+        yield context.call_activity_with_retry(
+            "synapse_activity_cetas",
+            retry,
+            {
+                "instance_id": context.instance_id,
+                "bind": "facebook_dashboard",
+                "table": {"schema": "dashboard", "name": "ads"},
+                "destination": {
+                    "container": container,
+                    "handle": "sa_esquiregeneral",
+                    "path": f"meta/tables/Ads/{pull_time}",
+                },
+                "query": CETAS["AdAccount_GetAds"],
+                "view": True,
             },
-            "query": CETAS["AdAccount_GetAds"],
-            "view": True,
-        },
-    )
+        )
 
-    yield context.call_activity_with_retry(
-        "synapse_activity_cetas",
-        retry,
-        {
-            "instance_id": context.instance_id,
-            "bind": "facebook_dashboard",
-            "table": {"schema": "dashboard", "name": "campaigns"},
-            "destination": {
-                "container": container,
-                "handle": "sa_esquiregeneral",
-                "path": f"meta/tables/Campaigns/{pull_time}",
+        yield context.call_activity_with_retry(
+            "synapse_activity_cetas",
+            retry,
+            {
+                "instance_id": context.instance_id,
+                "bind": "facebook_dashboard",
+                "table": {"schema": "dashboard", "name": "campaigns"},
+                "destination": {
+                    "container": container,
+                    "handle": "sa_esquiregeneral",
+                    "path": f"meta/tables/Campaigns/{pull_time}",
+                },
+                "query": CETAS["AdAccount_GetCampaigns"],
+                "view": True,
             },
-            "query": CETAS["AdAccount_GetCampaigns"],
-            "view": True,
-        },
-    )
+        )
 
-    yield context.call_activity_with_retry(
-        "synapse_activity_cetas",
-        retry,
-        {
-            "instance_id": context.instance_id,
-            "bind": "facebook_dashboard",
-            "table": {"schema": "dashboard", "name": "adsets"},
-            "destination": {
-                "container": container,
-                "handle": "sa_esquiregeneral",
-                "path": f"meta/tables/AdSets/{pull_time}",
+        yield context.call_activity_with_retry(
+            "synapse_activity_cetas",
+            retry,
+            {
+                "instance_id": context.instance_id,
+                "bind": "facebook_dashboard",
+                "table": {"schema": "dashboard", "name": "adsets"},
+                "destination": {
+                    "container": container,
+                    "handle": "sa_esquiregeneral",
+                    "path": f"meta/tables/AdSets/{pull_time}",
+                },
+                "query": CETAS["AdAccount_GetAdSets"],
+                "view": True,
             },
-            "query": CETAS["AdAccount_GetAdSets"],
-            "view": True,
-        },
-    )
+        )
 
-    yield context.call_activity_with_retry(
-        "synapse_activity_cetas",
-        retry,
-        {
-            "instance_id": context.instance_id,
-            "bind": "facebook_dashboard",
-            "table": {"schema": "dashboard", "name": "adcreatives"},
-            "destination": {
-                "container": container,
-                "handle": "sa_esquiregeneral",
-                "path": f"meta/tables/AdCreatives/{context.instance_id}",
+        yield context.call_activity_with_retry(
+            "synapse_activity_cetas",
+            retry,
+            {
+                "instance_id": context.instance_id,
+                "bind": "facebook_dashboard",
+                "table": {"schema": "dashboard", "name": "adcreatives"},
+                "destination": {
+                    "container": container,
+                    "handle": "sa_esquiregeneral",
+                    "path": f"meta/tables/AdCreatives/{context.instance_id}",
+                },
+                "query": CETAS["AdAccount_GetCreatives"],
+                "view": True,
             },
-            "query": CETAS["AdAccount_GetCreatives"],
-            "view": True,
-        },
-    )
+        )
 
-    return adaccounts
+        # Purge history related to this instance
+        yield context.call_activity(
+            "purge_instance_history",
+            {"instance_id": context.instance_id},
+        )
+
+        return adaccounts
+    except Exception as e:
+        yield context.call_http(
+            method="POST",
+            uri=os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
+            content={
+                "@type": "MessageCard",
+                "@context": "http://schema.org/extensions",
+                "themeColor": "EE2A3D",
+                "summary": "Meta Report Injestion Failed",
+                "sections": [
+                    {
+                        "activityTitle": "Meta Report Injestion Failed",
+                        "activitySubtitle": "{}{}".format(
+                            str(e)[0:128], "..." if len(str(e)) > 128 else ""
+                        ),
+                        "facts": [
+                            {"name": "InstanceID", "value": context.instance_id},
+                        ],
+                        "markdown": True,
+                    }
+                ]
+            },
+        )

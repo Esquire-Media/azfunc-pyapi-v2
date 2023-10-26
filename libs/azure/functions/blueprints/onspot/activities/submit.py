@@ -29,4 +29,6 @@ async def onspot_activity_submit(ingress: dict):
     factory = OSA.createRequest((ingress["endpoint"], "post"))
     _, data, _ = await factory.request(ingress["request"])
 
-    return data.model_dump()
+    return (
+        [d.model_dump() for d in data] if isinstance(data, list) else data.model_dump()
+    )

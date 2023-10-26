@@ -32,11 +32,7 @@ async def purge_instance_history(ingress: dict, client: DurableOrchestrationClie
         An empty string indicating completion.
     """
 
-    conn_str = (
-        os.environ[ingress["conn_str"]]
-        if ingress.get("conn_str", None) in os.environ.keys()
-        else os.environ["AzureWebJobsStorage"]
-    )
+    conn_str = os.environ[ingress.get("conn_str", "AzureWebJobsStorage")]
 
     # Initialize Azure Table client to interact with Azure Table Storage
     table = TableClient.from_connection_string(

@@ -30,6 +30,7 @@ def bulk_validate(
     zip_col=None,
     auth_id=os.getenv("SMARTY_APP_ID", None),
     auth_token=os.getenv("SMARTY_API_TOKEN", None),
+    license_id=os.getenv("SMARTY_LICENSE_ID", None),
 ) -> pd.DataFrame:
     """
     Accepts a dataframe containing address data in one or more component columns. Returns a dataframe with all returned Smarty columns.
@@ -70,7 +71,7 @@ def bulk_validate(
     # launch the street lookup client
     client = (
         ClientBuilder(credentials)
-        .with_licenses(["us-core-custom-enterprise-cloud"])
+        .with_licenses([license_id])
         .build_us_street_api_client()
     )
 

@@ -40,9 +40,9 @@ async def esquire_audiences_oneview_schedule_daily(
 
     # Initialize the NocoDB API client with necessary credentials
     api = NocoDB(
-        host=os.getenv("NOCODB_HOST"),
-        project_id="pifplkhdufgnyxl",
-        api_token=os.getenv("NOCODB_API_KEY"),
+        host=os.environ["NOCODB_HOST"],
+        project_id=os.environ["ONEVIEW_NOCODB_PROJECT_ID"],
+        api_token=os.environ["NOCODB_API_KEY"],
     )
 
     # Start an orchestrator instance for each record

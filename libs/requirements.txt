@@ -21,6 +21,7 @@ httpx_auth
 ## tools
 frozendict
 fuzzywuzzy
+googlemaps>=4.10.0
 querystring-parser
 werkzeug
 ## security

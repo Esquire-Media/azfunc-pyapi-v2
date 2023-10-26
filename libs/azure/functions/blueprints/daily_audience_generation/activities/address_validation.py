@@ -19,7 +19,7 @@ def activity_address_validation(ingress: dict):
         conn_str=os.environ["ONSPOT_CONN_STR"],
         container_name="general",
     )
-
+    
     address_list_blob = container_client.get_blob_client(
         f"{ingress['path']}/{ingress['audience']}/{ingress['audience']}.csv"
     )

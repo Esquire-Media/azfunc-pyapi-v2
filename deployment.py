@@ -14,11 +14,12 @@ BLUEPRINTS = {
     ],
     "esquire-dashboard-data": [
         "libs/azure/functions/blueprints/datalake/*",
+        "libs/azure/functions/blueprints/esquire/dashboard/*",
         "libs/azure/functions/blueprints/meta/*",
         "libs/azure/functions/blueprints/oneview/reports/*",
         "libs/azure/functions/blueprints/onspot/*",
+        "libs/azure/functions/blueprints/purge_instance_history",
         "libs/azure/functions/blueprints/synapse/*",
-        "libs/azure/functions/blueprints/esquire/dashboard/*",
     ],
     "esquire-roku-sync": [
         "libs/azure/functions/blueprints/datalake/*",

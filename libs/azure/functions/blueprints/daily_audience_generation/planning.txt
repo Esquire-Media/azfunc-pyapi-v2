@@ -1,0 +1,96 @@
+- The program currently does the following...
+    1. gets a locations.csv file that contains location id and matches them to an ESQ id
+        - 
+    2. get the list of audiences for the day that fit the following...
+        - have a refresh rate of None
+        - account status is set to active
+    3. (NEW/TODO) pass the audience information into a new orchestrator based on the type of audience.
+        - each of the audeinces will process individually, this way we can also have the option 
+        to run JUST a single audience type
+        3a. audiences that work off of geoframes:
+            3aa. Competitor locations
+                - DONE
+            3ab. InMarket Shoppers
+                - DONE
+            3ac. Friends and Family -> uses sales data (Ike working on this, going to use sample for now)
+                - Flow: Adress list -> google -> get back rooftop poly -> check polys are reasonable
+                    -> check google roads that the poly doesn't clip into the roads -> get device IDs?
+                1. Call the orchestrator "Orchestrator_Autopoly", as a suborchestrator
+                    - This orchestrator runs all of the functions that will return 
+                2. 
+
+        3b. audiences that work off of address Lists:
+            3ba. New Movers
+                - DONE
+            3bb. Digital Neighbors
+                - On Hold; get from sales data, get the neighbors of ONLY these addresses and send THOSE to OnSpot.
+                - What is the radius of a neighbor? Talk to Ryan about this, he migh thave something programmed out.
+                - 1st need to validate addresses  dbo.GoogleRooftopcache
+                    - query for addresses that already have rooftop information so we don't pay more money
+                Plan:
+                    - make a list of Digital Neighbors.
+                    - Once all the data is in the 'raw' location, we need to make the adjustments to the files via 
+                    the code Ryan sent me IF IT IS A DIGITAL NEIGHBOR AUDIENCE. (need to make if statement)
+                    - Make connection to audiences sql db
+                    - Read the csv into a dataframe and use the detect_column_names function (passes in df)
+                    - Use the bulk_validate function on the dataframe
+                    - generate the h3 index
+                    - with these, pass into the find_neighbor function, this will neighbor's information
+                NOTES:
+                    - we will want to put the final file with the neighbors address information in the following spot:
+                    name=f"{ingress['blob_prefix']}/{ingress['instance_id']}/audiences/{ingress['Id']}/{ingress['Id']}.csv",
+                    
+
+            3bc. Past Customers
+                - On Hold; manual
+            3bd. Targeted Lists
+                - On Hold; estated data
+
+        3c. audiences that pull directly from OnSpot:
+            3ca. Custom Demographic
+                - doesn't use geoframes but also doesn't not provide addresses
+                
+        3d. other misc audiences:
+            3da. OOH Preview
+                -
+            3db. Custom Neighbor
+                -
+            3dc. Neighbor of Movers
+                - like neighbors with a different file type
+
+NOTES:
+- Getting files of device ids from the following (proven to work):
+    - New Movers
+    - Competitor locations
+    - InMarket Shoppers
+- On Hold:
+    - Digital Neighbors
+        - need to take the list of addresses and get the addresses of their NEIGHBORS.
+            - Ryan gave code that will help with this, may require some breaking out of code/processes
+                - he recommended having each index process as different jobs
+- TO DO:
+    - create the maids for the new Movers
+    - implement the code for the digital Neighbors
+    - maids for digital Neighbors
+    - break up the code into multiple orchestrators
+    - make sure the code can run the following...
+        1. full automation
+            - run everything
+            - should be a timer trigger, but also can be a prompted option
+        2. run entire audience type 
+            - run only a given audience type(s)
+        3. update a single audience or audiences
+            - take in an id or ids of audiences and only update them
+
+INGRESS:
+{'conn_str': 'ONSPOT_CONN_STR',
+ 'container': 'general',
+  'blob_prefix': 'raw',
+   'outputPath': 'raw/4ebb61d3d9bd482d8e2f5cf2568bde0c/audience/a0H6e00000aaOX5EAM/',
+    'audience': {
+        'Id': 'a0H6e00000aaOX5EAM',
+         'Audience_Name__c': 'Competitor Location',
+          'Audience_Type__c': 'Competitor Location',
+           'Lookback_Window__c': None, 'Name': 'EF~27239'
+        },
+    'instance_id': '4ebb61d3d9bd482d8e2f5cf2568bde0c'}

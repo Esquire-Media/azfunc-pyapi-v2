@@ -2,6 +2,8 @@ from smartystreets_python_sdk import StaticCredentials, ClientBuilder, Batch
 from smartystreets_python_sdk.us_street import Lookup as StreetLookup
 import pandas as pd
 import os
+from libs.azure.key_vault import KeyVaultClient
+
 
 
 def get_items_recursive(obj, dict={}):
@@ -23,21 +25,18 @@ def get_items_recursive(obj, dict={}):
 
 
 def bulk_validate(
-    df,
-    address_col,
-    city_col=None,
-    state_col=None,
-    zip_col=None,
-    auth_id=os.getenv("SMARTY_APP_ID", None),
-    auth_token=os.getenv("SMARTY_API_TOKEN", None),
-    license_id=os.getenv("SMARTY_LICENSE_ID", None),
+    df:pd.DataFrame,
+    address_col:str,
+    city_col:str=None,
+    state_col:str=None,
+    zip_col:str=None,
 ) -> pd.DataFrame:
     """
     Accepts a dataframe containing address data in one or more component columns. Returns a dataframe with all returned Smarty columns.
+    Smarty credentials will be read as environmental variables `SMARTY_APP_ID`, `SMARTY_API_TOKEN`, and `SMARTY_LICENSE_ID1.
+    If all three of these variables are not set, credentials will be pulled from the `smarty-service` keyvault instead.
 
     * df : The dataframe containing addresses to clean
-    * auth_id : Smarty authentication id
-    * auth_token : Smarty authentication token
 
     * address_col : The name of the column containing address data (If only this column is set, freeform address will be assumed)
     * city_col : The name of the column containing city data
@@ -58,6 +57,18 @@ def bulk_validate(
     if not len(df):
         raise IndexError("Empty Dataframe passed to the bulk_validate function")
 
+    # use environmental variables if all exist
+    if all([os.environ.get("SMARTY_APP_ID"), os.environ.get("SMARTY_API_TOKEN"), os.environ.get("SMARTY_LICENSE_ID"),]):
+        smarty_id = os.environ.get("SMARTY_APP_ID")
+        smarty_token = os.environ.get("SMARTY_API_TOKEN")
+        smarty_license = os.environ.get("SMARTY_LICENSE_ID")
+    # if no env are set, connect to the keyvault to load auth variables instead
+    else:
+        client = KeyVaultClient("smarty-service")
+        smarty_id = client.get_secret("SMARTY_APP_ID").value
+        smarty_token = client.get_secret("SMARTY_API_TOKEN").value
+        smarty_license = client.get_secret("SMARTY_LICENSE_ID").value
+
     # reset index (because we merge on this later)
     df = df.reset_index(drop=True)
 
@@ -67,11 +78,11 @@ def bulk_validate(
             df[col] = df[col].astype(str)
 
     # authentication
-    credentials = StaticCredentials(auth_id, auth_token)
+    credentials = StaticCredentials(smarty_id, smarty_token)
     # launch the street lookup client
     client = (
         ClientBuilder(credentials)
-        .with_licenses([license_id])
+        .with_licenses([smarty_license])
         .build_us_street_api_client()
     )
 

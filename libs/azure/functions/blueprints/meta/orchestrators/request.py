@@ -19,7 +19,7 @@ def meta_orchestrator_request(
     data = []
     schema_retry = 0
     while True:
-        if schema_retry > 3:
+        if schema_retry > 10:
             break
         try:
             context.set_custom_status("")
@@ -40,10 +40,7 @@ def meta_orchestrator_request(
         if response:
             if "error" in response["data"].keys():
                 match response["data"]["error"]["code"]:
-                    case 200:
-                        # Permissions error
-                        break
-                    case 80004:
+                    case 4 | 17:
                         if throttle := (
                             max(
                                 [
@@ -63,13 +60,20 @@ def meta_orchestrator_request(
                             )
                             yield context.create_timer(timer)
                             continue
+                    case 10:
+                        # Permissions error
+                        break
                     case _:
+                        # https://developers.facebook.com/docs/marketing-api/error-reference/
+                        # 1  : Unknown Error
                         # 100: Invalid parameter
+                        # 102: Session key invalid or no longer valid
                         # 190: Invalid OAuth 2.0 Access Token
                         # 368: The action attempted has been deemed abusive or is otherwise disallowed
                         raise Exception(
-                            "{}: {}".format(
+                            "{} ({}): {}".format(
                                 response["data"]["error"]["message"],
+                                response["data"]["error"]["code"],
                                 response["data"]["error"].get("error_user_msg", ""),
                             )
                         )

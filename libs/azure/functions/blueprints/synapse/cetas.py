@@ -111,7 +111,7 @@ async def synapse_activity_cetas(ingress: dict):
             if blob_props.name.endswith(
                 ingress["destination"].get("format", "PARQUET").lower()
             )
-            if (blob := container.get_blob_client()).exists()
+            if (blob := container.get_blob_client(blob_props.name)).exists()
         ]
 
     return ""

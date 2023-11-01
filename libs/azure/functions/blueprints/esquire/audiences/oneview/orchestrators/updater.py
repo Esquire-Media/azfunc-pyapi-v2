@@ -161,7 +161,7 @@ def esquire_audiences_oneview_segment_updater(
                         },
                     )
                 except Exception as e:
-                    onspot_errors += [e.args]
+                    raise Exception(*onspot_errors)
 
                 onspot_errors += [
                     e["message"]

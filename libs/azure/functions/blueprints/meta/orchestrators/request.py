@@ -19,7 +19,7 @@ def meta_orchestrator_request(
     data = []
     schema_retry = 0
     while True:
-        if schema_retry > 10:
+        if schema_retry > 3:
             break
         try:
             context.set_custom_status("")
@@ -40,7 +40,7 @@ def meta_orchestrator_request(
         if response:
             if "error" in response["data"].keys():
                 match response["data"]["error"]["code"]:
-                    case 4 | 17:
+                    case 4 | 17 | 80004:
                         if throttle := (
                             max(
                                 [

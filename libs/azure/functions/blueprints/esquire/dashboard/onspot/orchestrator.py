@@ -163,7 +163,7 @@ def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
             {
                 "instance_id": context.instance_id,
                 "conn_str": conn_str,
-                "container": container,
+                "container_name": container,
                 "prefix": "raw"
             },
         )

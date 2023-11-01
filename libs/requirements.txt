@@ -30,6 +30,7 @@ py-abac
 
 # optional
 ## database connectors
+boto3
 pymssql
 ## formatting
 pyarrow

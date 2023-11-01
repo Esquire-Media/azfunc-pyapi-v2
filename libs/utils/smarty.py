@@ -33,8 +33,8 @@ def bulk_validate(
 ) -> pd.DataFrame:
     """
     Accepts a dataframe containing address data in one or more component columns. Returns a dataframe with all returned Smarty columns.
-    Smarty credentials will be read as environmental variables `SMARTY_APP_ID`, `SMARTY_API_TOKEN`, and `SMARTY_LICENSE_ID1.
-    If all three of these variables are not set, credentials will be pulled from the `smarty-service` keyvault instead.
+    Smarty credentials will be read as environmental variables `SMARTY_APP_ID`, `SMARTY_API_TOKEN`, and `SMARTY_LICENSE_ID`.
+    If any of these variables are not set, credentials will be pulled from the `smarty-service` keyvault instead, in which case authorization is required to access the vault.
 
     * df : The dataframe containing addresses to clean
 
@@ -65,9 +65,9 @@ def bulk_validate(
     # if no env are set, connect to the keyvault to load auth variables instead
     else:
         client = KeyVaultClient("smarty-service")
-        smarty_id = client.get_secret("SMARTY_APP_ID").value
-        smarty_token = client.get_secret("SMARTY_API_TOKEN").value
-        smarty_license = client.get_secret("SMARTY_LICENSE_ID").value
+        smarty_id = client.get_secret("smarty-id").value
+        smarty_token = client.get_secret("smarty-token").value
+        smarty_license = client.get_secret("smarty-license").value
 
     # reset index (because we merge on this later)
     df = df.reset_index(drop=True)

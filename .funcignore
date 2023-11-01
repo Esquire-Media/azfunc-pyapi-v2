@@ -8,6 +8,7 @@ local.settings.json
 config.py.example
 getting_started.md
 test
+tests
 .venv
 logs
 *.ipynb

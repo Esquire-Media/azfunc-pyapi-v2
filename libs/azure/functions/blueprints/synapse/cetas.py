@@ -5,12 +5,14 @@ from azure.storage.filedatalake import (
     FileSasPermissions,
     generate_file_sas,
 )
+from azure.storage.blob import BlobClient, ContainerClient, BlobSasPermissions, generate_blob_sas
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
 from libs.data import from_bind
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import text
+from urllib.parse import unquote
 import os
 
 bp = Blueprint()
@@ -62,31 +64,54 @@ async def synapse_activity_cetas(ingress: dict):
         session.commit()
 
     if ingress.get("return_urls", None):
-        filesystem = FileSystemClient.from_connection_string(
-            os.environ[ingress["destination"]["conn_str"]]
-            if ingress["destination"].get("conn_str", None) in os.environ.keys()
-            else os.environ["AzureWebJobsStorage"],
-            ingress["destination"]["container"],
+        # filesystem = FileSystemClient.from_connection_string(
+        #     os.environ[ingress["destination"]["conn_str"]]
+        #     if ingress["destination"].get("conn_str", None) in os.environ.keys()
+        #     else os.environ["AzureWebJobsStorage"],
+        #     ingress["destination"]["container"],
+        # )
+
+        # return [
+        #     file.url
+        #     + "?"
+        #     + generate_file_sas(
+        #         file.account_name,
+        #         file.file_system_name,
+        #         "/".join(file.path_name.split("/")[:-1]),
+        #         file.path_name.split("/")[-1],
+        #         filesystem.credential.account_key,
+        #         FileSasPermissions(read=True),
+        #         datetime.utcnow() + relativedelta(days=2),
+        #     )
+        #     for item in filesystem.get_paths(ingress["destination"]["path"])
+        #     if not item["is_directory"]
+        #     if (file := filesystem.get_file_client(item))
+        #     if file.path_name.endswith(
+        #         ingress["destination"].get("format", "PARQUET").lower()
+        #     )
+        # ]
+        
+        container = ContainerClient.from_connection_string(
+            conn_str=os.getenv(ingress["destination"]["conn_str"], os.environ["AzureWebJobsStorage"]),
+            container_name=ingress["destination"].get("container_name", ingress["destination"]["container"])
         )
 
         return [
-            file.url
+            unquote(blob.url)
             + "?"
-            + generate_file_sas(
-                file.account_name,
-                file.file_system_name,
-                "/".join(file.path_name.split("/")[:-1]),
-                file.path_name.split("/")[-1],
-                filesystem.credential.account_key,
-                FileSasPermissions(read=True),
-                datetime.utcnow() + relativedelta(days=2),
+            + generate_blob_sas(
+                account_name=blob.account_name,
+                container_name=blob.container_name,
+                blob_name=blob.blob_name,
+                account_key=blob.credential.account_key,
+                permission=BlobSasPermissions(read=True),
+                expiry=datetime.utcnow() + relativedelta(days=2),
             )
-            for item in filesystem.get_paths(ingress["destination"]["path"])
-            if not item["is_directory"]
-            if (file := filesystem.get_file_client(item))
-            if file.path_name.endswith(
+            for blob_props in container.list_blobs(name_starts_with=ingress["destination"]["path"])
+            if blob_props.name.endswith(
                 ingress["destination"].get("format", "PARQUET").lower()
             )
+            if (blob := container.get_blob_client()).exists()
         ]
 
     return ""

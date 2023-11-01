@@ -160,14 +160,14 @@ def esquire_audiences_oneview_segment_updater(
                             },
                         },
                     )
+                    onspot_errors += [
+                        e["message"]
+                        for e in onspot_results["callbacks"]
+                        if not e["success"]
+                    ]
                 except Exception as e:
-                    raise Exception(*onspot_errors)
-
-                onspot_errors += [
-                    e["message"]
-                    for e in onspot_results["callbacks"]
-                    if not e["success"]
-                ]
+                    onspot_errors += [e]
+                    
                 if onspot_errors:
                     raise Exception(*onspot_errors)
 
@@ -260,6 +260,7 @@ def esquire_audiences_oneview_segment_updater(
                 ],
             },
         )
+        raise e
 
     # Purge history related to this instance
     yield context.call_activity(

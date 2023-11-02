@@ -1,6 +1,6 @@
-from aiopenapi3 import OpenAPI
+from ..base import OpenAPIClient
 from aiopenapi3.plugin import Init
-import httpx, os, pathlib, yaml
+import boto3, orjson, os
 
 
 class OnSpotInitPlugin(Init):
@@ -53,6 +53,40 @@ class OnSpotInitPlugin(Init):
             ctx.initialized.components.securitySchemes["sigv4"] = type(sigv4)(
                 type="http", scheme="aws4auth"
             )
+
+
+class OnSpot(OpenAPIClient):
+    class Loader(OpenAPIClient.Loader):
+        @classmethod
+        def load(cls) -> dict:
+            s3_client = boto3.client(
+                "s3",
+                aws_access_key_id=os.environ["ONSPOT_ACCESS_KEY"],
+                aws_secret_access_key=os.environ["ONSPOT_SECRET_KEY"],
+            )
+            s3_object = s3_client.get_object(Bucket="osd-api-docs", Key="openapi.json")
+            return orjson.loads(s3_object["Body"].read())
+
+    def plugins():
+        return [
+            OnSpotInitPlugin(production=os.getenv("ONSPOT_SERVER", "") == "production")
+        ]
+
+    def authenticate():
+        return {
+            "apiKey": os.environ["ONSPOT_API_KEY"],
+            "sigv4": {
+                "access_id": os.environ["ONSPOT_ACCESS_KEY"],
+                "secret_key": os.environ["ONSPOT_SECRET_KEY"],
+                "service": "execute-api",
+                "region": os.getenv("ONSPOT_REGION", "us-east-1"),
+            },
+        }
+
+
+# To be Deprecated
+from aiopenapi3 import OpenAPI
+import httpx, os, pathlib, yaml
 
 
 class OnSpotAPI:

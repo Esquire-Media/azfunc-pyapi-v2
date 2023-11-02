@@ -1,10 +1,8 @@
 # File: libs/azure/functions/blueprints/onspot/activities/submit.py
 
 from libs.azure.functions import Blueprint
-from libs.openapi.clients.onspot import OnSpotAPI
-import os
+from libs.openapi.clients.onspot import OnSpot
 
-OSA = OnSpotAPI(production=os.environ.get("ONSPOT_SERVER", "").lower() == "production")
 bp = Blueprint()
 
 
@@ -26,8 +24,7 @@ async def onspot_activity_submit(ingress: dict):
     dict
         The response from the OnSpotAPI as a JSON object.
     """
-    factory = OSA.createRequest((ingress["endpoint"], "post"))
-    _, data, _ = await factory.request(ingress["request"])
+    data = OnSpot[(ingress["endpoint"], "post")](ingress["request"])
 
     return (
         [d.model_dump() for d in data] if isinstance(data, list) else data.model_dump()

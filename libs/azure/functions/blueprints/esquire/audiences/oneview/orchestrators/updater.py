@@ -1,9 +1,9 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/oneview/orchestrators/updater.py
 
-from azure.durable_functions import DurableOrchestrationContext
+from azure.durable_functions import DurableOrchestrationContext, RetryOptions
 from libs.azure.functions import Blueprint
 from urllib.parse import urlparse
-import json, os, logging
+import os
 
 bp = Blueprint()
 
@@ -54,6 +54,7 @@ def esquire_audiences_oneview_segment_updater(
     - Processed data is stored in Azure Data Lake and then uploaded to OneView.
     - Temporary data and history related to the orchestration are cleaned up at the end.
     """
+    retry = RetryOptions(15000,3)
 
     try:
         # Extract input from the context
@@ -90,8 +91,9 @@ def esquire_audiences_oneview_segment_updater(
             # Retrieve and normalize the first 12 audience objects from s3
             audiences = yield context.task_all(
                 [
-                    context.call_activity(
+                    context.call_activity_with_retry(
                         "esquire_audiences_oneview_fetch_s3_data",
+                        retry,
                         {
                             "source": {
                                 **s3,
@@ -160,14 +162,14 @@ def esquire_audiences_oneview_segment_updater(
                             },
                         },
                     )
+                    onspot_errors += [
+                        e["message"]
+                        for e in onspot_results["callbacks"]
+                        if not e["success"]
+                    ]
                 except Exception as e:
-                    raise Exception(*onspot_errors)
-
-                onspot_errors += [
-                    e["message"]
-                    for e in onspot_results["callbacks"]
-                    if not e["success"]
-                ]
+                    onspot_errors += [e]
+                    
                 if onspot_errors:
                     raise Exception(*onspot_errors)
 
@@ -260,6 +262,7 @@ def esquire_audiences_oneview_segment_updater(
                 ],
             },
         )
+        raise e
 
     # Purge history related to this instance
     yield context.call_activity(

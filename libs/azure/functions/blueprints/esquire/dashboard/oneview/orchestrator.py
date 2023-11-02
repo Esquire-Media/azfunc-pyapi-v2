@@ -26,8 +26,7 @@ def esquire_dashboard_oneview_orchestrator(
 
     try:
         download_url = yield context.call_sub_orchestrator(
-            "oneview_reports_orchestrator",
-            os.environ["ONEVIEW_REPORT_TEMPLATE_UID"]
+            "oneview_reports_orchestrator", os.environ["ONEVIEW_REPORT_TEMPLATE_UID"]
         )
         # Partition the report into parquet files by date
         yield context.call_activity(
@@ -36,12 +35,6 @@ def esquire_dashboard_oneview_orchestrator(
                 "source": download_url,
                 "target": persistent_container,
             },
-        )
-
-        # Purge history related to this instance
-        yield context.call_activity(
-            "purge_instance_history",
-            {"instance_id": context.instance_id},
         )
     except Exception as e:
         yield context.call_http(
@@ -63,6 +56,13 @@ def esquire_dashboard_oneview_orchestrator(
                         ],
                         "markdown": True,
                     }
-                ]
+                ],
             },
         )
+        raise e
+
+    # Purge history related to this instance
+    yield context.call_activity(
+        "purge_instance_history",
+        {"instance_id": context.instance_id},
+    )

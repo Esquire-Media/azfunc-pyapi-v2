@@ -81,7 +81,6 @@ def datalake_concat_blobs(ingress: dict) -> str:
 
     # Loop through each source blob URL provided in the ingress dictionary
     for copy_source_url in ingress["copy_source_urls"]:
-        
         # Initialize a BlobClient for the source blob using its URL
         input_blob = BlobClient.from_blob_url(copy_source_url)
         

@@ -84,6 +84,8 @@ def esquire_audiences_oneview_fetch_s3_data(ingress: dict) -> dict:
             ingress["target"]["prefix"], ingress["source"]["key"].split("/")[-1]
         ),
     )
+    if file.exists():
+        file.delete_file()
     file.create_file()
 
     # Initialize S3 client using credentials from environment variables

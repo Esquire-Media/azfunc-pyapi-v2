@@ -1,11 +1,8 @@
 # File: libs/azure/functions/blueprints/onspot/activities/submit.py
 
 from libs.azure.functions import Blueprint
-from libs.openapi.clients.onspot import OnSpotAPI
 from libs.openapi.clients.onspot import OnSpot
-import os
 
-OSA = OnSpotAPI(production=os.environ.get("ONSPOT_SERVER", "").lower() == "production")
 bp = Blueprint()
 
 

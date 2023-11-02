@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 import os
 import pandas as pd
+import ast
 from fuzzywuzzy import fuzz, process
 
 def load_env():
@@ -65,3 +66,19 @@ def fuzzy_merge(left:pd.DataFrame, right:pd.DataFrame, left_on:str, right_on:str
     )
 
     return m2.drop(columns=['candidate'])
+
+def literal_eval_list(x:str):
+    """
+    Evaluate a string-formatted list back to a list, and if the value is None, set to an empty list.
+    """
+    if x == None:
+        return []
+    else:
+        return ast.literal_eval(x)
+    
+def index_by_list(column, sort_list):
+    """
+    Utility function for indexing rows in a pandas dataframe using a list of sorted values.
+    """
+    correspondence = {item: idx for idx, item in enumerate(sort_list)}
+    return column.map(correspondence)

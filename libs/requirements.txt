@@ -6,6 +6,7 @@ azure-identity
 azure-keyvault-secrets
 azure-storage-blob
 azure-storage-file-datalake
+azure-storage-queue
 
 # required
 ## data handling
@@ -37,6 +38,7 @@ pyarrow
 orjson # fast (de)serialization
 simplejson # flexible (de)serialization
 sql-formatter
+xlsxwriter
 ## geometry/geography
 geoalchemy2 @ git+https://github.com/Esquire-Media/geoalchemy2
 geojson
@@ -47,6 +49,8 @@ haversine
 h3
 bitarray
 plotly
+kaleido
+python-pptx
 ## security
 requests-auth-aws-sigv4
 ## temporary necessities

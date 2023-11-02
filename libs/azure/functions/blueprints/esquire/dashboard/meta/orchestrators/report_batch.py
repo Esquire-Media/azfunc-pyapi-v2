@@ -43,7 +43,7 @@ def esquire_dashboard_meta_orchestrator_report_batch(
                 },
             },
         )
-        
+
         yield context.task_all(
             [
                 context.call_sub_orchestrator(
@@ -167,12 +167,6 @@ def esquire_dashboard_meta_orchestrator_report_batch(
         #     },
         # )
 
-        # Purge history related to this instance
-        yield context.call_activity(
-            "purge_instance_history",
-            {"instance_id": context.instance_id},
-        )
-        
     except Exception as e:
         yield context.call_http(
             method="POST",
@@ -193,6 +187,13 @@ def esquire_dashboard_meta_orchestrator_report_batch(
                         ],
                         "markdown": True,
                     }
-                ]
+                ],
             },
         )
+        raise e
+
+    # Purge history related to this instance
+    yield context.call_activity(
+        "purge_instance_history",
+        {"instance_id": context.instance_id},
+    )

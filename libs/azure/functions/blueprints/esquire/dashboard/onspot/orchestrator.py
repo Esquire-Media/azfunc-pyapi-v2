@@ -65,7 +65,12 @@ def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
                                         "start": start.isoformat(),
                                         "end": end.isoformat(),
                                         "hash": False,
-                                        "headers": ["deviceid", "timestamp", "lat", "lng"],
+                                        "headers": [
+                                            "deviceid",
+                                            "timestamp",
+                                            "lat",
+                                            "lng",
+                                        ],
                                     },
                                 }
                                 for key, value in geoframes[i : i + batch_size]
@@ -130,11 +135,7 @@ def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
                     subinstance_id,
                 )
                 for i in range(0, len(urls), 1)
-                if (
-                    subinstance_id := "{}:{}:{}".format(
-                        context.instance_id, "zips", i
-                    )
-                )
+                if (subinstance_id := "{}:{}:{}".format(context.instance_id, "zips", i))
             ]
         )
 
@@ -164,14 +165,8 @@ def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
                 "instance_id": context.instance_id,
                 "conn_str": conn_str,
                 "container_name": container,
-                "prefix": "raw"
+                "prefix": "raw",
             },
-        )
-
-        # Purge history related to this instance
-        yield context.call_activity(
-            "purge_instance_history",
-            {"instance_id": context.instance_id},
         )
     except Exception as e:
         yield context.call_http(
@@ -193,6 +188,13 @@ def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
                         ],
                         "markdown": True,
                     }
-                ]
+                ],
             },
         )
+        raise e
+
+    # Purge history related to this instance
+    yield context.call_activity(
+        "purge_instance_history",
+        {"instance_id": context.instance_id},
+    )

@@ -1,39 +1,37 @@
 from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest, HttpResponse
+from libs.azure.functions.http import HttpRequest
 from azure.durable_functions import DurableOrchestrationClient
 from libs.utils.pydantic.address import AddressComponents, AddressGeocoded
 from libs.utils.pydantic.email import EmailAddress
 import os
 import json
-from azure.data.tables import TableServiceClient, TableClient
+from azure.data.tables import TableClient
 import logging
-import pandas as pd
-from pydantic import BaseModel, conlist, AfterValidator, ValidationError
-from typing import Annotated, List, Union, Optional
+from pydantic import BaseModel, conlist
+from typing import Union, Optional
 from libs.utils.logging import AzureTableHandler
-from uuid import uuid4
 from pydantic import validator
 
 bp = Blueprint()
 
 # initialize logging features
 __handler = AzureTableHandler()
-__logger = logging.getLogger("ryans.magical.logger")
+__logger = logging.getLogger("campaignProposal.logger")
 if __handler not in __logger.handlers:
     __logger.addHandler(__handler)
 
 
 @bp.route(route="esquire/campaign_proposal/starter", methods=["POST"])
 @bp.durable_client_input(client_name="client")
-async def example_http(req: HttpRequest, client: DurableOrchestrationClient):
-    logger = logging.getLogger("ryans.magical.logger")
+async def starter_campaignProposal(req: HttpRequest, client: DurableOrchestrationClient):
+    logger = logging.getLogger("campaignProposal.logger")
 
     # load the request payload as a Pydantic object
     payload = HttpRequest.pydantize_body(req, CampaignProposalPayload).model_dump()
 
     # Start a new instance of the orchestrator function
     instance_id = await client.start_new(
-        orchestration_function_name="esquire_campaign_proposal_orchestrator_root",
+        orchestration_function_name="orchestrator_campaignProposal_root",
         client_input=payload,
     )
 
@@ -59,14 +57,13 @@ class CampaignProposalPayload(BaseModel):
         """
         # connect to assets table (used for validating the creativeSet parameter)
         creativeSets = TableClient.from_connection_string(
-            conn_str=os.environ["ESQUIRE_REPORTS_CONN_STR"],
-            table_name="campaignproposalassets",
+            conn_str=os.environ["AzureWebJobsStorage"],
+            table_name="campaignproposalsassets",
         ).query_entities(f"PartitionKey eq 'creativeSet'", select=["RowKey"])
         # throw exception if value does not exist in the creativeSets assets table
-        if v not in [e["RowKey"] for e in creativeSets]:
-            raise ValidationError(
-                f"Asset '{v}' was not found in partition 'creativeSet'."
-            )
+        assert v in [e["RowKey"] for e in creativeSets]
+        
+        return v
 
     @validator(__field="moverRadii", pre=False)
     def check_if_valid_mover_radii(cls, v:list):
@@ -75,10 +72,13 @@ class CampaignProposalPayload(BaseModel):
         """
         lower_bound = 1
         upper_bound = 50
-        if v[0] < lower_bound or v[0] >= v[1] or v[1] >= v[2] or v[2] > upper_bound:
-            raise ValidationError(
-                f"Parameter 'moverRadii' must be a list of integers, in increasing order, with values between {lower_bound} and {upper_bound} (miles)."
-            )
+        assert (
+            v[0] >= lower_bound 
+            and v[0] < v[1] 
+            and v[1] < v[2] 
+            and v[2] <= upper_bound
+        )
+        return v
 
     name: str
     categoryIDs: conlist(int, min_length=1)

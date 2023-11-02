@@ -2,6 +2,7 @@ import msal
 import httpx
 import os
 from libs.azure.functions import Blueprint
+import logging
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()

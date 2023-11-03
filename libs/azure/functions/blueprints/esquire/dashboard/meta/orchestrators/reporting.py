@@ -12,12 +12,13 @@ bp = Blueprint()
 def esquire_dashboard_meta_orchestrator_reporting(
     context: DurableOrchestrationContext,
 ):
-    retry = RetryOptions(15000, 3)
+    retry = RetryOptions(60000, 12)
     ingress = context.get_input()
 
     context.set_custom_status("Sending report request.")
-    report_runs = yield context.call_sub_orchestrator(
+    report_runs = yield context.call_sub_orchestrator_with_retry(
         "meta_orchestrator_request",
+        retry,
         {
             "modules": [
                 "AdAccount",
@@ -69,8 +70,9 @@ def esquire_dashboard_meta_orchestrator_reporting(
     )
     
     context.set_custom_status("Getting Ads.")
-    yield context.call_sub_orchestrator(
+    yield context.call_sub_orchestrator_with_retry(
         "meta_orchestrator_request",
+        retry,
         {
             "modules": ["AdAccount", "Ad"],
             "operationId": "AdAccount_GetAds",
@@ -89,8 +91,9 @@ def esquire_dashboard_meta_orchestrator_reporting(
     )
 
     context.set_custom_status("Getting Campaigns.")
-    yield context.call_sub_orchestrator(
+    yield context.call_sub_orchestrator_with_retry(
         "meta_orchestrator_request",
+        retry,
         {
             "modules": ["AdAccount", "Campaign"],
             "operationId": "AdAccount_GetCampaigns",
@@ -109,8 +112,9 @@ def esquire_dashboard_meta_orchestrator_reporting(
     )
 
     context.set_custom_status("Getting AdSets.")
-    yield context.call_sub_orchestrator(
+    yield context.call_sub_orchestrator_with_retry(
         "meta_orchestrator_request",
+        retry,
         {
             "modules": ["AdAccount", "AdSet"],
             "operationId": "AdAccount_GetAdSets",

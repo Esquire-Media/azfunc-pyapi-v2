@@ -260,7 +260,7 @@ PARAMETERS = {
             "id",
             "include_demolink_hashes",
             "last_updated_by_app_id",
-            "meta_reward_adgroup_status",
+            # "meta_reward_adgroup_status",
             "name",
             "priority",
             # "source_ad",

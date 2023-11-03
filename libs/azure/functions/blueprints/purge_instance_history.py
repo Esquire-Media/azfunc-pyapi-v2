@@ -12,7 +12,7 @@ bp = Blueprint()
 
 @bp.activity_trigger(input_name="ingress")
 @bp.durable_client_input(client_name="client")
-async def purge_instance_history(ingress: dict, client: DurableOrchestrationClient):
+def purge_instance_history(ingress: dict, client: DurableOrchestrationClient):
     """
     Purge history of a durable orchestration instance and its sub-orchestrators.
 
@@ -52,11 +52,19 @@ async def purge_instance_history(ingress: dict, client: DurableOrchestrationClie
         for item in filesystem.get_paths(recursive=False):
             if item["is_directory"] and item["name"].startswith(instance_id):
                 filesystem.get_directory_client(item).delete_directory()
-        await client.purge_instance_history(instance_id=instance_id)
+        tries = 0
+        while True:
+            if tries > 3:
+                break
+            try:
+                client.purge_instance_history(instance_id=instance_id)
+                break
+            except:
+                tries += 1
 
     # Purge the history of the main orchestration instance
     for item in filesystem.get_paths(recursive=False):
         if item["is_directory"] and item["name"].startswith(ingress["instance_id"]):
             filesystem.get_directory_client(item).delete_directory()
-    await client.purge_instance_history(instance_id=ingress["instance_id"])
+    client.purge_instance_history(instance_id=ingress["instance_id"])
     return ""

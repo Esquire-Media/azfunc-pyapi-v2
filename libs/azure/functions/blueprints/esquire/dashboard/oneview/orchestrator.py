@@ -1,7 +1,6 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/onspot/orchestrator.py
 
-from azure.durable_functions import DurableOrchestrationContext
-from datetime import datetime, timedelta
+from azure.durable_functions import DurableOrchestrationContext, RetryOptions
 from libs.azure.functions import Blueprint
 import os
 
@@ -12,6 +11,7 @@ bp = Blueprint()
 def esquire_dashboard_oneview_orchestrator(
     context: DurableOrchestrationContext,
 ):
+    retry = RetryOptions(60000, 12)
     conn_str = (
         "ONEVIEW_CONN_STR"
         if "ONEVIEW_CONN_STR" in os.environ.keys()
@@ -25,12 +25,15 @@ def esquire_dashboard_oneview_orchestrator(
     }
 
     try:
-        download_url = yield context.call_sub_orchestrator(
-            "oneview_reports_orchestrator", os.environ["ONEVIEW_REPORT_TEMPLATE_UID"]
+        download_url = yield context.call_sub_orchestrator_with_retry(
+            "oneview_reports_orchestrator",
+            retry,
+            os.environ["ONEVIEW_REPORT_TEMPLATE_UID"],
         )
         # Partition the report into parquet files by date
-        yield context.call_activity(
+        yield context.call_activity_with_retry(
             "esquire_dashboard_oneview_activity_partition",
+            retry,
             {
                 "source": download_url,
                 "target": persistent_container,

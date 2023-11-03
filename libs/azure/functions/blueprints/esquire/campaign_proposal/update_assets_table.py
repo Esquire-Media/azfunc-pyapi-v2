@@ -6,12 +6,12 @@ from azure.storage.blob import BlobServiceClient
 
 bp = Blueprint()
 
-@bp.timer_trigger(arg_name="timer", schedule="0 */10 * * * *")
+@bp.timer_trigger(arg_name="timer", schedule="0 */30 * * * *")
 def timer_UpdateAssetsTable(timer: TimerRequest):
     """
     Updates the Storage Table "campaignproposalsassets" with the names of each asset package currently in Blob Storage.
     This table will be the quick-access way to query the valid templates, creative_sets, and any other dynamic asset packages.
-    Runs every 10 minutes.
+    Runs every 30 minutes.
     """
     
     # connect to blob storage client

@@ -23,7 +23,7 @@ def timer_UpdateAssetsTable(timer: TimerRequest):
     resources_container = { # container for prebuilt assets
         "conn_str":conn_str,
         "container_name":"campaign-proposal-resources"
-    },
+    }
     assets_table = { # table of valid asset package names
         "conn_str":conn_str,
         "table_name":"campaignproposalsassets"

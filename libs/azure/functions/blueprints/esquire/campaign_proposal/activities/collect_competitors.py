@@ -7,6 +7,7 @@ from libs.utils.esquire.point_of_interest.poi_engine import POIEngine
 from libs.data import from_bind
 from libs.utils.python import index_by_list
 from libs.azure.key_vault import KeyVaultClient
+from libs.azure.sas import get_blob_sas
 from libs.azure.functions.blueprints.esquire.campaign_proposal.utility.competitor_map import map_competitors
 import re
 import ast
@@ -21,7 +22,7 @@ def activity_campaignProposal_collectCompetitors(settings: dict):
     # import cleaned addresses from previous step
     container_client: ContainerClient = ContainerClient.from_connection_string(conn_str=os.environ[settings["runtime_container"]['conn_str']], container_name=settings["runtime_container"]["container_name"])
     in_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/addresses.csv")
-    addresses = pd.read_csv(BytesIO(in_client.download_blob().content_as_bytes()), usecols=['address','latitude','longitude'])
+    addresses = pd.read_csv(get_blob_sas(in_client), usecols=['address','latitude','longitude'])
 
     # connect to key vault to get mapbox token
     mapbox_key_vault = KeyVaultClient('mapbox-service')

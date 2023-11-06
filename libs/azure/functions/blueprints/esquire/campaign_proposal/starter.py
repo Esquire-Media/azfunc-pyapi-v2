@@ -55,6 +55,10 @@ class CampaignProposalPayload(BaseModel):
         """
         Verify that the passed creative set exists in the assets table.
         """
+        # if empty string is passed for key `creativeSet`, apply the default value
+        if isinstance(v, str) and len(v) == 0:
+            return 'Default'
+
         # connect to assets table (used for validating the creativeSet parameter)
         creativeSets = TableClient.from_connection_string(
             conn_str=os.environ["AzureWebJobsStorage"],

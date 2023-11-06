@@ -60,3 +60,4 @@ fuzzywuzzy
 python-Levenshtein
 python-dotenv
 pydantic==2.4.2
+adaptive-cards-py @ git+https://github.com/ryanjcarroll/adaptive-cards-py

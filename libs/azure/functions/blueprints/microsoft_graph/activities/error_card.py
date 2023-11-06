@@ -110,9 +110,7 @@ def activity_microsoftGraph_postErrorCard(ingress: dict):
 
     # build Adaptive card from container elements
     card = AdaptiveCard.new().version("1.5").add_items(containers).create()
-
-    logging.warning({"$"+k if k=='schema' else k:v for k,v in json.loads(card.to_json()).items()})
-
+    
     # send card to the specified webhook
     return httpx.Client(timeout=None).request(
         method="POST",

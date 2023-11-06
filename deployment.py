@@ -32,7 +32,7 @@ BLUEPRINTS = {
     ],
     "esquire-campaign-proposal":[
         "libs/azure/functions/blueprints/esquire/campaign_proposal/*",
-        "libs/azure/functions/blueprints/microsoft_graph/*"
+        "libs/azure/functions/blueprints/microsoft/graph/*"
     ],
     "debug": [
         "libs/azure/functions/blueprints/keep_alive",

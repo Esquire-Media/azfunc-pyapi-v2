@@ -30,6 +30,10 @@ BLUEPRINTS = {
         "libs/azure/functions/blueprints/s3/*",
         "libs/azure/functions/blueprints/synapse/*",
     ],
+    "esquire-campaign-proposal":[
+        "libs/azure/functions/blueprints/esquire/campaign_proposal/*",
+        "libs/azure/functions/blueprints/microsoft_graph/*"
+    ],
     "debug": [
         "libs/azure/functions/blueprints/keep_alive",
         "libs/azure/functions/blueprints/logger",

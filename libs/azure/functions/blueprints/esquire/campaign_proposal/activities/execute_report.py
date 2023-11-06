@@ -16,13 +16,13 @@ bp = Blueprint()
 def activity_campaignProposal_executeReport(settings: dict):
 
     # TEMPLATE IMPORT
-    resources_client: ContainerClient = BlobServiceClient.from_connection_string(os.environ["AzureWebJobsStorage"]).get_container_client(container="campaign-proposals-resources")
+    resources_client: ContainerClient = ContainerClient.from_connection_string(conn_str=os.environ[settings["resources_container"]['conn_str']], container_name=settings["resources_container"]["container_name"])
     blob_client = resources_client.get_blob_client(blob=f"templates/template.pptx")
     template = Presentation(BytesIO(blob_client.download_blob().content_as_bytes()))
     
     # DATA IMPORTS
     # import addresses
-    container_client: ContainerClient = BlobServiceClient.from_connection_string(os.environ["AzureWebJobsStorage"]).get_container_client(container="campaign-proposals")
+    container_client: ContainerClient = ContainerClient.from_connection_string(conn_str=os.environ[settings["runtime_container"]['conn_str']], container_name=settings["runtime_container"]["container_name"])
     blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/addresses.csv")
     addresses = pd.read_csv(BytesIO(blob_client.download_blob().content_as_bytes()))
 

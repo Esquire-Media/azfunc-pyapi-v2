@@ -12,10 +12,21 @@ bp = Blueprint()
 @bp.durable_client_input(client_name="client")
 async def starter_getAssets(req: HttpRequest, client: DurableOrchestrationClient):
 
+    # if a campaign proposal conn string is set, use that. Otherwise use AzureWebJobsStorage
+    conn_str = (
+        "CAMPAIGN_PROPOSAL_CONN_STR"
+        if "CAMPAIGN_PROPOSAL_CONN_STR" in os.environ.keys()
+        else "AzureWebJobsStorage"
+    )
+    assets_table = { # table of valid asset package names
+        "conn_str":conn_str,
+        "table_name":"campaignproposalsassets"
+    }
+
     # connect to the assets storage table
-    table_service = TableServiceClient.from_connection_string(conn_str = os.environ['AzureWebJobsStorage'])
-    table_assets = table_service.get_table_client(table_name = "campaignproposalsassets")
-    assets = pd.DataFrame(table_assets.list_entities())
+    table_service = TableServiceClient.from_connection_string(conn_str=os.environ[assets_table["conn_str"]])
+    table_client = table_service.get_table_client(table_name=assets_table["table_name"])
+    assets = pd.DataFrame(table_client.list_entities())
     
     # build dictionary of assets by type
     assets_dict = {}

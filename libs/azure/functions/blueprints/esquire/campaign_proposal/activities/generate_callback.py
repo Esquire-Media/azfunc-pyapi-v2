@@ -11,8 +11,16 @@ bp = Blueprint()
 def activity_campaignProposal_generateCallback(settings: dict):
 
     # get a 14-day download URL for each file attachment
-    url_pptx = get_blob_download_url(container_name='campaign-proposals', blob_name=f"{settings['instance_id']}/CampaignProposal-{settings['name']}.pptx")
-    url_comps = get_blob_download_url(container_name='campaign-proposals', blob_name=f"{settings['instance_id']}/Competitors-{settings['name']}.xlsx")
+    url_pptx = get_blob_download_url(
+        container_name=settings["runtime_container"]['container_name'],
+        conn_str=os.environ[settings["runtime_container"]["conn_str"]], 
+        blob_name=f"{settings['instance_id']}/CampaignProposal-{settings['name']}.pptx"
+    )
+    url_comps = get_blob_download_url(
+        container_name=settings["runtime_container"]['container_name'],
+        conn_str=os.environ[settings["runtime_container"]["conn_str"]], 
+        blob_name=f"{settings['instance_id']}/Competitors-{settings['name']}.xlsx"
+    )
 
     # build the message body including hyperlinks for each file download
     content = f"""Your Campaign Proposal report for <u>{settings['name']}</u> is done processing and ready for download. 
@@ -23,7 +31,7 @@ def activity_campaignProposal_generateCallback(settings: dict):
     return content
 
 
-def get_blob_sas(account_name,account_key, container_name, blob_name, expire_after=48):
+def get_blob_sas(account_name:str, account_key:str, container_name:str, blob_name:str, expire_after:int=48) -> str:
     """
     Generates an expiring SAS token for the storage account containing report outputs.
     """
@@ -37,12 +45,12 @@ def get_blob_sas(account_name,account_key, container_name, blob_name, expire_aft
     )
     return sas_blob
 
-def get_blob_download_url(container_name, blob_name):
+def get_blob_download_url(container_name:str, conn_str:str, blob_name:str) -> str:
     """
     Returns a secure download link to the finished report that will expire after 48 hours.
     """
     config = {}
-    for c in os.environ['AzureWebJobsStorage'].split(';'):
+    for c in conn_str.split(';'):
         config[c[0:c.index("=")]] = c[c.index("=")+1:]
 
     sas_token = get_blob_sas(

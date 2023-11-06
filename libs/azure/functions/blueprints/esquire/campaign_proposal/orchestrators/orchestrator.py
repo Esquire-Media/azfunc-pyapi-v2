@@ -13,13 +13,28 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
         # load payload information from orchestration context
         settings = context.get_input()
 
+        # if a campaign proposal conn string is set, use that. Otherwise use AzureWebJobsStorage
+        conn_str = (
+            "CAMPAIGN_PROPOSAL_CONN_STR"
+            if "CAMPAIGN_PROPOSAL_CONN_STR" in os.environ.keys()
+            else "AzureWebJobsStorage"
+        )
+
         # commonly used variables
         taskHubName = str(context.get_input())
         retry = RetryOptions(15000, 1)
         egress = {
+            **settings,
             "taskHubName": taskHubName,
             "instance_id": context.instance_id,
-            **settings,
+            "resources_container":{ # container for prebuilt assets
+                "conn_str":conn_str,
+                "container_name":"campaign-proposal-resources"
+            },
+            "runtime_container":{ # container for files generated during runtime, including the final report(s)
+                "conn_str":conn_str,
+                "container_name":"campaign-proposal"
+            },
         }
 
         # call activity to collect geocode addresses and get latlongs
@@ -82,17 +97,17 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
 
     # catch any exceptions that occured during runtime and post them to the designated Teams channel
     except Exception as e:
-        yield context.call_activity(
-            "activity_microsoftGraph_postErrorCard",
-            {
-                "function_name": "esquire-campaign-proposal",
-                "instance_id": context.instance_id,
-                "error": f"{type(e).__name__} : {e}"[:1000],
-                "icon_url": "https://img.icons8.com/?size=77&id=16044&format=png",
-                "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
-            },
-        )
-        logging.warning("Error card sent")
+        # yield context.call_activity(
+        #     "activity_microsoftGraph_postErrorCard",
+        #     {
+        #         "function_name": "esquire-campaign-proposal",
+        #         "instance_id": context.instance_id,
+        #         "error": f"{type(e).__name__} : {e}"[:1000],
+        #         "icon_url": "https://img.icons8.com/?size=77&id=16044&format=png",
+        #         "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
+        #     },
+        # )
+        # logging.warning("Error card sent")
         raise e
 
     logging.warning("All tasks completed.")

@@ -39,7 +39,7 @@ async def starter_campaignProposal(req: HttpRequest, client: DurableOrchestratio
     # ensure that each value is json serializable
     logger.info(
         msg="started",
-        extra={"context": {"PartitionKey": "index", "RowKey": instance_id, **{k:v if isinstance(v, str) else json.dumps(v) for k,v in payload.items()}}},
+        extra={"context": {"PartitionKey": "campaignProposal", "RowKey": instance_id, **{k:v if isinstance(v, str) else json.dumps(v) for k,v in payload.items()}}},
     )
 
     # Return a response that includes the status query URLs

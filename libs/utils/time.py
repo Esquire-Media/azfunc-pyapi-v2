@@ -1,8 +1,9 @@
 import pytz
-from tzwhere import tzwhere
+from timezonefinder import TimezoneFinder
 from datetime import datetime as dt
 
-def local_time_to_utc(local_time:dt, local_timezone:pytz.timezone) -> dt:
+
+def local_time_to_utc(local_time: dt, local_timezone: pytz.timezone) -> dt:
     """
     Given a local time and the timezone associated with it, return that time in UTC.
     """
@@ -12,15 +13,15 @@ def local_time_to_utc(local_time:dt, local_timezone:pytz.timezone) -> dt:
 
     return utc_time
 
-def get_local_timezone(lat:float, lon:float) -> pytz.timezone:
+
+def get_local_timezone(latitude: float, longitude: float) -> pytz.timezone:
     """
     Given a latlong, return the pytz timezone of that point.
     """
     # initialize the timezone objects
-    tzw = tzwhere.tzwhere(forceTZ=True)
-    # forceTZ will find the closest reasonable candidate if the point is not strictly in a timezone polygon
-    # this comes up sometimes in coastal areas on the country border
+    tf = TimezoneFinder()
+    # returns the closest reasonable candidate, even if the point is not strictly in a timezone polygon
 
     # get end time in local timezone
-    local_timezone = pytz.timezone(tzw.tzNameAt(latitude=lat, longitude=lon, forceTZ=True))
+    local_timezone = pytz.timezone(tf.timezone_at(lat=latitude, lng=longitude))
     return local_timezone

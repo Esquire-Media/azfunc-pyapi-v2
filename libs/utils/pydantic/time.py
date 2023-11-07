@@ -8,7 +8,7 @@ from datetime import date
 def check_date_format(x:str):
     x = x.strip()
     try:
-        return date.fromisoformat(x)
+        return x
     except:
         raise ValidationError(f"String '{x}' could not be interpreted as an isoformat date.")
 Date = Annotated[str, AfterValidator(check_date_format)]

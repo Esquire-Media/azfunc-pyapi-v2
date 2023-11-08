@@ -25,6 +25,6 @@ def aws_athena_orchestrator(context: DurableOrchestrationContext):
             }
         )
         if url == "":
-            yield context.create_timer(datetime.utcnow() + timedelta(seconds=30))
+            yield context.create_timer(datetime.utcnow() + timedelta(seconds=5))
         
     return url

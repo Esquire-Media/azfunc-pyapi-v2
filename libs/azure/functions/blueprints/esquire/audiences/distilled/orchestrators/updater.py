@@ -1,8 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/distilled/orchestrators/updater.py
 
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
+from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
-import logging
 
 bp = Blueprint()
 
@@ -13,7 +12,6 @@ def esquire_audiences_distilled_orchestrator_updater(
 ):
     # retry = RetryOptions(15000, 3)
     settings = context.get_input()
-    logging.warning(settings)
 
     b2b_url = yield context.call_sub_orchestrator(
         "aws_athena_orchestrator",

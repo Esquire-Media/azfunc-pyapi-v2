@@ -39,11 +39,17 @@ async def esquire_audiences_distilled_schedule_daily(
         "esquire_audiences_distilled_orchestrator_updater",
         None,
         {
-            "access_key": "DISTILLED_ACCESS_KEY",
-            "secret_key": "DISTILLED_SECRET_KEY",
-            "bucket": "DISTILLED_BUCKET",
-            "region": "DISTILLED_REGION",
-            "database": "DISTILLED_DATABASE",
-            "workgroup": "DISTILLED_WORKGROUP",
+            "source": {
+                "access_key": "DISTILLED_ACCESS_KEY",
+                "secret_key": "DISTILLED_SECRET_KEY",
+                "bucket": "DISTILLED_BUCKET",
+                "region": "DISTILLED_REGION",
+                "database": "DISTILLED_DATABASE",
+                "workgroup": "DISTILLED_WORKGROUP",
+            },
+            "destination": {
+                "conn_str": "META_CONN_STR",
+                "container_name": "general"
+            }
         },
     )

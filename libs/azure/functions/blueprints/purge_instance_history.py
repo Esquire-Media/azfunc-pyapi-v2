@@ -49,9 +49,6 @@ async def purge_instance_history(ingress: dict, client: DurableOrchestrationClie
 
     # Purge the history for each sub-orchestrator associated with the main instance
     for instance_id in get_sub_orchestrator_ids(table, ingress["instance_id"]):
-        for item in filesystem.get_paths(recursive=False):
-            if item["is_directory"] and item["name"].startswith(instance_id):
-                filesystem.get_directory_client(item).delete_directory()
         tries = 0
         while True:
             if tries > 3:
@@ -61,10 +58,13 @@ async def purge_instance_history(ingress: dict, client: DurableOrchestrationClie
                 break
             except:
                 tries += 1
+        for item in filesystem.get_paths(recursive=False):
+            if item["is_directory"] and item["name"].startswith(instance_id):
+                filesystem.get_directory_client(item).delete_directory()
 
     # Purge the history of the main orchestration instance
+    await client.purge_instance_history(instance_id=ingress["instance_id"])
     for item in filesystem.get_paths(recursive=False):
         if item["is_directory"] and item["name"].startswith(ingress["instance_id"]):
             filesystem.get_directory_client(item).delete_directory()
-    await client.purge_instance_history(instance_id=ingress["instance_id"])
     return ""

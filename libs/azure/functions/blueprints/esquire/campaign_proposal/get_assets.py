@@ -10,7 +10,7 @@ bp = Blueprint()
 
 @bp.route(route="esquire/campaign_proposal/getAssets", methods=["GET"])
 @bp.durable_client_input(client_name="client")
-async def starter_getAssets(req: HttpRequest, client: DurableOrchestrationClient):
+async def starter_campaignProposal_getAssets(req: HttpRequest, client: DurableOrchestrationClient):
 
     # if a campaign proposal conn string is set, use that. Otherwise use AzureWebJobsStorage
     conn_str = (

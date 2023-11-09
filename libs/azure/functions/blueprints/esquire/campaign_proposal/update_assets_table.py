@@ -7,7 +7,7 @@ from azure.storage.blob import ContainerClient
 bp = Blueprint()
 
 @bp.timer_trigger(arg_name="timer", schedule="0 0 */2 * * *")
-def timer_UpdateAssetsTable(timer: TimerRequest):
+def timer_campaignProposal_UpdateAssetsTable(timer: TimerRequest):
     """
     Updates the Storage Table "campaignproposalsassets" with the names of each asset package currently in Blob Storage.
     This table will be the quick-access way to query the valid templates, creative_sets, and any other dynamic asset packages.

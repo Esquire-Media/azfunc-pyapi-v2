@@ -7,7 +7,7 @@ from pptx import Presentation
 from datetime import date
 from libs.utils.text import pad_text
 from libs.utils.pptx import replace_text, add_custom_image
-from libs.azure.sas import get_blob_sas
+from libs.azure.storage.blob.sas import get_blob_download_url
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()
@@ -25,19 +25,19 @@ def activity_campaignProposal_executeReport(settings: dict):
     # import addresses
     container_client: ContainerClient = ContainerClient.from_connection_string(conn_str=os.environ[settings["runtime_container"]['conn_str']], container_name=settings["runtime_container"]["container_name"])
     blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/addresses.csv")
-    addresses = pd.read_csv(get_blob_sas(blob_client))
+    addresses = pd.read_csv(get_blob_download_url(blob_client))
 
     # import mover totals (NOTE: as a single Pandas row, not a Dataframe)
     blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_totals.csv")
-    mover_totals = pd.read_csv(get_blob_sas(blob_client)).iloc[0]
+    mover_totals = pd.read_csv(get_blob_download_url(blob_client)).iloc[0]
     
     # import mover counts
     blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_counts.csv")
-    mover_counts = pd.read_csv(get_blob_sas(blob_client))
+    mover_counts = pd.read_csv(get_blob_download_url(blob_client))
 
     # import competitor list
     blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/competitors.csv")
-    competitors = pd.read_csv(get_blob_sas(blob_client))
+    competitors = pd.read_csv(get_blob_download_url(blob_client))
 
     # populate presentation with generated text and graphics
     execute_text_replacements(template=template, settings=settings, mover_counts=mover_counts, mover_totals=mover_totals, addresses=addresses, competitors=competitors)

@@ -1,4 +1,5 @@
-#
+# File: libs/azure/functions/blueprints/esquire/audiences/daily_audience_generation/activities/update_audience_devices.py
+
 from libs.azure.functions import Blueprint
 from azure.storage.blob import (
     ContainerClient,

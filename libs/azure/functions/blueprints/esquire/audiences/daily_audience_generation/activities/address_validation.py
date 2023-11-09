@@ -1,4 +1,4 @@
-# File: libs/azure/functions/blueprints/daily_audience_generation/activities/address_validation.py
+# File: libs/azure/functions/blueprints/esquire/audiences/daily_audience_generation/activities/address_validation.py
 
 from libs.azure.functions import Blueprint
 import pandas as pd

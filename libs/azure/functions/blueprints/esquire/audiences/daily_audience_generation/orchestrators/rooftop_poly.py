@@ -1,7 +1,6 @@
-# File: libs/azure/functions/blueprints/daily_audience_generation/orchestrators/rooftop_poly.py
+# File: libs/azure/functions/blueprints/esquire/audiences/daily_audience_generation/orchestrators/rooftop_poly.py
 from libs.azure.functions import Blueprint
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-import logging
 
 bp: Blueprint = Blueprint()
 
@@ -19,41 +18,23 @@ def orchestrator_rooftop_poly(context: DurableOrchestrationContext):
         input_=addresses,
     )
     
-    # # logging.warning(cached_polys)
-    # # Boundary
-    # logging.warning(cached_polys["Boundary"])
+    # logging.warning(cached_polys)    
     
-    
-    # logging.warning(set(cached_polys["Query"].values()))
-    # logging.warning(len(list(set(addresses) - set(cached_polys["Query"].values()))))
-    # was 101 after a successful save, it should be 100
     # pass this list into the create_polygons activity
+    if len(cached_polys):
+        new_poly_list=list(set(addresses) - set(cached_polys["Query"].values()))[0:9]
+    else:
+        new_poly_list = addresses[0:9]
+        
     ## sending just one thing for now
-    # new_polys = yield context.call_activity_with_retry(
-    #     "activity_create_polygons",
-    #     retry_options=retry,
-    #     input_=list(set(addresses) - set(cached_polys["Query"].values()))[30:60],
-    # )
+    new_polys = yield context.call_activity_with_retry(
+        "activity_create_polygons",
+        retry_options=retry,
+        input_=new_poly_list,
+    )
 
     # logging.warning(new_polys)
-    new_polys = '[{"query":"1512 OURAY AVE, FORT MORGAN CO, 80701","geojson":{"type":"Polygon","coordinates":[[[-103.7825338,40.2621268],[-103.7825338,40.2619488],[-103.7826776,40.2619488],[-103.7826776,40.2621268],[-103.7825338,40.2621268]]]}}]'
-    # new_polys = [
-    #     {
-    #         "query": "1512 OURAY AVE, FORT MORGAN CO, 80701",
-    #         "geojson": {
-    #             "type": "Polygon",
-    #             "coordinates": [
-    #                 [
-    #                     [-103.7825338, 40.2621268],
-    #                     [-103.7825338, 40.2619488],
-    #                     [-103.7826776, 40.2619488],
-    #                     [-103.7826776, 40.2621268],
-    #                     [-103.7825338, 40.2621268],
-    #                 ]
-    #             ],
-    #         },
-    #     }
-    # ]
+    # new_polys = '[{"query":"1512 OURAY AVE, FORT MORGAN CO, 80701","geojson":{"type":"Polygon","coordinates":[[[-103.7825338,40.2621268],[-103.7825338,40.2619488],[-103.7826776,40.2619488],[-103.7826776,40.2621268],[-103.7825338,40.2621268]]]}}]'
 
     # pass the list of new polys into the write_cache activity
     ## using a test

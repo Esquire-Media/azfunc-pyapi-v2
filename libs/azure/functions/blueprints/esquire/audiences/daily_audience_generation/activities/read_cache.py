@@ -1,4 +1,4 @@
-# File: libs/azure/functions/blueprints/daily_audience_generation/activities/read_cache.py
+# File: libs/azure/functions/blueprints/esquire/audiences/daily_audience_generation/activities/read_cache.py
 
 from libs.azure.functions import Blueprint
 import os
@@ -21,7 +21,7 @@ def activity_read_cache(addresses: List[str]):
     Read from the SQL GoogleRooftopCache to check for cached frames among the passed addresses.
     """
     # set the provider
-    provider = from_bind("sisense-etl")
+    provider = from_bind("universal")
     rooftop = provider.models["dbo"]["GoogleRooftopCache"]
     session: Session = provider.connect()
 
@@ -31,7 +31,7 @@ def activity_read_cache(addresses: List[str]):
         .filter(rooftop.Query.in_(addresses))
         .order_by(rooftop.Query, rooftop.LastUpdated.desc())
     )
-
+    
     if not df.empty:
         df.drop_duplicates(subset="Query", keep="first", inplace=True)
         return df[["Query", "Boundary"]].to_dict()

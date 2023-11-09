@@ -38,11 +38,11 @@ def activity_create_polygons(queries: dict):
         # convert shapely polygon type to GeoJSON string
         if len(roads_passed) and 'polygon' in roads_passed.columns:
             roads_passed['geojson'] = roads_passed['polygon'].apply(lambda x: mapping(x))
-            return roads_passed[['query','geojson']].to_json(orient='records')
+            return roads_passed[['query','geojson']].to_dict(orient='records')
         else:
-            return '{}'
+            return {}
     else:
-        return '{}'
+        return {}
 
 def execute_google_maps_call(gmaps:googlemaps.Client, query_list:list, min_frame_area:int=25, max_frame_area:int=3000) -> pd.DataFrame:
     """

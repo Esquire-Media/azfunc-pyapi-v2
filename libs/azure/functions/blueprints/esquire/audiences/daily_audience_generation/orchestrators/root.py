@@ -1,4 +1,4 @@
-# File: libs/azure/functions/blueprints/daily_audience_generation/orchestrators/root.py
+# File: libs/azure/functions/blueprints/esquire/audiences/daily_audience_generation/orchestrators/root.py
 
 from libs.azure.functions import Blueprint
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions

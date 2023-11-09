@@ -1,4 +1,4 @@
-# File: libs/azure/functions/blueprints/daily_audience_generation/activities/process_addressed_audiences.py
+# File: libs/azure/functions/blueprints/esquire/audiences/daily_audience_generation/orchestrators/process_addressed_audiences.py
 
 from libs.azure.functions import Blueprint
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
@@ -6,12 +6,10 @@ from azure.storage.blob import (
     ContainerClient,
     ContainerSasPermissions,
     generate_container_sas,
-    BlobClient,
 )
 import os
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-import logging
 
 bp: Blueprint = Blueprint()
 

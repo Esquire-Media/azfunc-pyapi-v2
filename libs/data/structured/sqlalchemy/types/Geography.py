@@ -1,4 +1,4 @@
-from libs.utils.geometry import wkb2geojson, geojson2wkb
+from libs.utils.geometry import wkb2geojson, geojson2wkt
 from marshmallow.fields import Nested
 from marshmallow_geojson import GeoJSONSchema
 from marshmallow_sqlalchemy.convert import ModelConverter
@@ -51,7 +51,7 @@ class GeometryJSON(geoalchemy2.types.Geometry):
         """
 
         def process(value):
-            return geojson2wkb(value) if value else value
+            return (geojson2wkt(value),4326) if value else value
 
         return process
 

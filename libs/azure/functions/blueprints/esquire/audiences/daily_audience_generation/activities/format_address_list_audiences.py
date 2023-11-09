@@ -1,13 +1,11 @@
-# File: libs/azure/functions/blueprints/daily_audience_generation/activities/format_address_list_audiences.py
+# File: libs/azure/functions/blueprints/esquire/audiences/daily_audience_generation/activities/format_address_list_audiences.py
 
 from libs.azure.functions import Blueprint
 import pandas as pd
 import os
 from azure.storage.blob import ContainerClient
-
 from sqlalchemy.orm import Session
 from libs.data import from_bind
-import logging
 
 bp: Blueprint = Blueprint()
 

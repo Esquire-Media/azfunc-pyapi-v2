@@ -1,4 +1,4 @@
-# File: libs/azure/functions/blueprints/daily_audience_generation/activities/locations.py
+# File: libs/azure/functions/blueprints/esquire/audiences/daily_audience_generation/activities/locations.py
 
 from azure.storage.blob import BlobClient
 from libs.azure.functions import Blueprint

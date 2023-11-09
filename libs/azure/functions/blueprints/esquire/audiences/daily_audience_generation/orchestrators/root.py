@@ -1,4 +1,4 @@
-# File: libs/azure/functions/blueprints/daily_audience_generation/orchestrators/root.py
+# File: libs/azure/functions/blueprints/esquire/audiences/daily_audience_generation/orchestrators/root.py
 
 from libs.azure.functions import Blueprint
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
@@ -11,8 +11,8 @@ bp: Blueprint = Blueprint()
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_daily_audience_generation(context: DurableOrchestrationContext):
     # set connection string and the container
-    conn_str = "ONSPOT_CONN_STR" if "ONSPOT_CONN_STR" in os.environ.keys() else None
-    container = "general"
+    conn_str = "ONSPOT_CONN_STR" if "ONSPOT_CONN_STR" in os.environ.keys() else "AzureWebJobsStorage"
+    container_name = "general"
     blob_prefix = "raw"
     retry = RetryOptions(15000, 1)
     egress = {"instance_id": context.instance_id, "blob_prefix": blob_prefix}
@@ -23,7 +23,7 @@ def orchestrator_daily_audience_generation(context: DurableOrchestrationContext)
         {
             "instance_id": context.instance_id,
             "conn_str": conn_str,
-            "container": container,
+            "container": container_name,
             "outputPath": f"{blob_prefix}/{context.instance_id}/locations.csv",
         },
     )
@@ -61,20 +61,21 @@ def orchestrator_daily_audience_generation(context: DurableOrchestrationContext)
                 retry,
                 {
                     "conn_str": conn_str,
-                    "container": container,
-                    "blob_prefix": blob_prefix,
-                    "path": f"{blob_prefix}/{context.instance_id}/audiences",
-                    "audiences": [test_friends_family],
-                    "instance_id": context.instance_id,
+                    "container_name": container_name,
+                    "blob_prefix": f"{blob_prefix}/{context.instance_id}/audiences",
+                    "audience": audience,
                 },
-            ),
+            )
+            for audience in [test_friends_family]
+        ]
+        + [
             ## setupitems for the friends and family suborchestrator
             # context.call_sub_orchestrator_with_retry(
             #     "suborchestrator_friends_family",
             #     retry,
             #     {
             #         "conn_str": conn_str,
-            #         "container": container,
+            #         "container": container_name,
             #         "blob_prefix": blob_prefix,
             #         "path": f"{blob_prefix}/{context.instance_id}/audiences",
             #         "audiences": [
@@ -92,7 +93,7 @@ def orchestrator_daily_audience_generation(context: DurableOrchestrationContext)
             #     retry,
             #     {
             #         "conn_str": conn_str,
-            #         "container": container,
+            #         "container": container_name,
             #         "blob_prefix": blob_prefix,
             #         "path": f"{blob_prefix}/{context.instance_id}/audiences",
             #         "audiences": [
@@ -110,7 +111,7 @@ def orchestrator_daily_audience_generation(context: DurableOrchestrationContext)
             #     retry,
             #     {
             #         "conn_str": conn_str,
-            #         "container": container,
+            #         "container": container_name,
             #         "blob_prefix": blob_prefix,
             #         "path": f"{blob_prefix}/{context.instance_id}/audiences",
             #         "instance_id": context.instance_id,

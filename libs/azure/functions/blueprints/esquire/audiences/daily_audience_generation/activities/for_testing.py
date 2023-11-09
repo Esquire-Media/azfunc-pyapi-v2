@@ -1,4 +1,4 @@
-# File: libs/azure/functions/blueprints/daily_audience_generation/activities/for_testing.py
+# File: libs/azure/functions/blueprints/esquire/audiences/daily_audience_generation/activities/for_testing.py
 
 from libs.azure.functions import Blueprint
 import logging

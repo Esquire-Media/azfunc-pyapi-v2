@@ -1,4 +1,4 @@
-# File: libs/azure/functions/blueprints/daily_audience_generation/activities/load_salesforce_geojsons.py
+# File: libs/azure/functions/blueprints/esquire/audiences/daily_audience_generation/activities/load_salesforce_geojsons.py
 
 from libs.azure.functions import Blueprint
 import pandas as pd

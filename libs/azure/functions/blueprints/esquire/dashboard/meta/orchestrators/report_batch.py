@@ -1,12 +1,14 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/meta/orchestrators/report_batch.py
 
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
+from azure.data.tables import TableClient
 from datetime import datetime
 from libs.azure.functions import Blueprint
 from libs.azure.functions.blueprints.esquire.dashboard.meta.config import (
     PARAMETERS,
     CETAS,
 )
+from libs.azure.functions.suborchestrators import get_sub_orchestrator_ids
 import os
 
 bp = Blueprint()
@@ -193,6 +195,22 @@ def esquire_dashboard_meta_orchestrator_report_batch(
         raise e
 
     # Purge history related to this instance
+    # Initialize Azure Table client to interact with Azure Table Storage
+    yield context.task_all(
+        [
+            context.call_activity(
+                "purge_instance_history",
+                {"instance_id": instance_id},
+            )
+            for instance_id in get_sub_orchestrator_ids(
+                TableClient.from_connection_string(
+                    conn_str=os.environ["AzureWebJobsStorage"],
+                    table_name=os.environ["TASK_HUB_NAME"] + "Instances",
+                ),
+                context.instance_id,
+            )
+        ]
+    )
     yield context.call_activity(
         "purge_instance_history",
         {"instance_id": context.instance_id},

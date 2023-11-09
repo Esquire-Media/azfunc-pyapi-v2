@@ -6,33 +6,33 @@ except:
     DEV_BPS = []
 
 BLUEPRINTS = {
-    "esquire-docs": [
-        "libs/azure/functions/blueprints/docs/*",
-    ],
-    "esquire-oneview-tasks": [
-        "libs/azure/functions/blueprints/oneview/tasks/*",
+    "esquire-campaign-proposal":[
+        "libs/azure/functions/blueprints/esquire/campaign_proposal/*",
+        "libs/azure/functions/blueprints/microsoft/graph/*"
     ],
     "esquire-dashboard-data": [
-        "libs/azure/functions/blueprints/datalake/*",
+        "libs/azure/functions/blueprints/azure/datalake/*",
         "libs/azure/functions/blueprints/esquire/dashboard/*",
         "libs/azure/functions/blueprints/meta/*",
         "libs/azure/functions/blueprints/oneview/reports/*",
         "libs/azure/functions/blueprints/onspot/*",
         "libs/azure/functions/blueprints/purge_instance_history",
-        "libs/azure/functions/blueprints/synapse/*",
+        "libs/azure/functions/blueprints/azure/synapse/*",
+    ],
+    "esquire-docs": [
+        "libs/azure/functions/blueprints/esquire/openapi/*",
+    ],
+    "esquire-oneview-tasks": [
+        "libs/azure/functions/blueprints/oneview/tasks/*",
     ],
     "esquire-roku-sync": [
-        "libs/azure/functions/blueprints/datalake/*",
+        "libs/azure/functions/blueprints/azure/datalake/*",
         "libs/azure/functions/blueprints/esquire/audiences/oneview/*",
         "libs/azure/functions/blueprints/oneview/segments/*",
         "libs/azure/functions/blueprints/onspot/*",
         "libs/azure/functions/blueprints/purge_instance_history",
         "libs/azure/functions/blueprints/s3/*",
-        "libs/azure/functions/blueprints/synapse/*",
-    ],
-    "esquire-campaign-proposal":[
-        "libs/azure/functions/blueprints/esquire/campaign_proposal/*",
-        "libs/azure/functions/blueprints/microsoft/graph/*"
+        "libs/azure/functions/blueprints/azure/synapse/*",
     ],
     "debug": [
         "libs/azure/functions/blueprints/keep_alive",

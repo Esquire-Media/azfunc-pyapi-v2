@@ -202,7 +202,7 @@ def esquire_audiences_oneview_segment_updater(
 
             # Retain a copy of the segment file
             yield context.call_activity(
-                "datalake_copy_blob",
+                "azure_datalake_copy_blob",
                 {
                     "source": segment_url,
                     "target": {

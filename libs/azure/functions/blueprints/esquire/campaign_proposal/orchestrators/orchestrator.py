@@ -41,45 +41,35 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
         yield context.call_activity_with_retry(
             "activity_campaignProposal_geocodeAddresses",
             retry,
-            {
-                **egress,
-            },
+            egress,
         )
 
         # call activity to collect mover counts for each individual location as well as a deduped total
         yield context.call_activity_with_retry(
             "activity_campaignProposal_collectMovers",
             retry,
-            {
-                **egress,
-            },
+            egress,
         )
 
         # call activity to collect nearby competitors to each location
         yield context.call_activity_with_retry(
             "activity_campaignProposal_collectCompetitors",
             retry,
-            {
-                **egress,
-            },
+            egress,
         )
 
         # call activity to populate the PPTX report template and upload it as bytes to Azure storage
         yield context.call_activity_with_retry(
             "activity_campaignProposal_executeReport",
             retry,
-            {
-                **egress,
-            },
+            egress,
         )
 
         # generate the message body for the callback email
         message_body = yield context.call_activity_with_retry(
             "activity_campaignProposal_generateCallback",
             retry,
-            {
-                **egress,
-            },
+            egress,
         )
 
         # send the callback email

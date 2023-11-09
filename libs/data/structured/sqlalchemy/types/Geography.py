@@ -1,9 +1,13 @@
-from libs.utils.geometry import wkb2geojson, geojson2wkt
+from libs.utils.geometry import wkb2geojson, wkt2geojson, geojson2wkb, geojson2wkt
+from geoalchemy2.elements import WKBElement, WKTElement
+from geoalchemy2.types import select_dialect
 from marshmallow.fields import Nested
 from marshmallow_geojson import GeoJSONSchema
 from marshmallow_sqlalchemy.convert import ModelConverter
+from sqlalchemy import text, func
 from sqlalchemy.dialects.mssql.base import ischema_names as mssql_ischema_names
 import geoalchemy2.types
+import geojson, logging
 
 
 class GeometryJSON(geoalchemy2.types.Geometry):
@@ -49,11 +53,18 @@ class GeometryJSON(geoalchemy2.types.Geometry):
             The bind processing function.
 
         """
-
-        def process(value):
-            return (geojson2wkt(value),4326) if value else value
+        
+        def process(bindvalue):
+            return select_dialect(dialect.name).bind_processor_process(
+                self,
+                geojson2wkt(bindvalue) if bindvalue else bindvalue
+            )
 
         return process
+
+    # def bind_expression(self, bindvalue):
+    #     # Convert Python value to WKT before sending to database
+    #     return func.STGeomFromText(bindvalue, 4326)
 
 
 class GeographyJSON(GeometryJSON):

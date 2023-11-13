@@ -1,10 +1,6 @@
-import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.io as pio
-import json
-import logging
-import os
 from libs.utils.plots import auto_zoom_level
 
 def map_zipcodes(zips:pd.DataFrame, mapbox_token:str, export_path:str=None, return_bytes:bool=False):

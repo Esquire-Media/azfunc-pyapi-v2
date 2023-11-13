@@ -1,6 +1,7 @@
 import os
 from libs.azure.functions import Blueprint
 import pandas as pd
+import numpy as np
 import json
 from azure.storage.blob import BlobServiceClient, ContainerClient
 from io import BytesIO
@@ -35,72 +36,96 @@ def activity_campaignProposal_collectMovers(settings: dict):
     start_date = end_date - timedelta(days=num_days)
 
     # initialize objects needed for the mover data collection
-    mover_counts_list = []
+    address_to_zipcodes = []
     unique_zipcodes_list = []
     radii = settings['moverRadii']
     zipcode_engine = ZipcodeEngine(from_bind("legacy"))
     mover_engine = MoverEngine(from_bind("audiences"))
 
     # INDIVIDUAL LOCATION COUNTS
-    # execute mover data collection for each location and a deduped total
+    # on the first run-through, we grab all the unique zipcodes and map each addr/radius with its associated zipcodes 
     for i, addr in addresses.iterrows():
+        # print(addr['address'])
         addr_dict = {
             **addr
         }
 
+        # mapping between each addr/radius pair and the zipcodes within it
+        mapping_dict = {
+            "addr_index":i,
+        }
+
         for radius in radii:
+            # print('\t',radius)
             # get zipcodes in radius around store latlong
-            radius_list = zipcode_engine.load_from_radius(
+            zip_radius_list = zipcode_engine.load_from_radius(
                 latitude=addr["latitude"], longitude=addr["longitude"], radius=1609 * radius
             )
-            zips = pd.DataFrame(radius_list)
-            zips["Radius"] = radius
+            zips = pd.DataFrame(zip_radius_list)
             zips["GeoJSON"] = zips["GeoJSON"].apply(json.loads)
-            unique_zipcodes_list.append(zips)
 
-            # get mover counts in the selected zipcodes
-            mover_count = mover_engine.load_from_zipcodes(
-                start_date=start_date,
-                end_date=end_date,
-                zipcodes=zips["Zipcode"].unique(),
-                counts=True,
-            )
+            # store the unique zipcode geometries (for mapping purposes later)
+            for i, z in zips.iterrows():
+                if z['Zipcode'] not in [item['Zipcode'] for item in unique_zipcodes_list]:
+                    unique_zipcodes_list.append({
+                        'Zipcode':z['Zipcode'],
+                        'GeoJSON':z['GeoJSON']  
+                    })
             
-            addr_dict[f"movers_{radius}mi"] = mover_count
-            
-        mover_counts_list.append(addr_dict)
+            # update the add/radius -> zipcodes mapping
+            mapping_dict[f"zips_{radius}"] = zips['Zipcode'].unique()    
+        address_to_zipcodes.append(mapping_dict)
 
-    out_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_counts.csv")
-    out_client.upload_blob(pd.DataFrame(mover_counts_list).to_csv(), overwrite=True)
+    # DataFrame of all unique zipcodes and their corresponding geometry
+    unique_zipcodes = pd.DataFrame(unique_zipcodes_list)
 
-    # TOTAL DEDUPED COUNTS
-    # collect unique zipcodes across all locations by shortest radius
-    unique_zipcodes = pd.concat(unique_zipcodes_list)
-    unique_zipcodes = unique_zipcodes.sort_values('Radius', ascending=True).drop_duplicates(subset=['Zipcode'], keep='first')
-    
-    # get total deduped counts for each radius size
+    # get mover counts for each zipcode
+    zipcode_mover_counts = dict(mover_engine.load_from_zipcodes(
+        start_date=start_date,
+        end_date=end_date,
+        zipcodes=unique_zipcodes['Zipcode'],
+        counts=True
+    ))
+
+    # calculate mover count for each addr/radius pair
+    mapping = pd.DataFrame(address_to_zipcodes)
+    for radius in radii:
+        mapping[f'movers_{radius}mi'] = mapping[f'zips_{radius}'].apply(
+            lambda zip_list:
+            sum([zipcode_mover_counts[z] for z in zip_list if z in zipcode_mover_counts.keys()])
+        )
+    # collect mover counts into a table
+    mover_counts = pd.merge(
+        addresses,
+        mapping[['addr_index', *[f'movers_{radius}mi' for radius in radii]]],
+        left_index=True,
+        right_on='addr_index'
+    ).drop(columns='addr_index')
+
+    # TOTAL MOVER COUNTS BY RADIUS
     total_mover_counts = {}
     for radius in radii:
-        # pull total unique movers from all zipcodes
-        unique_count = mover_engine.load_from_zipcodes(
-            start_date=start_date,
-            end_date=end_date,
-            zipcodes=unique_zipcodes[unique_zipcodes['Radius']<=radius]["Zipcode"].unique(),
-            counts=True,
-        )
-        total_mover_counts[f"movers_{radius}mi"] = int(unique_count)
+        # find unique zipcodes and mover counts in the given radius
+        radius_unique_zips = np.unique(np.hstack(mapping[f'zips_{radius}']))
+        radius_unique_total = sum([zipcode_mover_counts[z] for z in radius_unique_zips if z in zipcode_mover_counts.keys()])
+        total_mover_counts[f"movers_{radius}mi"] = radius_unique_total
 
-    out_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_totals.csv")
-    out_client.upload_blob(pd.DataFrame([total_mover_counts]).to_csv(), overwrite=True)
-
-    # ZIPCODE MAPS
-    for radius in radii:
+        # create a zipcode map for this radius
         bytes = map_zipcodes(
-            zips = unique_zipcodes[unique_zipcodes["Radius"] <= radius].reset_index(),
+            zips = unique_zipcodes[unique_zipcodes["Zipcode"].isin(radius_unique_zips)].reset_index(),
             mapbox_token=mapbox_token,
             return_bytes=True
         )
+        # export zipcode maps
         out_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_map_{radius}mi.png")
         out_client.upload_blob(bytes, overwrite=True)
+
+    # export mover counts file
+    out_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_counts.csv")
+    out_client.upload_blob(mover_counts.to_csv(), overwrite=True)
+
+    # export mover totals file    
+    out_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_totals.csv")
+    out_client.upload_blob(pd.DataFrame([total_mover_counts]).to_csv(), overwrite=True)
 
     return {}

@@ -67,3 +67,4 @@ python-pptx
 matplotlib
 seaborn
 adaptive-cards-py
+nbformat>=4.2.0

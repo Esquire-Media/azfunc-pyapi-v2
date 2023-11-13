@@ -13,7 +13,9 @@ def oneview_reports_orchestrator(
     context: DurableOrchestrationContext,
 ):
     report_template_uid = context.get_input()
-    
+    now = datetime.utcnow()
+    today = [now.year, now.month, now.day]
+
     # Submit report generation request
     yield context.call_activity(
         "oneview_reports_activity_run",
@@ -25,8 +27,11 @@ def oneview_reports_orchestrator(
     while not download_url:
         download_url = yield context.call_activity(
             "oneview_reports_activity_monitor",
-            report_template_uid,
+            {
+                "report_template_uid": report_template_uid,
+                "end_at": today,
+            },
         )
         yield context.create_timer(datetime.utcnow() + timedelta(minutes=5))
-    
+
     return download_url

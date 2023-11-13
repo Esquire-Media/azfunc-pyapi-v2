@@ -87,17 +87,17 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
 
     # catch any exceptions that occured during runtime and post them to the designated Teams channel
     except Exception as e:
-        # yield context.call_activity(
-        #     "activity_microsoftGraph_postErrorCard",
-        #     {
-        #         "function_name": "esquire-campaign-proposal",
-        #         "instance_id": context.instance_id,
-        #         "error": f"{type(e).__name__} : {e}"[:1000],
-        #         "icon_url": "https://img.icons8.com/?size=77&id=16044&format=png",
-        #         "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
-        #     },
-        # )
-        # logging.warning("Error card sent")
+        yield context.call_activity(
+            "activity_microsoftGraph_postErrorCard",
+            {
+                "function_name": "esquire-campaign-proposal",
+                "instance_id": context.instance_id,
+                "error": f"{type(e).__name__} : {e}"[:1000],
+                "icon_url": "https://img.icons8.com/?size=77&id=16044&format=png",
+                "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
+            },
+        )
+        logging.warning("Error card sent")
         raise e
 
     logging.warning("All tasks completed.")

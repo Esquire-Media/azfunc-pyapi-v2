@@ -195,23 +195,7 @@ def esquire_dashboard_meta_orchestrator_report_batch(
         raise e
 
     # Purge history related to this instance
-    # Initialize Azure Table client to interact with Azure Table Storage
-    yield context.task_all(
-        [
-            context.call_activity(
-                "purge_instance_history",
-                {"instance_id": instance_id},
-            )
-            for instance_id in get_sub_orchestrator_ids(
-                TableClient.from_connection_string(
-                    conn_str=os.environ["AzureWebJobsStorage"],
-                    table_name=os.environ["TASK_HUB_NAME"] + "Instances",
-                ),
-                context.instance_id,
-            )
-        ]
-    )
-    yield context.call_activity(
+    yield context.call_sub_orchestrator(
         "purge_instance_history",
         {"instance_id": context.instance_id},
     )

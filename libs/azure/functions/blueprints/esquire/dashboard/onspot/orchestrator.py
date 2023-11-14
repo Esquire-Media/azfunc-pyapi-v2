@@ -194,7 +194,7 @@ def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
         raise e
 
     # Purge history related to this instance
-    yield context.call_activity(
+    yield context.call_sub_orchestrator(
         "purge_instance_history",
         {"instance_id": context.instance_id},
     )

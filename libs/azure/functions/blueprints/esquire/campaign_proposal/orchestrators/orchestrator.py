@@ -103,10 +103,7 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
     logging.warning("All tasks completed.")
 
     # Purge history related to this instance
-    # Only run this step if the instance executed successfully
-    yield context.call_activity(
+    yield context.call_sub_orchestrator(
         "purge_instance_history",
-        {
-            "instance_id": context.instance_id,
-        },
+        {"instance_id": context.instance_id},
     )

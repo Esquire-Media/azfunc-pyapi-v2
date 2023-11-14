@@ -35,7 +35,7 @@ def esquire_audiences_distilled_orchestrator_updater(
         ]
     )
 
-    yield context.call_activity(
+    yield context.call_sub_orchestrator(
         "purge_instance_history",
         {"instance_id": context.instance_id},
     )

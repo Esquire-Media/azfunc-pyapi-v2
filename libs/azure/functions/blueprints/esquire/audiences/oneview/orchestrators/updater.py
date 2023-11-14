@@ -265,7 +265,7 @@ def esquire_audiences_oneview_segment_updater(
         raise e
 
     # Purge history related to this instance
-    yield context.call_activity(
+    yield context.call_sub_orchestrator(
         "purge_instance_history",
         {"instance_id": context.instance_id},
     )

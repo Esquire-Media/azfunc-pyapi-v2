@@ -48,9 +48,6 @@ shapely
 haversine
 h3
 bitarray
-plotly
-kaleido
-python-pptx
 pytz
 timezonefinder
 timezonefinder[pytz]
@@ -63,4 +60,11 @@ fuzzywuzzy
 python-Levenshtein
 python-dotenv
 pydantic==2.4.2
+# data viz
+plotly
+kaleido
+python-pptx
+matplotlib
+seaborn
 adaptive-cards-py
+nbformat>=4.2.0

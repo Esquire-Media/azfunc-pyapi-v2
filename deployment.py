@@ -7,12 +7,15 @@ except:
 
 BLUEPRINTS = {
     "esquire-campaign-proposal":[
+        "libs/azure/functions/blueprints/azure/datalake/*",
         "libs/azure/functions/blueprints/esquire/campaign_proposal/*",
         "libs/azure/functions/blueprints/microsoft/graph/*"
+        "libs/azure/functions/blueprints/purge_instance_history",
     ],
     "esquire-dashboard-data": [
         "libs/azure/functions/blueprints/azure/datalake/*",
         "libs/azure/functions/blueprints/esquire/dashboard/*",
+        "libs/azure/functions/blueprints/keep_alive",
         "libs/azure/functions/blueprints/meta/*",
         "libs/azure/functions/blueprints/oneview/reports/*",
         "libs/azure/functions/blueprints/onspot/*",

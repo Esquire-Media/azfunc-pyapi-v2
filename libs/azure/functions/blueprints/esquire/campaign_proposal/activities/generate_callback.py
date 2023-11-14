@@ -1,7 +1,8 @@
 import os
 from datetime import datetime as dt, timedelta
-from azure.storage.blob import generate_blob_sas, BlobSasPermissions
+from libs.azure.storage.blob.sas import get_blob_download_url
 from libs.azure.functions import Blueprint
+from azure.storage.blob import BlobClient
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()
@@ -12,14 +13,20 @@ def activity_campaignProposal_generateCallback(settings: dict):
 
     # get a 14-day download URL for each file attachment
     url_pptx = get_blob_download_url(
-        container_name=settings["runtime_container"]['container_name'],
-        conn_str=os.environ[settings["runtime_container"]["conn_str"]], 
-        blob_name=f"{settings['instance_id']}/CampaignProposal-{settings['name']}.pptx"
+        blob_client=BlobClient.from_connection_string(
+            conn_str=os.environ[settings["runtime_container"]["conn_str"]], 
+            container_name=settings["runtime_container"]['container_name'],
+            blob_name=f"{settings['instance_id']}/CampaignProposal-{settings['name']}.pptx"
+        ),
+        expiry=timedelta(days=14)
     )
     url_comps = get_blob_download_url(
-        container_name=settings["runtime_container"]['container_name'],
-        conn_str=os.environ[settings["runtime_container"]["conn_str"]], 
-        blob_name=f"{settings['instance_id']}/Competitors-{settings['name']}.xlsx"
+        blob_client=BlobClient.from_connection_string(
+            conn_str=os.environ[settings["runtime_container"]["conn_str"]], 
+            container_name=settings["runtime_container"]['container_name'],
+            blob_name=f"{settings['instance_id']}/Competitors-{settings['name']}.xlsx"
+        ),
+        expiry=timedelta(days=14)
     )
 
     # build the message body including hyperlinks for each file download
@@ -29,36 +36,3 @@ def activity_campaignProposal_generateCallback(settings: dict):
     content += f"""<br><a href="{url_comps}">Competitors-{settings['name']}.xlsx</a>"""
 
     return content
-
-
-def get_blob_sas(account_name:str, account_key:str, container_name:str, blob_name:str, expire_after:int=48) -> str:
-    """
-    Generates an expiring SAS token for the storage account containing report outputs.
-    """
-    sas_blob = generate_blob_sas(
-        account_name=account_name, 
-        container_name=container_name,
-        blob_name=blob_name,
-        account_key=account_key,
-        permission=BlobSasPermissions(read=True),
-        expiry=dt.utcnow() + timedelta(hours=expire_after)
-    )
-    return sas_blob
-
-def get_blob_download_url(container_name:str, conn_str:str, blob_name:str) -> str:
-    """
-    Returns a secure download link to the finished report that will expire after 48 hours.
-    """
-    config = {}
-    for c in conn_str.split(';'):
-        config[c[0:c.index("=")]] = c[c.index("=")+1:]
-
-    sas_token = get_blob_sas(
-        account_name=config['AccountName'],
-        account_key=config['AccountKey'],
-        container_name=container_name,
-        blob_name=blob_name,
-        expire_after=336  # 14 days
-    )
-    url = f"https://{config['AccountName']}.blob.{config['EndpointSuffix']}/{container_name}/{blob_name}?{sas_token}"
-    return url

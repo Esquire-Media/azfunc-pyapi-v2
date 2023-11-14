@@ -11,6 +11,7 @@ from libs.utils.geometry import (
 from libs.utils.h3 import hex_intersections, data_to_shape
 import pandas as pd
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 class MoverEngine:
     def __init__(self, provider):
@@ -36,23 +37,20 @@ class MoverEngine:
         movers = self.provider.models["dbo"]["movers"]
 
         if counts:
-            # return count of movers in selected zipcodes
+            # return count of movers in selected zipcodes, grouped by zipcode
             results = (
                 session.query(
-                    movers.address,
-                    movers.city,
-                    movers.state,
                     movers.zipcode,
-                    movers.plus4Code,
-                    movers.latitude,
-                    movers.longitude
+                    func.count(movers.address),
                 )
                 .filter(
                     movers.date >= start_date,
                     movers.date <= end_date,
                     movers.zipcode.in_(zipcodes),
                 )
-                .count()
+                .group_by(
+                    movers.zipcode
+                ).all()
             )
         else:
             # return the address data for all movers in selected zipcodes
@@ -112,13 +110,7 @@ class MoverEngine:
                 # count of movers in fully-enveloped h3 hexes
                 full_index_data = (
                     session.query(
-                        movers.address,
-                        movers.city,
-                        movers.state,
-                        movers.zipcode,
-                        movers.plus4Code,
-                        movers.latitude,
-                        movers.longitude
+                        movers.address
                     )
                     .filter(
                         movers.date >= start_date,
@@ -159,12 +151,6 @@ class MoverEngine:
                 partial_index_data = (
                     session.query(
                         movers.address,
-                        movers.city,
-                        movers.state,
-                        movers.zipcode,
-                        movers.plus4Code,
-                        movers.latitude,
-                        movers.longitude
                     )
                     .filter(
                         movers.date >= start_date,

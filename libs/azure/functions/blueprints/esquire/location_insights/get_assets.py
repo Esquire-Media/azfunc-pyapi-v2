@@ -8,19 +8,19 @@ from azure.data.tables import TableServiceClient
 
 bp = Blueprint()
 
-@bp.route(route="esquire/campaign_proposal/getAssets", methods=["GET"])
+@bp.route(route="esquire/location_insights/getAssets", methods=["GET"])
 @bp.durable_client_input(client_name="client")
-async def starter_campaignProposal_getAssets(req: HttpRequest, client: DurableOrchestrationClient):
+async def starter_locationInsights_getAssets(req: HttpRequest, client: DurableOrchestrationClient):
 
     # if a campaign proposal conn string is set, use that. Otherwise use AzureWebJobsStorage
     conn_str = (
-        "CAMPAIGN_PROPOSAL_CONN_STR"
-        if "CAMPAIGN_PROPOSAL_CONN_STR" in os.environ.keys()
+        "LOCATION_INSIGHTS_CONN_STR"
+        if "LOCATION_INSIGHTS_CONN_STR" in os.environ.keys()
         else "AzureWebJobsStorage"
     )
     assets_table = { # table of valid asset package names
         "conn_str":conn_str,
-        "table_name":"campaignproposalsassets"
+        "table_name":"locationinsightsassets"
     }
 
     # connect to the assets storage table

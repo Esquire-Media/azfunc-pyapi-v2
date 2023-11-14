@@ -95,7 +95,7 @@ def purge_instance_history(context: DurableOrchestrationContext):
 
 @bp.timer_trigger("timer", schedule="0 */5 * * * *")
 @bp.durable_client_input("client")
-async def daily_dashboard_xandr_starter(
+async def purge_instance_history_cleaner(
     timer: TimerRequest, client: DurableOrchestrationClient
 ):
     for entity in TableClient.from_connection_string(

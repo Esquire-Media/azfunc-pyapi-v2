@@ -20,7 +20,7 @@ async def starter_campaignProposal_getAssets(req: HttpRequest, client: DurableOr
     )
     assets_table = { # table of valid asset package names
         "conn_str":conn_str,
-        "table_name":"campaignproposalsassets"
+        "table_name":"campaignProposalAssets"
     }
 
     # connect to the assets storage table

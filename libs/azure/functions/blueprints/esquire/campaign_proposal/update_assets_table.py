@@ -9,7 +9,7 @@ bp = Blueprint()
 @bp.timer_trigger(arg_name="timer", schedule="0 0 */2 * * *")
 def timer_campaignProposal_UpdateAssetsTable(timer: TimerRequest):
     """
-    Updates the Storage Table "campaignproposalsassets" with the names of each asset package currently in Blob Storage.
+    Updates the Storage Table "campaignProposalAssets" with the names of each asset package currently in Blob Storage.
     This table will be the quick-access way to query the valid templates, creative_sets, and any other dynamic asset packages.
     Runs every 2 hours.
     """
@@ -26,7 +26,7 @@ def timer_campaignProposal_UpdateAssetsTable(timer: TimerRequest):
     }
     assets_table = { # table of valid asset package names
         "conn_str":conn_str,
-        "table_name":"campaignproposalsassets"
+        "table_name":"campaignProposalAssets"
     }
 
     # connect to resource storage client

@@ -12,27 +12,23 @@ bp = Blueprint()
 def oneview_reports_activity_monitor(ingress: dict):
     data = OneView["getReports"](
         parameters={
-            "filter": "report_template_uid:" + ingress["report_template_uid"],
-            "order": "-created_at",
-            "limit": 1,
+            "filter": '((status:"running") AND (report_template_uid:'
+            + ingress["report_template_uid"]
+            + "))"
         }
     )
-    today = datetime.datetime(
-        ingress["end_at"][0],
-        ingress["end_at"][1],
-        ingress["end_at"][2],
-        4,
-        59,
-        59,
-        tzinfo=TzInfo(0),
-    )
-    if len(data.reports):
-        report = data.reports[0]
-        if (
-            report.end_at == (today + datetime.timedelta(hours=dst(today)))
-            and report.status == "done"
-        ):
-            return report.download_url
+    if not data.reports:
+        data = OneView["getReports"](
+            parameters={
+                "filter": '((status:"done") AND (report_template_uid:'
+                + ingress["report_template_uid"]
+                + "))",
+                "order": "-created_at",
+                "limit": 1,
+            }
+        )
+        if len(data.reports):
+            return data.reports[0].download_url
     return ""
 
 

@@ -38,7 +38,9 @@ async def onspot_activity_format(ingress: dict, client: DurableOrchestrationClie
             os.environ[ingress["conn_str"]]
             if ingress.get("conn_str", None) in os.environ.keys()
             else os.environ["AzureWebJobsStorage"],
-            container_name=ingress.get("container", "general"),
+            container_name=ingress.get(
+                "container_name", ingress.get("container", "general")
+            ),
         )
         if not container.exists():
             container.create_container()
@@ -49,7 +51,7 @@ async def onspot_activity_format(ingress: dict, client: DurableOrchestrationClie
             permission=ContainerSasPermissions(write=True, read=True),
             expiry=datetime.utcnow() + relativedelta(days=2),
         )
-        
+
     event_url = client._orchestration_bindings.management_urls[
         "sendEventPostUri"
     ].replace(
@@ -58,7 +60,7 @@ async def onspot_activity_format(ingress: dict, client: DurableOrchestrationClie
     )
     if os.environ.get("REVERSE_PROXY", None):
         event_url = client._replace_url_origin(
-            "https://"+os.environ["REVERSE_PROXY"],
+            "https://" + os.environ["REVERSE_PROXY"],
             event_url,
         )
 
@@ -75,8 +77,8 @@ async def onspot_activity_format(ingress: dict, client: DurableOrchestrationClie
                 )
     elif isinstance(ingress["request"].get("sources"), list):
         ingress["request"]["callback"] = event_url.replace(
-                "{eventName}", uuid.uuid4().hex
-            )
+            "{eventName}", uuid.uuid4().hex
+        )
         if ingress["endpoint"].startswith("/save/"):
             ingress["request"]["outputLocation"] = (
                 container.url.replace("https://", "az://")

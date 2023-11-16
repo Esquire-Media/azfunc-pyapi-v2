@@ -9,7 +9,7 @@ BLUEPRINTS = {
     "esquire-campaign-proposal":[
         "libs/azure/functions/blueprints/azure/datalake/*",
         "libs/azure/functions/blueprints/esquire/campaign_proposal/*",
-        "libs/azure/functions/blueprints/microsoft/graph/*"
+        "libs/azure/functions/blueprints/microsoft/graph/*",
         "libs/azure/functions/blueprints/purge_instance_history",
     ],
     "esquire-dashboard-data": [

@@ -11,7 +11,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-async def daily_audience_activity_locations(ingress: dict):
+async def activity_dailyAudienceGeneration_locations(ingress: dict):
     provider: SQLAlchemyStructuredProvider = from_bind("universal")
     tables = provider.models["dbo"]
     session = provider.connect()

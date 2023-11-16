@@ -10,7 +10,7 @@ from azure.storage.blob import (
 )
 from sqlalchemy.orm import Session
 from libs.data import from_bind
-import geojson
+import geojson, logging
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
@@ -19,7 +19,7 @@ bp: Blueprint = Blueprint()
 
 # activity to grab the geojson data and format the request files for OnSpot
 @bp.activity_trigger(input_name="ingress")
-def activity_load_salesforce_geojsons(ingress: dict):
+def activity_dailyAudienceGeneration_loadSalesforceGeojsons(ingress: dict):
     # load competitor location geometries from salesforce
     feature_collection = {
         "type": "FeatureCollection",

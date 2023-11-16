@@ -44,11 +44,11 @@ if not from_bind("universal"):
     )
 
 # binding for checking rooftopcache
-if not from_bind("sisense-etl"):
-    register_binding(
-        "sisense-etl",
-        "Structured",
-        "sql",
-        url=os.environ["DATABIND_SQL_ROOFTOPS"],
-        schemas=["dbo"],
-    )
+# if not from_bind("sisense-etl"):
+#     register_binding(
+#         "sisense-etl",
+#         "Structured",
+#         "sql",
+#         url=os.environ["DATABIND_SQL_ROOFTOPS"],
+#         schemas=["dbo"],
+#     )

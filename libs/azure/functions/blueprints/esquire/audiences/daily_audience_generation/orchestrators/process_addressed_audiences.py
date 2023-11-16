@@ -16,7 +16,7 @@ bp: Blueprint = Blueprint()
 
 # main orchestrator for geoframed audiences (suborchestrator for the root)
 @bp.orchestration_trigger(context_name="context")
-def suborchestrator_addressed_audiences(context: DurableOrchestrationContext):
+def orchestrator_dailyAudienceGeneration_addressedAudiences(context: DurableOrchestrationContext):
     ingress = context.get_input()
     retry = RetryOptions(15000, 1)
 
@@ -26,7 +26,7 @@ def suborchestrator_addressed_audiences(context: DurableOrchestrationContext):
     yield context.task_all(
         [
             context.call_activity_with_retry(
-                "activity_format_address_lists",
+                "activity_dailyAudienceGeneration_formatAddressLists",
                 retry_options=retry,
                 input_={
                     "blob_prefix": ingress["blob_prefix"],
@@ -44,23 +44,6 @@ def suborchestrator_addressed_audiences(context: DurableOrchestrationContext):
         conn_str=os.environ["ONSPOT_CONN_STR"],
         container_name="general",
     )
-    # read the digital neighbor files from their location and pass into load_neighbors activity
-        ## this will save the correct addresses file of the neighbor's data
-    # yield context.task_all(
-    #     [
-    #         context.call_activity_with_retry(
-    #             "activity_load_neighbor_addresses",
-    #             retry_options=retry,
-    #             input_={
-    #                 "blob_prefix": ingress["blob_prefix"],
-    #                 "instance_id": ingress["instance_id"],
-    #                 "filename": audience_file.name,
-    #                 "context": None,
-    #             },
-    #         )
-    #         for audience_file in container_client.list_blobs()
-    #     ]
-    # )
     
     # generate sas token
     sas_token = generate_container_sas(

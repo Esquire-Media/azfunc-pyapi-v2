@@ -9,7 +9,7 @@ bp: Blueprint = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def activity_load_salesforce(ingress: dict):
+def activity_dailyAudienceGeneration_loadSalesforce(ingress: dict):
     # connect to Synapse salesforce database
     provider = from_bind("salesforce")
     session: Session = provider.connect()

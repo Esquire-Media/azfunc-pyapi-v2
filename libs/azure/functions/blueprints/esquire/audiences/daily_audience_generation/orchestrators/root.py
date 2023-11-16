@@ -9,7 +9,7 @@ bp: Blueprint = Blueprint()
 
 # main orchestrator
 @bp.orchestration_trigger(context_name="context")
-def orchestrator_daily_audience_generation(context: DurableOrchestrationContext):
+def orchestrator_dailyAudienceGeneration_root(context: DurableOrchestrationContext):
     # set connection string and the container
     conn_str = "ONSPOT_CONN_STR" if "ONSPOT_CONN_STR" in os.environ.keys() else "AzureWebJobsStorage"
     container_name = "general"
@@ -19,7 +19,7 @@ def orchestrator_daily_audience_generation(context: DurableOrchestrationContext)
 
     # get the locations.csv file
     yield context.call_activity(
-        "daily_audience_activity_locations",
+        "activity_dailyAudienceGeneration_locations",
         {
             "instance_id": context.instance_id,
             "conn_str": conn_str,
@@ -32,7 +32,7 @@ def orchestrator_daily_audience_generation(context: DurableOrchestrationContext)
 
     # load the audiences {"audience_id":"aud_id","start_date":"date","end_date":"date","geo":["geo_1","geo_2"]}
     audiences = yield context.call_activity_with_retry(
-        name="activity_load_salesforce", retry_options=retry, input_={**egress}
+        name="activity_dailyAudienceGeneration_loadSalesforce", retry_options=retry, input_={**egress}
     )
 
     # create testing information
@@ -41,7 +41,7 @@ def orchestrator_daily_audience_generation(context: DurableOrchestrationContext)
         "Audience_Name__c": "FF_Test",
         "Audience_Type__c": "Friends Family",
         "Lookback_Window__c": None,
-        "Name": "EF~00499",
+        "Name": "EF~00001",
     }
     # this will move the test file from general into the file path it would be in if the code was fully automated
     ## the intention of this is to simulate as much as possible the automated process, until the address
@@ -52,12 +52,12 @@ def orchestrator_daily_audience_generation(context: DurableOrchestrationContext)
         input_={**egress},
     )
 
-    # # FIRST SEPARATE THE AUDIENCES INTO LISTS OF HOW THE DEVICE IDS ARE GENERATED
+    # FIRST SEPARATE THE AUDIENCES INTO LISTS OF HOW THE DEVICE IDS ARE GENERATED
     yield context.task_all(
         [
             # testing for friends and family with sample file
             context.call_sub_orchestrator_with_retry(
-                "suborchestrator_friends_family",
+                "orchestrator_audience_friendsFamily",
                 retry,
                 {
                     "conn_str": conn_str,
@@ -71,7 +71,7 @@ def orchestrator_daily_audience_generation(context: DurableOrchestrationContext)
         + [
             ## setupitems for the friends and family suborchestrator
             # context.call_sub_orchestrator_with_retry(
-            #     "suborchestrator_friends_family",
+            #     "orchestrator_dailyAudienceGeneration_friendsFamily",
             #     retry,
             #     {
             #         "conn_str": conn_str,
@@ -83,13 +83,13 @@ def orchestrator_daily_audience_generation(context: DurableOrchestrationContext)
             #             for audience in audiences
             #             if audience["Audience_Type__c"]
             #             in ["Friends Family"]
-            #         ][:2],
+            #         ],
             #         "instance_id": context.instance_id,
             #     },
             # ),
             ## setup items for the suborchestrators for the geoframed audiences
             # context.call_sub_orchestrator_with_retry(
-            #     "suborchestrator_geoframed_audiences",
+            #     "orchestrator_dailyAudienceGeneration_geoframedAudiences",
             #     retry,
             #     {
             #         "conn_str": conn_str,
@@ -101,13 +101,13 @@ def orchestrator_daily_audience_generation(context: DurableOrchestrationContext)
             #             for audience in audiences
             #             if audience["Audience_Type__c"]
             #             in ["Competitor Location", "InMarket Shoppers"]
-            #         ][:2],
+            #         ],
             #         "instance_id": context.instance_id,
             #     },
             # ),
             ## setup items for the suborchestrators for the addressed audiences
             # context.call_sub_orchestrator_with_retry(
-            #     "suborchestrator_addressed_audiences",
+            #     "orchestrator_dailyAudienceGeneration_addressedAudiences",
             #     retry,
             #     {
             #         "conn_str": conn_str,
@@ -119,7 +119,7 @@ def orchestrator_daily_audience_generation(context: DurableOrchestrationContext)
             #             audience
             #             for audience in audiences
             #             if audience["Audience_Type__c"] in ["New Movers"] #["New Movers", "Digital Neighbors"]
-            #         ][:2],
+            #         ],
             #     },
             # ),
         ]

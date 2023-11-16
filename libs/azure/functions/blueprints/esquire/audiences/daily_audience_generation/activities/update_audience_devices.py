@@ -14,7 +14,7 @@ bp: Blueprint = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def activity_update_audience_devices(ingress: dict):
+def activity_dailyAudienceGeneration_updateAudienceDevices(ingress: dict):
     # make connection to the container
     container_client = ContainerClient.from_connection_string(
         conn_str=os.environ["ONSPOT_CONN_STR"],

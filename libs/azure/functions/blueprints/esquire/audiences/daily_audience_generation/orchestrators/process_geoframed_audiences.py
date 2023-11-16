@@ -10,7 +10,7 @@ bp: Blueprint = Blueprint()
 
 # main orchestrator for geoframed audiences (suborchestrator for the root)
 @bp.orchestration_trigger(context_name="context")
-def suborchestrator_geoframed_audiences(context: DurableOrchestrationContext):
+def orchestrator_dailyAudienceGeneration_geoframedAudiences(context: DurableOrchestrationContext):
     ingress = context.get_input()
     retry = RetryOptions(15000, 1)
 
@@ -18,7 +18,7 @@ def suborchestrator_geoframed_audiences(context: DurableOrchestrationContext):
     yield context.task_all(
         [
             context.call_activity_with_retry(
-                "activity_load_salesforce_geojsons",
+                "activity_dailyAudienceGeneration_loadSalesforceGeojsons",
                 retry_options=retry,
                 input_={
                     "instance_id": ingress["instance_id"],
@@ -66,7 +66,7 @@ def suborchestrator_geoframed_audiences(context: DurableOrchestrationContext):
     yield context.task_all(
         [
             context.call_activity_with_retry(
-                "activity_update_audience_devices",
+                "activity_dailyAudienceGeneration_updateAudienceDevices",
                 retry,
                 {
                     "blob_prefix": ingress["blob_prefix"],

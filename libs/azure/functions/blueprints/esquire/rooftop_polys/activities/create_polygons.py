@@ -21,7 +21,7 @@ max_sql_parameters = 1000
 
 # activity to validate the addresses
 @bp.activity_trigger(input_name="queries")
-def activity_create_polygons(queries: dict):
+def activity_rooftopPolys_createPolygons(queries: dict):
     kv = KeyVaultClient('google-service')
 
     gmaps = googlemaps.Client(key=kv.get_secret('google-api-key').value)

@@ -2,17 +2,21 @@
 
 from azure.durable_functions import DurableOrchestrationClient
 from azure.functions import TimerRequest
+from datetime import datetime
 from libs.azure.functions import Blueprint
-import logging
+import os
 
 # Create a Blueprint instance
 bp = Blueprint()
 
 
-@bp.timer_trigger("timer", schedule="0 0 0 * * *")
+@bp.timer_trigger("timer", schedule="0 0 8 * * *")
 @bp.durable_client_input("client")
 async def daily_dashboard_oneview_starter(
     timer: TimerRequest, client: DurableOrchestrationClient
 ):
-    instance_id = await client.start_new("esquire_dashboard_oneview_orchestrator")
-    logging.warn(client.create_http_management_payload(instance_id))
+    now = datetime.utcnow()
+    await client.start_new("esquire_dashboard_oneview_orchestrator", client_input={
+        "report_template_uid": os.environ["ONEVIEW_REPORT_TEMPLATE_UID"],
+        "end_at": [now.year, now.month, now.day]
+    })

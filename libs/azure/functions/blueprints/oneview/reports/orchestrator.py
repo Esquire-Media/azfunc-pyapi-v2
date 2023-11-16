@@ -13,7 +13,7 @@ def oneview_reports_orchestrator(
     context: DurableOrchestrationContext,
 ):
     # Expected keys:
-    # report_template_uid, end_at
+    # report_template_uid
     ingress = context.get_input()
 
     # Submit report generation request

@@ -15,8 +15,9 @@ bp = Blueprint()
 async def daily_dashboard_oneview_starter(
     timer: TimerRequest, client: DurableOrchestrationClient
 ):
-    now = datetime.utcnow()
-    await client.start_new("esquire_dashboard_oneview_orchestrator", client_input={
-        "report_template_uid": os.environ["ONEVIEW_REPORT_TEMPLATE_UID"],
-        "end_at": [now.year, now.month, now.day]
-    })
+    await client.start_new(
+        "esquire_dashboard_oneview_orchestrator",
+        client_input={
+            "report_template_uid": os.environ["ONEVIEW_REPORT_TEMPLATE_UID"],
+        },
+    )

@@ -3,6 +3,7 @@ import httpx
 import os
 from libs.azure.functions import Blueprint
 import logging
+from libs.azure.key_vault import KeyVaultClient
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()
@@ -20,16 +21,29 @@ def activity_microsoftGraph_sendEmail(ingress: dict):
     content_type    : Content type of email. Acceptable values include "text" and "HTML".
     """
 
-    # Generate an access token using MS authentication
+    # use environmental variables if all exist
+    if all([os.environ.get("MSGRAPH_CLIENT_ID"), os.environ.get("MSGRAPH_CLIENT_SECRET"), os.environ.get("MSGRAPH_TENANT_ID"),]):
+        client_id = os.environ.get("MSGRAPH_CLIENT_ID")
+        client_secret = os.environ.get("MSGRAPH_CLIENT_SECRET")
+        tenant_id = os.environ.get("MSGRAPH_TENANT_ID")
+        
+    # if no env are set, connect to the keyvault to load auth variables instead
+    else:
+        client = KeyVaultClient("graph-service")
+        client_id = client.get_secret("client-id").value
+        client_secret = client.get_secret("client-secret").value
+        tenant_id = client.get_secret("tenant-id").value
 
+
+    # Generate an access token using MS authentication
     # Set up the Microsoft Authentication Library (MSAL) application
     result = msal.ConfidentialClientApplication(
         # Get the client ID from the environment variables
-        client_id=os.getenv("MSGRAPH_CLIENT_ID"),
+        client_id=client_id,
         # Construct the authority URL using the tenant ID from the environment variables
-        authority="https://login.microsoftonline.com/" + os.getenv("MSGRAPH_TENANT_ID"),
+        authority="https://login.microsoftonline.com/" + tenant_id,
         # Get the client secret from the environment variables
-        client_credential=os.getenv("MSGRAPH_CLIENT_SECRET"),
+        client_credential=client_secret,
         # Initialize the token cache
         token_cache=msal.TokenCache(),
     ).acquire_token_for_client(

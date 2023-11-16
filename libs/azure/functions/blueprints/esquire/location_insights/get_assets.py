@@ -4,7 +4,7 @@ from azure.durable_functions import DurableOrchestrationClient
 import os
 import json
 import pandas as pd
-from azure.data.tables import TableServiceClient
+from azure.data.tables import TableClient
 
 bp = Blueprint()
 
@@ -20,12 +20,11 @@ async def starter_locationInsights_getAssets(req: HttpRequest, client: DurableOr
     )
     assets_table = { # table of valid asset package names
         "conn_str":conn_str,
-        "table_name":"locationinsightsassets"
+        "table_name":"locationInsightsAssets"
     }
 
     # connect to the assets storage table
-    table_service = TableServiceClient.from_connection_string(conn_str=os.environ[assets_table["conn_str"]])
-    table_client = table_service.get_table_client(table_name=assets_table["table_name"])
+    table_client = TableClient.from_connection_string(conn_str=os.environ[assets_table["conn_str"]], table_name=assets_table["table_name"])
     assets = pd.DataFrame(table_client.list_entities())
     
     # build dictionary of assets by type

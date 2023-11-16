@@ -29,11 +29,11 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
             "instance_id": context.instance_id,
             "resources_container":{ # container for prebuilt assets
                 "conn_str":conn_str,
-                "container_name":"campaign-proposals-resources"
+                "container_name":"campaign-proposal-resources"
             },
             "runtime_container":{ # container for files generated during runtime, including the final report(s)
                 "conn_str":conn_str,
-                "container_name":"campaign-proposals"
+                "container_name":"campaign-proposal"
             },
         }
 

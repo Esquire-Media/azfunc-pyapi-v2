@@ -12,14 +12,14 @@ bp = Blueprint()
 def oneview_reports_orchestrator(
     context: DurableOrchestrationContext,
 ):
-    report_template_uid = context.get_input()
-    now = datetime.utcnow()
-    today = [now.year, now.month, now.day]
+    # Expected keys:
+    # report_template_uid
+    ingress = context.get_input()
 
     # Submit report generation request
     yield context.call_activity(
         "oneview_reports_activity_run",
-        report_template_uid,
+        ingress,
     )
 
     # Periodically check to see if it's done and get the download url when it is
@@ -27,10 +27,7 @@ def oneview_reports_orchestrator(
     while not download_url:
         download_url = yield context.call_activity(
             "oneview_reports_activity_monitor",
-            {
-                "report_template_uid": report_template_uid,
-                "end_at": today,
-            },
+            ingress,
         )
         yield context.create_timer(datetime.utcnow() + timedelta(minutes=5))
 

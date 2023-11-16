@@ -14,6 +14,7 @@ import os
 import math
 import numpy as np
 from libs.utils.time import get_local_timezone
+from libs.azure.key_vault import KeyVaultClient
 
 class Observations:
     def __init__(self, data):
@@ -177,6 +178,7 @@ class Observations:
         """
         Scatter plot of device latlongs.
         """
+
         # get range of lats and lngs
         lat_min = self.latlongs['lat'].min()
         lat_max = self.latlongs['lat'].max()
@@ -216,14 +218,16 @@ class Observations:
         )
         # use custom mapbox style if mapbox token env variable is set
         if os.environ.get('mapbox_token'):
-            fig.update_layout(
-                mapbox_style="mapbox://styles/esqtech/cl8nh2452002p15logaud46pv",
-                mapbox_accesstoken = os.environ['mapbox_token'],
-            )
+            mapbox_token = os.environ.get('mapbox_token')
         else:
-            fig.update_layout(
-                mapbox_style="carto-darkmatter"
-            )
+            # otherwise connect to key vault
+            mapbox_vault = KeyVaultClient('mapbox-service')
+            mapbox_token = mapbox_vault.get_secret('mapbox-token').value
+        # use mapbox token to set custom style
+        fig.update_layout(
+            mapbox_style="mapbox://styles/esqtech/cl8nh2452002p15logaud46pv",
+            mapbox_accesstoken = mapbox_token,
+        )
         # export as specified
         if return_bytes:
             buffer = BytesIO()

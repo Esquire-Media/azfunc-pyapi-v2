@@ -11,6 +11,7 @@ bp = Blueprint()
 def esquire_dashboard_oneview_orchestrator(
     context: DurableOrchestrationContext,
 ):
+    ingress = context.get_input()
     retry = RetryOptions(60000, 12)
     conn_str = (
         "ONEVIEW_CONN_STR"
@@ -28,7 +29,7 @@ def esquire_dashboard_oneview_orchestrator(
         download_url = yield context.call_sub_orchestrator_with_retry(
             "oneview_reports_orchestrator",
             retry,
-            os.environ["ONEVIEW_REPORT_TEMPLATE_UID"],
+            ingress,
         )
         # Partition the report into parquet files by date
         yield context.call_activity_with_retry(

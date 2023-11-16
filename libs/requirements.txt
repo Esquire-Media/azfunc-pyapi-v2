@@ -63,7 +63,7 @@ pydantic==2.4.2
 # data viz
 plotly
 kaleido
-python-pptx
+python-pptx==0.6.21
 matplotlib
 seaborn
 adaptive-cards-py

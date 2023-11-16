@@ -1,7 +1,7 @@
 from azure.functions import TimerRequest
 from libs.azure.functions import Blueprint
 import os
-from azure.data.tables import TableServiceClient
+from azure.data.tables import TableClient
 from azure.storage.blob import ContainerClient
 
 bp = Blueprint()
@@ -9,7 +9,7 @@ bp = Blueprint()
 @bp.timer_trigger(arg_name="timer", schedule="0 0 */2 * * *")
 def timer_locationInsights_UpdateAssetsTable(timer: TimerRequest):
     """
-    Updates the Storage Table "locationinsightsassets" with the names of each asset package currently in Blob Storage.
+    Updates the Storage Table "locationInsightsAssets" with the names of each asset package currently in Blob Storage.
     This table will be the quick-access way to query the valid templates, creative_sets, and any other dynamic asset packages.
     Runs every 2 hours.
     """
@@ -26,7 +26,7 @@ def timer_locationInsights_UpdateAssetsTable(timer: TimerRequest):
     }
     assets_table = { # table of valid asset package names
         "conn_str":conn_str,
-        "table_name":"locationinsightsassets"
+        "table_name":"locationInsightsAssets"
     }
 
     # connect to resource storage client
@@ -35,7 +35,7 @@ def timer_locationInsights_UpdateAssetsTable(timer: TimerRequest):
         container_name=resources_container["container_name"]
     )
     # connect to assets table client
-    table_client = TableServiceClient.from_connection_string(conn_str=os.environ[assets_table["conn_str"]]).get_table_client(table_name=assets_table["table_name"])
+    table_client = TableClient.from_connection_string(conn_str=os.environ[assets_table["conn_str"]], table_name=assets_table["table_name"])
 
     # get unique resource packages in each of the pptx-resource directories
     templates = list(set([name.split('/')[1].split('.')[0] for name in container_client.list_blob_names(name_starts_with='templates/')]))
@@ -54,5 +54,5 @@ def timer_locationInsights_UpdateAssetsTable(timer: TimerRequest):
 
     # remove assets that no longer exist
     for row in table_client.list_entities():
-        if row['RowKey'] not in templates + creative_sets:
+        if row['RowKey'] not in templates + creative_sets + promotion_sets:
             table_client.delete_entity(row)

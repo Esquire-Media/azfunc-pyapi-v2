@@ -30,7 +30,7 @@ def orchestrator_locationInsights_batch(context: DurableOrchestrationContext):
             "batch_instance_id":context.instance_id,
             "runtime_container": {
                 "conn_str": conn_str,
-                "container_name": "location-insights-debug",
+                "container_name": "location-insights",
             },
             "resources_container":{
                 "conn_str":conn_str,

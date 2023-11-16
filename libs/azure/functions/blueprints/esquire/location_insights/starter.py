@@ -9,7 +9,7 @@ import json
 from azure.data.tables import TableClient
 import logging
 from pydantic import BaseModel, conlist
-from typing import Union, Optional
+from typing import Optional
 from libs.utils.logging import AzureTableHandler
 from pydantic import validator
 
@@ -29,6 +29,12 @@ async def starter_locationInsights(req: HttpRequest, client: DurableOrchestratio
 
     # load the request payload as a Pydantic object
     payload = HttpRequest.pydantize_body(req, LocationInsightsPayload).model_dump()
+
+    # get identity information from request headers
+    # logging.warning({k:v for k,v in req.headers.items()})
+    # identity_provider = req.headers.get('x-ms-client-principal-idp')
+    user_identity = req.headers.get('x-ms-client-principal-id')
+    payload['user'] = user_identity
 
     # Start a new instance of the orchestrator function
     instance_id = await client.start_new(
@@ -64,7 +70,7 @@ class LocationInsightsPayload(BaseModel):
         # connect to assets table (used for validating the creativeSet parameter)
         creativeSets = TableClient.from_connection_string(
             conn_str=os.getenv("LOCATION_INSIGHTS_CONN_STR", os.environ["AzureWebJobsStorage"]),
-            table_name="locationinsightsassets",
+            table_name="locationInsightsAssets",
         ).query_entities(f"PartitionKey eq 'creativeSet'", select=["RowKey"])
         # throw exception if value does not exist in the creativeSets assets table
         assert v in [e["RowKey"] for e in creativeSets]
@@ -83,7 +89,7 @@ class LocationInsightsPayload(BaseModel):
         # connect to assets table (used for validating the promotionSet parameter)
         promotionSets = TableClient.from_connection_string(
             conn_str=os.getenv("LOCATION_INSIGHTS_CONN_STR", os.environ["AzureWebJobsStorage"]),
-            table_name="locationinsightsassets",
+            table_name="locationInsightsAssets",
         ).query_entities(f"PartitionKey eq 'promotionSet'", select=["RowKey"])
         # throw exception if value does not exist in the promotionSets assets table
         assert v in [e["RowKey"] for e in promotionSets]
@@ -102,7 +108,7 @@ class LocationInsightsPayload(BaseModel):
         # connect to assets table (used for validating the template parameter)
         templates = TableClient.from_connection_string(
             conn_str=os.getenv("LOCATION_INSIGHTS_CONN_STR", os.environ["AzureWebJobsStorage"]),
-            table_name="locationinsightsassets",
+            table_name="locationInsightsAssets",
         ).query_entities(f"PartitionKey eq 'template'", select=["RowKey"])
         # throw exception if value does not exist in the templates assets table
         assert v in [e["RowKey"] for e in templates]
@@ -113,7 +119,6 @@ class LocationInsightsPayload(BaseModel):
     endDate: Date
     locationIDs: conlist(EsqId, min_length=1)
     callback: EmailAddress
-    user: Optional[str] = None
     creativeSet: Optional[str] = "Furniture Lifestyle"
     promotionSet: Optional[str] = "HFA Partner"
     template: Optional[str] = "Retail"

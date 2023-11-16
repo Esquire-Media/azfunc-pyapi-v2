@@ -29,6 +29,12 @@ async def starter_campaignProposal(req: HttpRequest, client: DurableOrchestratio
     # load the request payload as a Pydantic object
     payload = HttpRequest.pydantize_body(req, CampaignProposalPayload).model_dump()
 
+    # get identity information from request headers
+    # logging.warning({k:v for k,v in req.headers.items()})
+    # identity_provider = req.headers.get('x-ms-client-principal-idp')
+    user_identity = req.headers.get('x-ms-client-principal-id')
+    payload['user'] = user_identity
+
     # Start a new instance of the orchestrator function
     instance_id = await client.start_new(
         orchestration_function_name="orchestrator_campaignProposal_root",
@@ -62,7 +68,7 @@ class CampaignProposalPayload(BaseModel):
         # connect to assets table (used for validating the creativeSet parameter)
         creativeSets = TableClient.from_connection_string(
             conn_str=os.environ["AzureWebJobsStorage"],
-            table_name="campaignproposalsassets",
+            table_name="campaignProposalAssets",
         ).query_entities(f"PartitionKey eq 'creativeSet'", select=["RowKey"])
         # throw exception if value does not exist in the creativeSets assets table
         assert v in [e["RowKey"] for e in creativeSets]
@@ -88,6 +94,5 @@ class CampaignProposalPayload(BaseModel):
     categoryIDs: conlist(int, min_length=1)
     addresses: conlist(Union[AddressComponents, AddressGeocoded], min_length=1)
     callback: EmailAddress
-    user: Optional[str] = None
     creativeSet: Optional[str] = "Default"
     moverRadii: Optional[conlist(int, min_length=3, max_length=3)] = [5,10,15]

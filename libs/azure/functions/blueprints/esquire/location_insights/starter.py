@@ -1,17 +1,20 @@
 from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest
+from libs.azure.functions.http import HttpRequest, HttpResponse
 from azure.durable_functions import DurableOrchestrationClient
 from libs.utils.pydantic.address import EsqId
 from libs.utils.pydantic.time import Date
 from libs.utils.pydantic.email import EmailAddress
 import os
 import json
+import jwt
 from azure.data.tables import TableClient
 import logging
 from pydantic import BaseModel, conlist
 from typing import Optional
 from libs.utils.logging import AzureTableHandler
 from pydantic import validator
+from libs.utils.oauth2.tokens.microsoft import ValidateMicrosoftOnline
+from libs.utils.oauth2.tokens import TokenValidationError
 
 bp = Blueprint()
 
@@ -30,13 +33,21 @@ async def starter_locationInsights(req: HttpRequest, client: DurableOrchestratio
     # load the request payload as a Pydantic object
     payload = HttpRequest.pydantize_body(req, LocationInsightsPayload).model_dump()
 
-    # get identity information from request headers
-    # logging.warning({k:v for k,v in req.headers.items()})
-    # identity_provider = req.headers.get('x-ms-client-principal-idp')
-    user_identity = req.headers.get('x-ms-client-principal-id')
-    payload['user'] = user_identity
+    # validate the MS bearer token to ensure the user is authorized to make requests
+    try:
+        validator = ValidateMicrosoftOnline(
+            tenant_id=os.environ['MS_TENANT_ID'], 
+            client_id=os.environ['MS_CLIENT_ID']
+        )
+        headers = validator(req.headers.get('authorization'))
+    except TokenValidationError as e:
+        return HttpResponse(status_code=401, body=f"TokenValidationError: {e}")
 
-    # Start a new instance of the orchestrator function
+    # extract user information from bearer token metadata
+    payload['user'] = headers['oid']
+    payload['callback'] = headers['preferred_username']
+
+    # start a new instance of the orchestrator function
     instance_id = await client.start_new(
         orchestration_function_name="orchestrator_locationInsights_batch",
         client_input=payload,
@@ -118,7 +129,6 @@ class LocationInsightsPayload(BaseModel):
     name: str
     endDate: Date
     locationIDs: conlist(EsqId, min_length=1)
-    callback: EmailAddress
     creativeSet: Optional[str] = "Furniture Lifestyle"
     promotionSet: Optional[str] = "HFA Partner"
     template: Optional[str] = "Retail"

@@ -5,6 +5,8 @@ import os
 import json
 import pandas as pd
 from azure.data.tables import TableClient
+from libs.utils.oauth2.tokens.microsoft import ValidateMicrosoftOnline
+from libs.utils.oauth2.tokens import TokenValidationError
 
 bp = Blueprint()
 
@@ -12,6 +14,16 @@ bp = Blueprint()
 @bp.durable_client_input(client_name="client")
 async def starter_locationInsights_getAssets(req: HttpRequest, client: DurableOrchestrationClient):
 
+    # validate the MS bearer token to ensure the user is authorized to make requests
+    try:
+        validator = ValidateMicrosoftOnline(
+            tenant_id=os.environ['MS_TENANT_ID'], 
+            client_id=os.environ['MS_CLIENT_ID']
+        )
+        headers = validator(req.headers.get('authorization'))
+    except TokenValidationError as e:
+        return HttpResponse(status_code=401, body=f"TokenValidationError: {e}")
+    
     # if a campaign proposal conn string is set, use that. Otherwise use AzureWebJobsStorage
     conn_str = (
         "LOCATION_INSIGHTS_CONN_STR"

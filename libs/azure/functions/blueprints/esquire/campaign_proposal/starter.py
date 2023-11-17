@@ -11,7 +11,6 @@ from pydantic import BaseModel, conlist
 from typing import Union, Optional
 from libs.utils.logging import AzureTableHandler
 from pydantic import validator
-
 bp = Blueprint()
 
 # initialize logging features
@@ -31,7 +30,7 @@ async def starter_campaignProposal(req: HttpRequest, client: DurableOrchestratio
 
     # get identity information from request headers
     # logging.warning({k:v for k,v in req.headers.items()})
-    # identity_provider = req.headers.get('x-ms-client-principal-idp')
+    # identity_provider = req.headers.get('x-ms-client-principal-idp')  
     user_identity = req.headers.get('x-ms-client-principal-id')
     payload['user'] = user_identity
 

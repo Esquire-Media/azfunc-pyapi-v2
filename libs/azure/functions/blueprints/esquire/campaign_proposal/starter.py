@@ -11,7 +11,7 @@ from pydantic import BaseModel, conlist
 from typing import Union, Optional
 from libs.utils.logging import AzureTableHandler
 from pydantic import validator
-from libs.utils.oauth2.tokens.microsoft import ValidateMicrosoftOnline
+from libs.utils.oauth2.tokens.microsoft import ValidateMIcrosoft
 from libs.utils.oauth2.tokens import TokenValidationError
 bp = Blueprint()
 
@@ -32,7 +32,7 @@ async def starter_campaignProposal(req: HttpRequest, client: DurableOrchestratio
 
     # validate the MS bearer token to ensure the user is authorized to make requests
     try:
-        validator = ValidateMicrosoftOnline(
+        validator = ValidateMIcrosoft(
             tenant_id=os.environ['MS_TENANT_ID'], 
             client_id=os.environ['MS_CLIENT_ID']
         )

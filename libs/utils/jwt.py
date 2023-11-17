@@ -4,6 +4,15 @@ from jwt.algorithms import RSAAlgorithm
 
 
 def validate_microsoft_token(bearer_token: str, tenant_id: str, client_id: str):
+    """
+    Validate and decode a microsoft bearer token.
+
+    Params: 
+    bearer_token  : String bearer token, with or without "Bearer" prefix.
+    tenant_id     : Id of the tenant which issued the token.
+    client_id     : Id issued to the client during the app registration process.
+    """
+
     token = validate_generic_token(
         bearer_token=bearer_token,
         valid_issuers=[
@@ -18,6 +27,14 @@ def validate_microsoft_token(bearer_token: str, tenant_id: str, client_id: str):
 
 
 def validate_generic_token(bearer_token: str, valid_issuers: list):
+    """
+    Validate and decode a generic bearer token.
+
+    Params: 
+    bearer_token  : String bearer token, with or without "Bearer" prefix.
+    valid_issuers : A list of public urls that hold one or more encryption keys.
+    """
+
     # sanitize
     bearer_token = bearer_token.replace("Bearer ", "")
     # decode the JWT's unverified header without verification

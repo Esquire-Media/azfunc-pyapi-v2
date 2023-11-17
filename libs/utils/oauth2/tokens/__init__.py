@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from jwt.algorithms import RSAAlgorithm
-from typing import Any, Callable
+from typing import Any
 import httpx, jwt
 
 
@@ -15,116 +15,124 @@ class TokenValidationError(Exception):
 
 class ValidateGeneric(ABC):
     """
-    Abstract base class designed to validate JWTs using OpenID Connect configurations.
-    This class provides foundational methods required for JWT validation and decoding.
-    It should be subclassed for specific OpenID Connect provider implementations.
+    Abstract base class for OAuth token validation.
+
+    Methods
+    -------
+    __call__(token)
+        Validates the given OAuth token.
+
+    validate_token(token)
+        Abstract method to be implemented by subclasses for token validation.
+
+    get_key(jwks, kid)
+        Retrieves and formats the key from JWKS.
     """
 
-    def __init__(self, openid_config: dict, http_get: Callable = httpx.get):
+    def __call__(self, token):
         """
-        Initialize the class with OpenID Connect configuration and an optional HTTP GET function.
+        Validates the given OAuth token using the validate_token method.
 
         Parameters
         ----------
-        openid_config : dict
-            Configuration settings required for token validation, including keys and issuer information.
-        http_get : Callable, optional
-            Function to perform HTTP GET requests. Defaults to httpx.get.
-            This function should return a response object with a .json() method.
-        """
-        self.openid_config = openid_config
-        self.http_get = http_get
+        token : str
+            The OAuth token to be validated.
 
-    def decode_jwt(self, bearer_token: str) -> dict:
+        Returns
+        -------
+        dict or str
+            Decoded token information if validation is successful, or error message.
         """
-        Decode JWT without verifying its signature.
-        This method is typically used to extract the header to determine the key for signature verification.
-        """
-        return jwt.decode(
-            bearer_token,
-            algorithms=[self.get_unverified_header(bearer_token)["alg"]],
-            options={"verify_signature": False},
-        )
+        return self.validate_token(token)
 
-    def get_unverified_header(self, token: str) -> dict:
-        """
-        Retrieve the unverified header of the JWT.
-        This header contains metadata about the token, such as the algorithm used for signing.
-        """
-        return jwt.get_unverified_header(token)
-
-    def retrieve_matching_key(self, kid: str) -> dict:
+    def get_matching_key(self, keys: list, kid: str):
         """
         Retrieve the public key that matches the 'kid' from the JWKS endpoint.
         This key is used for verifying the JWT's signature.
         """
-        keys = self.http_get(self.openid_config["jwks_uri"]).json()["keys"]
         matching_key = next((key for key in keys if key["kid"] == kid), None)
         if not matching_key:
             raise TokenValidationError("Public key for validation not found.")
-        return matching_key
+        return RSAAlgorithm.from_jwk(matching_key)
 
     @abstractmethod
-    def additional_token_validation(self, payload: dict):
+    def validate_token(self, token):
         """
-        Abstract method for additional processing on the decoded JWT payload.
-        This method should be implemented in subclasses to perform provider-specific validations.
+        Abstract method for token validation. Must be implemented by subclasses.
+
+        Parameters
+        ----------
+        token : str
+            The OAuth token to be validated.
+
+        Raises
+        ------
+        NotImplementedError
+            If the method is not implemented in the subclass.
         """
-        pass
-
-    def __call__(self, bearer_token: str) -> Any:
-        """
-        Validate a JWT and return its decoded payload if the validation is successful.
-        This method serves as the primary interface for JWT validation,
-        combining header retrieval, signature verification, and custom processing.
-        """
-        if bearer_token.startswith("Bearer "):
-            bearer_token = bearer_token[7:]
-
-        unverified_header = self.get_unverified_header(bearer_token)
-        unverified_payload = self.decode_jwt(bearer_token)
-
-        if unverified_payload["iss"] != self.openid_config["issuer"]:
-            raise TokenValidationError(
-                "Issuer of the token ({}) is not the expected value ({}).".format(
-                    unverified_payload["iss"], self.openid_config["issuer"]
-                )
-            )
-
-        pem_key = RSAAlgorithm.from_jwk(
-            self.retrieve_matching_key(unverified_header["kid"])
-        )
-
-        self.additional_token_validation(unverified_payload)
-
-        return jwt.decode(
-            bearer_token,
-            algorithms=[unverified_header["alg"]],
-            key=pem_key,
-            audience=unverified_payload["aud"],
-            options={"verify_signature": True},
-        )
+        raise NotImplementedError("Subclasses must implement validate_token method")
 
 
 class ValidateWellKnown(ValidateGeneric):
     """
-    A subclass of ValidateGeneric designed for validating JWTs using the OpenID Connect discovery document.
-    This class fetches configuration from a well-known URL compliant with the OpenID Connect discovery specifications.
-    It's suitable for general use cases where OpenID providers publish their configurations at a standard URL.
-    The flexibility to provide a custom HTTP GET function makes it adaptable for various environments and testing scenarios.
+    A JWT validator class that implements OAuthTokenValidator for validating JWT tokens.
+
+    Inherits all parameters and methods from OAuthTokenValidator.
+
+    Parameters
+    ----------
+    openid_config_url : str
+        URL to the OpenID configuration.
+    audience : str
+        The audience value expected in the token.
+    http_client : callable, optional
+        HTTP client used for making requests. Defaults to httpx.Client.
     """
 
-    def __init__(self, well_known_url: str, http_get: Callable = httpx.get):
+    def __init__(self, openid_config_url, audience=None, http_client=httpx.Client):
+        self.audience = audience
+        self.http_client = http_client()
+        self.openid_config = self.http_client.get(url=openid_config_url).json()
+        self.public_keys = self.http_client.get(
+            url=self.openid_config["jwks_uri"]
+        ).json()["keys"]
+
+    def fetch_openid_config(self, url: str):
+        self.http_client.get(url).json()
+
+    def validate_token(self, token):
         """
-        Initialize the validator with the URL of the OpenID Connect discovery document and an optional HTTP GET function.
+        Validates a JWT token using OpenID and JWKS information.
 
         Parameters
         ----------
-        well_known_url : str
-            The URL of the OpenID Connect discovery document (.well-known/openid-configuration).
-        http_get : Callable, optional
-            Function to perform HTTP GET requests. Defaults to httpx.get.
-            This function should return a response object with a .json() method.
-            It allows for custom handling of HTTP requests, such as adding special headers or using a different HTTP client.
+        token : str
+            The JWT token to be validated.
+
+        Returns
+        -------
+        dict or str
+            Decoded token information if validation is successful, or error message.
         """
-        super().__init__(http_get(well_known_url).json())
+        # Strip Bearer from the beginning if it's there
+        if token[:7] == "Bearer ":
+            token = token[7:]
+        # Decode the token header without validation
+        try:
+            unverified_header = jwt.get_unverified_header(token)
+        except jwt.InvalidTokenError as e:
+            return f"Error decoding token header: {e}"
+
+        # Validate Token
+        try:
+            decoded_token = jwt.decode(
+                token,
+                key=self.get_matching_key(self.public_keys, unverified_header["kid"]),
+                algorithms=[unverified_header["alg"]],
+                audience=self.audience,
+            )
+            return decoded_token
+        except jwt.ExpiredSignatureError:
+            return "Token expired"
+        except jwt.InvalidTokenError as e:
+            return f"Invalid token: {e}"

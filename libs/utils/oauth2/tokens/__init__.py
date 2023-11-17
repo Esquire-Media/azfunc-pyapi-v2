@@ -124,15 +124,9 @@ class ValidateWellKnown(ValidateGeneric):
             return f"Error decoding token header: {e}"
 
         # Validate Token
-        try:
-            decoded_token = jwt.decode(
-                token,
-                key=self.get_matching_key(self.public_keys, unverified_header["kid"]),
-                algorithms=[unverified_header["alg"]],
-                audience=self.audience,
-            )
-            return decoded_token
-        except jwt.ExpiredSignatureError:
-            return "Token expired"
-        except jwt.InvalidTokenError as e:
-            return f"Invalid token: {e}"
+        return jwt.decode(
+            token,
+            key=self.get_matching_key(self.public_keys, unverified_header["kid"]),
+            algorithms=[unverified_header["alg"]],
+            audience=self.audience,
+        )

@@ -5,6 +5,9 @@ from azure.durable_functions import DurableOrchestrationContext, RetryOptions
 from fuzzywuzzy import fuzz
 from libs.utils.smarty import bulk_validate
 import pandas as pd
+import uuid
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 import logging
 
 bp: Blueprint = Blueprint()
@@ -18,6 +21,7 @@ def orchestrator_audience_friendsFamily(
 ):
     ingress = context.get_input()
     retry = RetryOptions(15000, 1)
+    logging.warning(ingress)
 
     # suborchestrator for the rooftop polys
     poly_batches = yield context.task_all(
@@ -28,7 +32,9 @@ def orchestrator_audience_friendsFamily(
                 retry,
                 valid_chunk.to_list()[:20],
             )
-            for chunk in pd.read_csv(ingress["source"], chunksize=100, encoding_errors="ignore")
+            for chunk in pd.read_csv(
+                ingress["source"], chunksize=1000, encoding_errors="ignore"
+            )
             if isinstance((mapped_chunk := detect_column_names(chunk)), pd.DataFrame)
             if isinstance(
                 (
@@ -54,26 +60,69 @@ def orchestrator_audience_friendsFamily(
             )
         ]
     )
-    
-    logging.warning(f"Polys: {poly_batches}")
 
-    # # pass Friends and Family to OnSpot Orchestrator
+    now = datetime.utcnow()
+    today = datetime(now.year,now.month,now.day)
+    end = today-relativedelta(days=2)
+    start = end-relativedelta(days=90)
+
+    # pass Friends and Family to OnSpot Orchestrator
+    test = yield context.task_all(
+        [
+            context.call_sub_orchestrator_with_retry(
+                "onspot_orchestrator",
+                retry,
+                {
+                    **ingress["destination"],
+                    "endpoint": "/save/geoframe/all/devices",
+                    "request": {
+                        "type": "FeatureCollection",
+                        "features": [
+                            {
+                                "type": "Feature",
+                                "geometry": poly,
+                                "properties": {
+                                    "name": uuid.uuid4().hex,
+                                    "fileName": uuid.uuid4().hex,
+                                    "start":start.isoformat(),
+                                    "end":end.isoformat(),
+                                    "hash":False
+                                },
+                            }
+                            for poly in batch
+                        ],
+                    },
+                },
+            )
+            for batch in poly_batches
+        ]
+    )
+
+    logging.warning(test)
+
+    # ingress example:
+    # {
+    #     "source": "https://esqdevdurablefunctions.blob.core.windows.net/general/a0H6e00000bNazEEAS_test.csv?se=2023-11-19T15%3A13%3A19Z&sp=r&sv=2023-11-03&sr=b&sig=1U1/RoFDLaR9Y2Pmduhpbxfzwv57S51hti%2BHGknTP%2BA%3D",
+    #     "destination": {
+    #         "conn_str": "ONSPOT_CONN_STR",
+    #         "container_name": "general",
+    #         "blob_name": "audiences/a0H6e00000bNazEEAS_test",
+    #     },
+    # }
+    
+    # merge all of the device files into one file
     # yield context.task_all(
     #     [
-    #         context.call_sub_orchestrator_with_retry(
-    #             "onspot_orchestrator",
+    #         context.call_activity_with_retry(
+    #             "activity_onSpot_mergeDevices",
     #             retry,
     #             {
-    #                 "conn_str": ingress["conn_str"],
-    #                 "container": ingress["container_name"],
-    #                 "outputPath": "{}/{}/{}".format(
-    #                     ingress["blob_prefix"], ingress["audience"]["Id"], "devices"
-    #                 ),
-    #                 "endpoint": "/save/geoframe/all/devices",
-    #                 "request": {}
+    #                 "blob_prefix": ingress["destination"]["blob_prefix"],
+    #                 "instance_id": ingress["instance_id"],
+    #                 "audience_id": audience['Id']
     #             },
     #         )
-    #         for polys in poly_batches
+    #         for audience in ingress['audiences']
     #     ]
     # )
 

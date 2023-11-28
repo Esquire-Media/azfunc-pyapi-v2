@@ -1,4 +1,4 @@
-# File: libs/azure/functions/blueprints/esquire/audiences/daily_audience_generation/activities/update_audience_devices.py
+# File: libs/azure/functions/blueprints/esquire/onspot/activities/merge_devices.py
 
 from libs.azure.functions import Blueprint
 from azure.storage.blob import (
@@ -14,7 +14,10 @@ bp: Blueprint = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def activity_dailyAudienceGeneration_updateAudienceDevices(ingress: dict):
+def activity_onSpot_mergeDevices(ingress: dict):
+    # hard coded needs to be replaced with an input we can put into the activity
+    # take 2 params: source(list of uris) and destination(conn string, container name, blob path)
+    
     # make connection to the container
     container_client = ContainerClient.from_connection_string(
         conn_str=os.environ["ONSPOT_CONN_STR"],

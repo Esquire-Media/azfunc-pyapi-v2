@@ -105,7 +105,7 @@ def orchestrator_dailyAudienceGeneration_addressedAudiences(context: DurableOrch
     # yield context.task_all(
     #     [
     #         context.call_activity_with_retry(
-    #             "activity_update_audience_devices",
+    #             "activity_onSpot_mergeDevices",
     #             retry,
     #             {
     #                 "blob_prefix": ingress["blob_prefix"],

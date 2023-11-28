@@ -66,7 +66,7 @@ def orchestrator_dailyAudienceGeneration_geoframedAudiences(context: DurableOrch
     yield context.task_all(
         [
             context.call_activity_with_retry(
-                "activity_dailyAudienceGeneration_updateAudienceDevices",
+                "activity_onSpot_mergeDevices",
                 retry,
                 {
                     "blob_prefix": ingress["blob_prefix"],

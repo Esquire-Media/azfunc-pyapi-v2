@@ -6,7 +6,6 @@ from azure.durable_functions import (
 )
 from urllib.parse import unquote
 from dateutil.relativedelta import relativedelta
-from azure.storage.blob import BlobClient
 from libs.azure.functions.http import HttpRequest
 import os
 from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas

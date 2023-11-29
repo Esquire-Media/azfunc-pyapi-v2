@@ -62,18 +62,18 @@ def orchestrator_audience_friendsFamily(
     )
 
     now = datetime.utcnow()
-    today = datetime(now.year,now.month,now.day)
-    end = today-relativedelta(days=2)
-    start = end-relativedelta(days=90)
+    today = datetime(now.year, now.month, now.day)
+    end = today - relativedelta(days=2)
+    start = end - relativedelta(days=90)
 
     # pass Friends and Family to OnSpot Orchestrator
-    test = yield context.task_all(
+    onSpot_results = yield context.task_all(
         [
             context.call_sub_orchestrator_with_retry(
                 "onspot_orchestrator",
                 retry,
                 {
-                    **ingress["destination"],
+                    **ingress["working"],
                     "endpoint": "/save/geoframe/all/devices",
                     "request": {
                         "type": "FeatureCollection",
@@ -84,9 +84,9 @@ def orchestrator_audience_friendsFamily(
                                 "properties": {
                                     "name": uuid.uuid4().hex,
                                     "fileName": uuid.uuid4().hex,
-                                    "start":start.isoformat(),
-                                    "end":end.isoformat(),
-                                    "hash":False
+                                    "start": start.isoformat(),
+                                    "end": end.isoformat(),
+                                    "hash": False,
                                 },
                             }
                             for poly in batch
@@ -98,33 +98,23 @@ def orchestrator_audience_friendsFamily(
         ]
     )
 
-    logging.warning(test)
+    # check if all callbacks succeeded
+    if not all([c["success"] for r in onSpot_results for c in r["callbacks"]]):
+        # if there are failures, throw exception of what failed in the call
+        # TODO: exception for submission failures
+        raise Exception(
+            [c for r in onSpot_results for c in r["callbacks"] if not c["success"]]
+        )
 
-    # ingress example:
-    # {
-    #     "source": "https://esqdevdurablefunctions.blob.core.windows.net/general/a0H6e00000bNazEEAS_test.csv?se=2023-11-19T15%3A13%3A19Z&sp=r&sv=2023-11-03&sr=b&sig=1U1/RoFDLaR9Y2Pmduhpbxfzwv57S51hti%2BHGknTP%2BA%3D",
-    #     "destination": {
-    #         "conn_str": "ONSPOT_CONN_STR",
-    #         "container_name": "general",
-    #         "blob_name": "audiences/a0H6e00000bNazEEAS_test",
-    #     },
-    # }
-    
     # merge all of the device files into one file
-    # yield context.task_all(
-    #     [
-    #         context.call_activity_with_retry(
-    #             "activity_onSpot_mergeDevices",
-    #             retry,
-    #             {
-    #                 "blob_prefix": ingress["destination"]["blob_prefix"],
-    #                 "instance_id": ingress["instance_id"],
-    #                 "audience_id": audience['Id']
-    #             },
-    #         )
-    #         for audience in ingress['audiences']
-    #     ]
-    # )
+    yield context.call_activity_with_retry(
+        "activity_onSpot_mergeDevices",
+        retry,
+        {
+            "source": ingress["working"],
+            "destination": ingress["destination"],
+        },
+    )
 
     return {}
 

@@ -22,7 +22,7 @@ def orchestrator_esquireAudiencesMaid_fetch(context: DurableOrchestrationContext
     yield context.task_all(
         [
             context.call_sub_orchestrator_with_retry(
-                "orchestrator_esquireAudienceAddresses_footprint",
+                "orchestrator_esquireAudienceMaidsAddresses_footprint",
                 retry,
                 {
                     "working": {

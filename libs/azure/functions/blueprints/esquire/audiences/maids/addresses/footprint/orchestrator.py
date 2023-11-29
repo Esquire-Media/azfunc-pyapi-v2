@@ -1,4 +1,4 @@
-# File: libs/azure/functions/blueprints/esquire/audiences/addresses/footprint/orchestrator.py
+# File: libs/azure/functions/blueprints/esquire/audiences/maids/addresses/footprint/orchestrator.py
 
 from libs.azure.functions import Blueprint
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
@@ -16,7 +16,7 @@ bp: Blueprint = Blueprint()
 # main orchestrator for friends and family audiences (suborchestrator for the root)
 ## one audience at a time
 @bp.orchestration_trigger(context_name="context")
-def orchestrator_esquireAudienceAddresses_footprint(
+def orchestrator_esquireAudienceMaidsAddresses_footprint(
     context: DurableOrchestrationContext,
 ):
     ingress = context.get_input()

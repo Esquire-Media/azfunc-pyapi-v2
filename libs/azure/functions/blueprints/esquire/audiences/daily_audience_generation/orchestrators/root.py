@@ -14,27 +14,28 @@ bp: Blueprint = Blueprint()
 # main orchestrator
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_dailyAudienceGeneration_root(context: DurableOrchestrationContext):
-    # set connection string and the container
+    # set connection string dynamically and the container
+    ## Will look for an ONSPOT_CONN_STR, but if it isn't there it will use the default AzureWebJobsStorage
     conn_str = (
         "ONSPOT_CONN_STR"
         if "ONSPOT_CONN_STR" in os.environ.keys()
         else "AzureWebJobsStorage"
     )
     container_name = "general"
-    blob_prefix = "raw"
+    blob_prefix = f"raw/{context.instance_id}"
     retry = RetryOptions(15000, 1)
     egress = {"instance_id": context.instance_id, "blob_prefix": blob_prefix}
 
     # get the locations.csv file
-    yield context.call_activity(
-        "activity_dailyAudienceGeneration_locations",
-        {
-            "instance_id": context.instance_id,
-            "conn_str": conn_str,
-            "container": container_name,
-            "outputPath": f"{blob_prefix}/{context.instance_id}/locations.csv",
-        },
-    )
+    # TODO: Replace ESQ ids with new ids
+    # yield context.call_activity(
+    #     "activity_dailyAudienceGeneration_locations",
+    #     {
+    #         "conn_str": conn_str,
+    #         "container_name": container_name,
+    #         "blob_name": f"{blob_prefix}/locations.csv",
+    #     },
+    # )
     # file saves a CSV with example data below
     # {"location_id": "b6cec934-4151-48fe-97e2-0000041834a1", "esq_id": "EF~06133"}
 
@@ -42,7 +43,7 @@ def orchestrator_dailyAudienceGeneration_root(context: DurableOrchestrationConte
     audiences = yield context.call_activity_with_retry(
         name="activity_dailyAudienceGeneration_loadSalesforce",
         retry_options=retry,
-        input_={**egress},
+        input_=egress,
     )
 
     # create testing information
@@ -73,7 +74,7 @@ def orchestrator_dailyAudienceGeneration_root(context: DurableOrchestrationConte
                     "destination": {
                         "conn_str": conn_str,
                         "container_name": container_name,
-                        "outputPath": f"{blob_prefix}/{context.instance_id}/audiences/{audience['Id']}/devices",
+                        "outputPath": f"{blob_prefix}/audiences/{audience['Id']}/devices",
                     },
                     "audience": audience,
                     "source": (
@@ -95,7 +96,7 @@ def orchestrator_dailyAudienceGeneration_root(context: DurableOrchestrationConte
                 blob_client := BlobClient.from_connection_string(
                     conn_str=os.environ[conn_str],
                     container_name=container_name,
-                    blob_name=f"{blob_prefix}/{context.instance_id}/audiences/{audience['Id']}/{audience['Id']}.csv",
+                    blob_name=f"{blob_prefix}/audiences/{audience['Id']}/{audience['Id']}.csv",
                 )
             )
         ]
@@ -108,7 +109,7 @@ def orchestrator_dailyAudienceGeneration_root(context: DurableOrchestrationConte
             #         "conn_str": conn_str,
             #         "container": container_name,
             #         "blob_prefix": blob_prefix,
-            #         "path": f"{blob_prefix}/{context.instance_id}/audiences",
+            #         "path": f"{blob_prefix}/audiences",
             #         "audiences": [
             #             audience
             #             for audience in audiences
@@ -126,7 +127,7 @@ def orchestrator_dailyAudienceGeneration_root(context: DurableOrchestrationConte
             #         "conn_str": conn_str,
             #         "container": container_name,
             #         "blob_prefix": blob_prefix,
-            #         "path": f"{blob_prefix}/{context.instance_id}/audiences",
+            #         "path": f"{blob_prefix}/audiences",
             #         "audiences": [
             #             audience
             #             for audience in audiences
@@ -144,7 +145,7 @@ def orchestrator_dailyAudienceGeneration_root(context: DurableOrchestrationConte
             #         "conn_str": conn_str,
             #         "container": container_name,
             #         "blob_prefix": blob_prefix,
-            #         "path": f"{blob_prefix}/{context.instance_id}/audiences",
+            #         "path": f"{blob_prefix}/audiences",
             #         "instance_id": context.instance_id,
             #         "audiences": [
             #             audience

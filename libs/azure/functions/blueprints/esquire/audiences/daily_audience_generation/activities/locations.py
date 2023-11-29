@@ -24,11 +24,9 @@ async def activity_dailyAudienceGeneration_locations(ingress: dict):
     )
 
     BlobClient.from_connection_string(
-        os.environ[ingress["conn_str"]]
-        if ingress.get("conn_str", None) in os.environ.keys()
-        else os.environ["AzureWebJobsStorage"],
-        ingress["container"],
-        ingress["outputPath"],
+        os.environ[ingress["conn_str"]],
+        ingress["container_name"],
+        ingress["blob_name"],
     ).upload_blob(df.to_csv(index=None))
 
     return ""

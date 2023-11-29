@@ -5,12 +5,24 @@ import os
 import json
 import pandas as pd
 from azure.data.tables import TableServiceClient
+from libs.utils.oauth2.tokens.microsoft import ValidateMicrosoft
+from libs.utils.oauth2.tokens import TokenValidationError
 
 bp = Blueprint()
 
 @bp.route(route="esquire/campaign_proposal/getAssets", methods=["GET"])
 @bp.durable_client_input(client_name="client")
 async def starter_campaignProposal_getAssets(req: HttpRequest, client: DurableOrchestrationClient):
+
+    # validate the MS bearer token to ensure the user is authorized to make requests
+    try:
+        validator = ValidateMicrosoft(
+            tenant_id=os.environ['MS_TENANT_ID'], 
+            client_id=os.environ['MS_CLIENT_ID']
+        )
+        headers = validator(req.headers.get('authorization'))
+    except TokenValidationError as e:
+        return HttpResponse(status_code=401, body=f"TokenValidationError: {e}")
 
     # if a campaign proposal conn string is set, use that. Otherwise use AzureWebJobsStorage
     conn_str = (

@@ -1,5 +1,5 @@
 from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest
+from libs.azure.functions.http import HttpRequest, HttpResponse
 from azure.durable_functions import DurableOrchestrationClient
 from libs.utils.pydantic.address import AddressComponents, AddressGeocoded
 from libs.utils.pydantic.email import EmailAddress
@@ -11,7 +11,8 @@ from pydantic import BaseModel, conlist
 from typing import Union, Optional
 from libs.utils.logging import AzureTableHandler
 from pydantic import validator
-
+from libs.utils.oauth2.tokens.microsoft import ValidateMicrosoft
+from libs.utils.oauth2.tokens import TokenValidationError
 bp = Blueprint()
 
 # initialize logging features
@@ -29,12 +30,20 @@ async def starter_campaignProposal(req: HttpRequest, client: DurableOrchestratio
     # load the request payload as a Pydantic object
     payload = HttpRequest.pydantize_body(req, CampaignProposalPayload).model_dump()
 
-    # get identity information from request headers
-    # logging.warning({k:v for k,v in req.headers.items()})
-    # identity_provider = req.headers.get('x-ms-client-principal-idp')
-    user_identity = req.headers.get('x-ms-client-principal-id')
-    payload['user'] = user_identity
+    # validate the MS bearer token to ensure the user is authorized to make requests
+    try:
+        validator = ValidateMicrosoft(
+            tenant_id=os.environ['MS_TENANT_ID'], 
+            client_id=os.environ['MS_CLIENT_ID']
+        )
+        headers = validator(req.headers.get('authorization'))
+    except TokenValidationError as e:
+        return HttpResponse(status_code=401, body=f"TokenValidationError: {e}")
 
+    # extract user information from bearer token metadata
+    payload['user'] = headers['oid']
+    payload['callback'] = headers['preferred_username']
+    
     # Start a new instance of the orchestrator function
     instance_id = await client.start_new(
         orchestration_function_name="orchestrator_campaignProposal_root",
@@ -93,6 +102,5 @@ class CampaignProposalPayload(BaseModel):
     name: str
     categoryIDs: conlist(int, min_length=1)
     addresses: conlist(Union[AddressComponents, AddressGeocoded], min_length=1)
-    callback: EmailAddress
     creativeSet: Optional[str] = "Default"
     moverRadii: Optional[conlist(int, min_length=3, max_length=3)] = [5,10,15]

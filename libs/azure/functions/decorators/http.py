@@ -12,7 +12,8 @@ from azure.functions.decorators.core import Binding, BindingDirection
 from azure.functions.decorators.constants import HTTP_TRIGGER, HTTP_OUTPUT
 from azure.functions.decorators.function_app import DecoratorApi, FunctionBuilder
 from functools import wraps
-from typing import Any, Callable, Optional
+from libs.utils.oauth2.tokens import ValidateGeneric
+from typing import Any, Callable, List, Optional
 import os
 
 
@@ -359,22 +360,26 @@ class HttpDecoratorApi(DecoratorApi):
 
         return wrap
 
-    def easy_auth(self, enforce: bool = True) -> Callable:
+    def oauth2(self, validators: List[ValidateGeneric]) -> Callable:
+        def try_validators(token: str):
+            validations = []
+            for validator in validators:
+                try:
+                    validations.append(validator(token))
+                except:
+                    validations.append(None)
+            return validations
+
         @self._configure_function_builder
         def wrap(fb: FunctionBuilder):
             def decorator():
-                self.apply_middleware_http(
-                    fb,
-                    lambda *args, http_trigger_binding, **kwargs: None
-                    if not enforce
-                    else None
-                    if kwargs[http_trigger_binding.name].headers.get(
-                        "x-ms-client-principal-idp"
-                    )
-                    and kwargs[http_trigger_binding.name].headers.get(
-                        "x-ms-client-principal-id"
-                    )
-                    else HttpResponse(status_code=403),
+                def validate(req: HttpRequest):
+                    validations = try_validators(req.headers.get("authorization"))
+                    if any(validations):
+                        return next(item for item in validations if item is not None)
+
+                self._enhance_http_request(
+                    wrap=fb, property_name="oauth2", func=validate
                 )
                 return fb
 

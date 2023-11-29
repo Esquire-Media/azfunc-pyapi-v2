@@ -92,6 +92,7 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
             {
                 "function_name": "esquire-campaign-proposal",
                 "instance_id": context.instance_id,
+                "owners":["ryan@esquireadvertising.com"],
                 "error": f"{type(e).__name__} : {e}"[:1000],
                 "icon_url": "https://img.icons8.com/?size=77&id=16044&format=png",
                 "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],

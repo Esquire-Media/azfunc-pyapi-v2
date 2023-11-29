@@ -16,7 +16,6 @@ bp = Blueprint()
 async def starter_locationInsights_getAssets(req: HttpRequest, client: DurableOrchestrationClient):
 
     # validate the MS bearer token to ensure the user is authorized to make requests
-    logging.warning(req.headers.get('authorization'))
     try:
         validator = ValidateMicrosoft(
             tenant_id=os.environ['MS_TENANT_ID'], 

@@ -102,6 +102,5 @@ class CampaignProposalPayload(BaseModel):
     name: str
     categoryIDs: conlist(int, min_length=1)
     addresses: conlist(Union[AddressComponents, AddressGeocoded], min_length=1)
-    callback: EmailAddress
     creativeSet: Optional[str] = "Default"
     moverRadii: Optional[conlist(int, min_length=3, max_length=3)] = [5,10,15]

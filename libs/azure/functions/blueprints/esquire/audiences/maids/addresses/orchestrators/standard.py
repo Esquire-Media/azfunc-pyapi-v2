@@ -38,8 +38,8 @@ def orchestrator_esquireAudienceMaidsAddresses_standard(
                     "street": ["delivery_line_1"],
                     "city": ["city_name"],
                     "state": ["state_abbreviation"],
-                    "zip": ["zip"],
-                    "zip4": ["zip4"],
+                    "zip": ["zipcode"],
+                    "zip4": ["plus4_code"],
                 },
                 "matchAcceptanceThreshold": 29.9,
                 "sources": [

@@ -1,15 +1,15 @@
 # File: libs/azure/functions/blueprints/esquire/onspot/activities/merge_devices.py
 
-from libs.azure.functions import Blueprint
 from azure.storage.blob import (
     BlobClient,
     ContainerClient,
     ContainerSasPermissions,
     generate_container_sas,
 )
-import os
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+from libs.azure.functions import Blueprint
+import os, logging
 
 bp: Blueprint = Blueprint()
 
@@ -44,15 +44,20 @@ def activity_onSpot_mergeDevices(ingress: dict):
         if not blob_name.endswith(".debug.csv"):
             if first:
                 destination_blob_client.create_append_blob()
-                header = (
-                    sources_container_client.download_blob(blob_name, 0, 8).read()
-                    == b"deviceid"
-                )
                 first = False
 
+            header = (
+                sources_container_client.download_blob(blob_name, 0, 8).read()
+                == b"deviceid"
+            )
+
+            url = sources_container_client.url + "/" + blob_name + "?" + sas_token
+
+            logging.warning(url)
+
             destination_blob_client.append_block_from_url(
-                sources_container_client.url + "/" + blob_name + "?" + sas_token,
-                9 if header else None,
+                copy_source_url=url,
+                source_offset=9 if header else None,
             )
 
     return {}

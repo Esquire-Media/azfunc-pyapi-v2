@@ -2,12 +2,9 @@
 
 from libs.azure.functions import Blueprint
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-import pandas as pd
 import uuid
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
 
-bp: Blueprint = Blueprint()
+bp = Blueprint()
 
 
 # main orchestrator for friends and family audiences (suborchestrator for the root)
@@ -42,9 +39,7 @@ def orchestrator_esquireAudienceMaidsAddresses_standard(
                     "zip4": ["plus4_code"],
                 },
                 "matchAcceptanceThreshold": 29.9,
-                "sources": [
-                    ingress["source"].replace("https://", "az://")
-                ],
+                "sources": [ingress["source"].replace("https://", "az://")],
             },
         },
     )
@@ -53,9 +48,7 @@ def orchestrator_esquireAudienceMaidsAddresses_standard(
     if not all([c["success"] for r in onspot for c in r["callbacks"]]):
         # if there are failures, throw exception of what failed in the call
         # TODO: exception for submission failures
-        raise Exception(
-            [c for r in onspot for c in r["callbacks"] if not c["success"]]
-        )
+        raise Exception([c for r in onspot for c in r["callbacks"] if not c["success"]])
 
     # merge all of the device files into one file
     yield context.call_activity_with_retry(

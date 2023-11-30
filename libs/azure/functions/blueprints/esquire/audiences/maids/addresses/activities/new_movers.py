@@ -1,4 +1,4 @@
-# File: libs/azure/functions/blueprints/esquire/audiences/maids/activities/new_movers.py
+# File: libs/azure/functions/blueprints/esquire/audiences/maids/addresses/activities/new_movers.py
 
 from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
 from datetime import datetime

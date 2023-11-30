@@ -26,7 +26,7 @@ async def testTrigger_audience_friendsFamily(req: HttpRequest, client: DurableOr
     )
 
     instance_id = await client.start_new(
-        "orchestrator_audience_friendsFamily",
+        "orchestrator_esquireAudienceMaidsAddresses_footprint",
         client_input={
             "source": (
                 unquote(blob_client.url)

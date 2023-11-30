@@ -8,7 +8,7 @@ from libs.data import from_bind
 from sqlalchemy.orm import Session
 import pandas as pd, os
 
-bp: Blueprint = Blueprint()
+bp = Blueprint()
 
 INCOME_MAP = {
     "15 K": 15000,

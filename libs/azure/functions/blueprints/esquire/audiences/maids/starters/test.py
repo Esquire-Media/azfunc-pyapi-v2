@@ -2,7 +2,7 @@ from libs.azure.functions import Blueprint
 from azure.durable_functions import DurableOrchestrationClient
 from libs.azure.functions.http import HttpRequest
 
-bp: Blueprint = Blueprint()
+bp = Blueprint()
 
 
 @bp.route(route="audiences/maids/test")

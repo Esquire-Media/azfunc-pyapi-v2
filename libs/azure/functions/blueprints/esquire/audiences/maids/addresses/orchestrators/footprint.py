@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
-bp: Blueprint = Blueprint()
+bp = Blueprint()
 
 
 # main orchestrator for friends and family audiences (suborchestrator for the root)

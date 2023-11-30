@@ -76,14 +76,14 @@ def orchestrator_locationInsights_batch(context: DurableOrchestrationContext):
         )
 
     except Exception as e:
+        # if any errors are caught, post an error card to teams tagging Ryan and the calling user
         yield context.call_activity(
             "activity_microsoftGraph_postErrorCard",
             {
                 "function_name": "esquire-location-insights",
                 "instance_id": context.instance_id,
-                "owners":["ryan@esquireadvertising.com"],
+                "owners":["66c0c96a-2319-494e-a3a3-bc9c1b92739d", egress['user']],
                 "error": f"{type(e).__name__} : {e}"[:1000],
-                "icon_url": "https://img.icons8.com/?size=77&id=16044&format=png",
                 "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
             },
         )

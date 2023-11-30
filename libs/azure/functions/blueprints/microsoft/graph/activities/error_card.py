@@ -1,9 +1,11 @@
 import adaptive_cards.card_types as types
 from adaptive_cards.card import AdaptiveCard
-from adaptive_cards.elements import TextBlock, Image
+from adaptive_cards.elements import TextBlock
 from adaptive_cards.containers import Container, ContainerTypes, ColumnSet, Column
 import httpx
 import json
+from libs.utils.graph import MicrosoftGraph
+from libs.azure.key_vault import KeyVaultClient
 import logging
 from libs.azure.functions import Blueprint
 
@@ -14,15 +16,35 @@ bp = Blueprint()
 @bp.activity_trigger(input_name="ingress")
 def activity_microsoftGraph_postErrorCard(ingress: dict):
     """
+    Posts an adaptive card containing error log information and pinging the project owner(s).
+    Note that the project function must be granted Key Vault Secret User access to the graph-service Key Vault.
+    
     Params:
 
     function_name   : Name of the Azure function.
     instance_id     : ID of the particular function instance.
-    owners          : List of MS emails for users that will be @ mentioned in the card.
+    owners          : List of user IDs to be @ mentioned in the card.
     error           : Detailed error log (will be truncated to the first 10 lines).
-    icon_url        : URL for a custom image to associate with this error. Used to quickly differentiate errors.
     webhook         : URL of webhook where the adaptive card will be sent.
     """
+
+    # connect to Microsoft Graph using key vault credentials
+    client = KeyVaultClient("graph-service")
+    client_id = client.get_secret("client-id").value
+    client_secret = client.get_secret("client-secret").value
+    tenant_id = client.get_secret("tenant-id").value
+    graph = MicrosoftGraph(client_id=client_id, client_credential=client_secret, authority=f"https://login.microsoftonline.com/{tenant_id}",)
+
+    # use graph to get display names and emails from the passed owner IDs
+    owners = []
+    for owner in ingress['owners']:
+        owner_info = graph.query(f"users/{owner}")
+        owners.append({
+            "mail":owner_info["mail"],
+            "displayName":owner_info["displayName"]
+        })
+    # dedupe the list of dicts to avoid @ mentioning the same user twice
+    owners = [dict(tupleized) for tupleized in set(tuple(item.items()) for item in owners)] 
 
     # initialize the object that will contain all card elements
     containers: list[ContainerTypes] = []
@@ -48,7 +70,7 @@ def activity_microsoftGraph_postErrorCard(ingress: dict):
                                 TextBlock(text=ingress["instance_id"]),
                                 TextBlock(
                                     text=" ".join(
-                                        [f"<at>{owner['name']}</at>" for owner in ingress['owners']]
+                                        [f"<at>{owner['displayName']}</at>" for owner in owners]
                                     )
                                 ),
                             ],
@@ -91,10 +113,10 @@ def activity_microsoftGraph_postErrorCard(ingress: dict):
         "entities": [
             {
                 "type": "mention",
-                "text": f"<at>{owner['name']}</at>",
-                "mentioned": {"id": owner["id"], "name": owner["name"]},
+                "text": f"<at>{owner['displayName']}</at>",
+                "mentioned": {"id": owner["mail"], "name": owner["displayName"]},
             }
-            for owner in ingress['owners']
+            for owner in owners
         ]
     }
 
@@ -112,4 +134,4 @@ def activity_microsoftGraph_postErrorCard(ingress: dict):
                 }
             ],
         },
-    ).content
+    ).status_code

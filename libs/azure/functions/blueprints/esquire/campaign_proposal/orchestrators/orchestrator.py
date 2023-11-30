@@ -21,11 +21,9 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
         )
 
         # commonly used variables
-        taskHubName = str(context.get_input())
         retry = RetryOptions(15000, 1)
         egress = {
             **settings,
-            "taskHubName": taskHubName,
             "instance_id": context.instance_id,
             "resources_container":{ # container for prebuilt assets
                 "conn_str":conn_str,
@@ -84,17 +82,16 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
                 "content_type": "HTML",
             },
         )
-
-    # catch any exceptions that occured during runtime and post them to the designated Teams channel
+        
     except Exception as e:
+        # if any errors are caught, post an error card to teams tagging Ryan and the calling user
         yield context.call_activity(
             "activity_microsoftGraph_postErrorCard",
             {
                 "function_name": "esquire-campaign-proposal",
                 "instance_id": context.instance_id,
-                "owners":["ryan@esquireadvertising.com"],
+                "owners":["66c0c96a-2319-494e-a3a3-bc9c1b92739d", egress['user']],
                 "error": f"{type(e).__name__} : {e}"[:1000],
-                "icon_url": "https://img.icons8.com/?size=77&id=16044&format=png",
                 "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
             },
         )

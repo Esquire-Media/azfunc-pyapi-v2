@@ -66,5 +66,5 @@ kaleido
 python-pptx==0.6.21
 matplotlib
 seaborn
-adaptive-cards-py
+adaptive-cards-py @ git+https://github.com/dennis6p/adaptive-cards-py.git
 nbformat>=4.2.0

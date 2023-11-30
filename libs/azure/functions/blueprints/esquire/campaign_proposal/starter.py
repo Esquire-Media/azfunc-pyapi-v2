@@ -43,6 +43,8 @@ async def starter_campaignProposal(req: HttpRequest, client: DurableOrchestratio
     # extract user information from bearer token metadata
     payload['user'] = headers['oid']
     payload['callback'] = headers['preferred_username']
+
+    logging.warning(payload)
     
     # Start a new instance of the orchestrator function
     instance_id = await client.start_new(

@@ -3,8 +3,7 @@ from libs.azure.functions import Blueprint
 import pandas as pd
 import numpy as np
 import json
-from azure.storage.blob import BlobServiceClient, ContainerClient
-from io import BytesIO
+from azure.storage.blob import ContainerClient
 from datetime import datetime as dt, timedelta
 from libs.azure.functions.blueprints.esquire.campaign_proposal.utility.zipcode_map import map_zipcodes
 from libs.utils.esquire.movers.mover_engine import MoverEngine
@@ -62,6 +61,8 @@ def activity_campaignProposal_collectMovers(settings: dict):
                 latitude=addr["latitude"], longitude=addr["longitude"], radius=1609 * radius
             )
             zips = pd.DataFrame(zip_radius_list)
+            if not len(zips):
+                raise Exception(f"Error: No zipcodes found within {radius} miles of the address at index {i}.")
             zips["GeoJSON"] = zips["GeoJSON"].apply(json.loads)
 
             # store the unique zipcode geometries (for mapping purposes later)

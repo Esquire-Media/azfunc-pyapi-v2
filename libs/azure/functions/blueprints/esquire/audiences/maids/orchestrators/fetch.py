@@ -16,8 +16,9 @@ bp: Blueprint = Blueprint()
 def orchestrator_esquireAudiencesMaid_fetch(context: DurableOrchestrationContext):
     ingress = context.get_input()
     retry = RetryOptions(15000, 1)
-    egress = {**ingress["destination"]}
-    egress["blob_prefix"] += f"/{context.instance_id}"
+
+    execution_time = context.current_utc_datetime.isoformat()
+    validated_addresses_name = "addresses_validated.parquet"
 
     yield context.task_all(
         [
@@ -39,15 +40,18 @@ def orchestrator_esquireAudiencesMaid_fetch(context: DurableOrchestrationContext
                     ),
                     "destination": {
                         **ingress["destination"],
-                        "blob_name": "{}/{}/addresses_validated".format(
-                            ingress["destination"]["blob_prefix"], audience["Id"]
+                        "blob_name": "{}/{}/{}/{}".format(
+                            ingress["destination"]["blob_prefix"],
+                            audience["id"],
+                            execution_time,
+                            validated_addresses_name,
                         ),
                         "format": "parquet",
                     },
                 },
             )
             for audience in ingress["audiences"]
-            if audience["Audience_Type__c"]
+            if audience["type"]
             in [
                 "Friends Family",
                 "New Movers",
@@ -60,7 +64,11 @@ def orchestrator_esquireAudiencesMaid_fetch(context: DurableOrchestrationContext
                 blob_client := BlobClient.from_connection_string(
                     conn_str=os.environ[ingress["source"]["conn_str"]],
                     container_name=ingress["source"]["container_name"],
-                    blob_name=f"{ingress['source']['blob_prefix']}/{audience['Id']}/addresses.csv",
+                    blob_name="{}/{}/{}".format(
+                        ingress["source"]["blob_prefix"],
+                        audience["id"],
+                        "addresses.csv",
+                    ),
                 )
             )
         ]
@@ -79,7 +87,7 @@ def orchestrator_esquireAudiencesMaid_fetch(context: DurableOrchestrationContext
                             + f"/{context.instance_id}"
                             if ingress["working"]["blob_prefix"]
                             else context.instance_id,
-                            audience["Id"],
+                            audience["id"],
                         ),
                     },
                     "source": (
@@ -96,21 +104,26 @@ def orchestrator_esquireAudiencesMaid_fetch(context: DurableOrchestrationContext
                     ),
                     "destination": {
                         **ingress["destination"],
-                        "blob_name": "{}/{}/maids/{}.csv".format(
+                        "blob_name": "{}/{}/{}/maids.csv".format(
                             ingress["destination"]["blob_prefix"],
-                            audience["Id"],
-                            datetime.utcnow().isoformat(),
+                            audience["id"],
+                            execution_time,
                         ),
                     },
                 },
             )
             for audience in ingress["audiences"]
-            if audience["Audience_Type__c"] == "Friends Family"
+            if audience["type"] == "Friends Family"
             if (
                 blob_client := BlobClient.from_connection_string(
                     conn_str=os.environ[ingress["source"]["conn_str"]],
                     container_name=ingress["source"]["container_name"],
-                    blob_name=f"{ingress['source']['blob_prefix']}/{audience['Id']}/addresses_validated",
+                    blob_name="{}/{}/{}/{}".format(
+                        ingress["source"]["blob_prefix"],
+                        audience["id"],
+                        execution_time,
+                        validated_addresses_name,
+                    ),
                 )
             )
         ]

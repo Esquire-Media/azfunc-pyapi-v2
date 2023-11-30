@@ -17,11 +17,10 @@ async def starter_esquireAudiencesMaid_test(
     # get audiences
     test_friends_family = [
         {
-            "Id": "a0H6e00000bNazEEAS_test",
-            "Audience_Name__c": "FF_Test",
-            "Audience_Type__c": "Friends Family",
-            "Lookback_Window__c": None,
-            "Name": "EF~00001",
+            "id": "a0H6e00000bNazEEAS_test",
+            "name": "FF_Test",
+            "type": "Friends Family",
+            "lookback": None,
         }
     ]
     

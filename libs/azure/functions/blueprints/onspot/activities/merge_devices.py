@@ -37,27 +37,38 @@ def activity_onSpot_mergeDevices(ingress: dict):
         blob_name=ingress["destination"]["blob_name"],
     )
     first = True
+    headers = ",".join(ingress.get("header", ["deviceid"])).encode()
+    header_size = len(headers)
 
-    for blob_name in sources_container_client.list_blob_names(
+    for blob_prop in sources_container_client.list_blobs(
         name_starts_with=ingress["source"]["blob_prefix"]
     ):
-        if not blob_name.endswith(".debug.csv"):
-            if first:
-                destination_blob_client.create_append_blob()
-                first = False
+        if not blob_prop.name.endswith(".debug.csv"):
+            if blob_prop.size > 9:
+                if first:
+                    destination_blob_client.create_append_blob()
+                    first = False
 
-            header = (
-                sources_container_client.download_blob(blob_name, 0, 8).read()
-                == b"deviceid"
-            )
+                header = (
+                    sources_container_client.download_blob(
+                        blob_prop.name, 0, header_size
+                    ).read()
+                    == headers
+                )
 
-            url = sources_container_client.url + "/" + blob_name + "?" + sas_token
+                url = (
+                    sources_container_client.url
+                    + "/"
+                    + blob_prop.name
+                    + "?"
+                    + sas_token
+                )
 
-            logging.warning(url)
+                logging.warning(url)
 
-            destination_blob_client.append_block_from_url(
-                copy_source_url=url,
-                source_offset=9 if header else None,
-            )
+                destination_blob_client.append_block_from_url(
+                    copy_source_url=url,
+                    source_offset=header_size + 1 if header else None,
+                )
 
     return {}

@@ -13,7 +13,7 @@ bp = Blueprint()
 
 # main orchestrator
 @bp.orchestration_trigger(context_name="context")
-def orchestrator_esquireAudiencesMaid_fetch(context: DurableOrchestrationContext):
+def orchestrator_esquireAudiencesMaids_fetch(context: DurableOrchestrationContext):
     ingress = context.get_input()
     retry = RetryOptions(15000, 1)
 
@@ -80,8 +80,6 @@ def orchestrator_esquireAudiencesMaid_fetch(context: DurableOrchestrationContext
                 "New Movers",
                 "Digital Neighbors",
                 "Past Customers",
-                "Targeted List",
-                "Internal List",
             ]
             if (
                 blob_client := BlobClient.from_connection_string(

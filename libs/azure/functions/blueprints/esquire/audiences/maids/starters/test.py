@@ -25,7 +25,7 @@ async def starter_esquireAudiencesMaid_test(
 
     # Start a new instance of the orchestrator function
     instance_id = await client.start_new(
-        orchestration_function_name="orchestrator_esquireAudiencesMaid_fetch",
+        orchestration_function_name="orchestrator_esquireAudiencesMaids_fetch",
         client_input={
             "audiences": audiences[1:],
             "source": {

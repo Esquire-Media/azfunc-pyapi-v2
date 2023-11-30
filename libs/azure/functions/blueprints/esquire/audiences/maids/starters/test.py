@@ -1,9 +1,6 @@
 from libs.azure.functions import Blueprint
-from azure.durable_functions import (
-    DurableOrchestrationClient,
-)
-from libs.azure.functions.http import HttpRequest, HttpResponse
-import logging
+from azure.durable_functions import DurableOrchestrationClient
+from libs.azure.functions.http import HttpRequest
 
 bp: Blueprint = Blueprint()
 
@@ -15,20 +12,22 @@ async def starter_esquireAudiencesMaid_test(
     client: DurableOrchestrationClient,
 ):
     # get audiences
-    test_friends_family = [
+    audiences = [
         {
             "id": "a0H6e00000bNazEEAS_test",
-            "name": "FF_Test",
             "type": "Friends Family",
-            "lookback": None,
-        }
+        },
+        {
+            "id": "a0HPK000000e2r72AA",
+            "type": "New Movers",
+        },
     ]
-    
+
     # Start a new instance of the orchestrator function
     instance_id = await client.start_new(
         orchestration_function_name="orchestrator_esquireAudiencesMaid_fetch",
         client_input={
-            "audiences": test_friends_family,
+            "audiences": audiences[1:],
             "source": {
                 "conn_str": "ONSPOT_CONN_STR",
                 "container_name": "general",
@@ -43,7 +42,7 @@ async def starter_esquireAudiencesMaid_test(
                 "conn_str": "ONSPOT_CONN_STR",
                 "container_name": "general",
                 "blob_prefix": "audiences",
-            }
+            },
         },
     )
 

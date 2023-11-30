@@ -1,14 +1,14 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/maids/orchestrators/fetch.py
 
-from libs.azure.functions import Blueprint
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-import os, logging
-from urllib.parse import unquote
-from dateutil.relativedelta import relativedelta
 from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
+from dateutil.relativedelta import relativedelta
 from datetime import datetime
+from libs.azure.functions import Blueprint
+from urllib.parse import unquote
+import os, logging
 
-bp: Blueprint = Blueprint()
+bp = Blueprint()
 
 
 # main orchestrator
@@ -18,7 +18,31 @@ def orchestrator_esquireAudiencesMaid_fetch(context: DurableOrchestrationContext
     retry = RetryOptions(15000, 1)
 
     execution_time = context.current_utc_datetime.isoformat()
-    validated_addresses_name = "addresses.csv"
+    unvalidated_addresses_name = "addresses.csv"
+    validated_addresses_name = "validated_addresses.csv"
+    
+    
+    yield context.task_all(
+        [
+            context.call_activity_with_retry(
+                "activity_esquireAudiencesMaids_newMovers",
+                retry,
+                {
+                    "audience": audience,
+                    "destination": {
+                        **ingress["destination"],
+                        "blob_name": "{}/{}/{}".format(
+                            ingress["destination"]["blob_prefix"],
+                            audience["id"],
+                            unvalidated_addresses_name,
+                        ),
+                    },
+                }
+            )
+            for audience in ingress["audiences"]
+            if audience["type"] in ["New Movers"]
+        ]
+    )
 
     yield context.task_all(
         [
@@ -45,7 +69,7 @@ def orchestrator_esquireAudiencesMaid_fetch(context: DurableOrchestrationContext
                             audience["id"],
                             execution_time,
                             validated_addresses_name,
-                        )
+                        ),
                     },
                 },
             )
@@ -66,7 +90,7 @@ def orchestrator_esquireAudiencesMaid_fetch(context: DurableOrchestrationContext
                     blob_name="{}/{}/{}".format(
                         ingress["source"]["blob_prefix"],
                         audience["id"],
-                        "addresses.csv",
+                        unvalidated_addresses_name,
                     ),
                 )
             )

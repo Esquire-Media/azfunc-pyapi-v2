@@ -16,7 +16,7 @@ max_sql_parameters = 1000
 
 # activity to validate the addresses
 @bp.activity_trigger(input_name="addresses")
-def activity_read_cache(addresses: List[str]):
+def activity_rooftopPolys_readCache(addresses: List[str]):
     """
     Read from the SQL GoogleRooftopCache to check for cached frames among the passed addresses.
     """

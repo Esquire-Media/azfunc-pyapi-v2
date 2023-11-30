@@ -130,7 +130,7 @@ STATE_ABBREVIATIONS_MAP = {
 
 # activity to fill in the geo data for each audience object
 @bp.activity_trigger(input_name="ingress")
-def activity_format_address_lists(ingress: dict):
+def activity_dailyAudienceGeneration_formatAddressLists(ingress: dict):
     addresses = get_addresses(audience_id=ingress["Id"])
 
     # send addresses to blob as csv

@@ -26,7 +26,7 @@ async def starter_daily_audience_generation(
 
     # Start a new instance of the orchestrator function
     instance_id = await client.start_new(
-        orchestration_function_name="orchestrator_daily_audience_generation",
+        orchestration_function_name="orchestrator_dailyAudienceGeneration_root",
         # instance_id=instance_id,
     )
 

@@ -11,7 +11,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-async def daily_audience_activity_locations(ingress: dict):
+async def activity_dailyAudienceGeneration_locations(ingress: dict):
     provider: SQLAlchemyStructuredProvider = from_bind("universal")
     tables = provider.models["dbo"]
     session = provider.connect()
@@ -24,11 +24,9 @@ async def daily_audience_activity_locations(ingress: dict):
     )
 
     BlobClient.from_connection_string(
-        os.environ[ingress["conn_str"]]
-        if ingress.get("conn_str", None) in os.environ.keys()
-        else os.environ["AzureWebJobsStorage"],
-        ingress["container"],
-        ingress["outputPath"],
+        os.environ[ingress["conn_str"]],
+        ingress["container_name"],
+        ingress["blob_name"],
     ).upload_blob(df.to_csv(index=None))
 
     return ""

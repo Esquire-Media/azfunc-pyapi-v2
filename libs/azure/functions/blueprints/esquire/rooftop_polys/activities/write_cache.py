@@ -11,7 +11,7 @@ bp: Blueprint = Blueprint()
 
 # activity to validate the addresses
 @bp.activity_trigger(input_name="polys")
-def activity_write_cache(polys: List[dict]):
+def activity_rooftopPolys_writeCache(polys: List[dict]):
     # set the provider
     provider = from_bind("universal")
     rooftop = provider.models["dbo"]["GoogleRooftopCache"]

@@ -18,7 +18,7 @@ def orchestrator_esquireAudiencesMaid_fetch(context: DurableOrchestrationContext
     retry = RetryOptions(15000, 1)
 
     execution_time = context.current_utc_datetime.isoformat()
-    validated_addresses_name = "addresses_validated.parquet"
+    validated_addresses_name = "addresses.csv"
 
     yield context.task_all(
         [
@@ -45,8 +45,7 @@ def orchestrator_esquireAudiencesMaid_fetch(context: DurableOrchestrationContext
                             audience["id"],
                             execution_time,
                             validated_addresses_name,
-                        ),
-                        "format": "parquet",
+                        )
                     },
                 },
             )

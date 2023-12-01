@@ -285,10 +285,14 @@ def get_addresses(audience_id: str):
     if aud_details["Moved_to_the_Same__c"]:  # same as above
         address_query = address_query.filter(movers.state == movers.oldState)
         # Select Distinct came up with only 'Null'
-    if aud_details["Single_Family__c"]:
-        address_query = address_query.filter(movers.addresstype == "SingleFamily")
-    if aud_details["Multi_Family__c"]:
-        address_query = address_query.filter(movers.addresstype == "Highrise")
+    if aud_details["Single_Family__c"] and not aud_details["Multi_Family__c"]:
+        address_query = address_query.filter(movers.addressType == "SingleFamily")
+    elif not aud_details["Single_Family__c"] and aud_details["Multi_Family__c"]:
+        address_query = address_query.filter(movers.addressType == "Highrise")
+    elif aud_details["Single_Family__c"] and aud_details["Multi_Family__c"]:
+        address_query = address_query.filter(
+            movers.addressType == "SingleFamily" or movers.addressType == "Highrise"
+        )
 
     addresses = pd.DataFrame(address_query.all())
 

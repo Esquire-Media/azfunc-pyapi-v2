@@ -8,7 +8,7 @@ bp = Blueprint()
 
 # main orchestrator
 @bp.orchestration_trigger(context_name="context")
-def orchestrator_esquireAudiencesMaids_addresses(context: DurableOrchestrationContext):
+def orchestrator_esquireAudiencesMaids_geoframes(context: DurableOrchestrationContext):
     ingress = context.get_input()
     retry = RetryOptions(15000, 1)
 

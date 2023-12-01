@@ -7,7 +7,7 @@ bp = Blueprint()
 
 @bp.route(route="audiences/maids/tests/fetch")
 @bp.durable_client_input(client_name="client")
-async def starter_esquireAudiencesMaid_test(
+async def starter_esquireAudiencesMaidsTest_fetch(
     req: HttpRequest,
     client: DurableOrchestrationClient,
 ):

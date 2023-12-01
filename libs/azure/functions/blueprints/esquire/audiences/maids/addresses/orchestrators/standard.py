@@ -45,10 +45,10 @@ def orchestrator_esquireAudienceMaidsAddresses_standard(
     )
 
     # check if all callbacks succeeded
-    if not all([c["success"] for r in onspot for c in r["callbacks"]]):
+    if not all([c["success"] for c in onspot["callbacks"]]):
         # if there are failures, throw exception of what failed in the call
         # TODO: exception for submission failures
-        raise Exception([c for r in onspot for c in r["callbacks"] if not c["success"]])
+        raise Exception([c for c in onspot["callbacks"] if not c["success"]])
 
     # merge all of the device files into one file
     yield context.call_activity_with_retry(

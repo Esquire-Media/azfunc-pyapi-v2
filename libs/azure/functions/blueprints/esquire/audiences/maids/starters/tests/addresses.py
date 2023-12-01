@@ -7,7 +7,7 @@ bp = Blueprint()
 
 @bp.route(route="audiences/maids/test/addresses")
 @bp.durable_client_input(client_name="client")
-async def starter_esquireAudiencesMaid_test(
+async def starter_esquireAudiencesMaidsTests_addresses(
     req: HttpRequest,
     client: DurableOrchestrationClient,
 ):
@@ -23,7 +23,7 @@ async def starter_esquireAudiencesMaid_test(
     instance_id = await client.start_new(
         orchestration_function_name="orchestrator_esquireAudiencesMaids_addresses",
         client_input={
-            "audiences": audiences[1:],
+            "audiences": audiences,
             "destination": {
                 "conn_str": "ONSPOT_CONN_STR",
                 "container_name": "general",

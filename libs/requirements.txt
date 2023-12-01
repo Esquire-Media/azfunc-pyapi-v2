@@ -33,6 +33,7 @@ py-abac
 ## database connectors
 boto3
 pymssql
+pyodbc
 ## formatting
 pyarrow
 orjson # fast (de)serialization

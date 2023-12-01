@@ -131,7 +131,7 @@ STATE_ABBREVIATIONS_MAP = {
 
 # activity to fill in the geo data for each audience object
 @bp.activity_trigger(input_name="ingress")
-def activity_esquireAudiencesMaids_newMovers(ingress: dict):
+def activity_esquireAudiencesMaidsAddresses_newMovers(ingress: dict):
     addresses = get_addresses(audience_id=ingress["audience"]["id"])
 
     # Handle data output based on destination configuration

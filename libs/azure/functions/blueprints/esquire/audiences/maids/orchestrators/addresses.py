@@ -17,7 +17,7 @@ def orchestrator_esquireAudiencesMaids_addresses(context: DurableOrchestrationCo
     yield context.task_all(
         [
             context.call_activity_with_retry(
-                "activity_esquireAudiencesMaids_newMovers",
+                "activity_esquireAudiencesMaidsAddresses_newMovers",
                 retry,
                 {
                     "audience": audience,

@@ -20,29 +20,6 @@ def orchestrator_esquireAudiencesMaids_fetch(context: DurableOrchestrationContex
     execution_time = context.current_utc_datetime.isoformat()
     unvalidated_addresses_name = "addresses.csv"
     validated_addresses_name = "validated_addresses.csv"
-    
-    
-    yield context.task_all(
-        [
-            context.call_activity_with_retry(
-                "activity_esquireAudiencesMaids_newMovers",
-                retry,
-                {
-                    "audience": audience,
-                    "destination": {
-                        **ingress["destination"],
-                        "blob_name": "{}/{}/{}".format(
-                            ingress["destination"]["blob_prefix"],
-                            audience["id"],
-                            unvalidated_addresses_name,
-                        ),
-                    },
-                }
-            )
-            for audience in ingress["audiences"]
-            if audience["type"] in ["New Movers"]
-        ]
-    )
 
     yield context.task_all(
         [

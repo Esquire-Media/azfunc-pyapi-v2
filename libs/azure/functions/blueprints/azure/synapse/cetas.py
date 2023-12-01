@@ -1,11 +1,6 @@
 # File: libs/azure/functions/blueprints/synapse/cetas.py
 
-from azure.storage.filedatalake import (
-    FileSystemClient,
-    FileSasPermissions,
-    generate_file_sas,
-)
-from azure.storage.blob import BlobClient, ContainerClient, BlobSasPermissions, generate_blob_sas
+from azure.storage.blob import ContainerClient, BlobSasPermissions, generate_blob_sas
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
@@ -20,6 +15,45 @@ bp = Blueprint()
 
 @bp.activity_trigger(input_name="ingress")
 async def synapse_activity_cetas(ingress: dict):
+    """
+    Handles the creation of an external table in Azure Synapse Analytics, 
+    optionally creating or altering a view based on the table, 
+    and generating SAS URLs for blobs if requested.
+
+    Parameters
+    ----------
+    ingress : dict
+        A dictionary containing several key-value pairs that configure the function:
+        - table : dict
+            Contains the 'schema' (default 'dbo') and 'name' of the table.
+        - destination : dict
+            Contains 'container', 'path', 'handle', and optionally 'format' 
+            (default 'PARQUET') for the data destination.
+        - query : str
+            The SQL query to be executed.
+        - bind : str
+            Database connection information.
+        - commit : bool, optional
+            Flag to determine if changes should be committed (default is False).
+        - view : bool, optional
+            Flag to determine if a view should be created or altered (default is False).
+        - return_urls : bool, optional
+            Flag to indicate if SAS URLs for blobs should be returned (default is False).
+        - instance_id : str
+            An identifier for the instance.
+
+    Returns
+    -------
+    list or str
+        A list of SAS URLs for the blobs if 'return_urls' is True. 
+        Otherwise, an empty string.
+
+    Notes
+    -----
+    This function is specific to Azure Synapse Analytics and requires appropriate
+    Azure permissions and configurations to be set up in advance.
+    """
+    
     table_name = f'[{ingress["table"].get("schema", "dbo")}].[{ingress["table"]["name"]}_{ingress["instance_id"]}]'
     query = f"""
         CREATE EXTERNAL TABLE {table_name}
@@ -64,33 +98,6 @@ async def synapse_activity_cetas(ingress: dict):
         session.commit()
 
     if ingress.get("return_urls", None):
-        # filesystem = FileSystemClient.from_connection_string(
-        #     os.environ[ingress["destination"]["conn_str"]]
-        #     if ingress["destination"].get("conn_str", None) in os.environ.keys()
-        #     else os.environ["AzureWebJobsStorage"],
-        #     ingress["destination"]["container"],
-        # )
-
-        # return [
-        #     file.url
-        #     + "?"
-        #     + generate_file_sas(
-        #         file.account_name,
-        #         file.file_system_name,
-        #         "/".join(file.path_name.split("/")[:-1]),
-        #         file.path_name.split("/")[-1],
-        #         filesystem.credential.account_key,
-        #         FileSasPermissions(read=True),
-        #         datetime.utcnow() + relativedelta(days=2),
-        #     )
-        #     for item in filesystem.get_paths(ingress["destination"]["path"])
-        #     if not item["is_directory"]
-        #     if (file := filesystem.get_file_client(item))
-        #     if file.path_name.endswith(
-        #         ingress["destination"].get("format", "PARQUET").lower()
-        #     )
-        # ]
-        
         container = ContainerClient.from_connection_string(
             conn_str=os.getenv(ingress["destination"]["conn_str"], os.environ["AzureWebJobsStorage"]),
             container_name=ingress["destination"].get("container_name", ingress["destination"]["container"])

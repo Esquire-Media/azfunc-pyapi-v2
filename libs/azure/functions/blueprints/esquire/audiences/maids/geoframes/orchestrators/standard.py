@@ -1,11 +1,8 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/maids/geoframes/orchestrators/standard.py
 
-from libs.azure.functions import Blueprint
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-import pandas as pd
-import uuid
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
+from azure.storage.blob import BlobClient
+from libs.azure.functions import Blueprint
 
 bp = Blueprint()
 
@@ -18,10 +15,6 @@ def orchestrator_esquireAudienceMaidsGeoframes_standard(
 ):
     ingress = context.get_input()
     retry = RetryOptions(15000, 1)
-    now = datetime.utcnow()
-    today = datetime(now.year, now.month, now.day)
-    end = today - relativedelta(days=2)
-    start = end - relativedelta(days=90)
 
     # pass Friends and Family to OnSpot Orchestrator
     onspot = yield context.task_all(
@@ -32,26 +25,11 @@ def orchestrator_esquireAudienceMaidsGeoframes_standard(
                 {
                     **ingress["working"],
                     "endpoint": "/save/geoframe/all/devices",
-                    "request": {
-                        "type": "FeatureCollection",
-                        "features": [
-                            {
-                                "type": "Feature",
-                                "geometry": poly,
-                                "properties": {
-                                    "name": uuid.uuid4().hex,
-                                    "fileName": uuid.uuid4().hex,
-                                    "start": start.isoformat(),
-                                    "end": end.isoformat(),
-                                    "hash": False,
-                                },
-                            }
-                            for poly in batch
-                        ],
-                    },
+                    "request": BlobClient.from_blob_url(ingress["source"])
+                    .download_blob()
+                    .readall(),
                 },
             )
-            for batch in poly_batches
         ]
     )
 

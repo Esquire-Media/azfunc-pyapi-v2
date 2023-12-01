@@ -1,44 +1,33 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/maids/geoframes/activities/geoframes.py
 
-from libs.azure.functions import Blueprint
-import pandas as pd
-import os, json
-from azure.storage.blob import (
-    ContainerClient,
-    ContainerSasPermissions,
-    generate_container_sas,
-)
-from sqlalchemy.orm import Session
-from libs.data import from_bind
-import geojson, logging
+from azure.storage.blob import BlobClient
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+from libs.azure.functions import Blueprint
+from libs.data import from_bind
+from sqlalchemy.orm import Session
+import json, geojson, os, pandas as pd, logging
 
 bp: Blueprint = Blueprint()
 
 
 # activity to grab the geojson data and format the request files for OnSpot
 @bp.activity_trigger(input_name="ingress")
-def activity_dailyAudienceGeneration_loadSalesforceGeojsons(ingress: dict):
+def activity_esquireAudiencesMaidsGeoframes_geoframes(ingress: dict):
+    audience = get_audience(ingress["audience"]["id"])
     # load competitor location geometries from salesforce
     feature_collection = {
         "type": "FeatureCollection",
-        "features": get_geojson(ingress["Id"]),
+        "features": get_geojson(ingress["audience"]["id"]),
     }
 
     # upload each featurecollection to blob storage under the audienceID
     # Investigate here for lack of geojson SalesForce records
     if len(feature_collection["features"]):
-        container_client = ContainerClient.from_connection_string(
-            conn_str=os.environ["ONSPOT_CONN_STR"],
-            container_name="general",
-        )
         now = datetime.utcnow()
         end_time = datetime(now.year, now.month, now.day) - relativedelta(days=2)
         default_lookback = {
-            "New Mover": relativedelta(months=3),
-            "In Market Shoppers": relativedelta(months=6),
-            "Digital Neighbors": relativedelta(months=4),
+            "InMarket Shoppers": relativedelta(months=6),
             "Competitor Location": relativedelta(days=75),
         }
         lookback = {
@@ -51,15 +40,15 @@ def activity_dailyAudienceGeneration_loadSalesforceGeojsons(ingress: dict):
         for feature in feature_collection["features"]:
             feature["properties"]["name"] = feature["properties"]["location_id"]
             feature["properties"]["fileName"] = "{}_{}".format(
-                ingress["Id"],
+                ingress["audience"]["id"],
                 feature["properties"]["location_id"],
             )
             feature["properties"]["start"] = (
                 end_time
                 - lookback.get(
-                    ingress["Lookback_Window__c"],
+                    audience["lookback_window__c"],
                     default_lookback.get(
-                        ingress["Audience_Type__c"],
+                        audience["audience_type__c"],
                         relativedelta(days=60),
                     ),
                 )
@@ -67,34 +56,33 @@ def activity_dailyAudienceGeneration_loadSalesforceGeojsons(ingress: dict):
             feature["properties"]["end"] = end_time.isoformat()
             feature["properties"]["hash"] = False
 
-            # set output location
-            sas_token = generate_container_sas(
-                account_name=container_client.account_name,
-                account_key=container_client.credential.account_key,
-                container_name=container_client.container_name,
-                permission=ContainerSasPermissions(write=True, read=True),
-                expiry=datetime.utcnow() + relativedelta(days=2),
+    if ingress.get("destination"):
+        # Configuring BlobClient for data upload
+        if isinstance(ingress["destination"], str):
+            blob = BlobClient.from_blob_url(ingress["destination"])
+        elif isinstance(ingress["destination"], dict):
+            blob = BlobClient.from_connection_string(
+                conn_str=os.environ[ingress["destination"]["conn_str"]],
+                container_name=ingress["destination"]["container_name"],
+                blob_name=ingress["destination"]["blob_name"],
             )
-            output_location = (
-                container_client.url.replace("https://", "az://")
-                + f"{ingress['blob_prefix']}/{ingress['instance_id']}/audiences/{ingress['Id']}/{ingress['Id']}?"
-                + sas_token
-            )
-            feature["properties"]["outputLocation"] = output_location
-
-        container_client.upload_blob(
-            name=f"{ingress['blob_prefix']}/{ingress['instance_id']}/audiences/{ingress['Id']}/{ingress['Id']}.geojson",
+        blob.upload_blob(
             data=json.dumps(feature_collection),
             overwrite=True,
         )
+    else:
+        return feature_collection
 
-    return {}
+
+def get_audience(audience_id: str) -> dict:
+    provider = from_bind("salesforce")
+    qf = provider["dbo.Audience__c"]
+    return qf[qf["Id"] == audience_id].to_pandas().to_dict(orient="records")[0]
 
 
-def get_geojson(audienceID: str) -> list:
+def get_geojson(audience_id: str) -> list:
     provider = from_bind("salesforce")
     session: Session = provider.connect()
-
     geojoin = provider.models["dbo"]["GeoJSON_Join__c"]
     location = provider.models["dbo"]["GeoJSON_Location__c"]
 
@@ -105,7 +93,7 @@ def get_geojson(audienceID: str) -> list:
             geojoin,
             location.Id == geojoin.GeoJSON_Location__c,
         )
-        .filter(geojoin.Audience__c == audienceID)
+        .filter(geojoin.Audience__c == audience_id)
         .all()
     )
 

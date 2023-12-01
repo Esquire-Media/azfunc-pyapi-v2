@@ -37,12 +37,6 @@ def orchestrator_esquireAudienceMaidsAddresses_footprint(
             )
             for df in pd.read_csv(
                 ingress["source"],
-                columns=[
-                    "delivery_line_1",
-                    "city_name",
-                    "state_abbreviation",
-                    "zipcode",
-                ],
                 chunksize=chunksize,
             )
         ]

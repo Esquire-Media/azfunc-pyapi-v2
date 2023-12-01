@@ -1,6 +1,6 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/maids/geoframes/activities/geoframes.py
 
-from azure.storage.blob import BlobClient
+from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
@@ -69,6 +69,19 @@ def activity_esquireAudiencesMaidsGeoframes_geoframes(ingress: dict):
         blob.upload_blob(
             data=json.dumps(feature_collection),
             overwrite=True,
+        )
+
+        return (
+            blob.url
+            + "?"
+            + generate_blob_sas(
+                account_name=blob.account_name,
+                account_key=blob.credential.account_key,
+                container_name=blob.container_name,
+                blob_name=blob.blob_name,
+                permission=BlobSasPermissions(read=True),
+                expiry=datetime.utcnow() + relativedelta(days=2),
+            )
         )
     else:
         return feature_collection

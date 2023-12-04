@@ -6,6 +6,12 @@ from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from libs.azure.functions import Blueprint
 from urllib.parse import unquote
+from libs.azure.functions.blueprints.esquire.audiences.maids.config import (
+    maids_name,
+    unvalidated_addresses_name,
+    validated_addresses_name,
+    geoframes_name
+)
 import os, logging
 
 bp = Blueprint()
@@ -18,9 +24,6 @@ def orchestrator_esquireAudiencesMaids_fetch(context: DurableOrchestrationContex
     retry = RetryOptions(15000, 1)
 
     execution_time = context.current_utc_datetime.isoformat()
-    unvalidated_addresses_name = "addresses.csv"
-    validated_addresses_name = "validated_addresses.csv"
-    geoframes_name ="geoframes.json"
 
     yield context.task_all(
         [
@@ -103,10 +106,11 @@ def orchestrator_esquireAudiencesMaids_fetch(context: DurableOrchestrationContex
                     ),
                     "destination": {
                         **ingress["destination"],
-                        "blob_name": "{}/{}/{}/maids.csv".format(
+                        "blob_name": "{}/{}/{}/{}".format(
                             ingress["destination"]["blob_prefix"],
                             audience["id"],
                             execution_time,
+                            maids_name,
                         ),
                     },
                 },
@@ -160,10 +164,11 @@ def orchestrator_esquireAudiencesMaids_fetch(context: DurableOrchestrationContex
                     ),
                     "destination": {
                         **ingress["destination"],
-                        "blob_name": "{}/{}/{}/maids.csv".format(
+                        "blob_name": "{}/{}/{}/{}".format(
                             ingress["destination"]["blob_prefix"],
                             audience["id"],
                             execution_time,
+                            maids_name,
                         ),
                     },
                 },
@@ -181,7 +186,6 @@ def orchestrator_esquireAudiencesMaids_fetch(context: DurableOrchestrationContex
                     blob_name="{}/{}/{}/{}".format(
                         ingress["source"]["blob_prefix"],
                         audience["id"],
-                        execution_time,
                         geoframes_name,
                     ),
                 )
@@ -216,10 +220,11 @@ def orchestrator_esquireAudiencesMaids_fetch(context: DurableOrchestrationContex
                     ),
                     "destination": {
                         **ingress["destination"],
-                        "blob_name": "{}/{}/{}/maids.csv".format(
+                        "blob_name": "{}/{}/{}/{}".format(
                             ingress["destination"]["blob_prefix"],
                             audience["id"],
                             execution_time,
+                            maids_name,
                         ),
                     },
                 },

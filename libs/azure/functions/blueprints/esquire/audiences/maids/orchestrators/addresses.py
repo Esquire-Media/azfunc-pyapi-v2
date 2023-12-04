@@ -2,6 +2,7 @@
 
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
 from libs.azure.functions import Blueprint
+from libs.azure.functions.blueprints.esquire.audiences.maids.config import unvalidated_addresses_name
 
 bp = Blueprint()
 
@@ -11,8 +12,6 @@ bp = Blueprint()
 def orchestrator_esquireAudiencesMaids_addresses(context: DurableOrchestrationContext):
     ingress = context.get_input()
     retry = RetryOptions(15000, 1)
-
-    unvalidated_addresses_name = "addresses.csv"
 
     yield context.task_all(
         [

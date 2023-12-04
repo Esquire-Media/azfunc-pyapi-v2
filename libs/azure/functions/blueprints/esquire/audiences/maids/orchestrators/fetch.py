@@ -5,13 +5,13 @@ from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
 from libs.azure.functions import Blueprint
-from urllib.parse import unquote
 from libs.azure.functions.blueprints.esquire.audiences.maids.config import (
     maids_name,
     unvalidated_addresses_name,
     validated_addresses_name,
     geoframes_name
 )
+from urllib.parse import unquote
 import os, logging
 
 bp = Blueprint()

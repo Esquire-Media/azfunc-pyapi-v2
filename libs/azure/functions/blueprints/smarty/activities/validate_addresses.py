@@ -1,10 +1,6 @@
 # File: libs/azure/functions/blueprints/smarty/activities/validate_addresses.py
 
-from azure.storage.blob import (
-    BlobClient,
-    BlobSasPermissions,
-    generate_blob_sas,
-)
+from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from fuzzywuzzy import fuzz

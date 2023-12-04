@@ -47,6 +47,11 @@ BLUEPRINTS = {
         "libs/azure/functions/blueprints/s3/*",
         "libs/azure/functions/blueprints/azure/synapse/*",
     ],
+    "esquire-movers-sync":[
+        "libs/azure/functions/blueprints/esquire/audiences/movers_sync/*",
+        "libs/azure/functions/blueprints/azure/synapse/*",
+        "libs/azure/functions/blueprints/purge_instance_history",
+    ],
     "debug": [
         "libs/azure/functions/blueprints/keep_alive",
         "libs/azure/functions/blueprints/logger",

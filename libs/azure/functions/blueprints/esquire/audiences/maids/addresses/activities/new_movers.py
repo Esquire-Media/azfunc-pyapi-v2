@@ -1,13 +1,14 @@
-# File: libs/azure/functions/blueprints/esquire/audiences/daily_audience_generation/activities/format_address_list_audiences.py
+# File: libs/azure/functions/blueprints/esquire/audiences/maids/addresses/activities/new_movers.py
 
+from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
-import pandas as pd
-import os
-from azure.storage.blob import ContainerClient
-from sqlalchemy.orm import Session
 from libs.data import from_bind
+from sqlalchemy.orm import Session
+import pandas as pd, os
 
-bp: Blueprint = Blueprint()
+bp = Blueprint()
 
 INCOME_MAP = {
     "15 K": 15000,
@@ -130,33 +131,45 @@ STATE_ABBREVIATIONS_MAP = {
 
 # activity to fill in the geo data for each audience object
 @bp.activity_trigger(input_name="ingress")
-def activity_dailyAudienceGeneration_formatAddressLists(ingress: dict):
-    addresses = get_addresses(audience_id=ingress["Id"])
+def activity_esquireAudiencesMaidsAddresses_newMovers(ingress: dict):
+    addresses = get_addresses(audience_id=ingress["audience"]["id"])
 
-    # send addresses to blob as csv
-    container_client = ContainerClient.from_connection_string(
-        conn_str=os.environ["ONSPOT_CONN_STR"],
-        container_name="general",
-    )
-
-    # some of these are empty and we don't want to upload empty files
-    if not addresses.empty:
-        # if a new mover
-        if ingress['Audience_Type__c'] == 'New Movers':
-            container_client.upload_blob(
-                name=f"{ingress['blob_prefix']}/{ingress['instance_id']}/audiences/{ingress['Id']}/{ingress['Id']}.csv",
-                data=addresses.to_csv(index=False),
-                overwrite=True,
+    # Handle data output based on destination configuration
+    if ingress.get("destination"):
+        # Configuring BlobClient for data upload
+        if isinstance(ingress["destination"], str):
+            blob = BlobClient.from_blob_url(ingress["destination"])
+        elif isinstance(ingress["destination"], dict):
+            blob = BlobClient.from_connection_string(
+                conn_str=os.environ[ingress["destination"]["conn_str"]],
+                container_name=ingress["destination"]["container_name"],
+                blob_name=ingress["destination"]["blob_name"],
             )
-        else: # if it is digital neighbor, save the file in a different location
-            container_client.upload_blob(
-                name=f"{ingress['blob_prefix']}/{ingress['instance_id']}/audiences/{ingress['Id']}/{ingress['Id']}.csv",
-                data=addresses.to_csv(index=False),
-                overwrite=True,
-            )
-            
+            to_type = ingress["destination"].get("format", None)
+        if not to_type:
+            _, to_type = os.path.splitext(blob.blob_name)
+            if not to_type:
+                to_type = "csv"
+        blob.upload_blob(
+            getattr(addresses, "to_" + to_type.replace(".", ""))(),
+            overwrite=True,
+        )
 
-    return {}
+        return (
+            blob.url
+            + "?"
+            + generate_blob_sas(
+                account_name=blob.account_name,
+                account_key=blob.credential.account_key,
+                container_name=blob.container_name,
+                blob_name=blob.blob_name,
+                permission=BlobSasPermissions(read=True),
+                expiry=datetime.utcnow() + relativedelta(days=2),
+            )
+        )
+    else:
+        # Return cleaned addresses as a dictionary
+        return addresses.to_dict(orient="records")
 
 
 def get_addresses(audience_id: str):
@@ -272,10 +285,14 @@ def get_addresses(audience_id: str):
     if aud_details["Moved_to_the_Same__c"]:  # same as above
         address_query = address_query.filter(movers.state == movers.oldState)
         # Select Distinct came up with only 'Null'
-    if aud_details["Single_Family__c"]:
-        address_query = address_query.filter(movers.addresstype == "SingleFamily")
-    if aud_details["Multi_Family__c"]:
-        address_query = address_query.filter(movers.addresstype == "Highrise")
+    if aud_details["Single_Family__c"] and not aud_details["Multi_Family__c"]:
+        address_query = address_query.filter(movers.addressType == "SingleFamily")
+    elif not aud_details["Single_Family__c"] and aud_details["Multi_Family__c"]:
+        address_query = address_query.filter(movers.addressType == "Highrise")
+    elif aud_details["Single_Family__c"] and aud_details["Multi_Family__c"]:
+        address_query = address_query.filter(
+            movers.addressType == "SingleFamily" or movers.addressType == "Highrise"
+        )
 
     addresses = pd.DataFrame(address_query.all())
 

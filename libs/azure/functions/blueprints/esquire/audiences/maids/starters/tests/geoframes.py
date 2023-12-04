@@ -5,22 +5,14 @@ from libs.azure.functions.http import HttpRequest
 bp = Blueprint()
 
 
-@bp.route(route="audiences/maids/tests/fetch")
+@bp.route(route="audiences/maids/test/geoframes")
 @bp.durable_client_input(client_name="client")
-async def starter_esquireAudiencesMaidsTest_fetch(
+async def starter_esquireAudiencesMaidsTests_geoframes(
     req: HttpRequest,
     client: DurableOrchestrationClient,
 ):
     # get audiences
     audiences = [
-        {
-            "id": "a0H6e00000bNazEEAS_test",
-            "type": "Friends Family",
-        },
-        {
-            "id": "a0HPK000000e2r72AA",
-            "type": "New Movers",
-        },
         {
             "id": "a0H5A00000aZbI1UAK",
             "type": "InMarket Shoppers",
@@ -29,19 +21,9 @@ async def starter_esquireAudiencesMaidsTest_fetch(
 
     # Start a new instance of the orchestrator function
     instance_id = await client.start_new(
-        orchestration_function_name="orchestrator_esquireAudiencesMaids_fetch",
+        orchestration_function_name="orchestrator_esquireAudiencesMaids_geoframes",
         client_input={
-            "audiences": audiences[2:],
-            "source": {
-                "conn_str": "ONSPOT_CONN_STR",
-                "container_name": "general",
-                "blob_prefix": "audiences",
-            },
-            "working": {
-                "conn_str": "ONSPOT_CONN_STR",
-                "container_name": "general",
-                "blob_prefix": "raw",
-            },
+            "audiences": audiences,
             "destination": {
                 "conn_str": "ONSPOT_CONN_STR",
                 "container_name": "general",

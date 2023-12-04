@@ -6,7 +6,7 @@ from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
 from libs.data import from_bind
 from sqlalchemy.orm import Session
-import pandas as pd, os, logging
+import pandas as pd, os
 
 bp = Blueprint()
 
@@ -293,10 +293,6 @@ def get_addresses(audience_id: str):
         address_query = address_query.filter(
             movers.addressType == "SingleFamily" or movers.addressType == "Highrise"
         )
-        
-    logging.warning(aud_details)
-    logging.warning(zips)
-    logging.warning(address_query)
 
     addresses = pd.DataFrame(address_query.all())
 

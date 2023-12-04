@@ -29,9 +29,9 @@ async def starter_esquireAudiencesMaidsTest_fetch(
 
     # Start a new instance of the orchestrator function
     instance_id = await client.start_new(
-        orchestration_function_name="orchestrator_esquireAudiencesMaids_fetch",
+        orchestration_function_name="orchestrator_esquireAudiencesMaids_prepare",
         client_input={
-            "audiences": audiences[2:],
+            "audiences": audiences,
             "source": {
                 "conn_str": "ONSPOT_CONN_STR",
                 "container_name": "general",
@@ -47,6 +47,7 @@ async def starter_esquireAudiencesMaidsTest_fetch(
                 "container_name": "general",
                 "blob_prefix": "audiences",
             },
+            "fetch": True
         },
     )
 

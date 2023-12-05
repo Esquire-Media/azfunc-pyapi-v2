@@ -11,8 +11,10 @@ from libs.utils.geometry import (
     points_in_multipoly_numpy,
 )
 from libs.utils.h3 import hex_intersections
+from shapely.ops import unary_union
 import pandas as pd
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from libs.utils.python import literal_eval_list
 
 
@@ -51,8 +53,27 @@ class POIEngine:
         partial_indexes = hexes[hexes["intersection"] == "partial"]["id"].unique()
         full_indexes = hexes[hexes["intersection"] == "full"]["id"].unique()
 
+        filters = []
+
+        # get category filter criteria if passed
+        if categories != None:
+            tax = TaxonomyEngine()
+            # create a list of categories and any children they have
+            category_children = []
+            for category in categories:
+                [category_children.append(int(cat)) for cat in tax.get_category_children(str(category))]
+            # dedupe categories
+            category_children = list(set(category_children))
+
+            # filter the query by category ID(s), if categories were passed
+            filters.append(
+                or_(*[poi.fsq_category_ids.like(f"%{category_id}%") for category_id in category_children])
+            )
+           
+
         # pull POI data from the fully-intersecting hexes
         if len(full_indexes):
+            full_index_filters = filters + [poi.h3_index.in_(full_indexes)]
             full_index_data = pd.DataFrame(
                 session_poi.query(
                     poi.fsq_id,
@@ -84,7 +105,7 @@ class POIEngine:
                     poi.h3_index,
                 )
                 .filter(
-                    poi.h3_index.in_(full_indexes),
+                    *full_index_filters,
                 )
                 .all()
             )
@@ -92,6 +113,7 @@ class POIEngine:
             full_index_data = pd.DataFrame()
 
         if len(partial_indexes):
+            partial_index_filters = filters + [poi.h3_index.in_(partial_indexes)]
             partial_index_data = pd.DataFrame(
                 session_poi.query(
                     poi.fsq_id,
@@ -122,7 +144,7 @@ class POIEngine:
                     poi.closed_bucket,
                     poi.h3_index,
                 ).filter(
-                    poi.h3_index.in_(partial_indexes),
+                    *partial_index_filters,
                 )
                 .all()
             )
@@ -154,19 +176,6 @@ class POIEngine:
         # format results
         results['fsq_category_ids'] = results['fsq_category_ids'].apply(lambda x: literal_eval_list(x))
         results['fsq_category_labels'] = results['fsq_category_labels'].apply(lambda x: literal_eval_list(x))
-
-        # filter categories if passed
-        if categories != None:
-            tax = TaxonomyEngine()
-            # create a list of categories and any children they have
-            category_children = []
-            for category in categories:
-                [category_children.append(int(cat)) for cat in tax.get_category_children(str(category))]
-            # dedupe categories
-            category_children = list(set(category_children))
-
-            # filter results by category
-            results = results[results['fsq_category_ids'].apply(lambda list: any([cat in list for cat in category_children]))]
 
         # check for existing ESQ locations among the FSQ results
         if len(results):
@@ -204,6 +213,7 @@ class POIEngine:
         """
         Given a latlong point and radius in meters, return all POI data within that area.
         Uses an indexed search method to pull data in hexes that fully or partially intersect the query area.
+        Includes distances in the returned dataset.
 
         Params:
         lat         : Latitude of query centerpoint.
@@ -216,7 +226,7 @@ class POIEngine:
         """
 
         # build a circle to represent the point-radius search area
-        circle = latlon_buffer(lat=latitude, lon=longitude, radius=radius, cap_style=1)
+        circle = latlon_buffer(latitude=latitude, longitude=longitude, radius=radius, cap_style=1)
 
         # load results as polygon using the point-radius circle
         results = self.load_from_polygon(
@@ -236,7 +246,36 @@ class POIEngine:
             axis=1,
         )
         return results
+    
+    def load_from_points(
+        self,
+        points: list[float,float],
+        radius: list[float],
+        categories: list = None,
+    ):
+        """
+        Given a list of (lat,long) points and a radius in meters, return all POI data within one radius of any of those points.
+        Uses an indexed search method to pull data in hexes that fully or partially intersect the query area, and doesn't double-query areas of overlap.
+        Does not include distances in the returned dataset.
 
+        Params:
+        points      : List of query centerpoints in format (lat, long).
+        radius      : Radius for each query area, in meters.
+        categories  : A list of integers representing FSQ category IDs.
+
+        Returns:
+        results     : Pandas DataFrame of POI data within the given query area.
+        """
+        
+        # find the unary union of each search area to avoid double-searching areas of overlap
+        circle_list = [latlon_buffer(latitude=point[0], longitude=point[1], radius=radius, cap_style=1) for point in points]
+        polygon_wkt = unary_union(circle_list).wkt
+
+        # query as a polygon using the unary union of each point/radius area
+        return self.load_from_polygon(
+            polygon_wkt=polygon_wkt,
+            categories=categories
+        )
 
 class TaxonomyEngine:
     """

@@ -256,7 +256,7 @@ def validate_wkt(data: WktType) -> WktType:
     return data
 
 
-def latlon_buffer(lat: float, lon: float, radius: int, cap_style=int):
+def latlon_buffer(latitude: float, longitude: float, radius: int, cap_style=int):
     """
     Create a buffer circle around a latitude-longitude point with a given radius in meters.
 
@@ -288,7 +288,7 @@ def latlon_buffer(lat: float, lon: float, radius: int, cap_style=int):
     """
 
     local_azimuthal_projection = (
-        "+proj=aeqd +R=6371000 +units=m +lat_0={} +lon_0={}".format(lat, lon)
+        "+proj=aeqd +R=6371000 +units=m +lat_0={} +lon_0={}".format(latitude, longitude)
     )
     wgs84_to_aeqd = partial(
         pyproj_transform,
@@ -301,7 +301,7 @@ def latlon_buffer(lat: float, lon: float, radius: int, cap_style=int):
         Proj("+proj=longlat +datum=WGS84 +no_defs"),
     )
 
-    point_transformed = shapely_transform(wgs84_to_aeqd, Point(float(lon), float(lat)))
+    point_transformed = shapely_transform(wgs84_to_aeqd, Point(float(longitude), float(latitude)))
     buffer = point_transformed.buffer(radius, cap_style=cap_style)
     # Get the polygon with lat lon coordinates
     buffered_poly = shapely_transform(aeqd_to_wgs84, buffer)

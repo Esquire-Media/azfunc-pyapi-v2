@@ -65,6 +65,7 @@ def orchestrator_moversSync_root(context: DurableOrchestrationContext):
         )
 
     # start a sub orchestrator that checks if anything still needs to be address validated, and validate it if so
+    # do this every runtime, not just when a new file is moved over
     affected_datasets = yield context.call_sub_orchestrator_with_retry(
         "orchestrator_moversSync_validateAddresses",
         retry,

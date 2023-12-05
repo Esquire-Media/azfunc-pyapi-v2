@@ -6,6 +6,7 @@ import pandas as pd
 from libs.azure.functions import Blueprint
 from azure.storage.blob import ContainerClient
 from azure.data.tables import TableClient
+from datetime import datetime as dt, timedelta
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()
@@ -23,6 +24,9 @@ def activity_moversSync_getMissingChunks(settings: dict):
     # read from the row counts table
     row_counts = pd.DataFrame(table_client.list_entities())
     row_counts['chunk_blob_type'] = row_counts['PartitionKey'].apply(lambda x: f"{x}-geocoded")
+    # only enforce address validation on the most recent 24 weeks (~6 months) of data
+    row_counts['Date'] = row_counts['RowKey'].apply(lambda x: re.search('[0-9]{4}_[0-9]{2}_[0-9]{2}', x)[0]).apply(lambda x: dt.strptime(x,'%Y_%m_%d'))
+    row_counts[row_counts['Date']>=dt.today() - timedelta(weeks=24)]
 
     # collect a DataFrame of the existing address-validated chunks
     blobs = list(

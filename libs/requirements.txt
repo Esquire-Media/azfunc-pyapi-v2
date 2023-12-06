@@ -52,6 +52,7 @@ bitarray
 pytz
 timezonefinder
 timezonefinder[pytz]
+scikit-learn
 ## security
 requests-auth-aws-sigv4
 ## temporary necessities

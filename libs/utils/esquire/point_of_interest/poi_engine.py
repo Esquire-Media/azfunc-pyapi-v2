@@ -16,7 +16,7 @@ import pandas as pd
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from libs.utils.python import literal_eval_list
-
+from sklearn.neighbors import BallTree
 
 class POIEngine:
     def __init__(self, provider_poi, provider_esq):
@@ -319,3 +319,23 @@ class TaxonomyEngine:
             category_id,    # the current category
             *children_list  # all children of the current category
         ]
+    
+def recreate_POI_form(sources, query_pool, radius=10):
+    """
+    Given a set of source addresses and a pool of targets, find the distance between each source/target pair, provided the pair is within one radius distance.   
+    """
+    # conversion factor to miles
+    r_m = 3958.8
+
+    # setup a BallTree and query for a max of X miles
+    tree = BallTree(np.deg2rad(query_pool[['latitude', 'longitude']].values), metric='haversine')
+    indices, distances = tree.query_radius(np.deg2rad(sources[['latitude', 'longitude']].values), r=radius/r_m, return_distance=True)
+
+    # a little bit arcane, but it takes the indices and distances, brings them together, and tacks on info for which source they came from
+    res = pd.concat([pd.concat([pd.DataFrame(index_list), pd.DataFrame(distances[ii])*r_m], axis=1).assign(close_to=sources.iloc[ii]['address']) for ii, index_list in enumerate(indices)]).reset_index(drop=True)
+    res.columns = ['POI_index', 'distance (miles)', 'close_to']
+
+    # use the indices to merge back onto the main POI data
+    final = query_pool.merge(res, how='right', left_index=True, right_on='POI_index')
+
+    return final.sort_values('distance (miles)', ascending=True)

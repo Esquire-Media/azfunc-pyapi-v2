@@ -338,4 +338,4 @@ def recreate_POI_form(sources, query_pool, radius=10):
     # use the indices to merge back onto the main POI data
     final = query_pool.merge(res, how='right', left_index=True, right_on='POI_index')
 
-    return final.sort_values('distance (miles)', ascending=True)
+    return final.sort_values('distance_miles', ascending=True)

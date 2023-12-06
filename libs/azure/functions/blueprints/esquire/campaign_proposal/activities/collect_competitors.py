@@ -66,7 +66,7 @@ def activity_campaignProposal_collectCompetitors(settings: dict):
     # EXPORT COMPETITORS FILE (for email export)
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        unique = comps.sort_values('distance_miles', ascending=True).drop_duplicates(subset=['fsq_id'],keep='first')
+        unique = distances.sort_values('distance_miles', ascending=True).drop_duplicates(subset=['fsq_id'],keep='first')
         unique.to_excel(writer, sheet_name='Unique', index=False)
         for source, source_df in distances.groupby('source'):
             # format sheet name within Excel's accepted character set

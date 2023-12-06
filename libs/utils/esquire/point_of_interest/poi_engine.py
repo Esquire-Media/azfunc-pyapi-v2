@@ -333,7 +333,7 @@ def recreate_POI_form(sources, query_pool, radius=10):
 
     # a little bit arcane, but it takes the indices and distances, brings them together, and tacks on info for which source they came from
     res = pd.concat([pd.concat([pd.DataFrame(index_list), pd.DataFrame(distances[ii])*r_m], axis=1).assign(close_to=sources.iloc[ii]['address']) for ii, index_list in enumerate(indices)]).reset_index(drop=True)
-    res.columns = ['POI_index', 'distance (miles)', 'close_to']
+    res.columns = ['POI_index', 'distance_miles', 'source']
 
     # use the indices to merge back onto the main POI data
     final = query_pool.merge(res, how='right', left_index=True, right_on='POI_index')

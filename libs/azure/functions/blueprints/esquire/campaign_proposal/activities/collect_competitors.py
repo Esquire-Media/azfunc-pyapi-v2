@@ -54,7 +54,7 @@ def activity_campaignProposal_collectCompetitors(settings: dict):
     )
     # calculate distances between each source/comp pair, up to a specified radius
     distances = recreate_POI_form(sources=addresses, query_pool=comps, radius=r)
-    distances = distances[['esq_id','fsq_id','chain_name','address','city','state','zipcode','source','distance (miles)']]
+    distances = distances[['esq_id','fsq_id','chain_name','address','city','state','zipcode','source','distance_miles']]
     distances['esq_id'] = distances['esq_id'].replace('null','')
     # filter to unique competitors across all queries
     unique_comps = distances.drop_duplicates('fsq_id', keep='first')

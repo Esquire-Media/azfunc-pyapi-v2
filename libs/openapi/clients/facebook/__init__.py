@@ -8,10 +8,10 @@ import pandas as pd
 class FacebookReportFormatter(Message):
     def received(self, ctx: "Message.Context") -> "Message.Context":
         if ctx.operationId.startswith("Download"):
-            try:
+            if ctx.received == b'\n"No data available."\n':
+                ctx.received = {}
+            else:
                 ctx.received = pd.read_csv(BytesIO(ctx.received)).to_dict()
-            except Exception as e:
-                raise ResponseDecodingError(ctx.received, None, None) from e
             return ctx
 
 

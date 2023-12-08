@@ -7,7 +7,6 @@ import gzip, httpx, io, orjson, yaml, yarl, re
 
 
 class OperationSelector(type):
-    @cache
     def __getitem__(cls, item: Union[str, Tuple[str, str]]):
         match item:
             case str():

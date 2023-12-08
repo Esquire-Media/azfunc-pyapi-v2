@@ -192,14 +192,15 @@ class POIEngine:
                 )
                 .all()
             )
-            # merge existing locations with the new pull of FSQ competitors
-            results = pd.merge(
-                results,
-                esq_exists,
-                on='fsq_id',
-                how='outer'
-            )
-            results['esq_id'] = results['esq_id'].fillna('null')
+            if len(esq_exists):
+                # merge existing locations with the new pull of FSQ competitors
+                results = pd.merge(
+                    results,
+                    esq_exists,
+                    on='fsq_id',
+                    how='outer'
+                )
+                results['esq_id'] = results['esq_id'].fillna('null')
 
         return results
 

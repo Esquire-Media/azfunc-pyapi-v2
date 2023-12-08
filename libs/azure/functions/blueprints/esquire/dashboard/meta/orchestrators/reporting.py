@@ -13,7 +13,7 @@ bp = Blueprint()
 def esquire_dashboard_meta_orchestrator_reporting(
     context: DurableOrchestrationContext,
 ):
-    retry = RetryOptions(5000, 12)
+    retry = RetryOptions(60000, 12)
     ingress = context.get_input()
 
     context.set_custom_status(
@@ -30,7 +30,7 @@ def esquire_dashboard_meta_orchestrator_reporting(
             },
         },
     )
-    
+
     while True:
         status = yield context.call_sub_orchestrator(
             "meta_orchestrator_request",
@@ -39,15 +39,19 @@ def esquire_dashboard_meta_orchestrator_reporting(
                 "parameters": {"AdReportRun-id": report_run["report_run_id"]},
             },
         )
-        logging.warning((ingress["account_id"], status))
-        context.set_custom_status(status)
+        context.set_custom_status(
+            "Report for account {} is {} percent complete.".format(
+                status["account_id"],
+                status["async_percent_complete"],
+            )
+        )
         match status["async_status"]:
             case "Job Completed":
                 break
             case "Job Failed":
                 raise Exception("Job Failed")
             case _:
-                yield context.create_timer(datetime.utcnow() + timedelta(minutes=1))
+                yield context.create_timer(datetime.utcnow() + timedelta(minutes=5))
 
     context.set_custom_status(
         "Downloading report {} for account {}".format(

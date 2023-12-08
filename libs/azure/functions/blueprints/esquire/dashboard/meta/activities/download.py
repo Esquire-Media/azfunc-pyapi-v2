@@ -19,14 +19,13 @@ def esquire_dashboard_meta_activity_download(ingress: dict):
         }
     )
 
-    if "No data available." not in report.keys():
+    if list(report.keys()):
         blob: BlobClient = BlobClient.from_connection_string(
             conn_str=os.environ[ingress["conn_str"]],
-            container_name=ingress["container"],
-            blob_name=ingress["outputPath"],
+            container_name=ingress["container_name"],
+            blob_name=ingress["blob_name"],
         )
         df = pd.DataFrame(report)
         blob.upload_blob(df.to_parquet(index=False), overwrite=True)
-        # return list(set(df["Ad ID"].to_list()))
 
     return ""

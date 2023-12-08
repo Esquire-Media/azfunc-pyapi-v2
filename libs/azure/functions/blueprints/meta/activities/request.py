@@ -2,7 +2,7 @@
 
 from libs.azure.functions import Blueprint
 from libs.openapi.clients import Meta
-import json, os, pandas as pd, logging
+import json, os, pandas as pd
 
 bp = Blueprint()
 
@@ -44,9 +44,6 @@ def meta_activity_request(ingress: dict):
     )
 
     # Perform the API request
-    match ingress["operationId"]:
-        case "AdAccount_GetInsights":
-            logging.warning(ingress["parameters"]["AdAccount-id"])
     headers, response, _ = factory.request(
         data=ingress.get("data", None),
         parameters=ingress.get("parameters", None),
@@ -83,12 +80,6 @@ def meta_activity_request(ingress: dict):
     if getattr(response, "paging", False):
         if getattr(response.paging, "next", False):
             next = response.paging.cursors.after
-
-    # match ingress["operationId"]:
-    #     case "AdAccount_GetInsights":
-    #         logging.warning((raw.url, headers, response))
-    #     case "AdAccount_GetInsightsAsync":
-    #         logging.warning(ingress["parameters"]["AdAccount-id"])
 
     # Prepare and return the final response
     return {

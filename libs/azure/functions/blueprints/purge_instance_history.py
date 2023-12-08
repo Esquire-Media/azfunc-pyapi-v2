@@ -37,12 +37,13 @@ async def purge_instance_history_activity(
 @bp.orchestration_trigger(context_name="context")
 def purge_instance_history(context: DurableOrchestrationContext):
     ingress: dict = context.get_input()
+    
     # Check for sub-instances
     sub_instance_ids = yield context.call_activity(
         "get_sub_orchestrator_ids_activity", ingress
     )
 
-    ## Purge sub-instances
+    ## Purge sub-instances history
     yield context.task_all(
         [
             context.call_sub_orchestrator(
@@ -56,39 +57,11 @@ def purge_instance_history(context: DurableOrchestrationContext):
             if instance_id != context.instance_id
         ]
     )
-    context.set_custom_status("sub-instances purged")
-
-    # Purge Self
-    instance_ids = yield context.call_activity(
-        "get_sub_orchestrator_ids_activity", {"instance_id": context.instance_id}
-    )
-    yield context.task_all(
-        [
-            context.call_activity(
-                "purge_instance_history_activity",
-                instance_id,
-            )
-            for instance_id in instance_ids
-        ]
-    )
-    context.set_custom_status("self sub-instances purged")
-
-    ## Purge
-    yield context.call_activity(
-        "datalake_activity_delete_directory",
-        {
-            **ingress,
-            "container_name": ingress.get("task_hub_name", os.environ["TASK_HUB_NAME"])
-            + "-largemessages",
-            "prefix": context.instance_id,
-        },
-    )
-    context.set_custom_status("target data purged")
+    
     yield context.call_activity(
         "purge_instance_history_activity",
         ingress["instance_id"],
     )
-    context.set_custom_status("target purged")
 
     return ""
 

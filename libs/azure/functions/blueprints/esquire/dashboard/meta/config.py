@@ -114,7 +114,7 @@ PARAMETERS = {
             "topline_id",
             "updated_time",  # Filter
         ],
-        "date_preset": "last_30d",
+        "date_preset": "last_90d",
     },
     "AdAccount_GetAdCreatives": {
         "limit": 100,
@@ -234,7 +234,7 @@ PARAMETERS = {
             "updated_time",  # Filter
             "use_new_app_click",
         ],
-        "date_preset": "last_30d",
+        "date_preset": "last_90d",
     },
     "AdAccount_GetAds": {
         "limit": 200,
@@ -268,7 +268,7 @@ PARAMETERS = {
             "status",
             "updated_time",  # Filter
         ],
-        "date_preset": "last_30d",
+        "date_preset": "last_90d",
     },
     "AdAccount_GetInsightsAsync": {
         "fields": [
@@ -407,7 +407,7 @@ PARAMETERS = {
         #     "7d_view",
         #     # "default",
         # ],
-        "date_preset": "last_30d",
+        "date_preset": "last_90d",
     },
 }
 
@@ -978,7 +978,7 @@ CETAS = {
     """,
     "AdAccount_GetInsightsAsync": """
         SELECT
-            CONVERT(DATE, [Reporting starts]) AS data_start,
+            CONVERT(DATE, [Reporting starts]) AS date_start,
             CONVERT(DATE, [Reporting ends]) AS date_end,
             [Age] AS age_range,
             [Gender] AS gender,

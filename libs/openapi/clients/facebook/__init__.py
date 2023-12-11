@@ -4,14 +4,22 @@ from io import BytesIO
 import httpx, os
 import pandas as pd
 
+class FacebookReportError(Exception):
+    pass
+
 
 class FacebookReportFormatter(Message):
     def received(self, ctx: "Message.Context") -> "Message.Context":
         if ctx.operationId.startswith("Download"):
             if ctx.received == b'\n"No data available."\n':
                 ctx.received = {}
+            elif ctx.received[0:5] == b'<?xml':
+                raise FacebookReportError("Something went wrong.")
             else:
-                ctx.received = pd.read_csv(BytesIO(ctx.received)).to_dict()
+                try:
+                    ctx.received = pd.read_csv(BytesIO(ctx.received)).to_dict()
+                except Exception as e:
+                    raise ResponseDecodingError(ctx.operationId, ctx.received.decode(), None) from e
             return ctx
 
 

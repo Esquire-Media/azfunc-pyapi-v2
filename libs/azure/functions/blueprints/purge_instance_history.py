@@ -37,9 +37,9 @@ async def purge_instance_history_activity(
 @bp.orchestration_trigger(context_name="context")
 def purge_instance_history(context: DurableOrchestrationContext):
     ingress: dict = context.get_input()
-    
+
     # Check for sub-instances
-    sub_instance_ids = yield context.call_activity(
+    sub_instances: dict = yield context.call_activity(
         "get_sub_orchestrator_ids_activity", ingress
     )
 
@@ -50,17 +50,16 @@ def purge_instance_history(context: DurableOrchestrationContext):
                 "purge_instance_history",
                 {
                     **ingress,
-                    "instance_id": instance_id,
+                    "instance_id": id,
                 },
             )
-            for instance_id in sub_instance_ids
-            if instance_id != context.instance_id
+            for id, name in sub_instances.items()
+            if name != "purge_instance_history" and id != ingress["instance_id"]
         ]
     )
-    
+
     yield context.call_activity(
-        "purge_instance_history_activity",
-        ingress["instance_id"],
+        "purge_instance_history_activity", ingress["instance_id"]
     )
 
     return ""

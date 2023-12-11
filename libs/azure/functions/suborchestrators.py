@@ -28,16 +28,15 @@ def get_sub_orchestrator_ids(table: TableClient, parent_instance_id: str):
     if not entities:
         return []
 
-    ids = []
+    ids = {}
     for e in entities:
         for i in table.query_entities(
             "PartitionKey ge '{}' and PartitionKey le '{}'".format(
                 e["ExecutionId"] + ":",
                 e["ExecutionId"] + chr(ord(":") + 1),
             ),
-            select=["PartitionKey"],
+            select=["PartitionKey", "Name"],
         ):
-            ids.append(i["PartitionKey"])
-            ids.extend(get_sub_orchestrator_ids(table, i["PartitionKey"]))
+            ids[i["PartitionKey"]] = i["Name"]
 
     return ids

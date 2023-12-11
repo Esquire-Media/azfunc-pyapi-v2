@@ -15,15 +15,43 @@ bp = Blueprint()
 def esquire_dashboard_meta_orchestrator_report_batch(
     context: DurableOrchestrationContext,
 ):
+    """
+    Orchestrate the batch processing of Facebook Ad data, including downloading, transforming,
+    and loading into Azure Synapse.
+
+    This orchestrator coordinates multiple sub-orchestrators and activities to process Facebook Ad
+    data. It retrieves Ad Accounts, generates reports, and creates CETAS (Create External Table As Select)
+    statements in Azure Synapse for various entities like Ad Accounts, Ads Insights, Ads, Campaigns, and Ad Sets.
+
+    Parameters
+    ----------
+    context : DurableOrchestrationContext
+        The context object provided by Azure Durable Functions framework, used for invoking sub-orchestrators,
+        activities, and managing state.
+
+    Raises
+    ------
+    Exception
+        If any part of the process fails, it posts a message to a designated webhook and raises the exception.
+
+    """
+
+    # Set up retry options for activities
     retry = RetryOptions(15000, 3)
+
+    # Get the current time to use as a timestamp for data processing
     pull_time = context.current_utc_datetime.isoformat()
+
+    # Determine the connection string to use for Azure services
     conn_str = (
         "META_CONN_STR"
         if "META_CONN_STR" in os.environ.keys()
         else "AzureWebJobsStorage"
     )
     container_name = "general"
+
     try:
+        # Get Facebook Ad Accounts
         context.set_custom_status("Getting AdAccounts")
         adaccounts = yield context.call_sub_orchestrator(
             "meta_orchestrator_request",
@@ -42,6 +70,7 @@ def esquire_dashboard_meta_orchestrator_report_batch(
             },
         )
 
+        # Process reports for each Ad Account
         context.set_custom_status("Getting Reports")
         yield context.task_all(
             [
@@ -63,114 +92,28 @@ def esquire_dashboard_meta_orchestrator_report_batch(
                 and "do no use" not in adaccount["name"].lower()
             ]
         )
-        
-        context.set_custom_status("Generating AdAccounts CETAS")
-        yield context.call_activity_with_retry(
-            "synapse_activity_cetas",
-            retry,
-            {
-                "instance_id": context.instance_id,
-                "bind": "facebook_dashboard",
-                "table": {"schema": "dashboard", "name": "adaccounts"},
-                "destination": {
-                    "container_name": container_name,
-                    "handle": "sa_esquiregeneral",
-                    "blob_prefix": f"meta/tables/AdAccounts/{pull_time}",
+
+        # Generate CETAS for AdAccounts, AdsInsights, Ads, Campaigns, and AdSets
+        for entity in ["AdAccounts", "AdsInsights", "Ads", "Campaigns", "AdSets"]:
+            context.set_custom_status(f"Generating {entity} CETAS")
+            yield context.call_activity_with_retry(
+                "synapse_activity_cetas",
+                retry,
+                {
+                    "instance_id": context.instance_id,
+                    "bind": "facebook_dashboard",
+                    "table": {"schema": "dashboard", "name": entity.lower()},
+                    "destination": {
+                        "container_name": container_name,
+                        "handle": "sa_esquiregeneral",
+                        "blob_prefix": f"meta/tables/{entity}/{pull_time}",
+                    },
+                    "query": CETAS[f"AdAccount_Get{entity}"],
+                    "view": True,
                 },
-                "query": CETAS["User_GetAdAccounts"],
-                "view": True,
-            },
-        )
+            )
 
-        context.set_custom_status("Generating AdsInsights CETAS")
-        yield context.call_activity_with_retry(
-            "synapse_activity_cetas",
-            retry,
-            {
-                "instance_id": context.instance_id,
-                "bind": "facebook_dashboard",
-                "table": {"schema": "dashboard", "name": "adsinsights"},
-                "destination": {
-                    "container_name": container_name,
-                    "handle": "sa_esquiregeneral",
-                    "blob_prefix": f"meta/tables/AdsInsights/{pull_time}",
-                },
-                "query": CETAS["AdAccount_GetInsightsAsync"],
-                "view": True,
-            },
-        )
-
-        context.set_custom_status("Generating Ads CETAS")
-        yield context.call_activity_with_retry(
-            "synapse_activity_cetas",
-            retry,
-            {
-                "instance_id": context.instance_id,
-                "bind": "facebook_dashboard",
-                "table": {"schema": "dashboard", "name": "ads"},
-                "destination": {
-                    "container_name": container_name,
-                    "handle": "sa_esquiregeneral",
-                    "blob_prefix": f"meta/tables/Ads/{pull_time}",
-                },
-                "query": CETAS["AdAccount_GetAds"],
-                "view": True,
-            },
-        )
-
-        context.set_custom_status("Generating Campaigns CETAS")
-        yield context.call_activity_with_retry(
-            "synapse_activity_cetas",
-            retry,
-            {
-                "instance_id": context.instance_id,
-                "bind": "facebook_dashboard",
-                "table": {"schema": "dashboard", "name": "campaigns"},
-                "destination": {
-                    "container_name": container_name,
-                    "handle": "sa_esquiregeneral",
-                    "blob_prefix": f"meta/tables/Campaigns/{pull_time}",
-                },
-                "query": CETAS["AdAccount_GetCampaigns"],
-                "view": True,
-            },
-        )
-
-        context.set_custom_status("Generating AdSets CETAS")
-        yield context.call_activity_with_retry(
-            "synapse_activity_cetas",
-            retry,
-            {
-                "instance_id": context.instance_id,
-                "bind": "facebook_dashboard",
-                "table": {"schema": "dashboard", "name": "adsets"},
-                "destination": {
-                    "container_name": container_name,
-                    "handle": "sa_esquiregeneral",
-                    "blob_prefix": f"meta/tables/AdSets/{pull_time}",
-                },
-                "query": CETAS["AdAccount_GetAdSets"],
-                "view": True,
-            },
-        )
-
-        # yield context.call_activity_with_retry(
-        #     "synapse_activity_cetas",
-        #     retry,
-        #     {
-        #         "instance_id": context.instance_id,
-        #         "bind": "facebook_dashboard",
-        #         "table": {"schema": "dashboard", "name": "adcreatives"},
-        #         "destination": {
-        #             "container_name": container,
-        #             "handle": "sa_esquiregeneral",
-        #             "blob_prefix": f"meta/tables/AdCreatives/{context.instance_id}",
-        #         },
-        #         "query": CETAS["AdAccount_GetCreatives"],
-        #         "view": True,
-        #     },
-        # )
-
+        # Handle exceptions by posting to a webhook and re-raise the exception
     except Exception as e:
         yield context.call_http(
             method="POST",
@@ -179,10 +122,10 @@ def esquire_dashboard_meta_orchestrator_report_batch(
                 "@type": "MessageCard",
                 "@context": "http://schema.org/extensions",
                 "themeColor": "EE2A3D",
-                "summary": "Meta Report Injestion Failed",
+                "summary": "Meta Report Ingestion Failed",
                 "sections": [
                     {
-                        "activityTitle": "Meta Report Injestion Failed",
+                        "activityTitle": "Meta Report Ingestion Failed",
                         "activitySubtitle": "{}{}".format(
                             str(e)[0:128], "..." if len(str(e)) > 128 else ""
                         ),
@@ -196,7 +139,7 @@ def esquire_dashboard_meta_orchestrator_report_batch(
         )
         raise e
 
-    # Purge history related to this instance
+    # Purge history related to this instance at the end of the orchestration
     context.set_custom_status("Purging History")
     yield context.call_sub_orchestrator(
         "purge_instance_history",

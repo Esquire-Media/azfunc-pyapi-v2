@@ -7,16 +7,30 @@ import uuid
 bp = Blueprint()
 
 
-# main orchestrator for friends and family audiences (suborchestrator for the root)
-## one audience at a time
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_esquireAudienceMaidsAddresses_standard(
     context: DurableOrchestrationContext,
 ):
+    """
+    Suborchestrator function for processing Friends and Family audiences.
+
+    This function is responsible for coordinating the tasks involved in processing
+    Friends and Family audience data. It includes calling a suborchestrator for OnSpot
+    processing, checking callbacks for success, and merging device files.
+
+    Parameters
+    ----------
+    context : DurableOrchestrationContext
+        The context for the orchestration, containing methods for interacting with the Durable Functions runtime.
+        - working : dict
+            Information about the working blob storage, including blob prefix and other details.
+        - source : str
+            The source URL for the data processing.
+    """
     ingress = context.get_input()
     retry = RetryOptions(15000, 1)
 
-    # pass Friends and Family to OnSpot Orchestrator
+    # Call the OnSpot Orchestrator with the necessary parameters
     onspot = yield context.call_sub_orchestrator_with_retry(
         "onspot_orchestrator",
         retry,
@@ -44,13 +58,12 @@ def orchestrator_esquireAudienceMaidsAddresses_standard(
         },
     )
 
-    # check if all callbacks succeeded
+    # Check for success in all callbacks from the OnSpot Orchestrator
     if not all([c["success"] for c in onspot["callbacks"]]):
-        # if there are failures, throw exception of what failed in the call
-        # TODO: exception for submission failures
+        # Raise an exception if any callback failed
         raise Exception([c for c in onspot["callbacks"] if not c["success"]])
 
-    # merge all of the device files into one file
+    # Merge device files into a single file
     yield context.call_activity_with_retry(
         "activity_onSpot_mergeDevices",
         retry,

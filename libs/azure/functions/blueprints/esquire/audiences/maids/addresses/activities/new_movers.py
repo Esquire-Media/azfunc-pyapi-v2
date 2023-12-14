@@ -132,6 +132,31 @@ STATE_ABBREVIATIONS_MAP = {
 # activity to fill in the geo data for each audience object
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudiencesMaidsAddresses_newMovers(ingress: dict):
+    """
+    Activity function to process address data for the 'new movers' audience.
+
+    Fetches address data based on specified criteria like income, home value, and age, 
+    from a database. The data is then either uploaded back to Azure Blob Storage or 
+    returned as a pandas DataFrame.
+
+    Parameters
+    ----------
+    ingress : dict
+        A dictionary containing the following keys:
+        - audience: dict
+            A dictionary containing details about the audience, including the audience ID.
+        - destination: str or dict, optional
+            The destination for storing the processed data. Can be a URL string or a 
+            dictionary specifying Blob Storage details (including 'conn_str', 'container_name',
+            'blob_name', and optionally 'format' to specify the output file format).
+
+    Returns
+    -------
+    Union[str, pd.DataFrame]
+        If a destination is provided, returns the SAS URL of the uploaded blob. 
+        Otherwise, returns the processed addresses as a pandas DataFrame.
+    """
+    
     addresses = get_addresses(audience_id=ingress["audience"]["id"])
 
     # Handle data output based on destination configuration
@@ -173,6 +198,23 @@ def activity_esquireAudiencesMaidsAddresses_newMovers(ingress: dict):
 
 
 def get_addresses(audience_id: str):
+    """
+    Retrieves address data based on the audience's criteria from a database.
+
+    Connects to a database, applies filters based on the audience's specified criteria
+    like income, home value, age, etc., and fetches the relevant address data.
+
+    Parameters
+    ----------
+    audience_id : str
+        The ID of the audience for which to fetch address data.
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame containing the filtered address data.
+    """
+    
     # connect to Synapse salesforce database
     provider = from_bind("salesforce")
     session: Session = provider.connect()

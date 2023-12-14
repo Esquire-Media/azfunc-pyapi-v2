@@ -14,6 +14,32 @@ bp: Blueprint = Blueprint()
 # activity to grab the geojson data and format the request files for OnSpot
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudiencesMaidsGeoframes_geoframes(ingress: dict):
+    """
+    Activity function to process and upload geoframes data for Esquire Audiences Maids.
+
+    This function loads geojson data corresponding to a specified audience, formats it for OnSpot
+    requests, and uploads the formatted data to Azure Blob Storage. If no destination is provided,
+    the formatted geojson data is returned directly.
+
+    Parameters
+    ----------
+    ingress : dict
+        A dictionary containing the following keys:
+        - audience: dict
+            A dictionary containing the audience ID and other relevant details.
+        - destination: str or dict, optional
+            The destination for storing the formatted geojson data. Can be a URL string or a
+            dictionary specifying Blob Storage details (including 'conn_str', 'container_name',
+            'blob_name').
+
+    Returns
+    -------
+    Union[str, dict]
+        If a destination is provided, returns the SAS URL of the uploaded blob.
+        Otherwise, returns the formatted geojson data.
+
+    """
+
     audience = get_audience(ingress["audience"]["id"])
     # load competitor location geometries from salesforce
     feature_collection = {
@@ -88,12 +114,40 @@ def activity_esquireAudiencesMaidsGeoframes_geoframes(ingress: dict):
 
 
 def get_audience(audience_id: str) -> dict:
+    """
+    Fetches audience data from a database based on the given audience ID.
+
+    Parameters
+    ----------
+    audience_id : str
+        The ID of the audience for which data is to be fetched.
+
+    Returns
+    -------
+    dict
+        A dictionary containing audience data.
+    """
+
     provider = from_bind("salesforce")
     qf = provider["dbo.Audience__c"]
     return qf[qf["Id"] == audience_id].to_pandas().to_dict(orient="records")[0]
 
 
 def get_geojson(audience_id: str) -> list:
+    """
+    Retrieves geojson data for the given audience ID from a database.
+
+    Parameters
+    ----------
+    audience_id : str
+        The ID of the audience for which geojson data is to be fetched.
+
+    Returns
+    -------
+    list
+        A list of geojson objects corresponding to the audience ID.
+    """
+
     provider = from_bind("salesforce")
     session: Session = provider.connect()
     geojoin = provider.models["dbo"]["GeoJSON_Join__c"]

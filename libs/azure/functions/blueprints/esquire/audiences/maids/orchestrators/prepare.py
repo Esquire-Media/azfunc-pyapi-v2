@@ -16,17 +16,40 @@ import os, logging
 
 bp = Blueprint()
 
-
 # main orchestrator
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_esquireAudiencesMaids_prepare(context: DurableOrchestrationContext):
+    """
+    Main orchestrator function for preparing Esquire Audience Maids data.
+
+    This function coordinates several tasks, such as fetching and validating addresses, 
+    and preparing geoframes. It manages these tasks through Azure Durable Functions.
+
+    Parameters
+    ----------
+    context : DurableOrchestrationContext
+        The context object provided by the Azure Durable Function, which includes information 
+        like input data and methods for calling sub-orchestrators and activities.
+        - audiences : list
+            A list of audience data dictionaries.
+        - destination : dict
+            Information about the destination for storing processed data.
+        - source : dict
+            Information about the data source.
+        - execution_time : str, optional
+            The time when the execution is started, defaults to the current UTC time.
+        - fetch : bool, optional
+            Flag to indicate whether to perform a fetch operation.
+    """
     ingress = context.get_input()
     retry = RetryOptions(15000, 1)
 
+    # Setting the execution time
     execution_time = ingress.get(
         "execution_time", context.current_utc_datetime.isoformat()
     )
 
+    # First task: Processing addresses for different audience types
     yield context.task_all(
         [
             context.call_activity_with_retry(
@@ -66,6 +89,7 @@ def orchestrator_esquireAudiencesMaids_prepare(context: DurableOrchestrationCont
         ]
     )
 
+    # Second task: Validating addresses
     yield context.task_all(
         [
             context.call_activity_with_retry(
@@ -118,7 +142,7 @@ def orchestrator_esquireAudiencesMaids_prepare(context: DurableOrchestrationCont
         ]
     )
 
-    # geoframe stuff
+    # Third task: Preparing geoframes for specific audience types
     yield context.task_all(
         [
             context.call_activity_with_retry(
@@ -142,6 +166,7 @@ def orchestrator_esquireAudiencesMaids_prepare(context: DurableOrchestrationCont
         ]
     )
 
+    # Optional task: Fetching data if the 'fetch' flag is set
     if ingress.get("fetch", False):
         yield context.call_sub_orchestrator_with_retry(
             "orchestrator_esquireAudiencesMaids_fetch",

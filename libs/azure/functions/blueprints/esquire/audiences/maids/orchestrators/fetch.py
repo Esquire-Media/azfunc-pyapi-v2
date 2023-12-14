@@ -8,19 +8,20 @@ from libs.azure.functions import Blueprint
 from libs.azure.functions.blueprints.esquire.audiences.maids.config import (
     maids_name,
     validated_addresses_name,
-    geoframes_name
+    geoframes_name,
 )
 from urllib.parse import unquote
 import os
 
 bp = Blueprint()
 
+
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_esquireAudiencesMaids_fetch(context: DurableOrchestrationContext):
     """
     Orchestrator function to fetch and process audience data for Esquire Audiences Maids.
 
-    This function handles various tasks such as fetching audience data, generating SAS tokens 
+    This function handles various tasks such as fetching audience data, generating SAS tokens
     for blob storage, and orchestrating calls to sub-orchestrators for different audience types.
 
     Parameters
@@ -52,7 +53,10 @@ def orchestrator_esquireAudiencesMaids_fetch(context: DurableOrchestrationContex
                 ingress["source"]["blob_prefix"],
                 audience["id"],
                 execution_time,
-                validated_addresses_name if audience["type"] in ["Past Customers", "New Movers", "Digital Neighbors"] else geoframes_name,
+                validated_addresses_name
+                if audience["type"]
+                in ["Past Customers", "New Movers", "Digital Neighbors"]
+                else geoframes_name,
             ),
         )
 
@@ -71,7 +75,9 @@ def orchestrator_esquireAudiencesMaids_fetch(context: DurableOrchestrationContex
             "working": {
                 **ingress["working"],
                 "outputPath": "{}/{}/devices".format(
-                    ingress["working"]["blob_prefix"] + f"/{context.instance_id}" if ingress["working"]["blob_prefix"] else context.instance_id,
+                    ingress["working"]["blob_prefix"] + f"/{context.instance_id}"
+                    if ingress["working"]["blob_prefix"]
+                    else context.instance_id,
                     audience["id"],
                 ),
             },
@@ -88,11 +94,29 @@ def orchestrator_esquireAudiencesMaids_fetch(context: DurableOrchestrationContex
         }
 
         if audience["type"] in ["Past Customers", "New Movers", "Digital Neighbors"]:
-            tasks.append(context.call_sub_orchestrator_with_retry("orchestrator_esquireAudienceMaidsAddresses_standard", retry, task_payload))
+            tasks.append(
+                context.call_sub_orchestrator_with_retry(
+                    "orchestrator_esquireAudienceMaidsAddresses_standard",
+                    retry,
+                    task_payload,
+                )
+            )
         elif audience["type"] in ["InMarket Shoppers", "Competitor Locations"]:
-            tasks.append(context.call_sub_orchestrator_with_retry("orchestrator_esquireAudienceMaidsGeoframes_standard", retry, task_payload))
+            tasks.append(
+                context.call_sub_orchestrator_with_retry(
+                    "orchestrator_esquireAudienceMaidsGeoframes_standard",
+                    retry,
+                    task_payload,
+                )
+            )
         elif audience["type"] == "Friends Family":
-            tasks.append(context.call_sub_orchestrator_with_retry("orchestrator_esquireAudienceMaidsAddresses_footprint", retry, task_payload))
+            tasks.append(
+                context.call_sub_orchestrator_with_retry(
+                    "orchestrator_esquireAudienceMaidsAddresses_footprint",
+                    retry,
+                    task_payload,
+                )
+            )
 
     # Executing all orchestrated tasks
     yield context.task_all(tasks)

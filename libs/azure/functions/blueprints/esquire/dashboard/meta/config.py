@@ -211,8 +211,8 @@ PARAMETERS = {
         #     "7d_view",
         #     # "default",
         # ],
-        # "date_preset": "last_30d",
-        "time_range": {"since": "2023-11-01", "until": "2023-11-30"},
+        "date_preset": "last_30d",
+        # "time_range": {"since": "2023-11-01", "until": "2023-11-30"},
     },
     "AdAccount_GetAds": {
         "limit": 200,
@@ -246,8 +246,8 @@ PARAMETERS = {
             "status",
             "updated_time",  # Filter
         ],
-        # "date_preset": "last_30d",
-        "time_range": {"since": "2023-11-01", "until": "2023-11-30"},
+        "date_preset": "last_30d",
+        # "time_range": {"since": "2023-11-01", "until": "2023-11-30"},
     },
     "AdAccount_GetCampaigns": {
         "limit": 200,
@@ -289,8 +289,8 @@ PARAMETERS = {
             "topline_id",
             "updated_time",  # Filter
         ],
-        # "date_preset": "last_30d",
-        "time_range": {"since": "2023-11-01", "until": "2023-11-30"},
+        "date_preset": "last_30d",
+        # "time_range": {"since": "2023-11-01", "until": "2023-11-30"},
     },
     "AdAccount_GetAdSets": {
         "limit": 200,
@@ -352,8 +352,8 @@ PARAMETERS = {
             "updated_time",  # Filter
             "use_new_app_click",
         ],
-        # "date_preset": "last_30d",
-        "time_range": {"since": "2023-11-01", "until": "2023-11-30"},
+        "date_preset": "last_30d",
+        # "time_range": {"since": "2023-11-01", "until": "2023-11-30"},
     },
     "AdAccount_GetAdCreatives": {
         "limit": 100,

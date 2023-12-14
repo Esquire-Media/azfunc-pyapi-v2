@@ -2,7 +2,7 @@
 
 from azure.storage.blob import BlobClient
 from libs.azure.functions import Blueprint
-from libs.openapi.clients.facebook import FacebookAPI
+from libs.openapi.clients.facebook import Facebook
 import os, pandas as pd
 
 bp = Blueprint()
@@ -11,7 +11,7 @@ bp = Blueprint()
 @bp.activity_trigger(input_name="ingress")
 def esquire_dashboard_meta_activity_download(ingress: dict):
     """
-    Download data from Facebook using the FacebookAPI and upload it to an Azure Blob Storage.
+    Download data from Facebook using the Facebook API and upload it to an Azure Blob Storage.
 
     This function creates a request to download a report from Facebook, converts the report to a
     DataFrame, and then uploads it to an Azure Blob Storage container as a parquet file.
@@ -32,12 +32,19 @@ def esquire_dashboard_meta_activity_download(ingress: dict):
         An empty string, indicating successful completion of the function.
 
     """
+    # Initialize the Facebook API client
+    factory = Facebook["Download"]
 
-    # Initialize the FacebookAPI client
-    FBA = FacebookAPI(asynchronous=False)
+    # Set the access token for API security, preferring the ingress token, then environment variable
+    factory.security.setdefault(
+        "access_token",
+        os.environ.get(
+            ingress.get("access_token", ""), os.environ.get("META_ACCESS_TOKEN", "")
+        ),
+    )
 
     # Create and send a request to download the report from Facebook
-    _, report, _ = FBA.createRequest("Download").request(
+    _, report, _ = factory.request(
         parameters={
             "name": "report",
             "format": "csv",
@@ -58,6 +65,8 @@ def esquire_dashboard_meta_activity_download(ingress: dict):
         df = pd.DataFrame(report)
 
         # Upload the DataFrame as a parquet file to Azure Blob Storage, overwriting if it already exists
-        blob.upload_blob(df.to_parquet(index=False), overwrite=True)
+        blob.upload_blob(df.to_parquet(index=False, compression="snappy"), overwrite=True)
+    else:
+        raise Exception("No Data")
 
     return ""

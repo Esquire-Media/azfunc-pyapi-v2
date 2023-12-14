@@ -92,9 +92,46 @@ def esquire_dashboard_meta_orchestrator_report_batch(
                 and "do no use" not in adaccount["name"].lower()
             ]
         )
+        
+        
+        context.set_custom_status("Generating AdAccounts CETAS")
+        yield context.call_activity_with_retry(
+            "synapse_activity_cetas",
+            retry,
+            {
+                "instance_id": context.instance_id,
+                "bind": "facebook_dashboard",
+                "table": {"schema": "dashboard", "name": "adaccounts"},
+                "destination": {
+                    "container_name": container_name,
+                    "handle": "sa_esquiregeneral",
+                    "blob_prefix": f"meta/tables/AdAccounts/{pull_time}",
+                },
+                "query": CETAS["User_GetAdAccounts"],
+                "view": True,
+            },
+        )
 
-        # Generate CETAS for AdAccounts, AdsInsights, Ads, Campaigns, and AdSets
-        for entity in ["AdAccounts", "AdsInsights", "Ads", "Campaigns", "AdSets"]:
+        context.set_custom_status("Generating AdsInsights CETAS")
+        yield context.call_activity_with_retry(
+            "synapse_activity_cetas",
+            retry,
+            {
+                "instance_id": context.instance_id,
+                "bind": "facebook_dashboard",
+                "table": {"schema": "dashboard", "name": "adsinsights"},
+                "destination": {
+                    "container_name": container_name,
+                    "handle": "sa_esquiregeneral",
+                    "blob_prefix": f"meta/tables/AdsInsights/{pull_time}",
+                },
+                "query": CETAS["AdAccount_GetInsightsAsync"],
+                "view": True,
+            },
+        )
+
+        # Generate CETAS for Ads, Campaigns, and AdSets
+        for entity in ["Ads", "Campaigns", "AdSets"]:
             context.set_custom_status(f"Generating {entity} CETAS")
             yield context.call_activity_with_retry(
                 "synapse_activity_cetas",

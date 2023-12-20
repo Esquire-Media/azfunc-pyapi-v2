@@ -17,7 +17,7 @@ class XandrReportFormatter(Message):
 
 class XandrAPI:
     api_key = None
-    
+
     def __new__(
         cls,
         api_key: str = os.environ.get(
@@ -34,7 +34,7 @@ class XandrAPI:
         api = OpenAPI(
             url=f"https://api.appnexus.com",
             document=XandrAPI.get_spec(),
-            session_factory=httpx.AsyncClient if asynchronus else httpx.Client,
+            session_factory=cls.session_async if asynchronus else cls.session_sync,
             plugins=[XandrReportFormatter()],
             use_operation_tags=False,
         )
@@ -46,6 +46,14 @@ class XandrAPI:
             token=api_key,
         )
         return api
+
+    @classmethod
+    def session_sync(cls, *args, **kwargs) -> httpx.Client:
+        return httpx.Client(*args, timeout=None, **kwargs)
+
+    @classmethod
+    def session_async(cls, *args, **kwargs) -> httpx.AsyncClient:
+        return httpx.AsyncClient(*args, timeout=None, **kwargs)
 
     @staticmethod
     def get_token(

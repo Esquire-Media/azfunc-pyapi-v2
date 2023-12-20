@@ -198,6 +198,25 @@ components:
                     items:
                       $ref: '#/components/schemas/ChangeLogDetail'
                     type: array
+    Creative:
+      description: Creative response
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              response:
+                type: object
+                allOf:
+                  - $ref: '#/components/schemas/Response'
+                  - $ref: '#/components/schemas/Pagination'
+                properties:
+                  app-installation:
+                    $ref: '#/components/schemas/Creative'
+                  app-installations:
+                    items:
+                      $ref: '#/components/schemas/Creative'
+                    type: array
     Credential:
       content:
         application/json:
@@ -1000,6 +1019,119 @@ components:
           type: string
         ip_info:
           type: string
+    Creative:
+      type: object
+      properties:
+        media_url:
+          type: string
+          example: "https://example.com/inbanner.xml"
+        template:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 8
+        click_url:
+          type: string
+          example: "https://www.example.com"
+        click_target:
+          type: string
+          example: "https://www.example.com"
+        width:
+          type: integer
+          example: 300
+        height:
+          type: integer
+          example: 250
+        flash_backup_url:
+          type: string
+          example: "https://example.com/poster_image.jpg"
+        name:
+          type: string
+        brand_id:
+          type: integer
+          example: 1
+        id:
+          type: integer
+          example: 510245
+        code:
+          type: string
+        code2:
+          type: string
+        state:
+          type: string
+          example: "inactive"
+        click_track_result:
+          type: string
+          example: "not_tested"
+        advertiser_id:
+          type: integer
+          example: 2
+        publisher_id:
+          type: integer
+        format:
+          type: string
+        flash_click_variable:
+          type: string
+        pixel_url:
+          type: string
+        pixel_type:
+          type: string
+          example: "image"
+        no_iframes:
+          type: boolean
+          example: false
+        content:
+          type: string
+        original_content:
+          type: string
+        file_name:
+          type: string
+          example: "inbanner.xml"
+        track_clicks:
+          type: boolean
+          example: true
+        audit_status:
+          type: string
+          example: "pending"
+        macros:
+          type: string
+        profile_id:
+          type: integer
+        audit_feedback:
+          type: string
+        is_prohibited:
+          type: boolean
+          example: false
+        created_on:
+          type: string
+          format: date-time
+          example: "2012-04-13T14:47:46"
+        last_modified:
+          type: string
+          format: date-time
+          example: "2012-04-13T14:47:46"
+        is_control:
+          type: boolean
+          example: false
+        allow_audit:
+          type: boolean
+          example: true
+        is_expired:
+          type: boolean
+          example: false
+        creative_upload_status:
+          type: string
+          example: "pending"
+        backup_upload_status:
+          type: string
+        use_dynamic_click_url:
+          type: boolean
+          example: false
+        media_subtypes:
+          type: array
+          items:
+            type: string
     Credential:
       type: object
       properties:
@@ -2672,6 +2804,13 @@ components:
       schema:
         type: string
       example: 1,2,3
+    Code:
+      name: code
+      in: query
+      description: Code
+      required: true
+      schema:
+        type: string
     Search:
       name: search
       in: query
@@ -2715,12 +2854,51 @@ components:
       schema:
         type: string
       description: The service used to make the change.
+
+    AdvertiserCode:
+      name: advertiser_code
+      in: query
+      description: Unique identifier of the advertiser
+      schema:
+        type: integer
+        format: int64
+    AdvertiserID:
+      name: advertiser_id
+      in: query
+      description: Unique identifier of the advertiser
+      schema:
+        type: integer
+        format: int64
+    AuditStats:
+      name: audit_stats
+      in: query
+      description: Tells you the number of creatives with each Xandr, Microsoft, and Google audit status.
+      schema:
+        type: string
+        enum:
+          - "true"
+          - "false"
+    PublisherCode:
+      name: publisher_code
+      in: query
+      description: Unique identifier of the advertiser
+      schema:
+        type: integer
+        format: int64
+    PublisherID:
+      name: publisher_id
+      in: query
+      description: Unique identifier of the advertiser
+      schema:
+        type: integer
+        format: int64
     ResourceID:
       in: query
       name: resource_id
       required: true
       schema:
         type: integer
+        format: int64
       description: The ID of the object used to make the change.
     TransactionID:
       in: query
@@ -2728,6 +2906,7 @@ components:
       required: true
       schema:
         type: integer
+        format: int64
       description: The ID of the change transaction.
 paths:
   /account-recovery:
@@ -2928,6 +3107,87 @@ paths:
       summary: View all countries or a specific country by ID, NAME, or CODE
       tags:
         - Read-Only
+  /creative:
+    post:
+      operationId: CreateCreative
+      parameters:
+        - $ref: '#/components/parameters/AdvertiserID'
+        - $ref: '#/components/parameters/PublisherID'
+      summary: Create a new creative
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Creative'
+      responses:
+        '200':
+          $ref: '#/components/responses/Creative'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      tags:
+        - Creatives
+    put:
+      operationId: UpdateCreative
+      summary: Update an existing creative
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/AdvertiserID'
+        - $ref: '#/components/parameters/PublisherID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Creative'
+      responses:
+        '200':
+          $ref: '#/components/responses/Creative'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      tags:
+        - Creatives
+    get:
+      operationId: GetCreative
+      summary: Retrieve a specific creative
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/AdvertiserID'
+        - $ref: '#/components/parameters/AdvertiserCode'
+        - $ref: '#/components/parameters/AuditStats'
+        - $ref: '#/components/parameters/PublisherID'
+        - $ref: '#/components/parameters/PublisherCode'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/Creative'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      tags:
+        - Creatives
+    delete:
+      summary: Delete a specific creative
+      parameters:
+        - $ref: '#/components/parameters/ID'
+        - $ref: '#/components/parameters/AdvertiserID'
+        - $ref: '#/components/parameters/PublisherID'
+      responses:
+        '200':
+          $ref: '#/components/responses/Creative'
+        default:
+          $ref: '#/components/responses/Error'
+      security:
+        - token: []
+      tags:
+        - Creatives
   /developer:
     get:
       operationId: GetDeveloperApp

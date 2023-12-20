@@ -247,7 +247,7 @@ PARAMETERS = {
             "updated_time",  # Filter
         ],
         "date_preset": "last_30d",
-        # "time_range": {"since": "2023-11-01", "until": "2023-11-30"},
+        # "time_range": {"since": "2023-01-01", "until": "2023-12-18"},
     },
     "AdAccount_GetCampaigns": {
         "limit": 200,
@@ -290,7 +290,7 @@ PARAMETERS = {
             "updated_time",  # Filter
         ],
         "date_preset": "last_30d",
-        # "time_range": {"since": "2023-11-01", "until": "2023-11-30"},
+        # "time_range": {"since": "2023-01-01", "until": "2023-12-18"},
     },
     "AdAccount_GetAdSets": {
         "limit": 200,
@@ -353,7 +353,7 @@ PARAMETERS = {
             "use_new_app_click",
         ],
         "date_preset": "last_30d",
-        # "time_range": {"since": "2023-11-01", "until": "2023-11-30"},
+        # "time_range": {"since": "2023-01-01", "until": "2023-12-18"},
     },
     "AdAccount_GetAdCreatives": {
         "limit": 100,
@@ -1021,7 +1021,7 @@ CETAS = {
             ) WITH (
                 [Reporting starts] VARCHAR(10),
                 [Reporting ends] VARCHAR(10),
-                [Age] VARCHAR(5),
+                [Age] VARCHAR(8),
                 [Gender] VARCHAR(8),
                 [Ad ID] VARCHAR(24),
                 [Attribute setting] VARCHAR(MAX),
@@ -1042,7 +1042,7 @@ CETAS = {
                 [Reach] VARCHAR(16),
                 [Amount spent (USD)] VARCHAR(16),
                 [Unique clicks (all)] VARCHAR(16),
-            [Date last edited] VARCHAR(10)
+                [Date last edited] VARCHAR(10)
             ) AS [data]
         ) AS [data]
         WHERE rank = 1

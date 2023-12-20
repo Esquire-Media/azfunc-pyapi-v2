@@ -85,6 +85,7 @@ def esquire_dashboard_meta_orchestrator_reporting(
                     break
                 case "Job Failed":
                     context.set_custom_status(status)
+                    break
                 case _:
                     yield context.create_timer(datetime.utcnow() + timedelta(minutes=1))
 
@@ -92,6 +93,7 @@ def esquire_dashboard_meta_orchestrator_reporting(
             break
         else:
             tries += 1
+            context.set_custom_status(f"On try #{tries}")
             if tries > 3:
                 raise Exception("Insight report generation failed.")
             yield context.create_timer(datetime.utcnow() + timedelta(minutes=1))
@@ -118,7 +120,7 @@ def esquire_dashboard_meta_orchestrator_reporting(
             },
         )
     except Exception as e:
-        context.set_custom_status(str(e))
+        context.set_custom_status(str(e.args[0]))
         return {}
 
     # Retrieve Ads, Campaigns, and AdSets for the given account

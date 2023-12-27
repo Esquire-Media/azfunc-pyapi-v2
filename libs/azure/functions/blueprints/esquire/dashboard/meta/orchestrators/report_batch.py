@@ -6,7 +6,7 @@ from libs.azure.functions.blueprints.esquire.dashboard.meta.config import (
     PARAMETERS,
     CETAS,
 )
-import os
+import os, logging
 
 bp = Blueprint()
 
@@ -52,14 +52,15 @@ def esquire_dashboard_meta_orchestrator_report_batch(
 
     try:
         # Get Facebook Ad Accounts
-        context.set_custom_status("Getting AdAccounts")
-        adaccounts = yield context.call_sub_orchestrator(
+        context.set_custom_status("Getting Adaccounts")
+        adaccounts = yield context.call_sub_orchestrator_with_retry(
             "meta_orchestrator_request",
+            retry,
             {
-                "operationId": "User_GetAdAccounts",
+                "operationId": "User.Get.Adaccounts",
                 "parameters": {
-                    **PARAMETERS["User_GetAdAccounts"],
-                    "User-id": "me",
+                    **PARAMETERS["User.Get.Adaccounts"],
+                    "User-Id": "me",
                 },
                 "recursive": True,
                 "destination": {
@@ -69,6 +70,7 @@ def esquire_dashboard_meta_orchestrator_report_batch(
                 },
             },
         )
+        logging.warning([a["name"] for a in adaccounts])
 
         # Process reports for each Ad Account
         context.set_custom_status("Getting Reports")
@@ -85,15 +87,16 @@ def esquire_dashboard_meta_orchestrator_report_batch(
                     },
                 )
                 for adaccount in adaccounts
-                if adaccount["id"]
+                if adaccount.get("id")
+                and adaccount["id"]
                 not in [
                     "act_147888709160457",
                 ]
+                and adaccount.get("name")
                 and "do no use" not in adaccount["name"].lower()
             ]
         )
-        
-        
+
         context.set_custom_status("Generating AdAccounts CETAS")
         yield context.call_activity_with_retry(
             "synapse_activity_cetas",
@@ -107,7 +110,7 @@ def esquire_dashboard_meta_orchestrator_report_batch(
                     "handle": "sa_esquiregeneral",
                     "blob_prefix": f"meta/tables/AdAccounts/{pull_time}",
                 },
-                "query": CETAS["User_GetAdAccounts"],
+                "query": CETAS["User.Get.Adaccounts"],
                 "view": True,
             },
         )
@@ -125,7 +128,7 @@ def esquire_dashboard_meta_orchestrator_report_batch(
                     "handle": "sa_esquiregeneral",
                     "blob_prefix": f"meta/tables/AdsInsights/{pull_time}",
                 },
-                "query": CETAS["AdAccount_GetInsightsAsync"],
+                "query": CETAS["AdAccount.Post.Insights"],
                 "view": True,
             },
         )
@@ -145,7 +148,7 @@ def esquire_dashboard_meta_orchestrator_report_batch(
                         "handle": "sa_esquiregeneral",
                         "blob_prefix": f"meta/tables/{entity}/{pull_time}",
                     },
-                    "query": CETAS[f"AdAccount_Get{entity}"],
+                    "query": CETAS[f"AdAccount.Get.{entity.title()}"],
                     "view": True,
                 },
             )

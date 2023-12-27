@@ -11,7 +11,7 @@ if not from_bind("facebook_dashboard"):
     )
 
 PARAMETERS = {
-    "User_GetAdAccounts": {
+    "User.Get.Adaccounts": {
         "limit": 25,
         "fields": [
             "account_id",
@@ -74,7 +74,7 @@ PARAMETERS = {
             # "viewable_business" # N/A
         ],
     },
-    "AdAccount_GetInsightsAsync": {
+    "AdAccount.Post.Insights": {
         "fields": [
             # "account_currency",
             # "account_id",
@@ -214,7 +214,7 @@ PARAMETERS = {
         "date_preset": "last_30d",
         # "time_range": {"since": "2023-11-01", "until": "2023-11-30"},
     },
-    "AdAccount_GetAds": {
+    "AdAccount.Get.Ads": {
         "limit": 200,
         "fields": [
             "account_id",
@@ -249,7 +249,7 @@ PARAMETERS = {
         "date_preset": "last_30d",
         # "time_range": {"since": "2023-01-01", "until": "2023-12-18"},
     },
-    "AdAccount_GetCampaigns": {
+    "AdAccount.Get.Campaigns": {
         "limit": 200,
         "fields": [
             "account_id",
@@ -292,7 +292,7 @@ PARAMETERS = {
         "date_preset": "last_30d",
         # "time_range": {"since": "2023-01-01", "until": "2023-12-18"},
     },
-    "AdAccount_GetAdSets": {
+    "AdAccount.Get.Adsets": {
         "limit": 200,
         "fields": [
             "account_id",
@@ -355,7 +355,7 @@ PARAMETERS = {
         "date_preset": "last_30d",
         # "time_range": {"since": "2023-01-01", "until": "2023-12-18"},
     },
-    "AdAccount_GetAdCreatives": {
+    "AdAccount.Get.Adcreatives": {
         "limit": 100,
         "fields": [
             "account_id",
@@ -417,7 +417,7 @@ PARAMETERS = {
 
 
 CETAS = {
-    "User_GetAdAccounts": """
+    "User.Get.Adaccounts": """
         SELECT 
             CONVERT(BIGINT, account_id) AS account_id,
             CONVERT(INT, account_status) AS account_status,
@@ -544,7 +544,7 @@ CETAS = {
         ) AS [data]
         WHERE rank = 1
     """,
-    "AdAccount_GetCampaigns": """
+    "AdAccount.Get.Campaigns": """
         SELECT
             CONVERT(BIGINT, account_id) AS account_id,
             adbatch AS adbatch,
@@ -649,7 +649,7 @@ CETAS = {
         ) AS [data]
         WHERE rank = 1
     """,
-    "AdAccount_GetAdCreatives": """
+    "AdAccount.Get.Adcreatives": """
         SELECT 
             CONVERT(BIGINT, account_id) AS account_id,
             CONVERT(BIGINT, actor_id) AS actor_id,
@@ -762,7 +762,7 @@ CETAS = {
         ) AS [data]
         WHERE rank = 1
     """,
-    "AdAccount_GetAdSets": """
+    "AdAccount.Get.AdSets": """
         SELECT
             CONVERT(BIGINT, account_id) AS account_id,
             CONVERT(NUMERIC, bid_amount) AS bid_amount,
@@ -980,7 +980,7 @@ CETAS = {
         ) AS [data]
         WHERE rank = 1
     """,
-    "AdAccount_GetInsightsAsync": """
+    "AdAccount.Post.Insights": """
         SELECT
             CONVERT(DATE, [Reporting starts]) AS date_start,
             CONVERT(DATE, [Reporting ends]) AS date_end,

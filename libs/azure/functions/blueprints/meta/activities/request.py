@@ -2,7 +2,7 @@
 
 from libs.azure.functions import Blueprint
 from libs.openapi.clients import Meta
-import json, os, pandas as pd
+import orjson, os, pandas as pd
 
 bp = Blueprint()
 
@@ -37,9 +37,9 @@ def meta_activity_request(ingress: dict):
 
     # Set the access token for API security, preferring the ingress token, then environment variable
     factory.security.setdefault(
-        "access_token",
+        "AccessToken",
         os.environ.get(
-            ingress.get("access_token", ""), os.environ.get("META_ACCESS_TOKEN", "")
+            ingress.get("AccessToken", ""), os.environ.get("META_ACCESS_TOKEN", "")
         ),
     )
 
@@ -50,13 +50,13 @@ def meta_activity_request(ingress: dict):
     )
 
     # Handle any errors in the response
-    if getattr(response, "error", False):
+    if getattr(response, "error", None):
         return {"headers": headers, "error": response.error}
 
     url = None
     # Process and optionally store the response data
     if getattr(response, "data", False):
-        data = response.model_dump()["data"]
+        df = pd.DataFrame(response.model_dump().get("root", {}).get("data", []))
         if ingress.get("destination", False):
             from azure.storage.blob import BlobClient
             import uuid
@@ -72,26 +72,20 @@ def meta_activity_request(ingress: dict):
                 ),
             )
             # Upload the data as a parquet file
-            blob.upload_blob(pd.DataFrame(data).to_parquet(index=False))
+            blob.upload_blob(df.to_parquet(index=False))
             url = blob.url
-
-    next = None
-    # Handle pagination if applicable
-    if getattr(response, "paging", False):
-        if getattr(response.paging, "next", False):
-            next = response.paging.cursors.after
 
     # Prepare and return the final response
     return {
         "headers": headers,
         "data": (
             (
-                json.loads(response.model_dump_json())["data"]
-                if hasattr(response, "data") and response.data
-                else json.loads(response.model_dump_json())
+                orjson.loads(response.model_dump_json())["data"]
+                if hasattr(response.root, "data") and response.root.data
+                else orjson.loads(response.model_dump_json())
             )
             if ingress.get("return", True)
             else url
         ),
-        "next": next,
+        "next": getattr(getattr(response, "root", response), "paging", {}).get("cursors", {}).get("after", None),
     }

@@ -54,10 +54,10 @@ def esquire_dashboard_meta_orchestrator_reporting(
             "meta_orchestrator_request",
             retry,
             {
-                "operationId": "AdAccount_GetInsightsAsync",
+                "operationId": "AdAccount.Post.Insights",
                 "parameters": {
-                    **PARAMETERS["AdAccount_GetInsightsAsync"],
-                    "AdAccount-id": ingress["account_id"],
+                    **PARAMETERS["AdAccount.Post.Insights"],
+                    "AdAccount-Id": ingress["account_id"],
                 },
             },
         )
@@ -69,8 +69,8 @@ def esquire_dashboard_meta_orchestrator_reporting(
             status = yield context.call_sub_orchestrator(
                 "meta_orchestrator_request",
                 {
-                    "operationId": "GetAdReportRun",
-                    "parameters": {"AdReportRun-id": report_run["report_run_id"]},
+                    "operationId": "AdReportRun.Get",
+                    "parameters": {"AdReportRun-Id": report_run["report_run_id"]},
                 },
             )
             context.set_custom_status(
@@ -124,7 +124,7 @@ def esquire_dashboard_meta_orchestrator_reporting(
         return {}
 
     # Retrieve Ads, Campaigns, and AdSets for the given account
-    for entity in ["Ads", "Campaigns", "AdSets"]:
+    for entity in ["Ads", "Campaigns", "Adsets"]:
         context.set_custom_status(
             f"Getting {entity} for account {ingress['account_id']}"
         )
@@ -132,10 +132,10 @@ def esquire_dashboard_meta_orchestrator_reporting(
             "meta_orchestrator_request",
             retry,
             {
-                "operationId": f"AdAccount_Get{entity}",
+                "operationId": f"AdAccount.Get.{entity}",
                 "parameters": {
-                    **PARAMETERS[f"AdAccount_Get{entity}"],
-                    "AdAccount-id": ingress["account_id"],
+                    **PARAMETERS[f"AdAccount.Get.{entity}"],
+                    "AdAccount-Id": ingress["account_id"],
                 },
                 "recursive": True,
                 "destination": {

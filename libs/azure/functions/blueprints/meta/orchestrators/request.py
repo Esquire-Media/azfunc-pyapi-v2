@@ -65,7 +65,7 @@ def meta_orchestrator_request(context: DurableOrchestrationContext):
             context.set_custom_status(
                 f"Requesting page {page} for Operation {ingress['operationId']}."
             )
-            response = yield context.call_activity_with_retry(
+            response: dict = yield context.call_activity_with_retry(
                 "meta_activity_request",
                 retry,
                 {
@@ -84,7 +84,7 @@ def meta_orchestrator_request(context: DurableOrchestrationContext):
 
         # Process the response from the activity function
         if response:
-            if "error" in response.keys():
+            if response.get("error"):
                 # Handle different error codes
                 match response["error"]["code"]:
                     # Throttling errors
@@ -124,14 +124,17 @@ def meta_orchestrator_request(context: DurableOrchestrationContext):
                         )
             else:
                 # Aggregate data from the response
-                if response["data"]:
+                logging.warning(type(response.get("data", None)))
+                if response.get("data"):
                     if isinstance(response["data"], list):
                         data += response["data"]
                     else:
                         data.append(response["data"])
+                else:
+                    data.append(response)
 
                 # Handle pagination
-                if ingress.get("recursive", False) and response["next"]:
+                if ingress.get("recursive") and response["next"]:
                     after = response["next"]
                     page += 1
                     continue

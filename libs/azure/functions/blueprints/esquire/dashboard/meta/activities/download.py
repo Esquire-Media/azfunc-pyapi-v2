@@ -44,7 +44,7 @@ def esquire_dashboard_meta_activity_download(ingress: dict) -> dict:
     )
 
     # Create and send a request to download the report from Facebook
-    _, report, _ = factory.request(
+    _, report, raw = factory.request(
         parameters={
             "name": "report",
             "format": "csv",
@@ -69,6 +69,6 @@ def esquire_dashboard_meta_activity_download(ingress: dict) -> dict:
             df.to_parquet(index=False, compression="snappy"), overwrite=True
         )
     else:
-        return {"success": False, "message": "No Data"}
+        return {"success": False, "message": raw.text.strip()}
 
     return {"success": True}

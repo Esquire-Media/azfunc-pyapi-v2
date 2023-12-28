@@ -124,7 +124,6 @@ def meta_orchestrator_request(context: DurableOrchestrationContext):
                         )
             else:
                 # Aggregate data from the response
-                logging.warning(type(response.get("data", None)))
                 if response.get("data"):
                     if isinstance(response["data"], list):
                         data += response["data"]

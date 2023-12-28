@@ -620,7 +620,7 @@ CETAS = {
         ) AS [data]
         WHERE rank = 1
     """,
-    "AdAccount_GetAds": """
+    "AdAccount.Get.Ads": """
         SELECT
             CONVERT(BIGINT, account_id) AS account_id,
             CONVERT(BIGINT, adset_id) AS adset_id,
@@ -974,7 +974,7 @@ CETAS = {
         ) AS [data]
         WHERE rank = 1
     """,
-    "AdAccount.Get.AdSets": """
+    "AdAccount.Get.Adsets": """
         SELECT
             CONVERT(BIGINT, account_id) AS account_id,
             CONVERT(NUMERIC, bid_amount) AS bid_amount,

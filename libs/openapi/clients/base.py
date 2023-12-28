@@ -1,28 +1,26 @@
 from aiopenapi3 import OpenAPI
 from aiopenapi3.extra import Cull
-from functools import cache
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Pattern, Tuple, Union
-import copy, gzip, httpx, io, orjson, yaml, yarl, re
+from typing import Dict, List, Literal, Pattern, Tuple, Union
+import gzip, httpx, io, orjson, yaml, yarl, re
 
 
-class OperationSelector(type):    
+class OperationSelector(type):
     def __getitem__(cls, item: Union[str, Tuple[str, str]]):
         if item not in cls.cached:
             match item:
                 case str():
-                    cls.cached[item] = cls.__new__(cls, operations=item)._[item]
+                    cls.cached[item] = cls.__new__(cls, operations=item)
                 case re.Pattern():
-                    api = cls.__new__(cls, operations=item)
-                    cls.cached[item] = api._[[op for op in api._][0]]
+                    cls.cached[item] = cls.__new__(cls, operations=item)
                 case tuple():
                     path, method = item
                     assert isinstance(path, str)
                     assert isinstance(method, str)
-                    api = cls.__new__(cls, operations=(path, [method]))
-                    cls.cached[item] = api._[[op for op in api._][0]]
-        
-        return copy.copy(cls.cached[item])
+                    cls.cached[item] = cls.__new__(cls, operations=(path, [method]))
+        op = list(cls.cached[item]._.Iter(cls.cached[item], False))[0]
+        req = getattr(cls.cached[item]._, op)
+        return cls.cached[item].createRequest((req.path, req.method))
 
     def paths(cls):
         for k, v in cls.load()["paths"].keys():

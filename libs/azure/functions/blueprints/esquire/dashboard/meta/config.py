@@ -433,11 +433,20 @@ CETAS = {
             business_zip,
             CONVERT(BIT, can_create_brand_lift_study) AS can_create_brand_lift_study,
             capabilities,
-            CASE
-                WHEN ISNUMERIC(created_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(created_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, created_time) 
-            END AS created_time,
+            TRY_CONVERT(
+                DATETIMEOFFSET, 
+                CONCAT(
+                    LEFT(
+                        created_time, 
+                        22
+                    ),
+                    ':',
+                    RIGHT(
+                        created_time,
+                        2
+                    )
+                )
+            ) AS created_time,
             currency,
             default_dsa_beneficiary,
             default_dsa_payor,
@@ -544,6 +553,172 @@ CETAS = {
         ) AS [data]
         WHERE rank = 1
     """,
+    "AdAccount.Post.Insights": """
+        SELECT
+            CONVERT(DATE, [Reporting starts]) AS date_start,
+            CONVERT(DATE, [Reporting ends]) AS date_end,
+            [Age] AS age_range,
+            [Gender] AS gender,
+            CONVERT(BIGINT, [Ad ID]) AS ad_id,
+            [Attribute setting] AS attribution_setting,
+            CONVERT(NUMERIC, [Auction Bid]) AS auction_bid,
+            [Buying Type] AS buying_type,
+            CONVERT(BIGINT, [Clicks (all)]) AS clicks,
+            CONVERT(NUMERIC, [CPC (All) (USD)]) AS cpc,
+            CONVERT(NUMERIC, [CPM (cost per 1,000 impressions) (USD)]) AS cpm,
+            CONVERT(NUMERIC, [Cost per 1,000 Accounts Center accounts reached (USD)]) AS cpp,
+            CONVERT(DATE, [Date created]) AS created_time,
+            [Media type] AS creative_media_type,
+            CONVERT(NUMERIC, [CRT (all)]) AS ctr,
+            CONVERT(NUMERIC, [Frequency]) AS frequency,
+            CONVERT(BIGINT, [Impressions]) AS impressions,
+            [Tags] AS labels,
+            [Objective] AS objective,
+            [Optimization goal] AS optimization_goal,
+            CONVERT(BIGINT, [Reach]) AS reach,
+            CONVERT(NUMERIC, [Amount spent (USD)]) AS spend,
+            CONVERT(BIGINT, [Unique clicks (all)]) AS unique_clicks,
+            CONVERT(DATE, [Date last edited]) AS updated_time
+        FROM (
+            SELECT
+                *,
+                ROW_NUMBER()
+                    OVER(
+                        PARTITION BY [Ad ID], [Reporting Starts], [Age], [Gender]
+                        ORDER BY CONVERT(DATETIME2,data.filepath(1)) DESC
+                    ) AS rank
+            FROM OPENROWSET(
+                BULK 'general/meta/delta/adsinsights/*/*.parquet',
+                DATA_SOURCE = 'sa_esquiregeneral',  
+                FORMAT = 'PARQUET' 
+            ) WITH (
+                [Reporting starts] VARCHAR(10),
+                [Reporting ends] VARCHAR(10),
+                [Age] VARCHAR(8),
+                [Gender] VARCHAR(8),
+                [Ad ID] VARCHAR(24),
+                [Attribute setting] VARCHAR(MAX),
+                [Auction Bid] VARCHAR(16),
+                [Buying Type] VARCHAR(16),
+                [Clicks (all)] VARCHAR(16),
+                [CPC (All) (USD)] VARCHAR(16),
+                [CPM (cost per 1,000 impressions) (USD)] VARCHAR(16),
+                [Cost per 1,000 Accounts Center accounts reached (USD)] VARCHAR(16),
+                [Date created] VARCHAR(10),
+                [Media type] VARCHAR(16),
+                [CRT (all)] VARCHAR(16),
+                [Frequency] VARCHAR(16),
+                [Impressions] VARCHAR(16),
+                [Tags] VARCHAR(MAX),
+                [Objective] VARCHAR(MAX),
+                [Optimization goal] VARCHAR(32),
+                [Reach] VARCHAR(16),
+                [Amount spent (USD)] VARCHAR(16),
+                [Unique clicks (all)] VARCHAR(16),
+                [Date last edited] VARCHAR(10)
+            ) AS [data]
+        ) AS [data]
+        WHERE rank = 1
+    """,
+    "AdAccount_GetAds": """
+        SELECT
+            CONVERT(BIGINT, account_id) AS account_id,
+            CONVERT(BIGINT, adset_id) AS adset_id,
+            CONVERT(BIGINT, audience_id) AS audience_id,
+            CONVERT(NUMERIC, bid_amount) AS bid_amount,
+            bid_info,
+            bid_type,
+            CONVERT(BIGINT, campaign_id) AS campaign_id,
+            configured_status,
+            conversion_domain,
+            TRY_CONVERT(
+                DATETIMEOFFSET, 
+                CONCAT(
+                    LEFT(
+                        created_time, 
+                        22
+                    ),
+                    ':',
+                    RIGHT(
+                        created_time,
+                        2
+                    )
+                )
+            ) AS created_time,
+            date_format,
+            demolink_hash,
+            display_sequence,
+            draft_adgroup_id,
+            effective_status,
+            engagement_audience,
+            execution_options,
+            filename,
+            CONVERT(BIGINT, id) AS id,
+            include_demolink_hashes,
+            CONVERT(BIGINT, last_updated_by_app_id) AS last_updated_by_app_id,
+            meta_reward_adgroup_status,
+            name,
+            priority,
+            CONVERT(BIGINT, source_ad_id) AS source_ad_id,
+            status,
+            TRY_CONVERT(
+                DATETIMEOFFSET, 
+                CONCAT(
+                    LEFT(
+                        updated_time, 
+                        22
+                    ),
+                    ':',
+                    RIGHT(
+                        updated_time,
+                        2
+                    )
+                )
+            ) AS updated_time
+        FROM (
+            SELECT
+                *,
+                ROW_NUMBER()
+                    OVER(
+                        PARTITION BY id
+                        ORDER BY CONVERT(DATETIME2,data.filepath(1)) DESC
+                    ) AS rank
+            FROM OPENROWSET(
+                BULK 'general/meta/delta/ads/*/*.parquet',
+                DATA_SOURCE = 'sa_esquiregeneral',
+                FORMAT = 'PARQUET'
+            ) WITH (
+                account_id VARCHAR(32),
+                adset_id VARCHAR(32),
+                audience_id VARCHAR(32),
+                bid_amount VARCHAR(16),
+                bid_info VARCHAR(1024),
+                bid_type VARCHAR(16),
+                campaign_id VARCHAR(32),
+                configured_status VARCHAR(MAX),
+                conversion_domain VARCHAR(MAX),
+                created_time VARCHAR(32),
+                date_format VARCHAR(16),
+                demolink_hash VARCHAR(32),
+                display_sequence VARCHAR(32),
+                draft_adgroup_id VARCHAR(32),
+                effective_status VARCHAR(32),
+                engagement_audience VARCHAR(32),
+                execution_options VARCHAR(32),
+                filename VARCHAR(128),
+                id VARCHAR(32),
+                include_demolink_hashes VARCHAR(1),
+                last_updated_by_app_id VARCHAR(32),
+                meta_reward_adgroup_status VARCHAR(16),
+                name VARCHAR(256),
+                priority VARCHAR(4),
+                source_ad_id VARCHAR(32),
+                status VARCHAR(16),
+                updated_time VARCHAR(32)
+            ) AS [data]
+        ) AS [data]
+        WHERE rank = 1
+    """,
     "AdAccount.Get.Campaigns": """
         SELECT
             CONVERT(BIGINT, account_id) AS account_id,
@@ -556,10 +731,20 @@ CETAS = {
             CONVERT(BIT, can_create_brand_lift_study) AS can_create_brand_lift_study,
             CONVERT(BIT, can_use_spend_cap) AS can_use_spend_cap,
             configured_status AS configured_status,
-            CASE
-                WHEN ISNUMERIC(created_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(created_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, created_time) 
+            TRY_CONVERT(
+                DATETIMEOFFSET, 
+                CONCAT(
+                    LEFT(
+                        created_time, 
+                        22
+                    ),
+                    ':',
+                    RIGHT(
+                        created_time,
+                        2
+                    )
+                )
+            ) AS created_time,
             END AS created_time,
             CONVERT(NUMERIC, daily_budget) AS daily_budget,
             effective_status AS effective_status,
@@ -580,23 +765,50 @@ CETAS = {
             special_ad_category AS special_ad_category,
             special_ad_category_country AS special_ad_category_country,
             CONVERT(NUMERIC, spend_cap) AS spend_cap,
-            CASE
-                WHEN ISNUMERIC(start_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(start_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, start_time) 
-            END AS start_time,
+            TRY_CONVERT(
+                DATETIMEOFFSET, 
+                CONCAT(
+                    LEFT(
+                        start_time, 
+                        22
+                    ),
+                    ':',
+                    RIGHT(
+                        start_time,
+                        2
+                    )
+                )
+            ) AS start_time,
             status AS status,
-            CASE
-                WHEN ISNUMERIC(stop_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(stop_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, stop_time) 
-            END AS stop_time,
+            TRY_CONVERT(
+                DATETIMEOFFSET, 
+                CONCAT(
+                    LEFT(
+                        stop_time, 
+                        22
+                    ),
+                    ':',
+                    RIGHT(
+                        stop_time,
+                        2
+                    )
+                )
+            ) AS stop_time,
             CONVERT(BIGINT, topline_id) AS topline_id,
-            CASE
-                WHEN ISNUMERIC(updated_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(updated_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, updated_time) 
-            END AS updated_time
+            TRY_CONVERT(
+                DATETIMEOFFSET, 
+                CONCAT(
+                    LEFT(
+                        updated_time, 
+                        22
+                    ),
+                    ':',
+                    RIGHT(
+                        updated_time,
+                        2
+                    )
+                )
+            ) AS updated_time
         FROM (
             SELECT
                 *,
@@ -774,11 +986,20 @@ CETAS = {
             CONVERT(BIGINT, campaign_id) AS campaign_id,
             campaign_spec,
             configured_status,
-            CASE
-                WHEN ISNUMERIC(created_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(created_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, created_time) 
-            END AS created_time,
+            TRY_CONVERT(
+                DATETIMEOFFSET, 
+                CONCAT(
+                    LEFT(
+                        created_time, 
+                        22
+                    ),
+                    ':',
+                    RIGHT(
+                        created_time,
+                        2
+                    )
+                )
+            ) AS created_time,
             creative_sequence,
             CONVERT(BIGINT, daily_budget) AS daily_budget,
             CONVERT(BIGINT, daily_min_spend_target) AS daily_min_spend_target,
@@ -807,31 +1028,67 @@ CETAS = {
             review_feedback,
             rf_prediction_id,
             source_adset_id,
-            CASE
-                WHEN ISNUMERIC(start_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(start_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, start_time) 
-            END AS start_time,
+            TRY_CONVERT(
+                DATETIMEOFFSET, 
+                CONCAT(
+                    LEFT(
+                        start_time, 
+                        22
+                    ),
+                    ':',
+                    RIGHT(
+                        start_time,
+                        2
+                    )
+                )
+            ) AS start_time,
             status,
             targeting_optimization_types,
             time_based_ad_rotation_id_blocks,
             time_based_ad_rotation_intervals,
-            CASE
-                WHEN ISNUMERIC(time_start) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(time_start,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, time_start) 
-            END AS time_start,
-            CASE
-                WHEN ISNUMERIC(time_stop) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(time_stop,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, time_stop) 
-            END AS time_stop,
+            TRY_CONVERT(
+                DATETIMEOFFSET, 
+                CONCAT(
+                    LEFT(
+                        time_start, 
+                        22
+                    ),
+                    ':',
+                    RIGHT(
+                        time_start,
+                        2
+                    )
+                )
+            ) AS time_start,
+            TRY_CONVERT(
+                DATETIMEOFFSET, 
+                CONCAT(
+                    LEFT(
+                        time_stop, 
+                        22
+                    ),
+                    ':',
+                    RIGHT(
+                        time_stop,
+                        2
+                    )
+                )
+            ) AS updated_time,
             tune_for_category,
-            CASE
-                WHEN ISNUMERIC(updated_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(updated_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, updated_time) 
-            END AS updated_time,
+            TRY_CONVERT(
+                DATETIMEOFFSET, 
+                CONCAT(
+                    LEFT(
+                        updated_time, 
+                        22
+                    ),
+                    ':',
+                    RIGHT(
+                        updated_time,
+                        2
+                    )
+                )
+            ) AS updated_time
             CONVERT(BIT, use_new_app_click) AS use_new_app_click
         FROM (
             SELECT
@@ -899,152 +1156,4 @@ CETAS = {
         ) AS [data]
         WHERE rank = 1
     """,
-    "AdAccount_GetAds": """
-        SELECT
-            CONVERT(BIGINT, account_id) AS account_id,
-            CONVERT(BIGINT, adset_id) AS adset_id,
-            CONVERT(BIGINT, audience_id) AS audience_id,
-            CONVERT(NUMERIC, bid_amount) AS bid_amount,
-            bid_info,
-            bid_type,
-            CONVERT(BIGINT, campaign_id) AS campaign_id,
-            configured_status,
-            conversion_domain,
-            CASE
-                WHEN ISNUMERIC(created_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(created_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, created_time) 
-            END AS created_time,
-            date_format,
-            demolink_hash,
-            display_sequence,
-            draft_adgroup_id,
-            effective_status,
-            engagement_audience,
-            execution_options,
-            filename,
-            CONVERT(BIGINT, id) AS id,
-            include_demolink_hashes,
-            CONVERT(BIGINT, last_updated_by_app_id) AS last_updated_by_app_id,
-            meta_reward_adgroup_status,
-            name,
-            priority,
-            CONVERT(BIGINT, source_ad_id) AS source_ad_id,
-            status,
-            CASE
-                WHEN ISNUMERIC(updated_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(updated_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, updated_time) 
-            END AS updated_time
-        FROM (
-            SELECT
-                *,
-                ROW_NUMBER()
-                    OVER(
-                        PARTITION BY id
-                        ORDER BY CONVERT(DATETIME2,data.filepath(1)) DESC
-                    ) AS rank
-            FROM OPENROWSET(
-                BULK 'general/meta/delta/ads/*/*.parquet',
-                DATA_SOURCE = 'sa_esquiregeneral',
-                FORMAT = 'PARQUET'
-            ) WITH (
-                account_id VARCHAR(32),
-                adset_id VARCHAR(32),
-                audience_id VARCHAR(32),
-                bid_amount VARCHAR(16),
-                bid_info VARCHAR(1024),
-                bid_type VARCHAR(16),
-                campaign_id VARCHAR(32),
-                configured_status VARCHAR(MAX),
-                conversion_domain VARCHAR(MAX),
-                created_time VARCHAR(32),
-                date_format VARCHAR(16),
-                demolink_hash VARCHAR(32),
-                display_sequence VARCHAR(32),
-                draft_adgroup_id VARCHAR(32),
-                effective_status VARCHAR(32),
-                engagement_audience VARCHAR(32),
-                execution_options VARCHAR(32),
-                filename VARCHAR(128),
-                id VARCHAR(32),
-                include_demolink_hashes VARCHAR(1),
-                last_updated_by_app_id VARCHAR(32),
-                meta_reward_adgroup_status VARCHAR(16),
-                name VARCHAR(256),
-                priority VARCHAR(4),
-                source_ad_id VARCHAR(32),
-                status VARCHAR(16),
-                updated_time VARCHAR(32)
-            ) AS [data]
-        ) AS [data]
-        WHERE rank = 1
-    """,
-    "AdAccount.Post.Insights": """
-        SELECT
-            CONVERT(DATE, [Reporting starts]) AS date_start,
-            CONVERT(DATE, [Reporting ends]) AS date_end,
-            [Age] AS age_range,
-            [Gender] AS gender,
-            CONVERT(BIGINT, [Ad ID]) AS ad_id,
-            [Attribute setting] AS attribution_setting,
-            CONVERT(NUMERIC, [Auction Bid]) AS auction_bid,
-            [Buying Type] AS buying_type,
-            CONVERT(BIGINT, [Clicks (all)]) AS clicks,
-            CONVERT(NUMERIC, [CPC (All) (USD)]) AS cpc,
-            CONVERT(NUMERIC, [CPM (cost per 1,000 impressions) (USD)]) AS cpm,
-            CONVERT(NUMERIC, [Cost per 1,000 Accounts Center accounts reached (USD)]) AS cpp,
-            CONVERT(DATE, [Date created]) AS created_time,
-            [Media type] AS creative_media_type,
-            CONVERT(NUMERIC, [CRT (all)]) AS ctr,
-            CONVERT(NUMERIC, [Frequency]) AS frequency,
-            CONVERT(BIGINT, [Impressions]) AS impressions,
-            [Tags] AS labels,
-            [Objective] AS objective,
-            [Optimization goal] AS optimization_goal,
-            CONVERT(BIGINT, [Reach]) AS reach,
-            CONVERT(NUMERIC, [Amount spent (USD)]) AS spend,
-            CONVERT(BIGINT, [Unique clicks (all)]) AS unique_clicks,
-            CONVERT(DATE, [Date last edited]) AS updated_time
-        FROM (
-            SELECT
-                *,
-                ROW_NUMBER()
-                    OVER(
-                        PARTITION BY [Ad ID], [Reporting Starts], [Age], [Gender]
-                        ORDER BY CONVERT(DATETIME2,data.filepath(1)) DESC
-                    ) AS rank
-            FROM OPENROWSET(
-                BULK 'general/meta/delta/adsinsights/*/*.parquet',
-                DATA_SOURCE = 'sa_esquiregeneral',  
-                FORMAT = 'PARQUET' 
-            ) WITH (
-                [Reporting starts] VARCHAR(10),
-                [Reporting ends] VARCHAR(10),
-                [Age] VARCHAR(8),
-                [Gender] VARCHAR(8),
-                [Ad ID] VARCHAR(24),
-                [Attribute setting] VARCHAR(MAX),
-                [Auction Bid] VARCHAR(16),
-                [Buying Type] VARCHAR(16),
-                [Clicks (all)] VARCHAR(16),
-                [CPC (All) (USD)] VARCHAR(16),
-                [CPM (cost per 1,000 impressions) (USD)] VARCHAR(16),
-                [Cost per 1,000 Accounts Center accounts reached (USD)] VARCHAR(16),
-                [Date created] VARCHAR(10),
-                [Media type] VARCHAR(16),
-                [CRT (all)] VARCHAR(16),
-                [Frequency] VARCHAR(16),
-                [Impressions] VARCHAR(16),
-                [Tags] VARCHAR(MAX),
-                [Objective] VARCHAR(MAX),
-                [Optimization goal] VARCHAR(32),
-                [Reach] VARCHAR(16),
-                [Amount spent (USD)] VARCHAR(16),
-                [Unique clicks (all)] VARCHAR(16),
-                [Date last edited] VARCHAR(10)
-            ) AS [data]
-        ) AS [data]
-        WHERE rank = 1
-    """,
-}
+    }

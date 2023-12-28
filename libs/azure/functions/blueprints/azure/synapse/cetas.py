@@ -81,7 +81,37 @@ async def synapse_activity_cetas(ingress: dict):
 
     # Commit the transaction if the 'commit' flag is set.
     if ingress.get("commit", False):
-        session.commit()
+        for t in [
+            r[0]
+            for r in session.execute(
+                text(
+                    """
+                        SELECT TABLE_NAME
+                        FROM INFORMATION_SCHEMA.TABLES
+                        WHERE 
+                            TABLE_SCHEMA = '{}'
+                            AND TABLE_TYPE = 'BASE TABLE'
+                            AND TABLE_NAME LIKE '{}\_%' ESCAPE '\\';
+                    """.format(
+                        ingress["table"].get("schema", "dbo"), ingress["table"]["name"]
+                    )
+                )
+            ).all()
+            if ingress["instance_id"] not in r[0]
+        ]:
+            session.execute(
+                text(
+                    """
+                        IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[{}].[{}]') AND type in (N'U'))
+                        DROP EXTERNAL TABLE [{}].[{}]
+                    """.format(
+                        ingress["table"].get("schema", "dbo"),
+                        t,
+                        ingress["table"].get("schema", "dbo"),
+                        t,
+                    )
+                )
+            )
 
         # Create or alter a view based on the external table if the 'view' flag is set.
         if ingress.get("view", False):
@@ -97,7 +127,7 @@ async def synapse_activity_cetas(ingress: dict):
                     )
                 )
             )
-            session.commit()
+        session.commit()
 
     # Create or alter a view based on the files created if the 'view' flag is set.
     elif ingress.get("view", False):

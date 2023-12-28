@@ -1,4 +1,4 @@
-from aiopenapi3.plugin import Message
+# from aiopenapi3.plugin import Message
 from libs.openapi.clients.meta.generator import generate_openapi
 from libs.openapi.clients.meta.parser import MetaSDKParser
 from libs.openapi.clients.base import OpenAPIClient
@@ -10,17 +10,17 @@ class Meta(OpenAPIClient):
         def load(cls) -> dict:
             return generate_openapi()
 
-    class Plugins(OpenAPIClient.Plugins):
-        class Pagination(Message):
-            def unmarshalled(self, ctx: "Message.Context") -> "Message.Context":
-                # ctx.unmarshalled = getattr(ctx.unmarshalled, "root", ctx.unmarshalled)
-                # if hasattr(ctx.unmarshalled, "data") and hasattr(ctx.unmarshalled, "paging"):
-                #     pass
-                return ctx
+    # class Plugins(OpenAPIClient.Plugins):
+    #     class Pagination(Message):
+    #         def unmarshalled(self, ctx: "Message.Context") -> "Message.Context":
+    #             ctx.unmarshalled = getattr(ctx.unmarshalled, "root", ctx.unmarshalled)
+    #             if hasattr(ctx.unmarshalled, "data") and hasattr(ctx.unmarshalled, "paging"):
+    #                 pass
+    #             return ctx
 
-    @classmethod
-    def plugins(cls):
-        return [cls.Plugins.Pagination()]
+    # @classmethod
+    # def plugins(cls):
+    #     return [cls.Plugins.Pagination()]
 
 # Legacy
 from aiopenapi3 import OpenAPI

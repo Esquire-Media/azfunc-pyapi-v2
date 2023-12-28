@@ -3,23 +3,26 @@ from aiopenapi3.extra import Cull
 from functools import cache
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Pattern, Tuple, Union
-import gzip, httpx, io, orjson, yaml, yarl, re
+import copy, gzip, httpx, io, orjson, yaml, yarl, re
 
 
-class OperationSelector(type):
+class OperationSelector(type):    
     def __getitem__(cls, item: Union[str, Tuple[str, str]]):
-        match item:
-            case str():
-                return cls.__new__(cls, operations=item)._[item]
-            case re.Pattern():
-                api = cls.__new__(cls, operations=item)
-                return api._[[op for op in api._][0]]
-            case tuple():
-                path, method = item
-                assert isinstance(path, str)
-                assert isinstance(method, str)
-                api = cls.__new__(cls, operations=(path, [method]))
-                return api._[[op for op in api._][0]]
+        if item not in cls.cached:
+            match item:
+                case str():
+                    cls.cached[item] = cls.__new__(cls, operations=item)._[item]
+                case re.Pattern():
+                    api = cls.__new__(cls, operations=item)
+                    cls.cached[item] = api._[[op for op in api._][0]]
+                case tuple():
+                    path, method = item
+                    assert isinstance(path, str)
+                    assert isinstance(method, str)
+                    api = cls.__new__(cls, operations=(path, [method]))
+                    cls.cached[item] = api._[[op for op in api._][0]]
+        
+        return copy.copy(cls.cached[item])
 
     def paths(cls):
         for k, v in cls.load()["paths"].keys():
@@ -41,6 +44,8 @@ class OperationSelector(type):
 
 
 class OpenAPIClient(metaclass=OperationSelector):
+    cached = {}
+    
     class Loader:
         url: yarl.URL
         format: Literal["json", "yaml"]

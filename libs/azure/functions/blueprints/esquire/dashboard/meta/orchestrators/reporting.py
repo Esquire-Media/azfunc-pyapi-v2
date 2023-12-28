@@ -105,22 +105,27 @@ def esquire_dashboard_meta_orchestrator_reporting(
             ingress["account_id"],
         )
     )
-    try:
-        yield context.call_activity_with_retry(
-            "esquire_dashboard_meta_activity_download",
-            retry,
-            {
-                "report_run_id": report_run["report_run_id"],
-                "conn_str": ingress["conn_str"],
-                "container_name": ingress["container_name"],
-                "blob_name": "meta/delta/adsinsights/{}/{}.parquet".format(
-                    ingress["pull_time"],
-                    status["account_id"],
-                ),
-            },
+    downloader = yield context.call_activity_with_retry(
+        "esquire_dashboard_meta_activity_download",
+        retry,
+        {
+            "report_run_id": report_run["report_run_id"],
+            "conn_str": ingress["conn_str"],
+            "container_name": ingress["container_name"],
+            "blob_name": "meta/delta/adsinsights/{}/{}.parquet".format(
+                ingress["pull_time"],
+                status["account_id"],
+            ),
+        },
+    )
+    if not downloader["success"]:
+        context.set_custom_status(
+            "Downloading report {} for account {}: {}".format(
+                report_run["report_run_id"],
+                ingress["account_id"],
+                downloader.get("message", "Unknown Error"),
+            )
         )
-    except Exception as e:
-        context.set_custom_status(str(e.args[0]))
         return {}
 
     # Retrieve Ads, Campaigns, and AdSets for the given account

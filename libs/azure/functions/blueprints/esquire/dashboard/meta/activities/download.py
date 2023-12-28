@@ -9,7 +9,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def esquire_dashboard_meta_activity_download(ingress: dict):
+def esquire_dashboard_meta_activity_download(ingress: dict) -> dict:
     """
     Download data from Facebook using the Facebook API and upload it to an Azure Blob Storage.
 
@@ -65,8 +65,10 @@ def esquire_dashboard_meta_activity_download(ingress: dict):
         df = pd.DataFrame(report)
 
         # Upload the DataFrame as a parquet file to Azure Blob Storage, overwriting if it already exists
-        blob.upload_blob(df.to_parquet(index=False, compression="snappy"), overwrite=True)
+        blob.upload_blob(
+            df.to_parquet(index=False, compression="snappy"), overwrite=True
+        )
     else:
-        raise Exception("No Data")
+        return {"success": False, "message": "No Data"}
 
-    return ""
+    return {"success": True}

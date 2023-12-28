@@ -458,6 +458,7 @@ def generate_openapi(json_files: Dict[str, Any] = None) -> Dict[str, Any]:
                     openapi_spec["components"]["parameters"][param_ref] = {
                         "name": param["name"],
                         "in": "query",
+                        "explode": False,
                         "schema": convert_to_openapi_type(param["type"]),
                     }
                     operation["parameters"].append(

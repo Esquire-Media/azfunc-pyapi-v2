@@ -745,7 +745,6 @@ CETAS = {
                     )
                 )
             ) AS created_time,
-            END AS created_time,
             CONVERT(NUMERIC, daily_budget) AS daily_budget,
             effective_status AS effective_status,
             execution_options AS execution_options,
@@ -1073,7 +1072,7 @@ CETAS = {
                         2
                     )
                 )
-            ) AS updated_time,
+            ) AS time_stop,
             tune_for_category,
             TRY_CONVERT(
                 DATETIMEOFFSET, 
@@ -1088,7 +1087,7 @@ CETAS = {
                         2
                     )
                 )
-            ) AS updated_time
+            ) AS updated_time,
             CONVERT(BIT, use_new_app_click) AS use_new_app_click
         FROM (
             SELECT

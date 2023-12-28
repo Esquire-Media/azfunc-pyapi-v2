@@ -2,15 +2,8 @@
 
 from libs.azure.functions import Blueprint
 from libs.openapi.clients import Meta
-import os, pandas as pd
-
-try:
-    import orjson as json
-except:
-    import json
-
 from uuid import uuid4
-import time, logging
+import os, pandas as pd
 
 bp = Blueprint()
 
@@ -41,7 +34,7 @@ def meta_activity_request(ingress: dict) -> dict:
 
     """
     id = uuid4().hex
-    
+
     # Initialize the Meta API client factory based on the operationId
     factory = Meta[ingress["operationId"]]
 
@@ -58,7 +51,6 @@ def meta_activity_request(ingress: dict) -> dict:
         data=ingress.get("data", None),
         parameters=ingress.get("parameters", None),
     )
-
     # Handle any errors in the response
     if getattr(response, "error", None):
         return {"headers": headers, "error": response.error}
@@ -83,9 +75,7 @@ def meta_activity_request(ingress: dict) -> dict:
                 ingress["destination"].get("conn_str", "AzureWebJobsStorage")
             ],
             container_name=ingress["destination"]["container_name"],
-            blob_name="{}/{}.parquet".format(
-                ingress["destination"]["blob_prefix"], id
-            ),
+            blob_name="{}/{}.parquet".format(ingress["destination"]["blob_prefix"], id),
         )
         # Upload the data as a parquet file
         blob.upload_blob(pd.DataFrame(data).to_parquet(index=False))

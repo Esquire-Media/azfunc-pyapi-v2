@@ -70,7 +70,25 @@ def esquire_dashboard_meta_orchestrator_report_batch(
                 },
             },
         )
-        logging.warning([a["name"] for a in adaccounts])
+
+        context.set_custom_status("Generating AdAccounts CETAS")
+        yield context.call_activity_with_retry(
+            "synapse_activity_cetas",
+            retry,
+            {
+                "instance_id": context.instance_id,
+                "bind": "facebook_dashboard",
+                "table": {"schema": "dashboard", "name": "adaccounts"},
+                "destination": {
+                    "container_name": container_name,
+                    "handle": "sa_esquiregeneral",
+                    "blob_prefix": f"meta/tables/AdAccounts/{pull_time}",
+                },
+                "query": CETAS["User.Get.Adaccounts"],
+                "view": True,
+                "commit": True
+            },
+        )
 
         # Process reports for each Ad Account
         context.set_custom_status("Getting Reports")
@@ -97,24 +115,6 @@ def esquire_dashboard_meta_orchestrator_report_batch(
             ]
         )
 
-        context.set_custom_status("Generating AdAccounts CETAS")
-        yield context.call_activity_with_retry(
-            "synapse_activity_cetas",
-            retry,
-            {
-                "instance_id": context.instance_id,
-                "bind": "facebook_dashboard",
-                "table": {"schema": "dashboard", "name": "adaccounts"},
-                "destination": {
-                    "container_name": container_name,
-                    "handle": "sa_esquiregeneral",
-                    "blob_prefix": f"meta/tables/AdAccounts/{pull_time}",
-                },
-                "query": CETAS["User.Get.Adaccounts"],
-                "view": True,
-            },
-        )
-
         context.set_custom_status("Generating AdsInsights CETAS")
         yield context.call_activity_with_retry(
             "synapse_activity_cetas",
@@ -130,6 +130,7 @@ def esquire_dashboard_meta_orchestrator_report_batch(
                 },
                 "query": CETAS["AdAccount.Post.Insights"],
                 "view": True,
+                "commit": True,
             },
         )
 
@@ -150,6 +151,7 @@ def esquire_dashboard_meta_orchestrator_report_batch(
                     },
                     "query": CETAS[f"AdAccount.Get.{entity.title()}"],
                     "view": True,
+                    "commit": True,
                 },
             )
 

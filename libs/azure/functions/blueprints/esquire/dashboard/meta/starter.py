@@ -8,7 +8,7 @@ from libs.azure.functions import Blueprint
 bp = Blueprint()
 
 
-@bp.timer_trigger("timer", schedule="0 0 0 * * *")
+@bp.timer_trigger("timer", schedule="0 0 8 * * *")
 @bp.durable_client_input("client")
 async def daily_dashboard_meta_starter(
     timer: TimerRequest, client: DurableOrchestrationClient

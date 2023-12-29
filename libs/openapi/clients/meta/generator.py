@@ -514,11 +514,6 @@ def generate_openapi(json_files: Dict[str, Any] = None) -> Dict[str, Any]:
             if "apis" in content:
                 for api in content["apis"]:
                     path, method, operation = process_api(api, object_id)
-                    # match object_id:
-                    #     case "User":
-                    #         default = "me"
-                    #     case _:
-                    #         default = None
                     openapi_spec["paths"].setdefault(path, {})["parameters"] = [
                         {
                             "name": "{}{}Id".format(object_id, parameter_separator),
@@ -527,17 +522,13 @@ def generate_openapi(json_files: Dict[str, Any] = None) -> Dict[str, Any]:
                             "schema": {"type": "string"},
                         }
                     ]
-                    # if default:
-                    #     openapi_spec["paths"][path]["parameters"][0][
-                    #         "default"
-                    #     ] = default
                     if openapi_spec["components"]["parameters"].get(
                         "{}{}Fields".format(object_id, parameter_separator)
                     ):
                         openapi_spec["paths"][path]["parameters"].append(
                             {
                                 "$ref": "#/components/parameters/{}{}Fields".format(
-                                    object_id, parameter_separator
+                                    api["return"], parameter_separator
                                 )
                             }
                         )

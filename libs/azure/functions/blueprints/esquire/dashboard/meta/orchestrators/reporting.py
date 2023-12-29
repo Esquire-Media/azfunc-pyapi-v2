@@ -126,7 +126,28 @@ def esquire_dashboard_meta_orchestrator_reporting(
                 downloader.get("message", "Unknown Error"),
             )
         )
-        return {}
+        match downloader["message"]:
+            case "Download Timeout":
+                yield context.call_sub_orchestrator_with_retry(
+                    "meta_orchestrator_request",
+                    retry,
+                    {
+                        "operationId": "AdReportRun.Get.Insights",
+                        "parameters": {
+                            "AdReportRun-Id": ingress["account_id"],
+                            "limit": 750
+                        },
+                        "recursive": True,
+                        "destination": {
+                            "conn_str": ingress["conn_str"],
+                            "container_name": ingress["container_name"],
+                            "blob_prefix": f"meta/delta/adsinsights/{ingress['pull_time']}/{ingress['account_id']}",
+                        },
+                        "return": False,
+                    },
+                )
+            case _:
+                return {}
 
     # Retrieve Ads, Campaigns, and AdSets for the given account
     for entity in ["Ads", "Campaigns", "Adsets"]:

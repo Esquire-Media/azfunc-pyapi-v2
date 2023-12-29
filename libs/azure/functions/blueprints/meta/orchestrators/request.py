@@ -55,16 +55,17 @@ def meta_orchestrator_request(context: DurableOrchestrationContext):
     while True:
         # Handling retries for schema-related errors
         if schema_retry > 3:
-            context.set_custom_status(
-                f"Too many retries for Operation {ingress['operationId']}."
-            )
+            message = f"Too many retries for Operation {ingress['operationId']}."
+            context.set_custom_status(message)
+            logging.error(message)
             break
 
         try:
             # Set status and make a call to the activity function
-            context.set_custom_status(
-                f"Requesting page {page} for Operation {ingress['operationId']}."
-            )
+            message = f"Requesting page {page} for Operation {ingress['operationId']}."
+            context.set_custom_status(message)
+            if not context.is_replaying:
+                logging.warning(message)
             response: dict = yield context.call_activity_with_retry(
                 "meta_activity_request",
                 retry,
@@ -133,13 +134,12 @@ def meta_orchestrator_request(context: DurableOrchestrationContext):
                     data.append(response)
 
                 # Handle pagination
-                if ingress.get("recursive") and response["next"]:
-                    after = response["next"]
+                if ingress.get("recursive") and response["after"]:
+                    after = response["after"]
                     page += 1
                     continue
-                else:
-                    context.set_custom_status(f"All requests completed.")
         break
+    context.set_custom_status(f"All requests completed.")
 
     # Return the aggregated data or an empty list
     if ingress.get("return", True) or ingress.get("destination", {}):

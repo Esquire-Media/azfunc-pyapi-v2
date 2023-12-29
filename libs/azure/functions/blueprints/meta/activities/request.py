@@ -89,7 +89,9 @@ def meta_activity_request(ingress: dict) -> dict:
             if ingress.get("return", True)
             else url
         ),
-        "next": getattr(getattr(response, "root", response), "paging", {})
+        "after": getattr(getattr(response, "root", response), "paging", {})
         .get("cursors", {})
-        .get("after", None),
+        .get("after", None)
+        if getattr(getattr(response, "root", response), "paging", {}).get("next", None)
+        else None,
     }

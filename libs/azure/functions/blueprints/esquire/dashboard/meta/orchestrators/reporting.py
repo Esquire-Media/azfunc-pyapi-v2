@@ -134,14 +134,16 @@ def esquire_dashboard_meta_orchestrator_reporting(
                     {
                         "operationId": "AdReportRun.Get.Insights",
                         "parameters": {
-                            "AdReportRun-Id": ingress["account_id"],
-                            "limit": 750
+                            "AdReportRun-Id": report_run["report_run_id"],
+                            "limit": 750,
                         },
                         "recursive": True,
                         "destination": {
                             "conn_str": ingress["conn_str"],
                             "container_name": ingress["container_name"],
-                            "blob_prefix": f"meta/delta/adsinsights/{ingress['pull_time']}/{ingress['account_id']}",
+                            "blob_prefix": "meta/delta/adsinsights/{}/{}".format(
+                                ingress["pull_time"], report_run["report_run_id"]
+                            ),
                         },
                         "return": False,
                     },
@@ -167,7 +169,9 @@ def esquire_dashboard_meta_orchestrator_reporting(
                 "destination": {
                     "conn_str": ingress["conn_str"],
                     "container_name": ingress["container_name"],
-                    "blob_prefix": f"meta/delta/{entity.lower()}/{ingress['pull_time']}",
+                    "blob_prefix": "meta/delta/{}/{}".format(
+                        entity.lower(), ingress["pull_time"]
+                    ),
                 },
                 "return": False,
             },

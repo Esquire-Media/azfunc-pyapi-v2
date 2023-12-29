@@ -22,7 +22,7 @@ class Facebook(OpenAPIClient):
                     if ctx.received == b'\n"No data available."\n':
                         ctx.received = {}
                     elif ctx.received[0:5] == b"<?xml":
-                        raise FacebookReportError("Something went wrong.")
+                        raise FacebookReportError("Report download timeout.", ctx.received)
                     else:
                         try:
                             ctx.received = pd.read_csv(BytesIO(ctx.received)).to_dict()

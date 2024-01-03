@@ -8,6 +8,7 @@ from libs.utils.logging import AzureTableHandler
 from libs.utils.dicts import flatten
 import azure.functions as func
 import uuid
+from typing import Optional, Any
 
 bp = Blueprint()
 
@@ -17,7 +18,7 @@ __logger = logging.getLogger("googleLeadsForm.logger")
 if __handler not in __logger.handlers:
     __logger.addHandler(__handler)
 
-@bp.route(route="esquire/google/leads_form/starter", methods=["POST"])
+@bp.route(route="esquire/google/leads_form/starter", methods=["POST"], auth_level=func.AuthLevel.FUNCTION)
 @bp.durable_client_input(client_name="client")
 async def starter_googleLeadsForm(req: HttpRequest, client: DurableOrchestrationClient):
     logger = logging.getLogger("googleLeadsForm.logger")
@@ -25,7 +26,6 @@ async def starter_googleLeadsForm(req: HttpRequest, client: DurableOrchestration
 
     # load the request payload as a Pydantic object
     payload = HttpRequest.pydantize_body(req, GoogleLeadsFormPayload).model_dump()
-    logging.warning(payload)
 
     # Start a new instance of the orchestrator function
     instance_id = await client.start_new(
@@ -39,10 +39,10 @@ async def starter_googleLeadsForm(req: HttpRequest, client: DurableOrchestration
         msg="started",
         extra={
             "context": {
-                "PartitionKey": "googleLeadsForm",
+                "PartitionKey": str(payload['form_id']),
                 "RowKey": instance_id,
                 **{
-                    k: v if isinstance(v, str) else json.dumps(v) for k, v in flatten(dictionary=payload, separator='.').items()
+                    k: v if isinstance(v, str) else json.dumps(v) for k, v in flatten(dictionary=payload, separator='.').items() if k != 'form_id'
                 },
             }
         },
@@ -53,19 +53,24 @@ async def starter_googleLeadsForm(req: HttpRequest, client: DurableOrchestration
         request=req, instance_id=instance_id
     )
     return HttpResponse(
-        body=json.dumps(
-            {
-                "statusQueryGetUri": response_uris["statusQueryGetUri"].replace('http://','https://'),
-            }
-        ),
+        body=json.dumps({}),
         headers={"Content-Type": "application/json"},
         status_code=200,
     )
 
 class ColumnData(BaseModel):
-    column_name: str
-    string_value: str
-    column_id: str
+    @validator("column_name", always=True)
+    def set_column_name_if_empty(cls, v: str, values: dict[str, Any]) -> str:
+        """
+        If column name is unset, use a formatted version of the column_id instead.
+        """
+        if v == None:
+            return values["column_id"].replace('_', ' ').title()
+        return v
+
+    column_id:str
+    string_value:str
+    column_name:Optional[str]=None
 
 
 class GoogleLeadsFormPayload(BaseModel):

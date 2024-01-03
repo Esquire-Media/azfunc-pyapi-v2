@@ -26,13 +26,22 @@ def orchestrator_googleLeadsForm(context: DurableOrchestrationContext):
             }
         )
 
+        # get recipients from table based on formID
+        recipients = yield context.call_activity_with_retry(
+            "activity_googleLeadsForm_getRecipients",
+            retry,
+            {
+                'form_id':ingress['form_id']
+            }
+        )
+
         # send email with Lead information
         yield context.call_activity_with_retry(
             "activity_microsoftGraph_sendEmail",
             retry,
             {
                 "from_id":os.environ["O365_EMAIL_ACCOUNT_ID"],
-                "to_addresses":ingress['to_addresses'],
+                "to_addresses":recipients,
                 "subject":"New Lead from Esquire Advertising",
                 "message":email_content,
                 "content_type":"HTML"

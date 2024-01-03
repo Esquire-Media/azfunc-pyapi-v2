@@ -1,13 +1,10 @@
 from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest, HttpResponse
+from libs.azure.functions.http import HttpRequest
 from azure.durable_functions import DurableOrchestrationClient
 import logging
 from pydantic import BaseModel, validator
 import json
-import os
-from libs.azure.key_vault import KeyVaultClient
 from libs.utils.logging import AzureTableHandler
-from libs.utils.email import send_email
 from libs.utils.dicts import flatten
 import uuid
 
@@ -27,7 +24,6 @@ async def starter_googleLeadsForm(req: HttpRequest, client: DurableOrchestration
 
     # load the request payload as a Pydantic object
     payload = HttpRequest.pydantize_body(req, GoogleLeadsFormPayload).model_dump()
-    payload['to_addresses'] = ['ryan@esquireadvertising.com']
     logging.warning(payload)
 
     # Start a new instance of the orchestrator function

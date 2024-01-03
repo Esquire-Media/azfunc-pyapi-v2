@@ -1,11 +1,12 @@
 from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest
+from libs.azure.functions.http import HttpRequest, HttpResponse
 from azure.durable_functions import DurableOrchestrationClient
 import logging
 from pydantic import BaseModel, validator
 import json
 from libs.utils.logging import AzureTableHandler
 from libs.utils.dicts import flatten
+import azure.functions as func
 import uuid
 
 bp = Blueprint()
@@ -46,8 +47,20 @@ async def starter_googleLeadsForm(req: HttpRequest, client: DurableOrchestration
             }
         },
     )
-    return client.create_check_status_response(req, instance_id)
 
+    # create a custom response since Google requires a strict 200 status for webhooks but the default durable response gives a 202.
+    response_uris = client.get_client_response_links(
+        request=req, instance_id=instance_id
+    )
+    return HttpResponse(
+        body=json.dumps(
+            {
+                "statusQueryGetUri": response_uris["statusQueryGetUri"].replace('http://','https://'),
+            }
+        ),
+        headers={"Content-Type": "application/json"},
+        status_code=200,
+    )
 
 class ColumnData(BaseModel):
     column_name: str

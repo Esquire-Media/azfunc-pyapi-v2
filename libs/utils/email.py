@@ -3,12 +3,12 @@ import requests
 
 
 def send_email(
-    access_token: str, from_id: str, to_addresses: List[str], subject: str, message: str
+    access_token: str, from_id: str, to_addresses: List[str], subject: str, message: str, content_type:str="Text"
 ):
     email_msg = {
         "Message": {
             "Subject": subject,
-            "Body": {"ContentType": "Text", "Content": message},
+            "Body": {"ContentType": content_type, "Content": message},
             "ToRecipients": [
                 {"EmailAddress": {"Address": address}} for address in to_addresses
             ],

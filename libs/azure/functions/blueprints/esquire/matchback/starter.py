@@ -38,6 +38,7 @@ class salesFileHeaders(BaseModel):
     city: str
     state: str
     zipcode: str
+    date: str
     sale_amount: Optional[str]
 
 class salesInfo(BaseModel):

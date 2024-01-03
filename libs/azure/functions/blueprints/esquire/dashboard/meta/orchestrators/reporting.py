@@ -54,10 +54,10 @@ def esquire_dashboard_meta_orchestrator_reporting(
             "meta_orchestrator_request",
             retry,
             {
-                "operationId": "AdAccount_GetInsightsAsync",
+                "operationId": "AdAccount.Post.Insights",
                 "parameters": {
-                    **PARAMETERS["AdAccount_GetInsightsAsync"],
-                    "AdAccount-id": ingress["account_id"],
+                    **PARAMETERS["AdAccount.Post.Insights"],
+                    "AdAccount-Id": ingress["account_id"],
                 },
             },
         )
@@ -69,8 +69,8 @@ def esquire_dashboard_meta_orchestrator_reporting(
             status = yield context.call_sub_orchestrator(
                 "meta_orchestrator_request",
                 {
-                    "operationId": "GetAdReportRun",
-                    "parameters": {"AdReportRun-id": report_run["report_run_id"]},
+                    "operationId": "AdReportRun.Get",
+                    "parameters": {"AdReportRun-Id": report_run["report_run_id"]},
                 },
             )
             context.set_custom_status(
@@ -85,6 +85,7 @@ def esquire_dashboard_meta_orchestrator_reporting(
                     break
                 case "Job Failed":
                     context.set_custom_status(status)
+                    break
                 case _:
                     yield context.create_timer(datetime.utcnow() + timedelta(minutes=1))
 
@@ -92,6 +93,7 @@ def esquire_dashboard_meta_orchestrator_reporting(
             break
         else:
             tries += 1
+            context.set_custom_status(f"On try #{tries}")
             if tries > 3:
                 raise Exception("Insight report generation failed.")
             yield context.create_timer(datetime.utcnow() + timedelta(minutes=1))
@@ -103,26 +105,54 @@ def esquire_dashboard_meta_orchestrator_reporting(
             ingress["account_id"],
         )
     )
-    try:
-        yield context.call_activity_with_retry(
-            "esquire_dashboard_meta_activity_download",
-            retry,
-            {
-                "report_run_id": report_run["report_run_id"],
-                "conn_str": ingress["conn_str"],
-                "container_name": ingress["container_name"],
-                "blob_name": "meta/delta/adsinsights/{}/{}.parquet".format(
-                    ingress["pull_time"],
-                    status["account_id"],
-                ),
-            },
+    downloader = yield context.call_activity_with_retry(
+        "esquire_dashboard_meta_activity_download",
+        retry,
+        {
+            "report_run_id": report_run["report_run_id"],
+            "conn_str": ingress["conn_str"],
+            "container_name": ingress["container_name"],
+            "blob_name": "meta/delta/adsinsights/{}/{}.parquet".format(
+                ingress["pull_time"],
+                status["account_id"],
+            ),
+        },
+    )
+    if not downloader["success"]:
+        context.set_custom_status(
+            "Downloading report {} for account {}: {}".format(
+                report_run["report_run_id"],
+                ingress["account_id"],
+                downloader.get("message", "Unknown Error"),
+            )
         )
-    except Exception as e:
-        context.set_custom_status(str(e))
-        return {}
+        match downloader["message"]:
+            case "Download Timeout":
+                yield context.call_sub_orchestrator_with_retry(
+                    "meta_orchestrator_request",
+                    retry,
+                    {
+                        "operationId": "AdReportRun.Get.Insights",
+                        "parameters": {
+                            "AdReportRun-Id": report_run["report_run_id"],
+                            "limit": 750,
+                        },
+                        "recursive": True,
+                        "destination": {
+                            "conn_str": ingress["conn_str"],
+                            "container_name": ingress["container_name"],
+                            "blob_prefix": "meta/delta/adsinsights/{}/{}".format(
+                                ingress["pull_time"], report_run["report_run_id"]
+                            ),
+                        },
+                        "return": False,
+                    },
+                )
+            case _:
+                return {}
 
     # Retrieve Ads, Campaigns, and AdSets for the given account
-    for entity in ["Ads", "Campaigns", "AdSets"]:
+    for entity in ["Ads", "Campaigns", "Adsets"]:
         context.set_custom_status(
             f"Getting {entity} for account {ingress['account_id']}"
         )
@@ -130,16 +160,18 @@ def esquire_dashboard_meta_orchestrator_reporting(
             "meta_orchestrator_request",
             retry,
             {
-                "operationId": f"AdAccount_Get{entity}",
+                "operationId": f"AdAccount.Get.{entity}",
                 "parameters": {
-                    **PARAMETERS[f"AdAccount_Get{entity}"],
-                    "AdAccount-id": ingress["account_id"],
+                    **PARAMETERS[f"AdAccount.Get.{entity}"],
+                    "AdAccount-Id": ingress["account_id"],
                 },
                 "recursive": True,
                 "destination": {
                     "conn_str": ingress["conn_str"],
                     "container_name": ingress["container_name"],
-                    "blob_prefix": f"meta/delta/{entity.lower()}/{ingress['pull_time']}",
+                    "blob_prefix": "meta/delta/{}/{}".format(
+                        entity.lower(), ingress["pull_time"]
+                    ),
                 },
                 "return": False,
             },

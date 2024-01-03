@@ -2,7 +2,6 @@
 
 from azure.durable_functions import DurableOrchestrationClient
 from azure.functions import TimerRequest
-from datetime import datetime
 from libs.azure.functions import Blueprint
 import os
 

@@ -21,7 +21,7 @@ async def daily_dashboard_xandr_starter(
             "report": {
                 "timezone": "America/New_York",
                 "report_type": "network_analytics",
-                "report_interval": "last_30_days",
+                "report_interval": "lifetime",
                 "columns": [
                     "day",
                     "advertiser_id",
@@ -62,7 +62,7 @@ async def daily_dashboard_xandr_starter(
             "report": {
                 "timezone": "America/New_York",
                 "report_type": "buyer_approximate_unique_users_hourly",
-                "report_interval": "last_30_days",
+                "report_interval": "lifetime",
                 "columns": [
                     "day",
                     "line_item_id",
@@ -83,3 +83,5 @@ async def daily_dashboard_xandr_starter(
             "esquire_dashboard_xandr_orchestrator_reporting",
             data.response.report_id,
         )
+
+    await client.start_new("esquire_dashboard_xandr_orchestrator_creatives")

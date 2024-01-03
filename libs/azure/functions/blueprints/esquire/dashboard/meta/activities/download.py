@@ -9,7 +9,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def esquire_dashboard_meta_activity_download(ingress: dict):
+def esquire_dashboard_meta_activity_download(ingress: dict) -> dict:
     """
     Download data from Facebook using the Facebook API and upload it to an Azure Blob Storage.
 
@@ -44,13 +44,16 @@ def esquire_dashboard_meta_activity_download(ingress: dict):
     )
 
     # Create and send a request to download the report from Facebook
-    _, report, _ = factory.request(
-        parameters={
-            "name": "report",
-            "format": "csv",
-            "report_run_id": ingress["report_run_id"],
-        }
-    )
+    try:
+        _, report, raw = factory.request(
+            parameters={
+                "name": "report",
+                "format": "csv",
+                "report_run_id": ingress["report_run_id"],
+            }
+        )
+    except Exception as e:
+        return {"success": False, "message": "Download Timeout"}
 
     # Check if the report contains any data
     if list(report.keys()):
@@ -61,12 +64,12 @@ def esquire_dashboard_meta_activity_download(ingress: dict):
             blob_name=ingress["blob_name"],
         )
 
-        # Convert the report to a pandas DataFrame
-        df = pd.DataFrame(report)
-
         # Upload the DataFrame as a parquet file to Azure Blob Storage, overwriting if it already exists
-        blob.upload_blob(df.to_parquet(index=False, compression="snappy"), overwrite=True)
+        blob.upload_blob(
+            pd.DataFrame(report).to_parquet(index=False, compression="snappy"),
+            overwrite=True,
+        )
     else:
-        raise Exception("No Data")
+        return {"success": False, "message": raw.text.strip()}
 
-    return ""
+    return {"success": True}

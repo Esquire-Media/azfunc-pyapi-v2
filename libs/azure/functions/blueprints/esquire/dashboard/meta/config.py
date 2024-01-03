@@ -11,7 +11,7 @@ if not from_bind("facebook_dashboard"):
     )
 
 PARAMETERS = {
-    "User_GetAdAccounts": {
+    "User.Get.Adaccounts": {
         "limit": 25,
         "fields": [
             "account_id",
@@ -74,7 +74,7 @@ PARAMETERS = {
             # "viewable_business" # N/A
         ],
     },
-    "AdAccount_GetInsightsAsync": {
+    "AdAccount.Post.Insights": {
         "fields": [
             # "account_currency",
             # "account_id",
@@ -86,8 +86,8 @@ PARAMETERS = {
             # "adset_name",
             # "adset_start",
             # "age_targeting",
-            "attribution_setting",
-            "auction_bid",
+            # "attribution_setting", # Unused
+            # "auction_bid", # Unused
             # "auction_competitiveness",
             # "auction_max_competitor_bid",
             "buying_type",
@@ -131,7 +131,7 @@ PARAMETERS = {
             # "instagram_upcoming_event_reminders_set",
             # "instant_experience_clicks_to_open",
             # "instant_experience_clicks_to_start",
-            "labels",
+            # "labels", # Unused
             # "location",
             "objective",
             "optimization_goal",
@@ -214,7 +214,7 @@ PARAMETERS = {
         "date_preset": "last_30d",
         # "time_range": {"since": "2023-11-01", "until": "2023-11-30"},
     },
-    "AdAccount_GetAds": {
+    "AdAccount.Get.Ads": {
         "limit": 200,
         "fields": [
             "account_id",
@@ -247,9 +247,9 @@ PARAMETERS = {
             "updated_time",  # Filter
         ],
         "date_preset": "last_30d",
-        # "time_range": {"since": "2023-11-01", "until": "2023-11-30"},
+        # "time_range": {"since": "2023-01-01", "until": "2023-12-18"},
     },
-    "AdAccount_GetCampaigns": {
+    "AdAccount.Get.Campaigns": {
         "limit": 200,
         "fields": [
             "account_id",
@@ -290,9 +290,9 @@ PARAMETERS = {
             "updated_time",  # Filter
         ],
         "date_preset": "last_30d",
-        # "time_range": {"since": "2023-11-01", "until": "2023-11-30"},
+        # "time_range": {"since": "2023-01-01", "until": "2023-12-18"},
     },
-    "AdAccount_GetAdSets": {
+    "AdAccount.Get.Adsets": {
         "limit": 200,
         "fields": [
             "account_id",
@@ -353,9 +353,9 @@ PARAMETERS = {
             "use_new_app_click",
         ],
         "date_preset": "last_30d",
-        # "time_range": {"since": "2023-11-01", "until": "2023-11-30"},
+        # "time_range": {"since": "2023-01-01", "until": "2023-12-18"},
     },
-    "AdAccount_GetAdCreatives": {
+    "AdAccount.Get.Adcreatives": {
         "limit": 100,
         "fields": [
             "account_id",
@@ -417,72 +417,76 @@ PARAMETERS = {
 
 
 CETAS = {
-    "User_GetAdAccounts": """
-        SELECT 
-            CONVERT(BIGINT, account_id) AS account_id,
-            CONVERT(INT, account_status) AS account_status,
-            CONVERT(FLOAT, age) AS age,
-            CONVERT(BIGINT, amount_spent) AS amount_spent,
-            CONVERT(BIGINT, balance) AS balance,
-            business_city,
-            business_country_code,
-            business_name,
-            business_state,
-            business_street,
-            business_street2,
-            business_zip,
-            CONVERT(BIT, can_create_brand_lift_study) AS can_create_brand_lift_study,
-            capabilities,
-            CASE
-                WHEN ISNUMERIC(created_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(created_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, created_time) 
-            END AS created_time,
-            currency,
-            default_dsa_beneficiary,
-            default_dsa_payor,
-            disable_reason,
-            CONVERT(BIGINT, end_advertiser) AS end_advertiser,
-            end_advertiser_name,
-            existing_customers,
-            CONVERT(BIGINT, fb_entity) AS fb_entity,
-            CONVERT(BIGINT, funding_source) AS funding_source,
-            CONVERT(BIT, has_migrated_permissions) AS has_migrated_permissions,
-            id,
-            io_number,
-            CONVERT(BIT, is_attribution_spec_system_default) AS is_attribution_spec_system_default,
-            CONVERT(BIT, is_direct_deals_enabled) AS is_direct_deals_enabled,
-            CONVERT(BIT, is_in_3ds_authorization_enabled_market) AS is_in_3ds_authorization_enabled_market,
-            CONVERT(BIT, is_notifications_enabled) AS is_notifications_enabled,
-            CONVERT(BIT, is_personal) AS is_personal,
-            CONVERT(BIT, is_prepay_account) AS is_prepay_account,
-            CONVERT(BIT, is_tax_id_required) AS is_tax_id_required,
-            line_numbers,
-            media_agency,
-            CONVERT(BIGINT, min_campaign_group_spend_cap) AS min_campaign_group_spend_cap,
-            CONVERT(BIGINT, min_daily_budget) AS min_daily_budget,
-            name,
-            CONVERT(BIT, offsite_pixels_tos_accepted) AS offsite_pixels_tos_accepted,
-            CONVERT(BIGINT, owner) AS owner,
-            partner,
-            CONVERT(BIGINT, spend_cap) AS spend_cap,
-            tax_id,
-            CONVERT(INT, tax_id_status) AS tax_id_status,
-            CONVERT(BIGINT, tax_id_type) AS tax_id_type,
-            CONVERT(INT, timezone_id) AS timezone_id,
-            timezone_name,
-            CONVERT(NUMERIC, timezone_offset_hours_utc) AS timezone_offset_hours_utc,
-            tos_accepted,
-            user_tasks,
-            user_tos_accepted
-        FROM (
-            SELECT
-                *,
-                ROW_NUMBER()
-                    OVER(
-                        PARTITION BY id 
-                        ORDER BY CONVERT(DATETIME2,data.filepath(1)) DESC
-                    ) AS rank
+    "User.Get.Adaccounts": """
+        WITH 
+        latest_date AS (
+            SELECT MAX(data.filepath(1)) AS max_date
+            FROM OPENROWSET(
+                BULK 'general/meta/delta/adaccounts/*/*.parquet',
+                DATA_SOURCE = 'sa_esquiregeneral',
+                FORMAT = 'PARQUET'
+            ) AS data
+        ),
+        new_data AS (    
+            SELECT 
+                CAST(account_id AS BIGINT) AS account_id,
+                CAST(account_status AS INT) AS account_status,
+                CAST(age AS FLOAT) AS age,
+                CAST(amount_spent AS BIGINT) AS amount_spent,
+                CAST(balance AS BIGINT) AS balance,
+                business_city,
+                business_country_code,
+                business_name,
+                business_state,
+                business_street,
+                business_street2,
+                business_zip,
+                CAST(can_create_brand_lift_study AS BIT) AS can_create_brand_lift_study,
+                capabilities,
+                CAST(
+                    CONCAT(
+                        LEFT(created_time, 22),
+                        ':',
+                        RIGHT(created_time, 2)
+                    ) AS DATETIMEOFFSET
+                ) AS created_time,
+                currency,
+                default_dsa_beneficiary,
+                default_dsa_payor,
+                disable_reason,
+                CAST(end_advertiser AS BIGINT) AS end_advertiser,
+                end_advertiser_name,
+                existing_customers,
+                CAST(fb_entity AS BIGINT) AS fb_entity,
+                CAST(funding_source AS BIGINT) AS funding_source,
+                CAST(has_migrated_permissions AS BIT) AS has_migrated_permissions,
+                id,
+                io_number,
+                CAST(is_attribution_spec_system_default AS BIT) AS is_attribution_spec_system_default,
+                CAST(is_direct_deals_enabled AS BIT) AS is_direct_deals_enabled,
+                CAST(is_in_3ds_authorization_enabled_market AS BIT) AS is_in_3ds_authorization_enabled_market,
+                CAST(is_notifications_enabled AS BIT) AS is_notifications_enabled,
+                CAST(is_personal AS BIT) AS is_personal,
+                CAST(is_prepay_account AS BIT) AS is_prepay_account,
+                CAST(is_tax_id_required AS BIT) AS is_tax_id_required,
+                line_numbers,
+                media_agency,
+                CAST(min_campaign_group_spend_cap AS BIGINT) AS min_campaign_group_spend_cap,
+                CAST(min_daily_budget AS BIGINT) AS min_daily_budget,
+                name,
+                CAST(offsite_pixels_tos_accepted AS BIT) AS offsite_pixels_tos_accepted,
+                CAST(owner AS BIGINT) AS owner,
+                partner,
+                CAST(spend_cap AS BIGINT) AS spend_cap,
+                tax_id,
+                CAST(tax_id_status AS INT) AS tax_id_status,
+                CAST(tax_id_type AS BIGINT) AS tax_id_type,
+                CAST(timezone_id AS INT) AS timezone_id,
+                timezone_name,
+                CAST(timezone_offset_hours_utc AS NUMERIC) AS timezone_offset_hours_utc,
+                tos_accepted,
+                user_tasks,
+                user_tos_accepted
             FROM OPENROWSET(
                 BULK 'general/meta/delta/adaccounts/*/*.parquet',
                 DATA_SOURCE = 'sa_esquiregeneral',
@@ -541,70 +545,406 @@ CETAS = {
                 user_tasks VARCHAR(1024),
                 user_tos_accepted VARCHAR(1024)
             ) AS [data]
-        ) AS [data]
-        WHERE rank = 1
+            WHERE data.filepath(1) = (SELECT max_date from latest_date)
+        )
+        SELECT * FROM new_data
+        UNION ALL
+        SELECT 
+            account_id,
+            account_status,
+            age,
+            amount_spent,
+            balance,
+            business_city,
+            business_country_code,
+            business_name,
+            business_state,
+            business_street,
+            business_street2,
+            business_zip,
+            can_create_brand_lift_study,
+            capabilities,
+            created_time,
+            currency,
+            default_dsa_beneficiary,
+            default_dsa_payor,
+            disable_reason,
+            end_advertiser,
+            end_advertiser_name,
+            existing_customers,
+            fb_entity,
+            funding_source,
+            has_migrated_permissions,
+            id,
+            io_number,
+            is_attribution_spec_system_default,
+            is_direct_deals_enabled,
+            is_in_3ds_authorization_enabled_market,
+            is_notifications_enabled,
+            is_personal,
+            is_prepay_account,
+            is_tax_id_required,
+            line_numbers,
+            media_agency,
+            min_campaign_group_spend_cap,
+            min_daily_budget,
+            name,
+            offsite_pixels_tos_accepted,
+            owner,
+            partner,
+            spend_cap,
+            tax_id,
+            tax_id_status,
+            tax_id_type,
+            timezone_id,
+            timezone_name,
+            timezone_offset_hours_utc,
+            tos_accepted,
+            user_tasks,
+            user_tos_accepted
+        FROM dashboard.adaccounts
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM new_data
+            WHERE new_data.id = dashboard.adaccounts.id
+        )
+
     """,
-    "AdAccount_GetCampaigns": """
-        SELECT
-            CONVERT(BIGINT, account_id) AS account_id,
-            adbatch AS adbatch,
-            bid_strategy AS bid_strategy,
-            CONVERT(BIGINT, boosted_object_id) AS boosted_object_id,
-            CONVERT(BIT, budget_rebalance_flag) AS budget_rebalance_flag,
-            CONVERT(NUMERIC, budget_remaining) AS budget_remaining,
-            buying_type AS buying_type,
-            CONVERT(BIT, can_create_brand_lift_study) AS can_create_brand_lift_study,
-            CONVERT(BIT, can_use_spend_cap) AS can_use_spend_cap,
-            configured_status AS configured_status,
-            CASE
-                WHEN ISNUMERIC(created_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(created_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, created_time) 
-            END AS created_time,
-            CONVERT(NUMERIC, daily_budget) AS daily_budget,
-            effective_status AS effective_status,
-            execution_options AS execution_options,
-            CONVERT(BIT, has_secondary_skadnetwork_reporting) AS has_secondary_skadnetwork_reporting,
-            CONVERT(BIGINT, id) AS id,
-            CONVERT(BIT, is_skadnetwork_attribution) AS is_skadnetwork_attribution,
-            iterative_split_test_configs AS iterative_split_test_configs,
-            last_budget_toggling_time AS last_budget_toggling_time,
-            CONVERT(NUMERIC, lifetime_budget) AS lifetime_budget,
-            name AS name,
-            objective AS objective,
-            pacing_type AS pacing_type,
-            primary_attribution AS primary_attribution,
-            smart_promotion_type AS smart_promotion_type,
-            CONVERT(BIGINT, source_campaign_id) AS source_campaign_id,
-            special_ad_categories AS special_ad_categories,
-            special_ad_category AS special_ad_category,
-            special_ad_category_country AS special_ad_category_country,
-            CONVERT(NUMERIC, spend_cap) AS spend_cap,
-            CASE
-                WHEN ISNUMERIC(start_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(start_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, start_time) 
-            END AS start_time,
-            status AS status,
-            CASE
-                WHEN ISNUMERIC(stop_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(stop_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, stop_time) 
-            END AS stop_time,
-            CONVERT(BIGINT, topline_id) AS topline_id,
-            CASE
-                WHEN ISNUMERIC(updated_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(updated_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, updated_time) 
-            END AS updated_time
-        FROM (
+    "AdAccount.Post.Insights": """
+        WITH 
+        latest_date AS (
+            SELECT MAX(data.filepath(1)) AS max_date
+            FROM OPENROWSET(
+                BULK 'general/meta/delta/adsinsights/*/*.parquet',
+                DATA_SOURCE = 'sa_esquiregeneral',
+                FORMAT = 'PARQUET'
+            ) AS data
+        ),
+        new_reports AS (
             SELECT
-                *,
-                ROW_NUMBER()
-                    OVER(
-                        PARTITION BY id
-                        ORDER BY CONVERT(DATETIME2,data.filepath(1)) DESC
-                    ) AS rank
+                CAST([Ad ID] AS BIGINT) AS ad_id,
+                [Buying Type] AS buying_type,
+                CAST([Clicks (all)] AS BIGINT) AS clicks,
+                CAST([CPC (All) (USD)] AS NUMERIC) AS cpc,
+                CAST([CPM (cost per 1,000 impressions) (USD)] AS NUMERIC) AS cpm,
+                CAST([Cost per 1,000 Accounts Center accounts reached (USD)] AS NUMERIC) AS cpp,
+                CAST([Date created] AS DATE) AS created_time,
+                [Media type] AS creative_media_type,
+                CAST([CRT (all)] AS NUMERIC) AS ctr,
+                CAST([Reporting starts] AS DATE) AS date_start,
+                CAST([Reporting ends] AS DATE) AS date_end,
+                CAST([Frequency] AS NUMERIC) AS frequency,
+                CAST([Impressions] AS BIGINT) AS impressions,
+                [Objective] AS objective,
+                [Optimization goal] AS optimization_goal,
+                CAST([Reach] AS BIGINT) AS reach,
+                CAST([Amount spent (USD)] AS NUMERIC) AS spend,
+                CAST([Unique clicks (all)] AS BIGINT) AS unique_clicks,
+                CAST([Date last edited] AS DATE) AS updated_time,
+                [Age] AS age_range,
+                [Gender] AS gender
+            FROM OPENROWSET(
+                BULK 'general/meta/delta/adsinsights/*/*.parquet',
+                DATA_SOURCE = 'sa_esquiregeneral',  
+                FORMAT = 'PARQUET' 
+            ) WITH (
+                [Reporting starts] VARCHAR(10),
+                [Reporting ends] VARCHAR(10),
+                [Age] VARCHAR(8),
+                [Gender] VARCHAR(8),
+                [Ad ID] VARCHAR(24),
+                [Buying Type] VARCHAR(16),
+                [Clicks (all)] VARCHAR(16),
+                [CPC (All) (USD)] VARCHAR(16),
+                [CPM (cost per 1,000 impressions) (USD)] VARCHAR(16),
+                [Cost per 1,000 Accounts Center accounts reached (USD)] VARCHAR(16),
+                [Date created] VARCHAR(10),
+                [Media type] VARCHAR(16),
+                [CRT (all)] VARCHAR(16),
+                [Frequency] VARCHAR(16),
+                [Impressions] VARCHAR(16),
+                [Objective] VARCHAR(MAX),
+                [Optimization goal] VARCHAR(32),
+                [Reach] VARCHAR(16),
+                [Amount spent (USD)] VARCHAR(16),
+                [Unique clicks (all)] VARCHAR(16),
+                [Date last edited] VARCHAR(10)
+            ) AS data
+            WHERE data.filepath(1) = (SELECT max_date from latest_date)
+        ),
+        new_reports_fallback AS (
+            SELECT
+                CAST(ad_id AS BIGINT) AS ad_id,
+                buying_type,
+                CAST(clicks AS BIGINT) AS clicks,
+                CAST(cpc AS NUMERIC) AS cpc,
+                CAST(cpm AS NUMERIC) AS cpm,
+                CAST(cpp AS NUMERIC) AS cpp,
+                CAST(created_time AS DATE) AS created_time,
+                creative_media_type,
+                CAST(ctr AS NUMERIC) AS ctr,
+                CAST(date_start AS DATE) AS date_start,
+                CAST(date_stop AS DATE) AS date_end,
+                CAST(frequency AS NUMERIC) AS frequency,
+                CAST(impressions AS BIGINT) AS impressions,
+                objective AS objective,
+                optimization_goal AS optimization_goal,
+                CAST(reach AS BIGINT) AS reach,
+                CAST(spend AS NUMERIC) AS spend,
+                CAST(unique_clicks AS BIGINT) AS unique_clicks,
+                CAST(updated_time AS DATE) AS updated_time,
+                age AS age_range,
+                gender
+            FROM OPENROWSET(
+                BULK 'general/meta/delta/adsinsights/*/*/*.parquet',
+                DATA_SOURCE = 'sa_esquiregeneral',  
+                FORMAT = 'PARQUET' 
+            ) WITH (
+                ad_id VARCHAR(24),
+                buying_type VARCHAR(16),
+                clicks VARCHAR(16),
+                cpm VARCHAR(16),
+                cpp VARCHAR(16),
+                created_time VARCHAR(10),
+                creative_media_type VARCHAR(16),
+                ctr VARCHAR(16),
+                date_start VARCHAR(10),
+                date_stop VARCHAR(10),
+                frequency VARCHAR(16),
+                impressions VARCHAR(16),
+                objective VARCHAR(MAX),
+                optimization_goal VARCHAR(32),
+                reach VARCHAR(16),
+                spend VARCHAR(16),
+                unique_clicks VARCHAR(16),
+                updated_time VARCHAR(10),
+                age VARCHAR(8),
+                gender VARCHAR(8),
+                cpc VARCHAR(16)
+            ) AS data
+            WHERE data.filepath(1) = (SELECT max_date from latest_date)
+        ),
+        new_data AS (
+            SELECT * FROM new_reports
+            UNION ALL
+            SELECT * FROM new_reports_fallback
+        )
+        SELECT * FROM new_data
+        UNION ALL
+        SELECT 
+            ad_id,
+            buying_type,
+            clicks,
+            cpc,
+            cpm,
+            cpp,
+            created_time,
+            creative_media_type,
+            ctr,
+            date_start,
+            date_end,
+            frequency,
+            impressions,
+            objective,
+            optimization_goal,
+            reach,
+            spend,
+            unique_clicks,
+            updated_time,
+            age_range,
+            gender
+        FROM dashboard.adsinsights
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM new_data
+            WHERE new_data.ad_id = dashboard.adsinsights.ad_id
+            AND new_data.date_start = dashboard.adsinsights.date_start
+            AND new_data.age_range = dashboard.adsinsights.age_range
+            AND new_data.gender = dashboard.adsinsights.gender
+        )
+    """,
+    "AdAccount.Get.Ads": """
+        WITH 
+        latest_date AS (
+            SELECT MAX(data.filepath(1)) AS max_date
+            FROM OPENROWSET(
+                BULK 'general/meta/delta/ads/*/*.parquet',
+                DATA_SOURCE = 'sa_esquiregeneral',
+                FORMAT = 'PARQUET'
+            ) AS data
+        ),
+        new_data AS (    
+            SELECT
+                CAST(account_id AS BIGINT) AS account_id,
+                CAST(adset_id AS BIGINT) AS adset_id,
+                CAST(audience_id AS BIGINT) AS audience_id,
+                CAST(bid_amount AS NUMERIC) AS bid_amount,
+                bid_info,
+                bid_type,
+                CAST(campaign_id AS BIGINT) AS campaign_id,
+                configured_status,
+                conversion_domain,
+                TRY_CAST(
+                    CONCAT(
+                        LEFT(
+                            created_time, 
+                            22
+                        ),
+                        ':',
+                        RIGHT(
+                            created_time,
+                            2
+                        )
+                    ) AS DATETIMEOFFSET
+                ) AS created_time,
+                date_format,
+                demolink_hash,
+                display_sequence,
+                draft_adgroup_id,
+                effective_status,
+                engagement_audience,
+                execution_options,
+                filename,
+                CAST(id AS BIGINT) AS id,
+                include_demolink_hashes,
+                CAST(last_updated_by_app_id AS BIGINT) AS last_updated_by_app_id,
+                meta_reward_adgroup_status,
+                name,
+                priority,
+                CAST(source_ad_id AS BIGINT) AS source_ad_id,
+                status,
+                TRY_CAST(
+                    CONCAT(
+                        LEFT(
+                            updated_time, 
+                            22
+                        ),
+                        ':',
+                        RIGHT(
+                            updated_time,
+                            2
+                        )
+                    ) AS DATETIMEOFFSET
+                ) AS updated_time
+            FROM OPENROWSET(
+                BULK 'general/meta/delta/ads/*/*.parquet',
+                DATA_SOURCE = 'sa_esquiregeneral',
+                FORMAT = 'PARQUET'
+            ) WITH (
+                account_id VARCHAR(32),
+                adset_id VARCHAR(32),
+                audience_id VARCHAR(32),
+                bid_amount VARCHAR(16),
+                bid_info VARCHAR(1024),
+                bid_type VARCHAR(16),
+                campaign_id VARCHAR(32),
+                configured_status VARCHAR(MAX),
+                conversion_domain VARCHAR(MAX),
+                created_time VARCHAR(32),
+                date_format VARCHAR(16),
+                demolink_hash VARCHAR(32),
+                display_sequence VARCHAR(32),
+                draft_adgroup_id VARCHAR(32),
+                effective_status VARCHAR(32),
+                engagement_audience VARCHAR(32),
+                execution_options VARCHAR(32),
+                filename VARCHAR(128),
+                id VARCHAR(32),
+                include_demolink_hashes VARCHAR(1),
+                last_updated_by_app_id VARCHAR(32),
+                meta_reward_adgroup_status VARCHAR(16),
+                name VARCHAR(256),
+                priority VARCHAR(4),
+                source_ad_id VARCHAR(32),
+                status VARCHAR(16),
+                updated_time VARCHAR(32)
+            ) AS [data]
+            WHERE data.filepath(1) = (SELECT max_date from latest_date)
+        )
+        SELECT * FROM new_data
+        UNION ALL
+        SELECT 
+            account_id,
+            adset_id,
+            audience_id,
+            bid_amount,
+            bid_info,
+            bid_type,
+            campaign_id,
+            configured_status,
+            conversion_domain,
+            created_time,
+            date_format,
+            demolink_hash,
+            display_sequence,
+            draft_adgroup_id,
+            effective_status,
+            engagement_audience,
+            execution_options,
+            filename,
+            id,
+            include_demolink_hashes,
+            last_updated_by_app_id,
+            meta_reward_adgroup_status,
+            name,
+            priority,
+            source_ad_id,
+            status,
+            updated_time
+        FROM dashboard.ads
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM new_data
+            WHERE new_data.id = dashboard.ads.id
+        )
+    """,
+    "AdAccount.Get.Campaigns": """
+        WITH 
+        latest_date AS (
+            SELECT MAX(data.filepath(1)) AS max_date
+            FROM OPENROWSET(
+                BULK 'general/meta/delta/campaigns/*/*.parquet',
+                DATA_SOURCE = 'sa_esquiregeneral',
+                FORMAT = 'PARQUET'
+            ) AS data
+        ),
+        new_data AS (    
+            SELECT
+                CAST(account_id AS BIGINT) AS account_id,
+                adbatch AS adbatch,
+                bid_strategy AS bid_strategy,
+                CAST(boosted_object_id AS BIGINT) AS boosted_object_id,
+                CAST(budget_rebalance_flag AS BIT) AS budget_rebalance_flag,
+                CAST(budget_remaining AS NUMERIC) AS budget_remaining,
+                buying_type AS buying_type,
+                CAST(can_create_brand_lift_study AS BIT) AS can_create_brand_lift_study,
+                CAST(can_use_spend_cap AS BIT) AS can_use_spend_cap,
+                configured_status AS configured_status,
+                TRY_CAST(CONCAT(LEFT(created_time, 22), ':', RIGHT(created_time, 2)) AS DATETIMEOFFSET) AS created_time,
+                CAST(daily_budget AS NUMERIC) AS daily_budget,
+                effective_status AS effective_status,
+                execution_options AS execution_options,
+                CAST(has_secondary_skadnetwork_reporting AS BIT) AS has_secondary_skadnetwork_reporting,
+                CAST(id AS BIGINT) AS id,
+                CAST(is_skadnetwork_attribution AS BIT) AS is_skadnetwork_attribution,
+                iterative_split_test_configs AS iterative_split_test_configs,
+                last_budget_toggling_time AS last_budget_toggling_time,
+                CAST(lifetime_budget AS NUMERIC) AS lifetime_budget,
+                name AS name,
+                objective AS objective,
+                pacing_type AS pacing_type,
+                primary_attribution AS primary_attribution,
+                smart_promotion_type AS smart_promotion_type,
+                CAST(source_campaign_id AS BIGINT) AS source_campaign_id,
+                special_ad_categories AS special_ad_categories,
+                special_ad_category AS special_ad_category,
+                special_ad_category_country AS special_ad_category_country,
+                CAST(spend_cap AS NUMERIC) AS spend_cap,
+                TRY_CAST(CONCAT(LEFT(start_time, 22), ':', RIGHT(start_time, 2)) AS DATETIMEOFFSET) AS start_time,
+                status AS status,
+                TRY_CAST(CONCAT(LEFT(stop_time, 22), ':', RIGHT(stop_time, 2)) AS DATETIMEOFFSET) AS stop_time,
+                CAST(topline_id AS BIGINT) AS topline_id,
+                TRY_CAST(CONCAT(LEFT(updated_time, 22), ':', RIGHT(updated_time, 2)) AS DATETIMEOFFSET) AS updated_time
             FROM OPENROWSET(
                 BULK 'general/meta/delta/campaigns/*/*.parquet',
                 DATA_SOURCE = 'sa_esquiregeneral',
@@ -646,201 +986,174 @@ CETAS = {
                 topline_id VARCHAR(32),
                 updated_time VARCHAR(32)
             ) AS [data]
-        ) AS [data]
-        WHERE rank = 1
-    """,
-    "AdAccount_GetAdCreatives": """
+            WHERE data.filepath(1) = (SELECT max_date from latest_date)
+        )
+        SELECT * FROM new_data
+        UNION ALL
         SELECT 
-            CONVERT(BIGINT, account_id) AS account_id,
-            CONVERT(BIGINT, actor_id) AS actor_id,
-            applink_treatment,
-            authorization_category,
-            auto_update,
-            body,
-            branded_content_sponsor_page_id,
-            bundle_folder_id,
-            call_to_action_type,
-            categorization_criteria,
-            category_media_source,
-            collaborative_ads_lsb_image_bank_id,
-            destination_set_id,
-            dynamic_ad_voice,
-            effective_authorization_category,
-            CONVERT(BIGINT, effective_instagram_media_id) AS effective_instagram_media_id,
-            CONVERT(BIGINT, effective_instagram_story_id) AS effective_instagram_story_id,
-            effective_object_story_id,
-            CONVERT(BIT, enable_direct_install) AS enable_direct_install,
-            CONVERT(BIGINT, id) AS id,
-            image_file,
-            image_hash,
-            image_url,
-            CONVERT(BIT, is_dco_internal) AS is_dco_internal,
-            link_deep_link_url,
-            link_destination_display_url,
-            link_og_id,
-            link_url,
-            messenger_sponsored_message,
+            account_id,
+            adbatch,
+            bid_strategy,
+            boosted_object_id,
+            budget_rebalance_flag,
+            budget_remaining,
+            buying_type,
+            can_create_brand_lift_study,
+            can_use_spend_cap,
+            configured_status,
+            created_time,
+            daily_budget,
+            effective_status,
+            execution_options,
+            has_secondary_skadnetwork_reporting,
+            id,
+            is_skadnetwork_attribution,
+            iterative_split_test_configs,
+            last_budget_toggling_time,
+            lifetime_budget,
             name,
-            object_id,
-            object_store_url,
-            object_story_id,
-            object_type,
-            object_url,
-            place_page_set_id,
-            playable_asset_id,
-            product_set_id,
-            source_instagram_media_id,
+            objective,
+            pacing_type,
+            primary_attribution,
+            smart_promotion_type,
+            source_campaign_id,
+            special_ad_categories,
+            special_ad_category,
+            special_ad_category_country,
+            spend_cap,
+            start_time,
             status,
-            template_url,
-            CONVERT(BIGINT, thumbnail_id) AS thumbnail_id,
-            thumbnail_url,
-            title,
-            url_tags,
-            CONVERT(BIT, use_page_actor_override) AS use_page_actor_override,
-            CONVERT(BIGINT, video_id) AS video_id
-        FROM (
-            SELECT
-                *,
-                ROW_NUMBER()
-                    OVER(
-                        PARTITION BY id 
-                        ORDER BY CONVERT(DATETIME2,data.filepath(1)) DESC
-                    ) AS rank
+            stop_time,
+            topline_id,
+            updated_time
+        FROM dashboard.campaigns
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM new_data
+            WHERE new_data.id = dashboard.campaigns.id
+        )
+    """,
+    "AdAccount.Get.Adsets": """
+        WITH 
+        latest_date AS (
+            SELECT MAX(data.filepath(1)) AS max_date
             FROM OPENROWSET(
-                BULK 'general/meta/delta/adcreatives/*/*.parquet',
+                BULK 'general/meta/delta/adsets/*/*.parquet',
                 DATA_SOURCE = 'sa_esquiregeneral',
                 FORMAT = 'PARQUET'
-            ) WITH (
-                account_id VARCHAR(32),
-                actor_id VARCHAR(32),
-                applink_treatment VARCHAR(16),
-                authorization_category VARCHAR(16),
-                auto_update VARCHAR(1),
-                body VARCHAR(MAX),
-                branded_content_sponsor_page_id VARCHAR(32),
-                bundle_folder_id VARCHAR(32),
-                call_to_action_type VARCHAR(16),
-                categorization_criteria VARCHAR(16),
-                category_media_source VARCHAR(16),
-                collaborative_ads_lsb_image_bank_id VARCHAR(32),
-                destination_set_id VARCHAR(32),
-                dynamic_ad_voice VARCHAR(16),
-                effective_authorization_category VARCHAR(32),
-                effective_instagram_media_id VARCHAR(32),
-                effective_instagram_story_id VARCHAR(32),
-                effective_object_story_id VARCHAR(128),
-                enable_direct_install VARCHAR(1),
-                id VARCHAR(32),
-                image_file VARCHAR(128),
-                image_hash VARCHAR(32),
-                image_url VARCHAR(1024),
-                is_dco_internal VARCHAR(1),
-                link_deep_link_url VARCHAR(1024),
-                link_destination_display_url VARCHAR(1024),
-                link_og_id VARCHAR(32),
-                link_url VARCHAR(1024),
-                messenger_sponsored_message VARCHAR(1),
-                name VARCHAR(256),
-                object_id VARCHAR(32),
-                object_store_url VARCHAR(1024),
-                object_story_id VARCHAR(32),
-                object_type VARCHAR(32),
-                object_url VARCHAR(1024),
-                place_page_set_id VARCHAR(32),
-                playable_asset_id VARCHAR(32),
-                product_set_id VARCHAR(32),
-                source_instagram_media_id VARCHAR(32),
-                status VARCHAR(16),
-                template_url VARCHAR(1024),
-                thumbnail_id VARCHAR(32),
-                thumbnail_url VARCHAR(1024),
-                title VARCHAR(128),
-                url_tags VARCHAR(1024),
-                use_page_actor_override VARCHAR(1),
-                video_id VARCHAR(32)
-            ) AS [data]
-        ) AS [data]
-        WHERE rank = 1
-    """,
-    "AdAccount_GetAdSets": """
-        SELECT
-            CONVERT(BIGINT, account_id) AS account_id,
-            CONVERT(NUMERIC, bid_amount) AS bid_amount,
-            bid_info,
-            bid_strategy,
-            billing_event,
-            CONVERT(BIGINT, budget_remaining) AS budget_remaining,
-            campaign_attribution,
-            CONVERT(BIGINT, campaign_id) AS campaign_id,
-            campaign_spec,
-            configured_status,
-            CASE
-                WHEN ISNUMERIC(created_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(created_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, created_time) 
-            END AS created_time,
-            creative_sequence,
-            CONVERT(BIGINT, daily_budget) AS daily_budget,
-            CONVERT(BIGINT, daily_min_spend_target) AS daily_min_spend_target,
-            CONVERT(BIGINT, daily_spend_cap) AS daily_spend_cap,
-            date_format,
-            destination_type,
-            dsa_beneficiary,
-            dsa_payor,
-            effective_status,
-            end_time,
-            execution_options,
-            CONVERT(BIGINT, id) AS id,
-            instagram_actor_id,
-            CONVERT(BIT, is_dynamic_creative) AS is_dynamic_creative,
-            CONVERT(BIGINT, lifetime_budget) AS lifetime_budget,
-            CONVERT(BIGINT, lifetime_imps) AS lifetime_imps,
-            CONVERT(BIGINT, lifetime_min_spend_target) AS lifetime_min_spend_target,
-            CONVERT(BIGINT, lifetime_spend_cap) AS lifetime_spend_cap,
-            multi_optimization_goal_weight,
-            name,
-            optimization_goal,
-            optimization_sub_event,
-            pacing_type,
-            rb_prediction_id,
-            recurring_budget_semantics,
-            review_feedback,
-            rf_prediction_id,
-            source_adset_id,
-            CASE
-                WHEN ISNUMERIC(start_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(start_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, start_time) 
-            END AS start_time,
-            status,
-            targeting_optimization_types,
-            time_based_ad_rotation_id_blocks,
-            time_based_ad_rotation_intervals,
-            CASE
-                WHEN ISNUMERIC(time_start) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(time_start,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, time_start) 
-            END AS time_start,
-            CASE
-                WHEN ISNUMERIC(time_stop) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(time_stop,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, time_stop) 
-            END AS time_stop,
-            tune_for_category,
-            CASE
-                WHEN ISNUMERIC(updated_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(updated_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, updated_time) 
-            END AS updated_time,
-            CONVERT(BIT, use_new_app_click) AS use_new_app_click
-        FROM (
+            ) AS data
+        ),
+        new_data AS (    
             SELECT
-                *,
-                ROW_NUMBER()
-                    OVER(
-                        PARTITION BY id
-                        ORDER BY CONVERT(DATETIME2,data.filepath(1)) DESC
-                    ) AS rank
+                CAST(account_id AS BIGINT) AS account_id,
+                CAST(bid_amount AS NUMERIC) AS bid_amount,
+                bid_info,
+                bid_strategy,
+                billing_event,
+                CAST(budget_remaining AS BIGINT) AS budget_remaining,
+                campaign_attribution,
+                CAST(campaign_id AS BIGINT) AS campaign_id,
+                campaign_spec,
+                configured_status,
+                TRY_CAST(
+                    CONCAT(
+                        LEFT(
+                            created_time, 
+                            22
+                        ),
+                        ':',
+                        RIGHT(
+                            created_time,
+                            2
+                        )
+                    ) AS DATETIMEOFFSET
+                ) AS created_time,
+                creative_sequence,
+                CAST(daily_budget AS BIGINT) AS daily_budget,
+                CAST(daily_min_spend_target AS BIGINT) AS daily_min_spend_target,
+                CAST(daily_spend_cap AS BIGINT) AS daily_spend_cap,
+                date_format,
+                destination_type,
+                dsa_beneficiary,
+                dsa_payor,
+                effective_status,
+                end_time,
+                execution_options,
+                CAST(id AS BIGINT) AS id,
+                instagram_actor_id,
+                CAST(is_dynamic_creative AS BIT) AS is_dynamic_creative,
+                CAST(lifetime_budget AS BIGINT) AS lifetime_budget,
+                CAST(lifetime_imps AS BIGINT) AS lifetime_imps,
+                CAST(lifetime_min_spend_target AS BIGINT) AS lifetime_min_spend_target,
+                CAST(lifetime_spend_cap AS BIGINT) AS lifetime_spend_cap,
+                multi_optimization_goal_weight,
+                name,
+                optimization_goal,
+                optimization_sub_event,
+                pacing_type,
+                rb_prediction_id,
+                recurring_budget_semantics,
+                review_feedback,
+                rf_prediction_id,
+                source_adset_id,
+                TRY_CAST(
+                    CONCAT(
+                        LEFT(
+                            start_time, 
+                            22
+                        ),
+                        ':',
+                        RIGHT(
+                            start_time,
+                            2
+                        )
+                    ) AS DATETIMEOFFSET
+                ) AS start_time,
+                status,
+                targeting_optimization_types,
+                time_based_ad_rotation_id_blocks,
+                time_based_ad_rotation_intervals,
+                TRY_CAST(
+                    CONCAT(
+                        LEFT(
+                            time_start, 
+                            22
+                        ),
+                        ':',
+                        RIGHT(
+                            time_start,
+                            2
+                        )
+                    ) AS DATETIMEOFFSET
+                ) AS time_start,
+                TRY_CAST(
+                    CONCAT(
+                        LEFT(
+                            time_stop, 
+                            22
+                        ),
+                        ':',
+                        RIGHT(
+                            time_stop,
+                            2
+                        )
+                    ) AS DATETIMEOFFSET
+                ) AS time_stop,
+                tune_for_category,
+                TRY_CAST(
+                    CONCAT(
+                        LEFT(
+                            updated_time, 
+                            22
+                        ),
+                        ':',
+                        RIGHT(
+                            updated_time,
+                            2
+                        )
+                    ) AS DATETIMEOFFSET
+                ) AS updated_time,
+                CAST(use_new_app_click AS BIT) AS use_new_app_click
             FROM OPENROWSET(
                 BULK 'general/meta/delta/adsets/*/*.parquet',
                 DATA_SOURCE = 'sa_esquiregeneral',
@@ -896,155 +1209,236 @@ CETAS = {
                 updated_time VARCHAR(32),
                 use_new_app_click VARCHAR(1)
             ) AS [data]
-        ) AS [data]
-        WHERE rank = 1
-    """,
-    "AdAccount_GetAds": """
-        SELECT
-            CONVERT(BIGINT, account_id) AS account_id,
-            CONVERT(BIGINT, adset_id) AS adset_id,
-            CONVERT(BIGINT, audience_id) AS audience_id,
-            CONVERT(NUMERIC, bid_amount) AS bid_amount,
+            WHERE data.filepath(1) = (SELECT max_date from latest_date)
+        )
+        SELECT * FROM new_data
+        UNION ALL
+        SELECT 
+            account_id,
+            bid_amount,
             bid_info,
-            bid_type,
-            CONVERT(BIGINT, campaign_id) AS campaign_id,
+            bid_strategy,
+            billing_event,
+            budget_remaining,
+            campaign_attribution,
+            campaign_id,
+            campaign_spec,
             configured_status,
-            conversion_domain,
-            CASE
-                WHEN ISNUMERIC(created_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(created_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, created_time) 
-            END AS created_time,
+            created_time,
+            creative_sequence,
+            daily_budget,
+            daily_min_spend_target,
+            daily_spend_cap,
             date_format,
-            demolink_hash,
-            display_sequence,
-            draft_adgroup_id,
+            destination_type,
+            dsa_beneficiary,
+            dsa_payor,
             effective_status,
-            engagement_audience,
+            end_time,
             execution_options,
-            filename,
-            CONVERT(BIGINT, id) AS id,
-            include_demolink_hashes,
-            CONVERT(BIGINT, last_updated_by_app_id) AS last_updated_by_app_id,
-            meta_reward_adgroup_status,
+            id,
+            instagram_actor_id,
+            is_dynamic_creative,
+            lifetime_budget,
+            lifetime_imps,
+            lifetime_min_spend_target,
+            lifetime_spend_cap,
+            multi_optimization_goal_weight,
             name,
-            priority,
-            CONVERT(BIGINT, source_ad_id) AS source_ad_id,
+            optimization_goal,
+            optimization_sub_event,
+            pacing_type,
+            rb_prediction_id,
+            recurring_budget_semantics,
+            review_feedback,
+            rf_prediction_id,
+            source_adset_id,
+            start_time,
             status,
-            CASE
-                WHEN ISNUMERIC(updated_time) = 1
-                    THEN DATEADD(S, CONVERT(BIGINT, LEFT(updated_time,10)), '1970-01-01')
-                ELSE CONVERT(DATETIME2, updated_time) 
-            END AS updated_time
-        FROM (
-            SELECT
-                *,
-                ROW_NUMBER()
-                    OVER(
-                        PARTITION BY id
-                        ORDER BY CONVERT(DATETIME2,data.filepath(1)) DESC
-                    ) AS rank
+            targeting_optimization_types,
+            time_based_ad_rotation_id_blocks,
+            time_based_ad_rotation_intervals,
+            time_start,
+            time_stop,
+            tune_for_category,
+            updated_time,
+            use_new_app_click
+        FROM dashboard.adsets
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM new_data
+            WHERE new_data.id = dashboard.adsets.id
+        )
+    """,
+    "AdAccount.Get.Adcreatives": """
+        WITH 
+        latest_date AS (
+            SELECT MAX(data.filepath(1)) AS max_date
             FROM OPENROWSET(
-                BULK 'general/meta/delta/ads/*/*.parquet',
+                BULK 'general/meta/delta/adcreatives/*/*.parquet',
+                DATA_SOURCE = 'sa_esquiregeneral',
+                FORMAT = 'PARQUET'
+            ) AS data
+        ),
+        new_data AS (    
+            SELECT 
+                CAST(account_id AS BIGINT) AS account_id,
+                CAST(actor_id AS BIGINT) AS actor_id,
+                applink_treatment,
+                authorization_category,
+                auto_update,
+                body,
+                branded_content_sponsor_page_id,
+                bundle_folder_id,
+                call_to_action_type,
+                categorization_criteria,
+                category_media_source,
+                collaborative_ads_lsb_image_bank_id,
+                destination_set_id,
+                dynamic_ad_voice,
+                effective_authorization_category,
+                CAST(effective_instagram_media_id AS BIGINT) AS effective_instagram_media_id,
+                CAST(effective_instagram_story_id AS BIGINT) AS effective_instagram_story_id,
+                effective_object_story_id,
+                CAST(enable_direct_install AS BIT) AS enable_direct_install,
+                CAST(id AS BIGINT) AS id,
+                image_file,
+                image_hash,
+                image_url,
+                CAST(is_dco_internal AS BIT) AS is_dco_internal,
+                link_deep_link_url,
+                link_destination_display_url,
+                link_og_id,
+                link_url,
+                messenger_sponsored_message,
+                name,
+                object_id,
+                object_store_url,
+                object_story_id,
+                object_type,
+                object_url,
+                place_page_set_id,
+                playable_asset_id,
+                product_set_id,
+                source_instagram_media_id,
+                status,
+                template_url,
+                CAST(thumbnail_id AS BIGINT) AS thumbnail_id,
+                thumbnail_url,
+                title,
+                url_tags,
+                CAST(use_page_actor_override AS BIT) AS use_page_actor_override,
+                CAST(video_id AS BIGINT) AS video_id
+            FROM OPENROWSET(
+                BULK 'general/meta/delta/adcreatives/*/*.parquet',
                 DATA_SOURCE = 'sa_esquiregeneral',
                 FORMAT = 'PARQUET'
             ) WITH (
                 account_id VARCHAR(32),
-                adset_id VARCHAR(32),
-                audience_id VARCHAR(32),
-                bid_amount VARCHAR(16),
-                bid_info VARCHAR(1024),
-                bid_type VARCHAR(16),
-                campaign_id VARCHAR(32),
-                configured_status VARCHAR(MAX),
-                conversion_domain VARCHAR(MAX),
-                created_time VARCHAR(32),
-                date_format VARCHAR(16),
-                demolink_hash VARCHAR(32),
-                display_sequence VARCHAR(32),
-                draft_adgroup_id VARCHAR(32),
-                effective_status VARCHAR(32),
-                engagement_audience VARCHAR(32),
-                execution_options VARCHAR(32),
-                filename VARCHAR(128),
+                actor_id VARCHAR(32),
+                applink_treatment VARCHAR(16),
+                authorization_category VARCHAR(16),
+                auto_update VARCHAR(1),
+                body VARCHAR(MAX),
+                branded_content_sponsor_page_id VARCHAR(32),
+                bundle_folder_id VARCHAR(32),
+                call_to_action_type VARCHAR(16),
+                categorization_criteria VARCHAR(16),
+                category_media_source VARCHAR(16),
+                collaborative_ads_lsb_image_bank_id VARCHAR(32),
+                destination_set_id VARCHAR(32),
+                dynamic_ad_voice VARCHAR(16),
+                effective_authorization_category VARCHAR(32),
+                effective_instagram_media_id VARCHAR(32),
+                effective_instagram_story_id VARCHAR(32),
+                effective_object_story_id VARCHAR(128),
+                enable_direct_install VARCHAR(1),
                 id VARCHAR(32),
-                include_demolink_hashes VARCHAR(1),
-                last_updated_by_app_id VARCHAR(32),
-                meta_reward_adgroup_status VARCHAR(16),
+                image_file VARCHAR(128),
+                image_hash VARCHAR(32),
+                image_url VARCHAR(1024),
+                is_dco_internal VARCHAR(1),
+                link_deep_link_url VARCHAR(1024),
+                link_destination_display_url VARCHAR(1024),
+                link_og_id VARCHAR(32),
+                link_url VARCHAR(1024),
+                messenger_sponsored_message VARCHAR(1),
                 name VARCHAR(256),
-                priority VARCHAR(4),
-                source_ad_id VARCHAR(32),
+                object_id VARCHAR(32),
+                object_store_url VARCHAR(1024),
+                object_story_id VARCHAR(32),
+                object_type VARCHAR(32),
+                object_url VARCHAR(1024),
+                place_page_set_id VARCHAR(32),
+                playable_asset_id VARCHAR(32),
+                product_set_id VARCHAR(32),
+                source_instagram_media_id VARCHAR(32),
                 status VARCHAR(16),
-                updated_time VARCHAR(32)
+                template_url VARCHAR(1024),
+                thumbnail_id VARCHAR(32),
+                thumbnail_url VARCHAR(1024),
+                title VARCHAR(128),
+                url_tags VARCHAR(1024),
+                use_page_actor_override VARCHAR(1),
+                video_id VARCHAR(32)
             ) AS [data]
-        ) AS [data]
-        WHERE rank = 1
-    """,
-    "AdAccount_GetInsightsAsync": """
-        SELECT
-            CONVERT(DATE, [Reporting starts]) AS date_start,
-            CONVERT(DATE, [Reporting ends]) AS date_end,
-            [Age] AS age_range,
-            [Gender] AS gender,
-            CONVERT(BIGINT, [Ad ID]) AS ad_id,
-            [Attribute setting] AS attribution_setting,
-            CONVERT(NUMERIC, [Auction Bid]) AS auction_bid,
-            [Buying Type] AS buying_type,
-            CONVERT(BIGINT, [Clicks (all)]) AS clicks,
-            CONVERT(NUMERIC, [CPC (All) (USD)]) AS cpc,
-            CONVERT(NUMERIC, [CPM (cost per 1,000 impressions) (USD)]) AS cpm,
-            CONVERT(NUMERIC, [Cost per 1,000 Accounts Center accounts reached (USD)]) AS cpp,
-            CONVERT(DATE, [Date created]) AS created_time,
-            [Media type] AS creative_media_type,
-            CONVERT(NUMERIC, [CRT (all)]) AS ctr,
-            CONVERT(NUMERIC, [Frequency]) AS frequency,
-            CONVERT(BIGINT, [Impressions]) AS impressions,
-            [Tags] AS labels,
-            [Objective] AS objective,
-            [Optimization goal] AS optimization_goal,
-            CONVERT(BIGINT, [Reach]) AS reach,
-            CONVERT(NUMERIC, [Amount spent (USD)]) AS spend,
-            CONVERT(BIGINT, [Unique clicks (all)]) AS unique_clicks,
-            CONVERT(DATE, [Date last edited]) AS updated_time
-        FROM (
-            SELECT
-                *,
-                ROW_NUMBER()
-                    OVER(
-                        PARTITION BY [Ad ID], [Reporting Starts], [Age], [Gender]
-                        ORDER BY CONVERT(DATETIME2,data.filepath(1)) DESC
-                    ) AS rank
-            FROM OPENROWSET(
-                BULK 'general/meta/delta/adsinsights/*/*.parquet',
-                DATA_SOURCE = 'sa_esquiregeneral',  
-                FORMAT = 'PARQUET' 
-            ) WITH (
-                [Reporting starts] VARCHAR(10),
-                [Reporting ends] VARCHAR(10),
-                [Age] VARCHAR(5),
-                [Gender] VARCHAR(8),
-                [Ad ID] VARCHAR(24),
-                [Attribute setting] VARCHAR(MAX),
-                [Auction Bid] VARCHAR(16),
-                [Buying Type] VARCHAR(16),
-                [Clicks (all)] VARCHAR(16),
-                [CPC (All) (USD)] VARCHAR(16),
-                [CPM (cost per 1,000 impressions) (USD)] VARCHAR(16),
-                [Cost per 1,000 Accounts Center accounts reached (USD)] VARCHAR(16),
-                [Date created] VARCHAR(10),
-                [Media type] VARCHAR(16),
-                [CRT (all)] VARCHAR(16),
-                [Frequency] VARCHAR(16),
-                [Impressions] VARCHAR(16),
-                [Tags] VARCHAR(MAX),
-                [Objective] VARCHAR(MAX),
-                [Optimization goal] VARCHAR(32),
-                [Reach] VARCHAR(16),
-                [Amount spent (USD)] VARCHAR(16),
-                [Unique clicks (all)] VARCHAR(16),
-            [Date last edited] VARCHAR(10)
-            ) AS [data]
-        ) AS [data]
-        WHERE rank = 1
+            WHERE data.filepath(1) = (SELECT max_date from latest_date)
+        )
+        SELECT * FROM new_data
+        UNION ALL
+        SELECT 
+            account_id,
+            actor_id,
+            applink_treatment,
+            authorization_category,
+            auto_update,
+            body,
+            branded_content_sponsor_page_id,
+            bundle_folder_id,
+            call_to_action_type,
+            categorization_criteria,
+            category_media_source,
+            collaborative_ads_lsb_image_bank_id,
+            destination_set_id,
+            dynamic_ad_voice,
+            effective_authorization_category,
+            effective_instagram_media_id,
+            effective_instagram_story_id,
+            effective_object_story_id,
+            enable_direct_install,
+            id,
+            image_file,
+            image_hash,
+            image_url,
+            is_dco_internal,
+            link_deep_link_url,
+            link_destination_display_url,
+            link_og_id,
+            link_url,
+            messenger_sponsored_message,
+            name,
+            object_id,
+            object_store_url,
+            object_story_id,
+            object_type,
+            object_url,
+            place_page_set_id,
+            playable_asset_id,
+            product_set_id,
+            source_instagram_media_id,
+            status,
+            template_url,
+            thumbnail_id,
+            thumbnail_url,
+            title,
+            url_tags,
+            use_page_actor_override,
+            video_id
+        FROM dashboard.adcreatives
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM new_data
+            WHERE new_data.id = dashboard.adcreatives.id
+        )
     """,
 }

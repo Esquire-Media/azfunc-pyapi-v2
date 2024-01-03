@@ -2,13 +2,14 @@
 
 from libs.azure.functions import Blueprint
 from libs.openapi.clients import Meta
-import json, os, pandas as pd
+from uuid import uuid4
+import os, pandas as pd
 
 bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def meta_activity_request(ingress: dict):
+def meta_activity_request(ingress: dict) -> dict:
     """
     An Azure Durable Function activity to handle API requests.
 
@@ -32,66 +33,65 @@ def meta_activity_request(ingress: dict):
         the next page token for the API response.
 
     """
+    id = uuid4().hex
+
     # Initialize the Meta API client factory based on the operationId
     factory = Meta[ingress["operationId"]]
 
     # Set the access token for API security, preferring the ingress token, then environment variable
     factory.security.setdefault(
-        "access_token",
+        "AccessToken",
         os.environ.get(
-            ingress.get("access_token", ""), os.environ.get("META_ACCESS_TOKEN", "")
+            ingress.get("AccessToken", ""), os.environ.get("META_ACCESS_TOKEN", "")
         ),
     )
 
     # Perform the API request
-    headers, response, _ = factory.request(
+    headers, response, raw = factory.request(
         data=ingress.get("data", None),
         parameters=ingress.get("parameters", None),
     )
-
     # Handle any errors in the response
-    if getattr(response, "error", False):
+    if getattr(response, "error", None):
         return {"headers": headers, "error": response.error}
+
+    data = None
+    if getattr(response, "root", False):
+        data = response.root
+        if getattr(data, "data", False):
+            data = data.data
+    if not data:
+        data = raw.json()
+        data = data.get("data", data)
 
     url = None
     # Process and optionally store the response data
-    if getattr(response, "data", False):
-        data = response.model_dump()["data"]
-        if ingress.get("destination", False):
-            from azure.storage.blob import BlobClient
-            import uuid
+    if ingress.get("destination", False) and isinstance(data, list):
+        from azure.storage.blob import BlobClient
 
-            # Create a BlobClient to upload the data to Azure Blob Storage
-            blob = BlobClient.from_connection_string(
-                conn_str=os.environ[
-                    ingress["destination"].get("conn_str", "AzureWebJobsStorage")
-                ],
-                container_name=ingress["destination"]["container_name"],
-                blob_name="{}/{}.parquet".format(
-                    ingress["destination"]["blob_prefix"], uuid.uuid4().hex
-                ),
-            )
-            # Upload the data as a parquet file
-            blob.upload_blob(pd.DataFrame(data).to_parquet(index=False))
-            url = blob.url
-
-    next = None
-    # Handle pagination if applicable
-    if getattr(response, "paging", False):
-        if getattr(response.paging, "next", False):
-            next = response.paging.cursors.after
+        # Create a BlobClient to upload the data to Azure Blob Storage
+        blob = BlobClient.from_connection_string(
+            conn_str=os.environ[
+                ingress["destination"].get("conn_str", "AzureWebJobsStorage")
+            ],
+            container_name=ingress["destination"]["container_name"],
+            blob_name="{}/{}.parquet".format(ingress["destination"]["blob_prefix"], id),
+        )
+        # Upload the data as a parquet file
+        blob.upload_blob(pd.DataFrame(data).to_parquet(index=False))
+        url = blob.url
 
     # Prepare and return the final response
     return {
         "headers": headers,
         "data": (
-            (
-                json.loads(response.model_dump_json())["data"]
-                if hasattr(response, "data") and response.data
-                else json.loads(response.model_dump_json())
-            )
+            (data if isinstance(data, dict) or isinstance(data, list) else dict(data))
             if ingress.get("return", True)
             else url
         ),
-        "next": next,
+        "after": getattr(getattr(response, "root", response), "paging", {})
+        .get("cursors", {})
+        .get("after", None)
+        if getattr(getattr(response, "root", response), "paging", {}).get("next", None)
+        else None,
     }

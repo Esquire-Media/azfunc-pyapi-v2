@@ -78,7 +78,7 @@ class CampaignProposalPayload(BaseModel):
 
         # connect to assets table (used for validating the creativeSet parameter)
         creativeSets = TableClient.from_connection_string(
-            conn_str=os.environ["AzureWebJobsStorage"],
+            conn_str=os.getenv("CAMPAIGN_PROPOSAL_CONN_STR", os.environ["AzureWebJobsStorage"]),
             table_name="campaignProposalAssets",
         ).query_entities(f"PartitionKey eq 'creativeSet'", select=["RowKey"])
         # throw exception if value does not exist in the creativeSets assets table

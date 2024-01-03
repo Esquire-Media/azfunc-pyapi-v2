@@ -11,7 +11,7 @@ bp = Blueprint()
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_locationInsights_batch(context: DurableOrchestrationContext):
     """
-    The Root Orchestrator coordinates on a batch level, collecting metadata for each location and sending device observation requests. 
+    The Root Orchestrator coordinates on a batch level, collecting metadata for each location and sending callback emails and error cards. 
     """
 
     try:

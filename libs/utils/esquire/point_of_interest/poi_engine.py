@@ -200,8 +200,14 @@ class POIEngine:
                     on='fsq_id',
                     how='outer'
                 )
+            
+            # enforce esq_id column and populate null values
+            if 'esq_id' in results.columns:
                 results['esq_id'] = results['esq_id'].fillna('null')
+            else:
+                results['esq_id'] = 'null'
 
+        results = results.dropna(subset=['fsq_id'])
         return results
 
     def load_from_point(

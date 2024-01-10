@@ -86,7 +86,7 @@ def esquire_dashboard_meta_orchestrator_report_batch(
                 },
                 "query": CETAS["User.Get.Adaccounts"],
                 "view": True,
-                "commit": True
+                "commit": True,
             },
         )
 
@@ -157,29 +157,33 @@ def esquire_dashboard_meta_orchestrator_report_batch(
 
         # Handle exceptions by posting to a webhook and re-raise the exception
     except Exception as e:
-        yield context.call_http(
-            method="POST",
-            uri=os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
-            content={
-                "@type": "MessageCard",
-                "@context": "http://schema.org/extensions",
-                "themeColor": "EE2A3D",
-                "summary": "Meta Report Ingestion Failed",
-                "sections": [
-                    {
-                        "activityTitle": "Meta Report Ingestion Failed",
-                        "activitySubtitle": "{}{}".format(
-                            str(e)[0:128], "..." if len(str(e)) > 128 else ""
-                        ),
-                        "facts": [
-                            {"name": "InstanceID", "value": context.instance_id},
-                        ],
-                        "markdown": True,
-                    }
-                ],
-            },
-        )
-        raise e
+        # tries = context.get_input().get("tries", 0)
+        # if tries <= 3:
+        #     context.continue_as_new({"tries": context.get_input().get("tries", 0) + 1})
+        # else:
+            yield context.call_http(
+                method="POST",
+                uri=os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
+                content={
+                    "@type": "MessageCard",
+                    "@context": "http://schema.org/extensions",
+                    "themeColor": "EE2A3D",
+                    "summary": "Meta Report Ingestion Failed",
+                    "sections": [
+                        {
+                            "activityTitle": "Meta Report Ingestion Failed",
+                            "activitySubtitle": "{}{}".format(
+                                str(e)[0:128], "..." if len(str(e)) > 128 else ""
+                            ),
+                            "facts": [
+                                {"name": "InstanceID", "value": context.instance_id},
+                            ],
+                            "markdown": True,
+                        }
+                    ],
+                },
+            )
+            raise e
 
     # Purge history related to this instance at the end of the orchestration
     context.set_custom_status("Purging History")

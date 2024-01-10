@@ -211,7 +211,7 @@ PARAMETERS = {
         #     "7d_view",
         #     # "default",
         # ],
-        "date_preset": "last_30d",
+        "date_preset": os.environ.get("META_REPORTING_DATE_PRESET", "last_7d"),
         # "time_range": {"since": "2023-11-01", "until": "2023-11-30"},
     },
     "AdAccount.Get.Ads": {
@@ -246,7 +246,7 @@ PARAMETERS = {
             "status",
             "updated_time",  # Filter
         ],
-        "date_preset": "last_30d",
+        "date_preset": os.environ.get("META_REPORTING_DATE_PRESET", "last_7d"),
         # "time_range": {"since": "2023-01-01", "until": "2023-12-18"},
     },
     "AdAccount.Get.Campaigns": {
@@ -289,7 +289,7 @@ PARAMETERS = {
             "topline_id",
             "updated_time",  # Filter
         ],
-        "date_preset": "last_30d",
+        "date_preset": os.environ.get("META_REPORTING_DATE_PRESET", "last_7d"),
         # "time_range": {"since": "2023-01-01", "until": "2023-12-18"},
     },
     "AdAccount.Get.Adsets": {
@@ -352,7 +352,7 @@ PARAMETERS = {
             "updated_time",  # Filter
             "use_new_app_click",
         ],
-        "date_preset": "last_30d",
+        "date_preset": os.environ.get("META_REPORTING_DATE_PRESET", "last_7d"),
         # "time_range": {"since": "2023-01-01", "until": "2023-12-18"},
     },
     "AdAccount.Get.Adcreatives": {
@@ -548,7 +548,7 @@ CETAS = {
             WHERE data.filepath(1) = (SELECT max_date from latest_date)
         )
         SELECT * FROM new_data
-        UNION ALL
+        UNION
         SELECT 
             account_id,
             account_status,
@@ -726,11 +726,11 @@ CETAS = {
         ),
         new_data AS (
             SELECT * FROM new_reports
-            UNION ALL
+            UNION
             SELECT * FROM new_reports_fallback
         )
         SELECT * FROM new_data
-        UNION ALL
+        UNION
         SELECT 
             ad_id,
             buying_type,
@@ -759,8 +759,6 @@ CETAS = {
             FROM new_data
             WHERE new_data.ad_id = dashboard.adsinsights.ad_id
             AND new_data.date_start = dashboard.adsinsights.date_start
-            AND new_data.age_range = dashboard.adsinsights.age_range
-            AND new_data.gender = dashboard.adsinsights.gender
         )
     """,
     "AdAccount.Get.Ads": """
@@ -862,7 +860,7 @@ CETAS = {
             WHERE data.filepath(1) = (SELECT max_date from latest_date)
         )
         SELECT * FROM new_data
-        UNION ALL
+        UNION
         SELECT 
             account_id,
             adset_id,
@@ -989,7 +987,7 @@ CETAS = {
             WHERE data.filepath(1) = (SELECT max_date from latest_date)
         )
         SELECT * FROM new_data
-        UNION ALL
+        UNION
         SELECT 
             account_id,
             adbatch,
@@ -1212,7 +1210,7 @@ CETAS = {
             WHERE data.filepath(1) = (SELECT max_date from latest_date)
         )
         SELECT * FROM new_data
-        UNION ALL
+        UNION
         SELECT 
             account_id,
             bid_amount,
@@ -1385,7 +1383,7 @@ CETAS = {
             WHERE data.filepath(1) = (SELECT max_date from latest_date)
         )
         SELECT * FROM new_data
-        UNION ALL
+        UNION
         SELECT 
             account_id,
             actor_id,

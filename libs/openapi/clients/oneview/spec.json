@@ -8,6 +8,7 @@
   "servers": [{ "url": "https://oneview.roku.com/v2/mgmt" }],
   "security": [
     {
+      "__cf_bm": [],
       "auth0": [],
       "auth0_compat": [],
       "did": [],
@@ -3915,6 +3916,7 @@
       }
     },
     "securitySchemes": {
+      "__cf_bm": { "in": "cookie", "name": "__cf_bm", "type": "apiKey" },
       "auth0": { "in": "cookie", "name": "auth0", "type": "apiKey" },
       "auth0_compat": {
         "in": "cookie",

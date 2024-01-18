@@ -4,7 +4,7 @@ from azure.functions import TimerRequest
 # Create a Blueprint instance
 bp = Blueprint()
 
-@bp.timer_trigger("timer", schedule="0 */5 * * * *")
+@bp.timer_trigger("timer", schedule="0 */1 * * * *")
 def keep_alive(timer: TimerRequest):
     """
     Timer trigger function for keep-alive functionality.
@@ -26,4 +26,4 @@ def keep_alive(timer: TimerRequest):
 
     This function can be customized to perform any necessary keep-alive operations based on the application's requirements.
     """
-    pass
+    print("WAKE UP!")

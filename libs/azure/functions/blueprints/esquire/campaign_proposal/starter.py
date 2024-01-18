@@ -43,6 +43,8 @@ async def starter_campaignProposal(req: HttpRequest, client: DurableOrchestratio
     # extract user information from bearer token metadata
     payload['user'] = headers['oid']
     payload['callback'] = headers['preferred_username']
+
+    logging.warning(payload)
     
     # Start a new instance of the orchestrator function
     instance_id = await client.start_new(
@@ -76,7 +78,7 @@ class CampaignProposalPayload(BaseModel):
 
         # connect to assets table (used for validating the creativeSet parameter)
         creativeSets = TableClient.from_connection_string(
-            conn_str=os.environ["AzureWebJobsStorage"],
+            conn_str=os.getenv("CAMPAIGN_PROPOSAL_CONN_STR", os.environ["AzureWebJobsStorage"]),
             table_name="campaignProposalAssets",
         ).query_entities(f"PartitionKey eq 'creativeSet'", select=["RowKey"])
         # throw exception if value does not exist in the creativeSets assets table

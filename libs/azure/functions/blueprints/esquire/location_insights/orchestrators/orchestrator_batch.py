@@ -11,7 +11,7 @@ bp = Blueprint()
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_locationInsights_batch(context: DurableOrchestrationContext):
     """
-    The Root Orchestrator coordinates on a batch level, collecting metadata for each location and sending device observation requests. 
+    The Root Orchestrator coordinates on a batch level, collecting metadata for each location and sending callback emails and error cards. 
     """
 
     try:
@@ -76,13 +76,14 @@ def orchestrator_locationInsights_batch(context: DurableOrchestrationContext):
         )
 
     except Exception as e:
+        # if any errors are caught, post an error card to teams tagging Ryan and the calling user
         yield context.call_activity(
             "activity_microsoftGraph_postErrorCard",
             {
                 "function_name": "esquire-location-insights",
                 "instance_id": context.instance_id,
+                "owners":["66c0c96a-2319-494e-a3a3-bc9c1b92739d", egress['user']],
                 "error": f"{type(e).__name__} : {e}"[:1000],
-                "icon_url": "https://img.icons8.com/?size=77&id=16044&format=png",
                 "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
             },
         )

@@ -62,6 +62,7 @@ def esquire_dashboard_xandr_orchestrator_reporting(
                 },
                 "query": CETAS[state["report_type"]],
                 "view": True,
+                "commit": True,
             },
         )
     except Exception as e:

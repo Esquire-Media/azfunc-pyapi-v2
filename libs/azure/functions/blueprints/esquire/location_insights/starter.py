@@ -63,7 +63,6 @@ async def starter_locationInsights(req: HttpRequest, client: DurableOrchestratio
     # Return a response that includes the status query URLs
     return client.create_check_status_response(req, instance_id)
 
-
 class LocationInsightsPayload(BaseModel):
     """
     This class ingests and validates the payload elements for Location Insights reports, with type enforcement.

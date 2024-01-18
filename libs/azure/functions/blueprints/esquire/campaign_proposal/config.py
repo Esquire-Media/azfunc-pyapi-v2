@@ -8,6 +8,8 @@ if not from_bind("audiences"):
         "sql",
         url=os.environ["DATABIND_SQL_AUDIENCES"],
         schemas=["dbo"],
+        pool_size=1000,
+        max_overflow=100
 )
 
 if not from_bind("legacy"):
@@ -17,6 +19,8 @@ if not from_bind("legacy"):
         "sql",
         url=os.environ["DATABIND_SQL_UNIVERSAL"],
         schemas=["dbo","esquire"],
+        pool_size=1000,
+        max_overflow=100
 )
     
 if not from_bind("foursquare"):
@@ -26,4 +30,6 @@ if not from_bind("foursquare"):
         "sql",
         url=os.environ["DATABIND_SQL_FOURSQUARE"],
         schemas=["dbo"],
+        pool_size=1000,
+        max_overflow=100
 )

@@ -12,6 +12,33 @@ bp = Blueprint()
 # activity to fill in the geo data for each audience object
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudiencesMaidsAddresses_friendsFamily(ingress: dict):
+    """
+    Activity function to process digital neighbor addresses.
+
+    This function handles fetching address data from Azure Blob Storage,
+    processes it, and then either uploads the processed data back to Blob Storage
+    or returns it as a dictionary based on the provided destination configuration.
+
+    Parameters
+    ----------
+    ingress : dict
+        A dictionary containing the following keys:
+        - source: str or dict
+            The source from which to fetch the address data. Can be a URL string or a
+            dictionary specifying Blob Storage details (including 'conn_str', 'container_name',
+            and 'blob_name').
+        - destination: str or dict, optional
+            The destination for storing the processed data. Can be a URL string or a
+            dictionary specifying Blob Storage details (including 'conn_str', 'container_name',
+            'blob_name', and optionally 'format' to specify the output file format).
+
+    Returns
+    -------
+    Union[str, Dict]
+        If a destination is provided, returns the SAS URL of the uploaded blob.
+        Otherwise, returns the processed addresses as a dictionary.
+    """
+
     addresses = get_addresses(source=ingress["source"])
 
     # Handle data output based on destination configuration
@@ -53,6 +80,21 @@ def activity_esquireAudiencesMaidsAddresses_friendsFamily(ingress: dict):
 
 
 def get_addresses(source: Union[AnyStr, Dict]):
+    """
+    Fetches address data from a source (URL or dictionary specifying Blob Storage details).
+
+    Parameters
+    ----------
+    source : Union[AnyStr, Dict]
+        The source from which to fetch the data. Can be a URL string or a dictionary
+        with Blob Storage connection details.
+
+    Returns
+    -------
+    DataFrame
+        The addresses data as a pandas DataFrame.
+    """
+    
     if isinstance(source, str):
         blob = BlobClient.from_blob_url(source)
     elif isinstance(source, dict):

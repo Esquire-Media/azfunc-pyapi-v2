@@ -233,7 +233,7 @@ class MoverEngine:
         results     : Pandas DataFrame of mover addresses within the given query area.
         """
         # build a circle to represent the point-radius search area
-        polygon = latlon_buffer(lat=latitude, lon=longitude, radius=radius, cap_style=1)
+        polygon = latlon_buffer(latitude=latitude, longitude=longitude, radius=radius, cap_style=1)
 
         # load results as polygon using the point-radius circle
         results = self.load_from_polygon(polygon=polygon, start_date=start_date, end_date=end_date, counts=counts)

@@ -1,17 +1,13 @@
-import logging
-import os
-import re
-import json
-import h3
-import pandas as pd
+# File: libs/azure/functions/blueprints/esquire/audiences/mover_sync/activities/validate_address_chunks.py
+
+from azure.storage.blob import BlobClient
 from libs.azure.functions import Blueprint
 from libs.data import from_bind
+from libs.utils.smarty import bulk_validate
+from libs.utils.text import format_zipcode, format_zip4, format_full_address
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import text
-from azure.storage.blob import BlobClient
-from azure.data.tables import TableClient
-from libs.utils.text import format_zipcode, format_zip4, format_full_address
-from libs.utils.smarty import bulk_validate
+import h3, logging, os, pandas as pd
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()
@@ -20,7 +16,35 @@ bp = Blueprint()
 # Define an activity function
 @bp.activity_trigger(input_name="settings")
 def activity_moversSync_validateAddressChunk(settings: dict):
-    logging.warning(f"activity_moversSync_validateAddressChunk | {settings['chunk']['blob_name']} | {settings['chunk']['offset']},{settings['chunk']['limit']}")
+    """
+    Validates addresses in a specific chunk of data and uploads the validated data to Azure Blob Storage.
+
+    Fetches a chunk of data based on provided settings, validates the addresses using Smarty, formats the data,
+    and then uploads it to Azure Blob Storage in Parquet format.
+
+    Parameters
+    ----------
+    settings : dict
+        A dictionary containing the following keys:
+        - runtime_container: dict
+            Details of the Azure Blob Storage container. Includes 'conn_str' for connection string and
+            'container_name' for the name of the container.
+        - chunk: dict
+            Details of the data chunk to be processed. Includes 'blob_name' for the name of the blob,
+            'offset' for the starting row, and 'limit' for the number of rows in the chunk.
+        - rowCounts_table: dict
+            Details of the Azure Table Storage for row counts. Includes 'conn_str' for connection string and
+            'table_name' for the name of the table.
+
+    Returns
+    -------
+    str
+        Path of the uploaded blob in Azure Storage.
+    """
+
+    logging.warning(
+        f"activity_moversSync_validateAddressChunk | {settings['chunk']['blob_name']} | {settings['chunk']['offset']},{settings['chunk']['limit']}"
+    )
 
     # connect to Azure synapse cluster
     session: Session = from_bind("audiences").connect()
@@ -37,7 +61,9 @@ def activity_moversSync_validateAddressChunk(settings: dict):
             )
         )
     )
-    chunk_data['full_add'] = chunk_data.apply(lambda x: format_full_address(x['add1'], x['add2']), axis=1)
+    chunk_data["full_add"] = chunk_data.apply(
+        lambda x: format_full_address(x["add1"], x["add2"]), axis=1
+    )
 
     # validate addresses using Smarty
     validated = bulk_validate(
@@ -54,7 +80,7 @@ def activity_moversSync_validateAddressChunk(settings: dict):
     blob_client = BlobClient.from_connection_string(
         os.environ[settings["runtime_container"]["conn_str"]],
         container_name=settings["runtime_container"]["container_name"],
-        blob_name=outpath
+        blob_name=outpath,
     )
     blob_client.upload_blob(data=formatted.to_parquet(index=False), overwrite=True)
 

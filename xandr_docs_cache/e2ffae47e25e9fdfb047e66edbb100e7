@@ -1,0 +1,17 @@
+{
+  "response": {
+    "error_id": "NOAUTH",
+    "error": "Authentication failed - not logged in",
+    "error_code": null,
+    "error_description": null,
+    "dbg_info": {
+      "instance": "pdp-api-production-58b585688b-qhx9w",
+      "db": "",
+      "warnings": [],
+      "start_microtime": "1704900351.436",
+      "time": 3,
+      "version": "pdp-api-production-58b585688b-qhx9w",
+      "output_term": "not_found"
+    }
+  }
+}

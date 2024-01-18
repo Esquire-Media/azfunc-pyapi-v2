@@ -1,26 +1,28 @@
 from aiopenapi3 import OpenAPI
 from aiopenapi3.extra import Cull
-from functools import cache
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Pattern, Tuple, Union
+from threading import Lock
+from typing import Dict, List, Literal, Pattern, Tuple, Union
 import gzip, httpx, io, orjson, yaml, yarl, re
 
 
 class OperationSelector(type):
-    @cache
     def __getitem__(cls, item: Union[str, Tuple[str, str]]):
-        match item:
-            case str():
-                return cls.__new__(cls, operations=item)._[item]
-            case re.Pattern():
-                api = cls.__new__(cls, operations=item)
-                return api._[[op for op in api._][0]]
-            case tuple():
-                path, method = item
-                assert isinstance(path, str)
-                assert isinstance(method, str)
-                api = cls.__new__(cls, operations=(path, [method]))
-                return api._[[op for op in api._][0]]
+        with cls.cache_lock:
+            if item not in cls.cached:
+                match item:
+                    case str():
+                        cls.cached[item] = cls.__new__(cls, operations=item)
+                    case re.Pattern():
+                        cls.cached[item] = cls.__new__(cls, operations=item)
+                    case tuple():
+                        path, method = item
+                        assert isinstance(path, str)
+                        assert isinstance(method, str)
+                        cls.cached[item] = cls.__new__(cls, operations=(path, [method]))
+        op = list(cls.cached[item]._.Iter(cls.cached[item], False))[0]
+        req = getattr(cls.cached[item]._, op)
+        return cls.cached[item].createRequest((req.path, req.method))
 
     def paths(cls):
         for k, v in cls.load()["paths"].keys():
@@ -42,6 +44,9 @@ class OperationSelector(type):
 
 
 class OpenAPIClient(metaclass=OperationSelector):
+    cached = {}
+    cache_lock = Lock()  # Lock for controlling access to cache
+    
     class Loader:
         url: yarl.URL
         format: Literal["json", "yaml"]

@@ -1,29 +1,72 @@
 # File: libs/azure/functions/blueprints/meta/orchestrators/request.py
 
-from aiopenapi3 import ResponseSchemaError
+# from aiopenapi3 import ResponseSchemaError
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
 from datetime import datetime, timedelta
 from libs.azure.functions import Blueprint
-import json
+import json, logging
 
 bp = Blueprint()
 
 
 @bp.orchestration_trigger(context_name="context")
-def meta_orchestrator_request(
-    context: DurableOrchestrationContext,
-):
-    retry = RetryOptions(15000, 5)
-    ingress = context.get_input()
-    after = None
-    data = []
-    schema_retry = 0
+def meta_orchestrator_request(context: DurableOrchestrationContext):
+    """
+    Orchestrator function to manage Meta API requests.
+
+    This function orchestrates a series of API requests using the activity function
+    'meta_activity_request'. It handles pagination, retries, and error management
+    across the requests. It aggregates data from all pages of the API response.
+
+    The expected input 'ingress' (obtained from context.get_input()) should be a
+    dictionary with specific keys to guide the operation:
+
+    - 'operationId': (required) A unique identifier for the API operation.
+    - 'data': (optonal) A dictionary that will be used in the body passed to the API
+    - 'parameters': (optional) A dictionary of parameters to be passed to the API.
+    - 'recursive': (optional) A boolean indicating whether to recursively fetch all pages.
+    - 'return': (optional) A boolean indicating if the response data should be returned.
+    - 'destination': (optional) A dictionary specifying Azure Blob Storage details for data storage.
+        - 'conn_str' (connection string)
+        - 'container_name' 
+        - 'blob_prefix'
+
+    Parameters
+    ----------
+    context : DurableOrchestrationContext
+        The context object providing orchestration features like input retrieval,
+        activity function calling, and custom status setting.
+
+    Returns
+    -------
+    list or dict
+        The aggregated data from all pages of the API response. Returns a list if multiple
+        items are retrieved, or a single dict if only one item is retrieved. Returns an
+        empty list if there is no data to return.
+
+    """
+    retry = RetryOptions(15000, 5)  # Set retry options for activity calls
+    ingress = context.get_input()   # Retrieve input data
+    after = None  # Variable to manage pagination
+    page = 0      # Page counter
+    data = []     # List to aggregate data from all pages
+    schema_retry = 0  # Counter for schema-related retries
+
     while True:
+        # Handling retries for schema-related errors
         if schema_retry > 3:
+            message = f"Too many retries for Operation {ingress['operationId']}."
+            context.set_custom_status(message)
+            logging.error(message)
             break
+
         try:
-            context.set_custom_status("")
-            response = yield context.call_activity_with_retry(
+            # Set status and make a call to the activity function
+            message = f"Requesting page {page} for Operation {ingress['operationId']}."
+            context.set_custom_status(message)
+            if not context.is_replaying:
+                logging.warning(message)
+            response: dict = yield context.call_activity_with_retry(
                 "meta_activity_request",
                 retry,
                 {
@@ -34,14 +77,21 @@ def meta_orchestrator_request(
                     },
                 },
             )
-        except ResponseSchemaError:
+        except Exception as e:
+            # Log and increment the retry counter on exception
+            logging.error(e)
             schema_retry += 1
             continue
+
+        # Process the response from the activity function
         if response:
-            if "error" in response["data"].keys():
-                match response["data"]["error"]["code"]:
+            if response.get("error"):
+                # Handle different error codes
+                match response["error"]["code"]:
+                    # Throttling errors
                     case 4 | 17 | 80004:
-                        if throttle := (
+                        # Calculate throttle time and set a timer
+                        throttle = (
                             max(
                                 [
                                     a["estimated_time_to_regain_access"]
@@ -53,54 +103,47 @@ def meta_orchestrator_request(
                             )
                             if "X-Business-Use-Case-Usage" in response["headers"].keys()
                             else 0
-                        ):
-                            timer = datetime.utcnow() + timedelta(minutes=throttle)
-                            context.set_custom_status(
-                                f"Throttled until {timer.isoformat()}."
-                            )
-                            yield context.create_timer(timer)
-                            continue
+                        )
+                        timer = datetime.utcnow() + timedelta(minutes=throttle)
+                        context.set_custom_status(
+                            f"Waiting to get page {page}. Throttled until {timer.isoformat()}."
+                        )
+                        yield context.create_timer(timer)
+                        continue
+                    # Permissions error
                     case 10:
-                        # Permissions error
                         break
+                    # Other errors
                     case _:
-                        # https://developers.facebook.com/docs/marketing-api/error-reference/
-                        # 1  : Unknown Error
-                        # 100: Invalid parameter
-                        # 102: Session key invalid or no longer valid
-                        # 190: Invalid OAuth 2.0 Access Token
-                        # 368: The action attempted has been deemed abusive or is otherwise disallowed
+                        # Raise an exception for other error codes
                         raise Exception(
                             "{} ({}): {}".format(
-                                response["data"]["error"]["message"],
-                                response["data"]["error"]["code"],
-                                response["data"]["error"].get("error_user_msg", ""),
+                                response["error"]["message"],
+                                response["error"]["code"],
+                                response["error"].get("error_user_msg", ""),
                             )
                         )
-
-            if ingress.get("return", True):
-                if "data" in response["data"]:
-                    if response["data"]["data"] != None:
-                        data.append(response["data"]["data"])
+            else:
+                # Aggregate data from the response
+                if response.get("data"):
+                    if isinstance(response["data"], list):
+                        data += response["data"]
                     else:
                         data.append(response["data"])
                 else:
-                    data.append(response["data"])
+                    data.append(response)
 
-            if (
-                ingress.get("recursive", False)
-                and "paging" in response["data"].keys()
-                and isinstance(response["data"]["paging"], dict)
-                and "next" in response["data"]["paging"].keys()
-                and response["data"]["paging"]["next"] != None
-            ):
-                after = response["data"]["paging"]["cursors"]["after"]
-                continue
-
+                # Handle pagination
+                if ingress.get("recursive") and response["after"]:
+                    after = response["after"]
+                    page += 1
+                    continue
         break
+    context.set_custom_status(f"All requests completed.")
 
-    if ingress.get("return", True):
-        if isinstance(data[0], list):
-            return [d for l in data for d in l]
+    # Return the aggregated data or an empty list
+    if ingress.get("return", True) or ingress.get("destination", {}):
+        if len(data) == 1:
+            return data[0]
         return data
     return []

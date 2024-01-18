@@ -52,6 +52,16 @@ BLUEPRINTS = {
         "libs/azure/functions/blueprints/azure/synapse/*",
         "libs/azure/functions/blueprints/purge_instance_history",
     ],
+    "esquire-matchback":[
+        "libs/azure/functions/blueprints/keep_alive",
+        "libs/azure/functions/blueprints/esquire/matchback/*",
+    ],
+    "esquire-google-leads":[
+        "libs/azure/functions/blueprints/keep_alive",
+        "libs/azure/functions/blueprints/esquire/google/leads_form/*",
+        "libs/azure/functions/blueprints/microsoft/graph/*",
+        "libs/azure/functions/blueprints/purge_instance_history",
+    ],
     "debug": [
         "libs/azure/functions/blueprints/keep_alive",
         "libs/azure/functions/blueprints/logger",

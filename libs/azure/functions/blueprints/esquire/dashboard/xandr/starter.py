@@ -4,6 +4,7 @@ from azure.durable_functions import DurableOrchestrationClient
 from azure.functions import TimerRequest
 from libs.azure.functions import Blueprint
 from libs.openapi.clients.xandr import XandrAPI
+import os
 
 # Create a Blueprint instance
 bp = Blueprint()
@@ -21,7 +22,9 @@ async def daily_dashboard_xandr_starter(
             "report": {
                 "timezone": "America/New_York",
                 "report_type": "network_analytics",
-                "report_interval": "last_30_days",
+                "report_interval": os.environ.get(
+                    "XANDR_REPORT_INTERVAL", "last_30_days"
+                ),
                 "columns": [
                     "day",
                     "advertiser_id",
@@ -44,7 +47,9 @@ async def daily_dashboard_xandr_starter(
             "report": {
                 "timezone": "America/New_York",
                 "report_type": "network_site_domain_performance",
-                "report_interval": "last_30_days",
+                "report_interval": os.environ.get(
+                    "XANDR_REPORT_INTERVAL", "last_30_days"
+                ),
                 "columns": [
                     "day",
                     "line_item_id",
@@ -62,7 +67,9 @@ async def daily_dashboard_xandr_starter(
             "report": {
                 "timezone": "America/New_York",
                 "report_type": "buyer_approximate_unique_users_hourly",
-                "report_interval": "last_30_days",
+                "report_interval": os.environ.get(
+                    "XANDR_REPORT_INTERVAL", "last_30_days"
+                ),
                 "columns": [
                     "day",
                     "line_item_id",
@@ -83,3 +90,5 @@ async def daily_dashboard_xandr_starter(
             "esquire_dashboard_xandr_orchestrator_reporting",
             data.response.report_id,
         )
+
+    await client.start_new("esquire_dashboard_xandr_orchestrator_creatives")

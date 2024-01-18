@@ -10,20 +10,32 @@ from dateutil.relativedelta import relativedelta
 bp = Blueprint()
 
 
-# main orchestrator for friends and family audiences (suborchestrator for the root)
-## one audience at a time
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_esquireAudienceMaidsAddresses_footprint(
     context: DurableOrchestrationContext,
 ):
+    """
+    Suborchestrator function for processing Friends and Family audiences.
+
+    This function coordinates the tasks for generating rooftop polygons and processing
+    them through the OnSpot Orchestrator. It also handles merging the resultant device files.
+
+    Parameters
+    ----------
+    context : DurableOrchestrationContext
+        The context for the orchestration, containing methods for interacting with the Durable Functions runtime.
+        - working : dict
+            Information about the working blob storage, including blob prefix and other details.
+        - source : str
+            The source CSV file URL for data processing.
+    """
     ingress = context.get_input()
     retry = RetryOptions(15000, 1)
 
-    # suborchestrator for the rooftop polys
+    # Read data in chunks and orchestrate tasks for rooftop polygon processing
     chunksize = 1000
     poly_batches = yield context.task_all(
         [
-            # testing for friends and family with sample file
             context.call_sub_orchestrator_with_retry(
                 "orchestrator_rooftopPolys",
                 retry,
@@ -42,12 +54,13 @@ def orchestrator_esquireAudienceMaidsAddresses_footprint(
         ]
     )
 
+    # Define time range for OnSpot processing
     now = datetime.utcnow()
     today = datetime(now.year, now.month, now.day)
     end = today - relativedelta(days=2)
     start = end - relativedelta(days=90)
 
-    # pass Friends and Family to OnSpot Orchestrator
+    # Orchestrate OnSpot processing tasks with polygon data
     onspot = yield context.task_all(
         [
             context.call_sub_orchestrator_with_retry(
@@ -79,13 +92,12 @@ def orchestrator_esquireAudienceMaidsAddresses_footprint(
         ]
     )
 
-    # check if all callbacks succeeded
+    # Check for success in all callbacks from OnSpot Orchestrator
     if not all([c["success"] for r in onspot for c in r["callbacks"]]):
-        # if there are failures, throw exception of what failed in the call
-        # TODO: exception for submission failures
+        # Raise an exception if any callback failed
         raise Exception([c for r in onspot for c in r["callbacks"] if not c["success"]])
 
-    # merge all of the device files into one file
+    # Merge device files into a single file
     yield context.call_activity_with_retry(
         "activity_onSpot_mergeDevices",
         retry,

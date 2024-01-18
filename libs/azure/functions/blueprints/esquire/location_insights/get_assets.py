@@ -7,6 +7,7 @@ import pandas as pd
 from azure.data.tables import TableClient
 from libs.utils.oauth2.tokens.microsoft import ValidateMicrosoft
 from libs.utils.oauth2.tokens import TokenValidationError
+import logging
 
 bp = Blueprint()
 
@@ -15,6 +16,7 @@ bp = Blueprint()
 async def starter_locationInsights_getAssets(req: HttpRequest, client: DurableOrchestrationClient):
 
     # validate the MS bearer token to ensure the user is authorized to make requests
+    logging.warning(req.headers.get('authorization'))
     try:
         validator = ValidateMicrosoft(
             tenant_id=os.environ['MS_TENANT_ID'], 

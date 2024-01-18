@@ -25,10 +25,16 @@ class OperationSelector(type):
         return cls.cached[item].createRequest((req.path, req.method))
 
     def paths(cls):
-        for k, v in cls.load()["paths"].keys():
+        for k, v in cls.load()["paths"].items():
             for m, o in v.items():
                 if isinstance(o, dict):
                     yield (k, m)
+
+    def operations(cls):
+        for k, v in cls.load()["paths"].items():
+            for m, o in v.items():
+                if isinstance(o, dict):
+                    yield (o.get("operationId", None), k, m)
 
     def items(cls):
         for k, v in cls.load()["paths"].items():

@@ -16,3 +16,10 @@ example
 development.py
 *.csv
 .tools
+
+/example_addresses.csv
+/development.py
+/logging.logging
+/matched_data.csv
+/Untitled*
+/xandr_*

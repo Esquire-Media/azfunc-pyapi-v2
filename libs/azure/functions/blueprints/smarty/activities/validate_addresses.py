@@ -55,7 +55,7 @@ def activity_smarty_validateAddresses(ingress: dict):
     elif isinstance(ingress["source"], dict):
         # Handling Azure Blob storage as the source
         blob = BlobClient.from_connection_string(
-            conn_str=os.environ[ingress["source"]],
+            conn_str=os.environ[ingress["source"]['conn_str']],
             container_name=ingress["source"]["container_name"],
             blob_name=ingress["source"]["blob_name"],
         )

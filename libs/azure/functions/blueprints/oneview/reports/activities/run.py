@@ -8,7 +8,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def oneview_reports_activity_run(ingress: str):
+def activity_oneviewReports_run(ingress: str):
     OneView["postReportTemplateRun"](
         parameters={"report_template_uid": ingress["report_template_uid"]}
     )

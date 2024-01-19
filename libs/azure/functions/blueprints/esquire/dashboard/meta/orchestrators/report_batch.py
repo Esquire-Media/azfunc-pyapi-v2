@@ -54,7 +54,7 @@ def esquire_dashboard_meta_orchestrator_report_batch(
         # Get Facebook Ad Accounts
         context.set_custom_status("Getting Adaccounts")
         adaccounts = yield context.call_sub_orchestrator_with_retry(
-            "meta_orchestrator_request",
+            "orchestrator_meta_request",
             retry,
             {
                 "operationId": "User.Get.Adaccounts",
@@ -73,7 +73,7 @@ def esquire_dashboard_meta_orchestrator_report_batch(
 
         context.set_custom_status("Generating AdAccounts CETAS")
         yield context.call_activity_with_retry(
-            "synapse_activity_cetas",
+            "activity_synapse_cetas",
             retry,
             {
                 "instance_id": context.instance_id,
@@ -117,7 +117,7 @@ def esquire_dashboard_meta_orchestrator_report_batch(
 
         context.set_custom_status("Generating AdsInsights CETAS")
         yield context.call_activity_with_retry(
-            "synapse_activity_cetas",
+            "activity_synapse_cetas",
             retry,
             {
                 "instance_id": context.instance_id,
@@ -138,7 +138,7 @@ def esquire_dashboard_meta_orchestrator_report_batch(
         for entity in ["Ads", "Campaigns", "AdSets"]:
             context.set_custom_status(f"Generating {entity} CETAS")
             yield context.call_activity_with_retry(
-                "synapse_activity_cetas",
+                "activity_synapse_cetas",
                 retry,
                 {
                     "instance_id": context.instance_id,

@@ -8,7 +8,7 @@ bp = Blueprint()
 
 
 @bp.orchestration_trigger(context_name="context")
-def onspot_orchestrator(context: DurableOrchestrationContext):
+def orchestrator_onspot(context: DurableOrchestrationContext):
     """
     Orchestrates the handling of a request in an Azure Durable Function.
 
@@ -23,19 +23,19 @@ def onspot_orchestrator(context: DurableOrchestrationContext):
     Yields
     ------
     dict
-        The result of calling the "onspot_activity_format" and
+        The result of calling the "activity_onspot_format" and
         "onspop_activity_submit" activities.
 
     Returns
     -------
     dict
-        A dictionary with "jobs" that contains the result of the "onspot_activity_submit"
+        A dictionary with "jobs" that contains the result of the "activity_onspot_submit"
         call and "callbacks" that contains the result of waiting for all the callbacks.
 
     Example
     -------
     >>> await client.start_new(
-    >>>     "onspot_orchestrator",
+    >>>     "orchestrator_onspot",
     >>>     None,
     >>>     {
     >>>         "endpoint": "/save/geoframe/all/devices",
@@ -44,7 +44,7 @@ def onspot_orchestrator(context: DurableOrchestrationContext):
     >>> )
     OR as a sub-orchestrator
     >>> results = yield context.call_sub_orchestrator(
-    >>>     "onspot_orchestrator",
+    >>>     "orchestrator_onspot",
     >>>     {
     >>>         "endpoint": "/save/geoframe/all/devices",
     >>>         "request": {...}
@@ -54,7 +54,7 @@ def onspot_orchestrator(context: DurableOrchestrationContext):
 
     # Format the request
     request = yield context.call_activity(
-        name="onspot_activity_format",
+        name="activity_onspot_format",
         input_={
             "instance_id": context.instance_id,
             **context.get_input(),
@@ -78,7 +78,7 @@ def onspot_orchestrator(context: DurableOrchestrationContext):
 
     # Submit request
     jobs = yield context.call_activity(
-        name="onspot_activity_submit",
+        name="activity_onspot_submit",
         input_={
             "endpoint": context.get_input()["endpoint"],
             "request": request,

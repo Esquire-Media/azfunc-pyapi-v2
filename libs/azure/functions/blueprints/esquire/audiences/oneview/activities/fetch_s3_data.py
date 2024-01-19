@@ -16,7 +16,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def esquire_audiences_oneview_fetch_s3_data(ingress: dict) -> dict:
+def activity_oneview_fetchS3Data(ingress: dict) -> dict:
     """
     Fetch data from an S3 bucket and store it in Azure Data Lake.
 
@@ -53,7 +53,7 @@ def esquire_audiences_oneview_fetch_s3_data(ingress: dict) -> dict:
         import azure.durable_functions as df
 
         def orchestrator_function(context: df.DurableOrchestrationContext):
-            result = yield context.call_activity('esquire_audiences_oneview_fetch_s3_data', {
+            result = yield context.call_activity('activity_oneview_fetchS3Data', {
                 "source": {
                     "access_key": "YOUR_AWS_ACCESS_KEY",
                     "secret_key": "YOUR_AWS_SECRET_KEY",

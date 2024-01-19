@@ -7,7 +7,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-async def onspot_activity_submit(ingress: dict):
+async def activity_onspot_submit(ingress: dict):
     """
     Submits a request to the OnSpotAPI and returns the response.
 

@@ -334,7 +334,7 @@ async def request_initializer(
 
     # Start orchestrator
     await client.start_new(
-        orchestration_function_name="oneview_orchestrator_tasks",
+        orchestration_function_name="orchestrator_oneview_tasks",
         instance_id=instanceId,
     )
 

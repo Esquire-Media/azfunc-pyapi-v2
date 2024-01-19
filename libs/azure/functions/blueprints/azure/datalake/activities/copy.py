@@ -11,7 +11,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def azure_datalake_copy_blob(ingress: dict) -> str:
+def activity_datalake_copyBlob(ingress: dict) -> str:
     """
     Copy blob data from a source to a target in Azure Blob Storage.
 
@@ -42,7 +42,7 @@ def azure_datalake_copy_blob(ingress: dict) -> str:
         import azure.durable_functions as df
 
         def orchestrator_function(context: df.DurableOrchestrationContext):
-            copied_url = yield context.call_activity('azure_datalake_copy_blob', {
+            copied_url = yield context.call_activity('activity_datalake_copyBlob', {
                 "source": "source_blob_url_with_read_SAS_token",
                 "target": "target_blob_url_with_write_SAS_token"
             })
@@ -55,7 +55,7 @@ def azure_datalake_copy_blob(ingress: dict) -> str:
         import azure.durable_functions as df
 
         def orchestrator_function(context: df.DurableOrchestrationContext):
-            copied_url = yield context.call_activity('azure_datalake_copy_blob', {
+            copied_url = yield context.call_activity('activity_datalake_copyBlob', {
                 "source": {
                     "conn_str": "SOURCE_AZURE_BLOB_CONNECTION_STRING",
                     "container_name": "source-container",

@@ -13,7 +13,7 @@ bp = Blueprint()
     methods=["get"],
     auth_level=AuthLevel.FUNCTION,
 )
-async def onspot_status(req: HttpRequest) -> HttpResponse:
+async def http_onspot_status(req: HttpRequest) -> HttpResponse:
     OSA = OnSpotAPI(production=True)
     stat = OSA.createRequest(("/status/queue", "get"))
     _, _, resp = await stat.request()

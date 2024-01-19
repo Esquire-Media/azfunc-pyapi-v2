@@ -10,12 +10,12 @@ bp = Blueprint()
 
 
 @bp.orchestration_trigger(context_name="context")
-def meta_orchestrator_request(context: DurableOrchestrationContext):
+def orchestrator_meta_request(context: DurableOrchestrationContext):
     """
     Orchestrator function to manage Meta API requests.
 
     This function orchestrates a series of API requests using the activity function
-    'meta_activity_request'. It handles pagination, retries, and error management
+    'activity_meta_request'. It handles pagination, retries, and error management
     across the requests. It aggregates data from all pages of the API response.
 
     The expected input 'ingress' (obtained from context.get_input()) should be a
@@ -67,7 +67,7 @@ def meta_orchestrator_request(context: DurableOrchestrationContext):
             if not context.is_replaying:
                 logging.warning(message)
             response: dict = yield context.call_activity_with_retry(
-                "meta_activity_request",
+                "activity_meta_request",
                 retry,
                 {
                     **ingress,

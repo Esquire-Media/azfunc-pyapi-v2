@@ -57,7 +57,7 @@ COUNTRY_MAP = {
 
 @bp.timer_trigger(arg_name="timer", schedule="0 */5 * * * * ")
 @bp.durable_client_input(client_name="client")
-async def oneview_schedule_gravity_forms(
+async def timer_oneview_scheduleGravityForms(
     timer: TimerRequest, client: DurableOrchestrationClient
 ) -> None:
     """

@@ -8,7 +8,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-async def datalake_activity_delete_directory(ingress: dict) -> str:
+async def activity_datalake_deleteDirectory(ingress: dict) -> str:
     filesystem = FileSystemClient.from_connection_string(
         os.environ[ingress.get("conn_str", "AzureWebJobsStorage")],
         ingress.get("container", ingress["container_name"]),

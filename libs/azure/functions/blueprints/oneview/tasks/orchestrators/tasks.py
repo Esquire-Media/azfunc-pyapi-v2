@@ -15,7 +15,7 @@ bp = Blueprint()
 
 # Define the orchestrator function
 @bp.orchestration_trigger(context_name="context")
-def oneview_orchestrator_tasks(context: DurableOrchestrationContext):
+def orchestrator_oneview_tasks(context: DurableOrchestrationContext):
     """
     The orchestrator function for asynchronous tasks. This function manages the
     execution of tasks, including the validation of a creative asset, the
@@ -47,7 +47,7 @@ def oneview_orchestrator_tasks(context: DurableOrchestrationContext):
         # Validate creative asset
         # context.set_custom_status("Validating Creative Asset")
         # yield context.call_activity(
-        #     "oneview_activity_validate_creative", context.instance_id
+        #     "activity_oneview_validateCreative", context.instance_id
         # )
 
         # Get the current state of the instance
@@ -100,6 +100,6 @@ def oneview_orchestrator_tasks(context: DurableOrchestrationContext):
             OrchestartorStateOperation(context.instance_id, "error", exc_dict)
         )
         yield context.call_activity(
-            "oneview_activity_push_notification", schema.dumps(state)
+            "activity_oneview_notify", schema.dumps(state)
         )
         raise e

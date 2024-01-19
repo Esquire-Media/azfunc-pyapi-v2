@@ -14,5 +14,5 @@ bp = Blueprint()
 async def daily_dashboard_onspot_starter(
     timer: TimerRequest, client: DurableOrchestrationClient
 ):
-    instance_id = await client.start_new("esquire_dashboard_onspot_orchestrator")
+    instance_id = await client.start_new("esquire_dashboard_orchestrator_onspot")
     logging.warn(client.create_http_management_payload(instance_id))

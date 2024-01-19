@@ -48,7 +48,7 @@ def orchestrator_locationInsights_report(context: DurableOrchestrationContext):
     # returned data will be stored in CSV format inside the `observations` folder
     egress["runtime_container"]["observations_blob"] = f"{egress['batch_instance_id']}/{context.instance_id}/observations"
     onspot_job = yield context.call_sub_orchestrator(
-        "onspot_orchestrator",
+        "orchestrator_onspot",
         {
             "conn_str": egress["runtime_container"]["conn_str"],
             "container": egress["runtime_container"]["container_name"],
@@ -73,7 +73,7 @@ def orchestrator_locationInsights_report(context: DurableOrchestrationContext):
     # use Synapse to extract unique deviceids from the device observations file
     egress["runtime_container"]["unique_devices_blob"] = f"{egress['batch_instance_id']}/{context.instance_id}/unique_devices"
     unique_device_urls = yield context.call_activity_with_retry(
-        "synapse_activity_cetas",
+        "activity_synapse_cetas",
         retry,
         {
             "instance_id": context.instance_id,
@@ -97,7 +97,7 @@ def orchestrator_locationInsights_report(context: DurableOrchestrationContext):
     # send a request for demographics data based on the unique devices which were partitioned out by Synapse
     egress["runtime_container"]["demographics_blob"] = f"{egress['batch_instance_id']}/{context.instance_id}/demographics"
     yield context.call_sub_orchestrator(
-        "onspot_orchestrator",
+        "orchestrator_onspot",
         {
             "conn_str": egress["runtime_container"]["conn_str"],
             "container": egress["runtime_container"]["container_name"],

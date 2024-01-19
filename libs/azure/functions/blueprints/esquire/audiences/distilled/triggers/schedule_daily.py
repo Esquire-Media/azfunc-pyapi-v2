@@ -9,14 +9,14 @@ bp = Blueprint()
 
 @bp.timer_trigger(arg_name="timer", schedule="0 0 0 * * *")
 @bp.durable_client_input(client_name="client")
-async def esquire_audiences_distilled_schedule_daily(
+async def timer_distilled_scheduleDaily(
     timer: TimerRequest, client: DurableOrchestrationClient
 ) -> None:
     """
     Scheduled function to start the OneView segment updater orchestrator daily.
 
     This function is triggered daily and starts an instance of the
-    `esquire_audiences_oneview_segment_updater` orchestrator for each record
+    `orchestrator_oneview_updateSegments` orchestrator for each record
     fetched from the NocoDB.
 
     Parameters
@@ -36,7 +36,7 @@ async def esquire_audiences_distilled_schedule_daily(
     the Azure Durable Functions client to start orchestrators.
     """
     await client.start_new(
-        "esquire_audiences_distilled_orchestrator_updater",
+        "orchestrator_distilled",
         None,
         {
             "source": {

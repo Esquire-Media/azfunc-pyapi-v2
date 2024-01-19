@@ -14,7 +14,7 @@ bp = Blueprint()
 
 
 @bp.orchestration_trigger(context_name="context")
-def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
+def esquire_dashboard_orchestrator_onspot(context: DurableOrchestrationContext):
     retry = RetryOptions(15000, 3)
     conn_str = "ONSPOT_CONN_STR" if "ONSPOT_CONN_STR" in os.environ.keys() else None
     container = "dashboard"
@@ -45,7 +45,7 @@ def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
         yield context.task_all(
             [
                 context.call_sub_orchestrator_with_retry(
-                    "onspot_orchestrator",
+                    "orchestrator_onspot",
                     retry,
                     {
                         "conn_str": conn_str,
@@ -89,7 +89,7 @@ def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
         )
 
         urls = yield context.call_activity_with_retry(
-            "synapse_activity_cetas",
+            "activity_synapse_cetas",
             retry,
             {
                 "instance_id": context.instance_id,
@@ -110,7 +110,7 @@ def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
         yield context.task_all(
             [
                 context.call_sub_orchestrator_with_retry(
-                    "onspot_orchestrator",
+                    "orchestrator_onspot",
                     retry,
                     {
                         "conn_str": conn_str,
@@ -140,7 +140,7 @@ def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
         )
 
         yield context.call_activity_with_retry(
-            "synapse_activity_cetas",
+            "activity_synapse_cetas",
             retry,
             {
                 "instance_id": context.instance_id,
@@ -159,7 +159,7 @@ def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
         )
 
         yield context.call_activity_with_retry(
-            "datalake_activity_delete_directory",
+            "activity_datalake_deleteDirectory",
             retry,
             {
                 "instance_id": context.instance_id,

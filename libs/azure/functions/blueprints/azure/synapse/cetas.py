@@ -14,7 +14,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-async def synapse_activity_cetas(ingress: dict):
+async def activity_synapse_cetas(ingress: dict):
     """
     Handles the creation of an external table in Azure Synapse Analytics,
     optionally creating or altering a view based on the table,

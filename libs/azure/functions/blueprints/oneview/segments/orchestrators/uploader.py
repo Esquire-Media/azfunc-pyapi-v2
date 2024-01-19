@@ -8,7 +8,7 @@ bp = Blueprint()
 
 
 @bp.orchestration_trigger(context_name="context")
-def oneview_orchestrator_segment_uploader(context: DurableOrchestrationContext) -> str:
+def orchestrator_oneview_uploadSegments(context: DurableOrchestrationContext) -> str:
     """
     Orchestrate the uploading of processed segment data to an S3 bucket.
 
@@ -72,22 +72,22 @@ def oneview_orchestrator_segment_uploader(context: DurableOrchestrationContext) 
                     "prefix": "s3-data-prefix"
                 }
             }
-            instance_id = await client.start_new('oneview_orchestrator_segment_uploader', None, ingress_data)
+            instance_id = await client.start_new('orchestrator_oneview_uploadSegments', None, ingress_data)
             return client.create_check_status_response(req, instance_id)
 
     Notes
     -----
     - The orchestrator function is idempotent and maintains its state through the `context`.
-    - The `synapse_activity_cetas` activity formats the segment data using Azure Synapse, and returns the URLs of the individual device blobs.
-    - The `datalake_concat_blobs` activity combines these blobs into a single blob.
-    - The `blob_to_s3` activity uploads the consolidated blob to the specified S3 bucket.
+    - The `activity_synapse_cetas` activity formats the segment data using Azure Synapse, and returns the URLs of the individual device blobs.
+    - The `activity_datalake_concatBlobs` activity combines these blobs into a single blob.
+    - The `activity_s3_blobTransfer` activity uploads the consolidated blob to the specified S3 bucket.
     - All the necessary parameters and configuration details are retrieved from the input object `ingress` passed to the orchestrator function.
     """
 
     ingress = context.get_input()
     # Format segment data using Synapse
     segment_urls = yield context.call_activity(
-        "synapse_activity_cetas",
+        "activity_synapse_cetas",
         {
             "instance_id": context.instance_id,
             "bind": "general",
@@ -138,7 +138,7 @@ def oneview_orchestrator_segment_uploader(context: DurableOrchestrationContext) 
 
     # Combine individual device blobs into a single blob
     segment_url = yield context.call_activity(
-        "datalake_concat_blobs",
+        "activity_datalake_concatBlobs",
         {
             "conn_str": ingress["source"]["conn_str"],
             "container_name": ingress["source"]["container_name"],
@@ -151,7 +151,7 @@ def oneview_orchestrator_segment_uploader(context: DurableOrchestrationContext) 
 
     # Upload the consolidated segment to S3
     yield context.call_activity(
-        "blob_to_s3",
+        "activity_s3_blobTransfer",
         {
             "source": segment_url,
             "target": {

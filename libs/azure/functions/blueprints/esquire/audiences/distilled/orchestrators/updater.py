@@ -7,7 +7,7 @@ bp = Blueprint()
 
 
 @bp.orchestration_trigger(context_name="context")
-def esquire_audiences_distilled_orchestrator_updater(
+def orchestrator_distilled(
     context: DurableOrchestrationContext,
 ):
     """
@@ -51,7 +51,7 @@ def esquire_audiences_distilled_orchestrator_updater(
     yield context.task_all(
         [
             context.call_sub_orchestrator(
-                "aws_athena_orchestrator",
+                "orchestrator_athena_root",
                 {
                     **settings["source"],
                     "query": v,

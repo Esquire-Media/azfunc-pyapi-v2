@@ -9,7 +9,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def meta_activity_request(ingress: dict) -> dict:
+def activity_meta_request(ingress: dict) -> dict:
     """
     An Azure Durable Function activity to handle API requests.
 

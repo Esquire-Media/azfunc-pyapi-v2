@@ -9,7 +9,7 @@ bp = Blueprint()
 
 
 @bp.orchestration_trigger(context_name="context")
-def oneview_reports_orchestrator(
+def orchestrator_oneviewReports(
     context: DurableOrchestrationContext,
 ):
     # Expected keys:
@@ -18,7 +18,7 @@ def oneview_reports_orchestrator(
 
     # Submit report generation request
     yield context.call_activity(
-        "oneview_reports_activity_run",
+        "activity_oneviewReports_run",
         ingress,
     )
 
@@ -26,7 +26,7 @@ def oneview_reports_orchestrator(
     download_url = ""
     while not download_url:
         download_url = yield context.call_activity(
-            "oneview_reports_activity_monitor",
+            "activity_oneviewReports_monitor",
             ingress,
         )
         yield context.create_timer(datetime.utcnow() + timedelta(minutes=5))

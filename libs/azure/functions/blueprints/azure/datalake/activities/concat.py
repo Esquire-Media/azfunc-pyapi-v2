@@ -10,7 +10,7 @@ import os
 bp = Blueprint()
 
 @bp.activity_trigger(input_name="ingress")
-def datalake_concat_blobs(ingress: dict) -> str:
+def activity_datalake_concatBlobs(ingress: dict) -> str:
     """
     Concatenate multiple Azure blobs into a single blob.
 
@@ -41,7 +41,7 @@ def datalake_concat_blobs(ingress: dict) -> str:
         import azure.durable_functions as df
 
         def orchestrator_function(context: df.DurableOrchestrationContext):
-            combined_blob_url = yield context.call_activity('datalake_concat_blobs', {
+            combined_blob_url = yield context.call_activity('activity_datalake_concatBlobs', {
                 "conn_str": "YOUR_AZURE_CONNECTION_STRING_ENV_VARIABLE",
                 "container_name": "your-azure-blob-container",
                 "blob_name": "combined-blob-name",

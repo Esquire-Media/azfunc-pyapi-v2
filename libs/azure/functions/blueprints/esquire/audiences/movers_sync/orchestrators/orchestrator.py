@@ -98,7 +98,7 @@ def orchestrator_moversSync_root(context: DurableOrchestrationContext):
 
         # for each dataset where data was added/validated, re-create its CETAS table
         yield context.call_activity_with_retry(
-            "synapse_activity_cetas",
+            "activity_synapse_cetas",
             retry,
             {
                 "instance_id": context.instance_id,

@@ -27,7 +27,7 @@ def esquire_dashboard_oneview_orchestrator(
 
     try:
         download_url = yield context.call_sub_orchestrator_with_retry(
-            "oneview_reports_orchestrator",
+            "orchestrator_oneviewReports",
             retry,
             ingress,
         )

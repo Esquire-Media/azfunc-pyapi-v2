@@ -55,7 +55,7 @@ def esquire_dashboard_xandr_orchestrator_creatives(
                     yield context.create_timer(datetime.utcnow() + timedelta(minutes=1))
 
         yield context.call_activity_with_retry(
-            "synapse_activity_cetas",
+            "activity_synapse_cetas",
             retry,
             {
                 "instance_id": context.instance_id,

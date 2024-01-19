@@ -8,14 +8,14 @@ bp = Blueprint()
 
 
 @bp.orchestration_trigger(context_name="context")
-def aws_athena_orchestrator(context: DurableOrchestrationContext):
+def orchestrator_athena_root(context: DurableOrchestrationContext):
     ingress = context.get_input()
-    execution_id = yield context.call_activity("aws_athena_activity_execute", ingress)
+    execution_id = yield context.call_activity("activity_athena_execute", ingress)
 
     url = ""
     while url == "":
         url = yield context.call_activity(
-            "aws_athena_activity_monitor",
+            "activity_athena_monitor",
             {
                 **ingress,
                 "execution_id": execution_id,
@@ -26,7 +26,7 @@ def aws_athena_orchestrator(context: DurableOrchestrationContext):
 
     if ingress.get("destination", False):
         url = yield context.call_activity(
-            "aws_athena_activity_download",
+            "activity_athena_download",
             {
                 **ingress["destination"],
                 "url": url,

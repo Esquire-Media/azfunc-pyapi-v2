@@ -11,14 +11,14 @@ bp = Blueprint()
 
 @bp.timer_trigger(arg_name="timer", schedule="0 0 0 * * *")
 @bp.durable_client_input(client_name="client")
-async def esquire_audiences_oneview_schedule_daily(
+async def timer_oneview_scheduleDaily(
     timer: TimerRequest, client: DurableOrchestrationClient
 ) -> None:
     """
     Scheduled function to start the OneView segment updater orchestrator daily.
 
     This function is triggered daily and starts an instance of the
-    `esquire_audiences_oneview_segment_updater` orchestrator for each record
+    `orchestrator_oneview_updateSegments` orchestrator for each record
     fetched from the NocoDB.
 
     Parameters
@@ -49,10 +49,10 @@ async def esquire_audiences_oneview_schedule_daily(
     for record in [None] + api.createRequest(("/OneView Segments", "get"))(
         parameters={"limit": 1000, "where": "(Enabled,eq,1)"}
     ).list:
-        # Start the `esquire_audiences_oneview_segment_updater` orchestrator
+        # Start the `orchestrator_oneview_updateSegments` orchestrator
         # If the record is not None, dump its model data as input
         await client.start_new(
-            "esquire_audiences_oneview_segment_updater",
+            "orchestrator_oneview_updateSegments",
             None,
             record.model_dump() if record != None else None,
         )

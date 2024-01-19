@@ -9,7 +9,7 @@ bp = Blueprint()
 
 
 @bp.orchestration_trigger(context_name="context")
-def esquire_audiences_oneview_segment_updater(
+def orchestrator_oneview_updateSegments(
     context: DurableOrchestrationContext,
 ) -> None:
     """
@@ -73,7 +73,7 @@ def esquire_audiences_oneview_segment_updater(
             }
             # Fetch the audience data from S3 keys
             s3_keys = yield context.call_activity(
-                "s3_list_objects",
+                "activity_s3_listObjects",
                 {
                     **s3,
                     "prefix": record["Folder"],
@@ -92,7 +92,7 @@ def esquire_audiences_oneview_segment_updater(
             audiences = yield context.task_all(
                 [
                     context.call_activity_with_retry(
-                        "esquire_audiences_oneview_fetch_s3_data",
+                        "activity_oneview_fetchS3Data",
                         retry,
                         {
                             "source": {
@@ -117,7 +117,7 @@ def esquire_audiences_oneview_segment_updater(
             if len(addresses_blobs):
                 # Generate header for on-spot processing
                 header_url = yield context.call_activity(
-                    "datalake_simple_write",
+                    "activity_datalake_write",
                     {
                         **azure,
                         "blob_name": "{}/raw/{}".format(
@@ -131,7 +131,7 @@ def esquire_audiences_oneview_segment_updater(
                 onspot_errors = []
                 try:
                     onspot_results = yield context.call_sub_orchestrator(
-                        "onspot_orchestrator",
+                        "orchestrator_onspot",
                         {
                             "conn_str": azure["conn_str"],
                             "container": azure["container_name"],
@@ -180,7 +180,7 @@ def esquire_audiences_oneview_segment_updater(
                 ]
 
             segment_url = yield context.call_sub_orchestrator(
-                "oneview_orchestrator_segment_uploader",
+                "orchestrator_oneview_uploadSegments",
                 {
                     "source": {
                         **azure,
@@ -202,7 +202,7 @@ def esquire_audiences_oneview_segment_updater(
 
             # Retain a copy of the segment file
             yield context.call_activity(
-                "azure_datalake_copy_blob",
+                "activity_datalake_copyBlob",
                 {
                     "source": segment_url,
                     "target": {

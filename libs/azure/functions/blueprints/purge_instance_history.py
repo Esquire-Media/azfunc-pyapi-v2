@@ -14,7 +14,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def get_sub_orchestrator_ids_activity(ingress: dict):
+def activity_purgeInstanceHistory_getSubOrchestratorIds(ingress: dict):
     return get_sub_orchestrator_ids(
         TableClient.from_connection_string(
             conn_str=os.environ[ingress.get("conn_str", "AzureWebJobsStorage")],
@@ -27,7 +27,7 @@ def get_sub_orchestrator_ids_activity(ingress: dict):
 
 @bp.activity_trigger(input_name="instanceId")
 @bp.durable_client_input(client_name="client")
-async def purge_instance_history_activity(
+async def activity_purgeInstanceHistory(
     instanceId: str, client: DurableOrchestrationClient
 ):
     await client.purge_instance_history(instanceId)
@@ -40,7 +40,7 @@ def purge_instance_history(context: DurableOrchestrationContext):
 
     # Check for sub-instances
     sub_instances: dict = yield context.call_activity(
-        "get_sub_orchestrator_ids_activity", ingress
+        "activity_purgeInstanceHistory_getSubOrchestratorIds", ingress
     )
 
     ## Purge sub-instances history
@@ -59,7 +59,7 @@ def purge_instance_history(context: DurableOrchestrationContext):
     )
 
     yield context.call_activity(
-        "purge_instance_history_activity", ingress["instance_id"]
+        "activity_purgeInstanceHistory", ingress["instance_id"]
     )
 
     return ""
@@ -67,7 +67,7 @@ def purge_instance_history(context: DurableOrchestrationContext):
 
 @bp.timer_trigger("timer", schedule="0 */5 * * * *")
 @bp.durable_client_input("client")
-async def purge_instance_history_cleaner(
+async def timer_purgeInstanceHistory_scheduler(
     timer: TimerRequest, client: DurableOrchestrationClient
 ):
     for entity in TableClient.from_connection_string(

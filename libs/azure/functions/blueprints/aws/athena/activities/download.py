@@ -11,7 +11,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def aws_athena_activity_download(ingress: dict):
+def activity_athena_download(ingress: dict):
     blob: BlobClient = BlobClient.from_connection_string(
         conn_str=os.environ[ingress["conn_str"]],
         container_name=ingress["container_name"],

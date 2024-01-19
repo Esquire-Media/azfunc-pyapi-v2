@@ -15,7 +15,7 @@ bp: Blueprint = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def activity_onSpot_mergeDevices(ingress: dict):
+def activity_onspot_mergeDevices(ingress: dict):
     # source container
     sources_container_client = ContainerClient.from_connection_string(
         conn_str=os.environ[ingress["source"]["conn_str"]],

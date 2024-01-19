@@ -9,7 +9,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def oneview_reports_activity_monitor(ingress: dict):
+def activity_oneviewReports_monitor(ingress: dict):
     data = OneView["getReports"](
         parameters={
             "filter": '((status:"running") AND (report_template_uid:'

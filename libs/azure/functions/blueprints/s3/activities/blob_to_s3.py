@@ -1,4 +1,4 @@
-# File: libs/azure/functions/blueprints/s3/activities/blob_to_s3.py
+# File: libs/azure/functions/blueprints/s3/activities/activity_s3_blobTransfer.py
 
 from azure.storage.blob import BlobClient
 from libs.azure.functions import Blueprint
@@ -8,7 +8,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def blob_to_s3(ingress: dict):
+def activity_s3_blobTransfer(ingress: dict):
     """
     Transfer data from an Azure Blob to an Amazon S3 object.
 
@@ -45,7 +45,7 @@ def blob_to_s3(ingress: dict):
         import azure.durable_functions as df
 
         def orchestrator_function(context: df.DurableOrchestrationContext):
-            response = yield context.call_activity('blob_to_s3', {
+            response = yield context.call_activity('activity_s3_blobTransfer', {
                 "source": "https://yourazurebloburl",
                 "target": {
                     "access_key": "YOUR_AWS_ACCESS_KEY_ENV_VARIABLE",

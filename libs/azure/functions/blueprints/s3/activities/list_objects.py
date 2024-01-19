@@ -7,7 +7,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def s3_list_objects(ingress: dict) -> list:
+def activity_s3_listObjects(ingress: dict) -> list:
     """
     List object keys from an S3 bucket based on specified parameters.
 
@@ -38,7 +38,7 @@ def s3_list_objects(ingress: dict) -> list:
         import azure.durable_functions as df
 
         def orchestrator_function(context: df.DurableOrchestrationContext):
-            s3_keys = yield context.call_activity('s3_list_objects', {
+            s3_keys = yield context.call_activity('activity_s3_listObjects', {
                 "access_key": "MY_ACCESS_KEY",
                 "secret_key": "MY_SECRET_KEY",
                 "region": "us-west-1",

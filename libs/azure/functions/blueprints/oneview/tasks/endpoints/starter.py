@@ -19,7 +19,7 @@ bp = Blueprint()
 @bp.easy_auth()
 @bp.route(route="async/tasks", methods=["POST"])
 @bp.durable_client_input(client_name="client")
-async def oneview_endpoint_starter(
+async def http_oneview_starter(
     req: HttpRequest, client: DurableOrchestrationClient
 ):
     """

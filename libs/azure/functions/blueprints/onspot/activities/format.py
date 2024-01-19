@@ -16,7 +16,7 @@ bp = Blueprint()
 
 @bp.activity_trigger(input_name="ingress")
 @bp.durable_client_input(client_name="client")
-async def onspot_activity_format(ingress: dict, client: DurableOrchestrationClient):
+async def activity_onspot_format(ingress: dict, client: DurableOrchestrationClient):
     """
     Formats the request for a specific orchestrator instance.
 

@@ -32,7 +32,7 @@ def orchestrator_esquireAudienceMaidsAddresses_standard(
 
     # Call the OnSpot Orchestrator with the necessary parameters
     onspot = yield context.call_sub_orchestrator_with_retry(
-        "onspot_orchestrator",
+        "orchestrator_onspot",
         retry,
         {
             **ingress["working"],
@@ -65,7 +65,7 @@ def orchestrator_esquireAudienceMaidsAddresses_standard(
 
     # Merge device files into a single file
     yield context.call_activity_with_retry(
-        "activity_onSpot_mergeDevices",
+        "activity_onspot_mergeDevices",
         retry,
         {
             "source": ingress["working"],

@@ -8,7 +8,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def aws_athena_activity_monitor(ingress: dict):
+def activity_athena_monitor(ingress: dict):
     session = boto3.Session(
         aws_access_key_id=os.getenv(ingress["access_key"], ingress["access_key"]),
         aws_secret_access_key=os.getenv(ingress["secret_key"], ingress["secret_key"]),

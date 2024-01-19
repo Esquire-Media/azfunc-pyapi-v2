@@ -15,7 +15,7 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def datalake_simple_write(ingress: dict) -> dict:
+def activity_datalake_write(ingress: dict) -> dict:
     """
     Write content to Azure Blob Storage and return a SAS token URL.
 
@@ -47,7 +47,7 @@ def datalake_simple_write(ingress: dict) -> dict:
         import azure.durable_functions as df
 
         def orchestrator_function(context: df.DurableOrchestrationContext):
-            write_info = yield context.call_activity('datalake_simple_write', {
+            write_info = yield context.call_activity('activity_datalake_write', {
                 "conn_str": "AZURE_BLOB_CONNECTION_STRING",
                 "container_name": "my-container",
                 "blob_name": "sample_blob.txt",

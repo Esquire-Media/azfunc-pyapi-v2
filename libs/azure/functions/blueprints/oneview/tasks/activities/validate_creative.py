@@ -14,7 +14,7 @@ bp = Blueprint()
 # Define an Azure Durable Activity Function
 @bp.activity_trigger(input_name="instanceId")
 @bp.durable_client_input(client_name="client")
-async def oneview_activity_validate_creative(
+async def activity_oneview_validateCreative(
     instanceId: str, client: DurableOrchestrationClient
 ) -> str:
     """

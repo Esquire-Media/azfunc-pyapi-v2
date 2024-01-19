@@ -15,9 +15,15 @@ bp = Blueprint()
 
 @bp.route(route="esquire/salesUploader/readClientConfig", methods=["POST", "OPTIONS"])
 @bp.durable_client_input(client_name="client")
-async def http_matchback_readClientConfig(
+async def http_salesUploader_readClientConfig(
     req: HttpRequest, client: DurableOrchestrationClient
 ):
+    """
+    POST request that returns sales column mappings of the previous file uploaded for a given client.
+
+    Payload:
+    group_id
+    """
     
     # validate the MS bearer token to ensure the user is authorized to make requests
     try:
@@ -40,7 +46,6 @@ async def http_matchback_readClientConfig(
         else "AzureWebJobsStorage"
     )
     egress = {
-        "uploads_container": {"conn_str": conn_str, "container_name":"uploads"},
         "client_config_table":{"conn_str":conn_str, "table_name":"clientConfig"}
     }
 

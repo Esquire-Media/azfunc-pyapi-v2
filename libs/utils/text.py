@@ -1,6 +1,7 @@
 from typing import Dict, Union
 import numpy as np, re
-
+import dateutil.parser as parser
+from datetime import datetime
 
 # Define a function to convert a string to camel case
 def camel_case(s):
@@ -72,6 +73,47 @@ def format_zip4(z):
         return z
     except IndexError:
         return None
+    
+def format_date(d:str) -> datetime:
+    return parser.parse(d)
+    
+    
+def format_sales(price):
+    """
+    Cleans individual sales value by way of regex and converts to float
+    
+    Examples:
+        '-$10,525.23'               -> -10525.23
+        '$55.24'                    -> 55.24
+        '$77,759 additional cost'   -> 77759        # a real thing I've encountered
+        '($1058)'                   -> -1058
+        'foo'                       -> 0            # includes a catch for non-numerical inputs
+        0                           -> 0
+
+    """
+    price = str(price)
+    results = re.search(r'(-?\$?-?)([0-9]+[\.,0-9]*)', price)
+
+    if results is None:
+        return 0
+    
+    val = results.groups()[-1].replace(',','')
+
+    if negative_price_check(price, results):
+        return -abs(float(val))
+    else:
+        return float(val)
+    
+def negative_price_check(price, results):
+    """
+    Checks a couple things to check if we have a negative value
+    """
+    if (price[0] == '(') & (price[-1] == ')'):
+        return True
+    elif '-' in results.groups()[0]:
+        return True
+    
+    return False
 
 
 def to_number(

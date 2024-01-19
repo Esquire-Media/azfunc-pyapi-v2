@@ -51,7 +51,7 @@ def orchestrator_distilled(
     yield context.task_all(
         [
             context.call_sub_orchestrator(
-                "orchestrator_athena_root",
+                "orchestrator_athena",
                 {
                     **settings["source"],
                     "query": v,

@@ -8,7 +8,7 @@ bp = Blueprint()
 
 
 @bp.orchestration_trigger(context_name="context")
-def orchestrator_athena_root(context: DurableOrchestrationContext):
+def orchestrator_athena(context: DurableOrchestrationContext):
     ingress = context.get_input()
     execution_id = yield context.call_activity("activity_athena_execute", ingress)
 

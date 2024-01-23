@@ -11,5 +11,6 @@ bp = Blueprint()
     connection="TEST_CONN_STR", # Environmental variable key of an Azure Storage Connection String
 )
 def example_blob(blob: InputStream):
-    logging.warning(blob.uri)
-    logging.warning(pd.read_csv(blob))
+    for chunk in pd.read_csv(blob, chunksize=100):
+        logging.warning(chunk)
+    

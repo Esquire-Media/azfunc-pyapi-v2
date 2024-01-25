@@ -13,31 +13,32 @@ def esquire_dashboard_oneview_orchestrator(
 ):
     ingress = context.get_input()
     retry = RetryOptions(60000, 12)
+    # Get the current time to use as a timestamp for data processing
+    pull_time = context.current_utc_datetime.isoformat()
     conn_str = (
         "ONEVIEW_CONN_STR"
         if "ONEVIEW_CONN_STR" in os.environ.keys()
         else "AzureWebJobsStorage"
     )
 
-    persistent_container = {
-        "conn_str": conn_str,
-        "container_name": "email-report-ingress",
-        "prefix": "insights/",
-    }
-
     try:
+        # Run and monitor the report generation
         download_url = yield context.call_sub_orchestrator_with_retry(
             "oneview_reports_orchestrator",
             retry,
             ingress,
         )
-        # Partition the report into parquet files by date
+        # Download the report to a blob
         yield context.call_activity_with_retry(
-            "esquire_dashboard_oneview_activity_partition",
+            "azure_datalake_copy_blob",
             retry,
             {
                 "source": download_url,
-                "target": persistent_container,
+                "target": {
+                    "conn_str": conn_str,
+                    "container_name": "general",
+                    "blob_name": f"oneview/deltas/insights/{pull_time}.csv",
+                },
             },
         )
     except Exception as e:

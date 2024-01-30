@@ -24,10 +24,10 @@ def oneview_reports_orchestrator(
     # Periodically check to see if it's done and get the download url when it is
     download_url = ""
     while not download_url:
-        yield context.create_timer(datetime.utcnow() + timedelta(minutes=5))
         download_url = yield context.call_activity(
             "oneview_reports_activity_monitor",
             ingress,
         )
+        yield context.create_timer(datetime.utcnow() + timedelta(minutes=5))
 
     return download_url

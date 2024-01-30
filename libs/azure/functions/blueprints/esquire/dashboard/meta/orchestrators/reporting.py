@@ -164,7 +164,7 @@ def esquire_dashboard_meta_orchestrator_reporting(
                 return {}
 
     # Retrieve Ads, Campaigns, and AdSets for the given account
-    for entity in ["Ads", "Campaigns", "Adsets"]:
+    for entity in ["Ads", "Campaigns", "Adsets", "Adcreatives"]:
         context.set_custom_status(
             f"Getting {entity} for account {ingress['account_id']}"
         )

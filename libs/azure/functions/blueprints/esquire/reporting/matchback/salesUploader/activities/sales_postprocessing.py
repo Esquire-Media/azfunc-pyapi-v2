@@ -40,12 +40,13 @@ def activity_salesUploader_salesPostProcessing(ingress: dict):
         right_index=True,
         left_index=True,
     )
+    merged_df['matchbackName'] = ingress['settings']['matchback_name']
 
     # connect to the output blob and upload the processed data
     egress = {
         "conn_str":ingress['uploads_container']['conn_str'],
         "container_name":ingress['uploads_container']["container_name"],
-        "blob_name":f"{ingress['settings']['group_id']}/{ingress['settings']['matchback_name']}/{ingress['instance_id']}.standardized",
+        "blob_name":f"{ingress['settings']['group_id']}/{ingress['instance_id']}.standardized",
         "date_first":merged_df['date'].min(),
         "date_last":merged_df['date'].max()
     }

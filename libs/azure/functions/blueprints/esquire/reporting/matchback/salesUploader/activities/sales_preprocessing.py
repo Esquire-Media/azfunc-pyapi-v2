@@ -39,13 +39,15 @@ def activity_salesUploader_salesPreProcessing(ingress: dict):
 
     # non-standardizable columns will be stored as a data appendix, with transactionId as a shared index
     appendix = df[[col for col in df.columns if col not in ingress["columns"].values() or col in ['transactionId']]]
+    appendix = appendix.melt(id_vars=['transactionId'])
+
     # upload the appendix data to its final destination (no more processing is required on it)
     appendix_client = BlobClient.from_connection_string(
         conn_str=os.environ[ingress['uploads_container']['conn_str']],
         container_name=ingress['uploads_container']["container_name"],
         blob_name=f"{ingress['settings']['group_id']}/{ingress['settings']['matchback_name']}/{ingress['instance_id']}.appendix",
     )
-    appendix_client.upload_blob(appendix.to_csv(index=False))
+    appendix_client.upload_blob(appendix.to_parquet(index=False))
 
     # fill date values if not set or null values exist
     if "date_fill" in ingress["settings"].keys():

@@ -55,6 +55,6 @@ def activity_salesUploader_salesPostProcessing(ingress: dict):
         container_name=egress["container_name"],
         blob_name=egress['blob_name'],
     )
-    egress_client.upload_blob(merged_df.to_csv(index=False))
+    egress_client.upload_blob(merged_df.to_parquet(index=False))
 
     return egress

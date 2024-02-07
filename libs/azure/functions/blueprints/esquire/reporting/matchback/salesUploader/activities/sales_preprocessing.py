@@ -27,11 +27,12 @@ def activity_salesUploader_salesPreProcessing(ingress: dict):
         blob_name=f"{ingress['instance_id']}/01_ingress",
     )
     df = pd.read_csv(
-        get_blob_download_url(blob_client=ingress_client, expiry=timedelta(minutes=10))
+        get_blob_download_url(blob_client=ingress_client, expiry=timedelta(minutes=10)), dtype=str
     )
     df = df.dropna(axis=1, how='all') # drop null columns
     df = df.dropna(axis=0, how='all') # drop null rows
-    df.insert(loc=0, column='transactionId', value=[uuid4() for _ in range(len(df.index))]) # set a unique ID for each transaction
+    df.insert(loc=0, column='transactionId', value=[str(uuid4()) for _ in range(len(df.index))]) # set a unique ID for each transaction
+    df['matchbackName'] = ingress['settings']['matchback_name']
 
     # slice to only include standardizable columns, and rename to the standard column nameset
     standardizable = df[[col for col in df.columns if col in ingress["columns"].values() or col in ['transactionId']]]
@@ -42,12 +43,12 @@ def activity_salesUploader_salesPreProcessing(ingress: dict):
     appendix = appendix.melt(id_vars=['transactionId'])
 
     # upload the appendix data to its final destination (no more processing is required on it)
-    appendix_client = BlobClient.from_connection_string(
+    with BlobClient.from_connection_string(
         conn_str=os.environ[ingress['uploads_container']['conn_str']],
         container_name=ingress['uploads_container']["container_name"],
-        blob_name=f"{ingress['settings']['group_id']}/{ingress['settings']['matchback_name']}/{ingress['instance_id']}.appendix",
-    )
-    appendix_client.upload_blob(appendix.to_parquet(index=False))
+        blob_name=f"{ingress['settings']['group_id']}/{ingress['timestamp']}.appendix",
+    ) as appendix_client:
+        appendix_client.upload_blob(appendix.to_parquet())
 
     # fill date values if not set or null values exist
     if "date_fill" in ingress["settings"].keys():
@@ -63,8 +64,10 @@ def activity_salesUploader_salesPreProcessing(ingress: dict):
 
     # uppercase the text columns to prevent case matching issues later
     standardizable["address"] = standardizable["address"].str.upper()
-    standardizable["city"] = standardizable["city"].str.upper()
-    standardizable["state"] = standardizable["state"].str.upper()
+    if 'city' in standardizable.columns:
+        standardizable["city"] = standardizable["city"].str.upper()
+    if 'state' in standardizable.columns:
+        standardizable["state"] = standardizable["state"].str.upper()
 
     # validate the sales column, or create one if it doesn't exist yet
     if "saleAmount" not in standardizable.columns:

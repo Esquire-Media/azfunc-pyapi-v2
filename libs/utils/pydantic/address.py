@@ -11,10 +11,25 @@ class AddressComponents(BaseModel):
     state: str
     zip: str
 
+class AddressComponents2(BaseModel):
+    street: str
+    city: str
+    state: str
+    zipcode: str
+
 class AddressGeocoded(BaseModel):
     address: str
     latitude: Latitude
     longitude: Longitude
+
+# Placekey
+def check_placekey_format(x:str):
+    x = x.strip()
+    if re.match(pattern="^[a-zA-Z0-9\-]+@[a-zA-Z0-9\-]$", string=x):
+        return x
+    else:
+        raise ValidationError(f"String '{x}' could not be interpreted as a placekey.")
+Placekey = Annotated[str, AfterValidator(check_placekey_format)]
 
 def check_esqid_format(x:str):
     x = x.strip()

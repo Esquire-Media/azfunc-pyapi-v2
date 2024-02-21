@@ -3,8 +3,10 @@
 from azure.durable_functions import DurableOrchestrationClient
 from libs.azure.functions import Blueprint
 from libs.azure.functions.http import HttpRequest
+from azure.functions import TimerRequest
 from libs.utils.logging import AzureTableHandler
 import json, logging
+import requests
 
 bp = Blueprint()
 
@@ -18,7 +20,7 @@ if __handler not in __logger.handlers:
 @bp.durable_client_input(client_name="client")
 async def starter_moversSync(req: HttpRequest, client: DurableOrchestrationClient):
     """
-    HTTP-triggered function to start the Movers Sync orchestrator.
+    Timer-triggered function to start the Movers Sync orchestrator.
 
     This function is triggered via an HTTP POST request. It starts a new instance of 
     the Movers Sync orchestrator function and logs the initiation with relevant details.
@@ -59,3 +61,10 @@ async def starter_moversSync(req: HttpRequest, client: DurableOrchestrationClien
 
     # Return a response with the status query URLs for the orchestrator instance
     return client.create_check_status_response(req, instance_id)
+
+@bp.timer_trigger(arg_name="timer", schedule="0 0 8 * * *")
+def timer_moversSync(timer: TimerRequest):
+    """
+    Start an instance of the movers sync once per day (at 3 AM ET).
+    """
+    requests.post("https://esquire-movers-sync.azurewebsites.net/api/esquire/movers-sync/starter")

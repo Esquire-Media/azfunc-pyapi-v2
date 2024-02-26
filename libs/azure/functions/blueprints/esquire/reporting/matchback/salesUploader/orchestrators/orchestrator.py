@@ -16,6 +16,7 @@ def orchestrator_salesUploader(context: DurableOrchestrationContext):
 
     # function ingress
     ingress = context.get_input()
+    timestamp = context.current_utc_datetime.isoformat()
     retry = RetryOptions(15000, 1)
 
     # catch the salesUploaded external event
@@ -31,6 +32,7 @@ def orchestrator_salesUploader(context: DurableOrchestrationContext):
         **ingress,
         **salesUploadedPayload,
         "instance_id": context.instance_id,
+        "timestamp": timestamp,
     }
 
     # run pre-processing operations before Smarty validation

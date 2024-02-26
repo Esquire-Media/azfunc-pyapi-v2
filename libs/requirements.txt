@@ -16,6 +16,7 @@ marshmallow-sqlalchemy>=0.29.0
 pandas>=2.0.0
 smart-open
 sqlalchemy>=2.0.0
+fastparquet
 ## openapi
 git+https://github.com/ggpwnkthx/aiopenapi3
 httpx_auth

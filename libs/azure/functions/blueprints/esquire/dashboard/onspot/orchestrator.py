@@ -88,9 +88,8 @@ def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
             ]
         )
 
-        urls = yield context.call_activity_with_retry(
+        urls = yield context.call_activity(
             "synapse_activity_cetas",
-            retry,
             {
                 "instance_id": context.instance_id,
                 "bind": "onspot",
@@ -139,9 +138,8 @@ def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
             ]
         )
 
-        yield context.call_activity_with_retry(
+        yield context.call_activity(
             "synapse_activity_cetas",
-            retry,
             {
                 "instance_id": context.instance_id,
                 "bind": "onspot",

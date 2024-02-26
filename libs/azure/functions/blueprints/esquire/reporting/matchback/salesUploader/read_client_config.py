@@ -30,14 +30,12 @@ async def http_salesUploader_readClientConfig(
         validator = ValidateMicrosoft(
             tenant_id=os.environ["MS_TENANT_ID"], client_id=os.environ["MS_CLIENT_ID"]
         )
-        logging.warning(req.headers.get("authorization"))
         headers = validator(req.headers.get("authorization"))
     except TokenValidationError as e:
         return HttpResponse(status_code=401, body=f"TokenValidationError: {e}")
     
      # ingest the payload from the external event as a Pydantic object
     payload = HttpRequest.pydantize_body(req, ClientConfigPayload).model_dump()
-    logging.warning(payload)
 
     # set storage connection variables
     conn_str = (

@@ -6,7 +6,7 @@ from libs.azure.functions.blueprints.esquire.dashboard.meta.config import (
     PARAMETERS,
     CETAS,
 )
-import os, logging
+import os
 
 bp = Blueprint()
 
@@ -126,7 +126,7 @@ def esquire_dashboard_meta_orchestrator_report_batch(
                 "destination": {
                     "container_name": container_name,
                     "handle": "sa_esquiregeneral",
-                    "blob_prefix": f"meta/tables/AdsInsights/{pull_time}",
+                    "blob_prefix": f"meta/tables/adsinsights/{pull_time}",
                 },
                 "query": CETAS["AdAccount.Post.Insights"],
                 "view": True,
@@ -135,7 +135,7 @@ def esquire_dashboard_meta_orchestrator_report_batch(
         )
 
         # Generate CETAS for Ads, Campaigns, and AdSets
-        for entity in ["Ads", "Campaigns", "AdSets"]:
+        for entity in ["Ads", "Campaigns", "AdSets", "Adcreatives"]:
             context.set_custom_status(f"Generating {entity} CETAS")
             yield context.call_activity_with_retry(
                 "synapse_activity_cetas",
@@ -147,7 +147,7 @@ def esquire_dashboard_meta_orchestrator_report_batch(
                     "destination": {
                         "container_name": container_name,
                         "handle": "sa_esquiregeneral",
-                        "blob_prefix": f"meta/tables/{entity}/{pull_time}",
+                        "blob_prefix": f"meta/tables/{entity.lower()}/{pull_time}",
                     },
                     "query": CETAS[f"AdAccount.Get.{entity.title()}"],
                     "view": True,

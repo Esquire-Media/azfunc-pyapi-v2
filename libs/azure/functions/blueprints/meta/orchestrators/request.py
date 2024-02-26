@@ -104,7 +104,7 @@ def meta_orchestrator_request(context: DurableOrchestrationContext):
                             if "X-Business-Use-Case-Usage" in response["headers"].keys()
                             else 0
                         )
-                        timer = datetime.utcnow() + timedelta(minutes=throttle)
+                        timer = context.current_utc_datetime + timedelta(minutes=throttle+1)
                         context.set_custom_status(
                             f"Waiting to get page {page}. Throttled until {timer.isoformat()}."
                         )

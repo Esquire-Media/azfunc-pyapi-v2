@@ -36,7 +36,7 @@ def activity_salesUploader_salesPostProcessing(ingress: dict):
         smarty_df[
             ["delivery_line_1", "city_name", "state_abbreviation", "zipcode", "plus4_code"]
         ],
-        ingress_df.drop(columns=["address", "city", "state", "zipcode"]),
+        ingress_df.drop(columns=["address", "city", "state", "zipcode"], errors='ignore'),
         right_index=True,
         left_index=True,
     )
@@ -45,15 +45,15 @@ def activity_salesUploader_salesPostProcessing(ingress: dict):
     egress = {
         "conn_str":ingress['uploads_container']['conn_str'],
         "container_name":ingress['uploads_container']["container_name"],
-        "blob_name":f"{ingress['settings']['group_id']}/{ingress['settings']['matchback_name']}/{ingress['instance_id']}.standardized",
+        "blob_name":f"{ingress['settings']['group_id']}/{ingress['timestamp']}.standardized",
         "date_first":merged_df['date'].min(),
         "date_last":merged_df['date'].max()
     }
-    egress_client = BlobClient.from_connection_string(
+    with BlobClient.from_connection_string(
         conn_str=os.environ[egress["conn_str"]],
         container_name=egress["container_name"],
         blob_name=egress['blob_name'],
-    )
-    egress_client.upload_blob(merged_df.to_csv(index=False))
+    ) as egress_client:
+        egress_client.upload_blob(merged_df.to_parquet())
 
     return egress

@@ -9,7 +9,7 @@ import os
 bp = Blueprint()
 
 
-@bp.timer_trigger("timer", schedule="0 0 8 * * *")
+@bp.timer_trigger("timer", schedule="0 0 6 * * *")
 @bp.durable_client_input("client")
 async def daily_dashboard_oneview_starter(
     timer: TimerRequest, client: DurableOrchestrationClient

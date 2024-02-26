@@ -48,16 +48,20 @@ def esquire_dashboard_xandr_activity_creatives(ingress: dict):
         }
     else:
         provider = from_bind("xandr_dashboard")
-        return next(
-            iter(
+        return [
+            str(
                 next(
                     iter(
-                        pd.read_sql(
-                            sql="SELECT MAX([last_modified]) FROM [creatives]",
-                            con=provider.connect().connection(),
-                        ).iloc
-                    ),
-                    ["1970-01-01 00:00:00"],
+                        next(
+                            iter(
+                                pd.read_sql(
+                                    sql="SELECT MAX([last_modified]) FROM [dashboard].[creatives]",
+                                    con=provider.connect().connection(),
+                                ).iloc
+                            ),
+                            "1970-01-01 00:00:00",
+                        )
+                    )
                 )
             )
-        )
+        ]

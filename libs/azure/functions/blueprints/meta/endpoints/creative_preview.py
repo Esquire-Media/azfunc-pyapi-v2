@@ -14,5 +14,7 @@ bp = Blueprint()
     auth_level=AuthLevel.FUNCTION,
 )
 async def meta_endpoint_creativePreview(req: HttpRequest):
-    previews = Meta["AdCreative.Get.Previews"](parameters=req.params)
+    previews = Meta["AdCreative.Get.Previews"](
+        parameters={k: v for k, v in req.params.items() if k != "code"}
+    )
     return HttpResponse("".join([p["body"] for p in previews.root.data]))

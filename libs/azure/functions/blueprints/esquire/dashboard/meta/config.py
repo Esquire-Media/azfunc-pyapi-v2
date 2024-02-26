@@ -1040,7 +1040,7 @@ CETAS = {
                     [template_url] VARCHAR(1024),
                     [thumbnail_id] VARCHAR(32),
                     [thumbnail_url] VARCHAR(1024),
-                    [title] VARCHAR(128),
+                    [title] VARCHAR(256),
                     [url_tags] VARCHAR(1024),
                     [use_page_actor_override] VARCHAR(1),
                     [video_id] VARCHAR(32)

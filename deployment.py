@@ -51,6 +51,7 @@ BLUEPRINTS = {
         "libs/azure/functions/blueprints/esquire/audiences/movers_sync/*",
         "libs/azure/functions/blueprints/azure/synapse/*",
         "libs/azure/functions/blueprints/purge_instance_history",
+        "libs/azure/functions/blueprints/microsoft/graph/*",
     ],
     "esquire-sales-uploader":[
         "libs/azure/functions/blueprints/keep_alive",

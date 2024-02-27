@@ -120,9 +120,8 @@ def orchestrator_moversSync_root(context: DurableOrchestrationContext):
             )
 
             # drop the tables which were marked for deletion earlier
-            yield context.call_activity_with_retry(
+            yield context.call_activity(
                 "activity_synapse_cleanupTables",
-                retry,
                 {"bind": "audiences", "table_names": old_tables, "schema": "dbo"},
             )
 

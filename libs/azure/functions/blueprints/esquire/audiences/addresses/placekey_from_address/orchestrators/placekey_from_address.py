@@ -58,11 +58,11 @@ def orchestrator_placekey_fromAddress(context: DurableOrchestrationContext):
     logger = logging.getLogger("placekey.logger")
 
     # validate the ingress payload's format
-    payload = PlacekeyPayload.model_validate(
+    payload = AddressPayload.model_validate(
         context.get_input()
     ).model_dump()
 
-    # call address-to-placekey conversions with a defined batch size
+    # call address-to-placekey conversions with a defined batch size and collate the results
     placekey_lists = yield context.task_all(
         [
             context.call_activity_with_retry(
@@ -70,7 +70,7 @@ def orchestrator_placekey_fromAddress(context: DurableOrchestrationContext):
                 retry_options=retry,
                 input_=[address for address in payload['addresses'][i : i + batch_size]]
             )
-        for i in range(0, len(payload['addresses']), batch_size)
+            for i in range(0, len(payload['addresses']), batch_size)
         ]
     )
     # flatten list of lists
@@ -82,5 +82,5 @@ def orchestrator_placekey_fromAddress(context: DurableOrchestrationContext):
 
     return placekeys
 
-class PlacekeyPayload(BaseModel):
+class AddressPayload(BaseModel):
     addresses: conlist(AddressComponents2, min_length=1)

@@ -35,7 +35,7 @@ async def starter_placekeys_fromAddress(req: HttpRequest, client: DurableOrchest
     """
     Endpoint for passing a list of address data objects and returning a list of placekeys.
     """
-    payload = HttpRequest.pydantize_body(req, PlacekeyPayload).model_dump()
+    payload = HttpRequest.pydantize_body(req, AddressPayload).model_dump()
 
     instance_id = await client.start_new(
         orchestration_function_name="orchestrator_placekey_fromAddress",
@@ -44,5 +44,5 @@ async def starter_placekeys_fromAddress(req: HttpRequest, client: DurableOrchest
 
     return client.create_check_status_response(req, instance_id)
 
-class PlacekeyPayload(BaseModel):
+class AddressPayload(BaseModel):
     addresses: conlist(AddressComponents2, min_length=1)

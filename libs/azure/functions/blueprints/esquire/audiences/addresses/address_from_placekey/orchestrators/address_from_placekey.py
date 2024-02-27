@@ -5,9 +5,10 @@ from libs.azure.functions import Blueprint
 from pydantic import BaseModel, conlist
 from libs.utils.pydantic.address import Placekey
 import logging
+import os
 
 bp = Blueprint()
-batch_size = 100000
+batch_size = os.environ.get("ADDRESS_FROM_PLACEKEY_BATCH_SIZE", 100000)
 
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_addresses_fromPlacekey(context: DurableOrchestrationContext):

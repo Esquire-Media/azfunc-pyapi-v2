@@ -21,7 +21,7 @@ from datetime import datetime as dt, timedelta
 import requests
 
 bp = Blueprint()
-batch_size = 1000
+batch_size = os.environ.get("PLACEKEY_FROM_ADDRESS_BATCH_SIZE", 1000)
 
 
 @bp.orchestration_trigger(context_name="context")

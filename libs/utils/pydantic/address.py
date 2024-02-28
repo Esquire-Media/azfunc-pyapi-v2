@@ -25,7 +25,7 @@ class AddressGeocoded(BaseModel):
 # Placekey
 def check_placekey_format(x:str):
     x = x.strip()
-    if re.match(pattern="^[a-zA-Z0-9\-]+@[a-zA-Z0-9\-]$", string=x):
+    if re.match(pattern="^[a-zA-Z0-9\-]+@[a-zA-Z0-9\-]+$", string=x):
         return x
     else:
         raise ValidationError(f"String '{x}' could not be interpreted as a placekey.")

@@ -17,6 +17,7 @@ if __handler not in __logger.handlers:
     __logger.addHandler(__handler)
 
 @bp.timer_trigger(arg_name="timer", schedule="0 0 8 * * *")
+@bp.durable_client_input(client_name="client")
 async def starter_moversSync(timer: TimerRequest, client: DurableOrchestrationClient):
     """
     Timer-triggered function to start the Movers Sync orchestrator.

@@ -53,6 +53,13 @@ async def synapse_activity_cetas(ingress: dict):
     This function is specific to Azure Synapse Analytics and requires appropriate
     Azure permissions and configurations to be set up in advance.
     """
+    if ingress["destination"].get("container"):
+        ingress["desitnation"]["container_name"] = ingress["desitnation"]["container"]
+        del ingress["desitnation"]["container"]
+    if ingress["destination"].get("path"):
+        ingress["destination"]["blob_prefix"] = ingress["desitnation"]["path"]
+        del ingress["desitnation"]["path"]
+    
     # Construct the table name using the provided schema (or default to 'dbo'), table name, and instance ID.
     table_name = f'[{ingress["table"].get("schema", "dbo")}].[{ingress["table"]["name"]}_{ingress["instance_id"]}]'
     query = """
@@ -66,10 +73,8 @@ async def synapse_activity_cetas(ingress: dict):
         {}
     """.format(
         table_name,
-        ingress["destination"].get(
-            "container_name", ingress["destination"].get("container")
-        ),
-        ingress["destination"].get("blob_prefix", ingress["destination"].get("path")),
+        ingress["destination"]["container_name"],
+        ingress["destination"]["blob_prefix"],
         ingress["destination"]["handle"],
         ingress["destination"].get("format", "PARQUET"),
         ingress["query"],
@@ -145,12 +150,8 @@ async def synapse_activity_cetas(ingress: dict):
                 """.format(
                     ingress["table"].get("schema", "dbo"),
                     ingress["table"]["name"],
-                    ingress["destination"].get(
-                        "container_name", ingress["destination"].get("container")
-                    ),
-                    ingress["destination"].get(
-                        "blob_prefix", ingress["destination"].get("path")
-                    ),
+                    ingress["destination"]["container_name"],
+                    ingress["destination"]["blob_prefix"],
                     ingress["destination"].get("format", "PARQUET").lower(),
                     ingress["destination"]["handle"],
                     ingress["destination"].get("format", "PARQUET"),
@@ -165,9 +166,7 @@ async def synapse_activity_cetas(ingress: dict):
             conn_str=os.getenv(
                 ingress["destination"]["conn_str"], os.environ["AzureWebJobsStorage"]
             ),
-            container_name=ingress["destination"].get(
-                "container_name", ingress["destination"]["container"]
-            ),
+            container_name=ingress["destination"]["container_name"],
         )
 
         # List and generate SAS URLs for blobs that match the specified criteria.
@@ -183,7 +182,7 @@ async def synapse_activity_cetas(ingress: dict):
                 expiry=datetime.utcnow() + relativedelta(days=2),
             )
             for blob_props in container.list_blobs(
-                name_starts_with=ingress["destination"]["path"]
+                name_starts_with=ingress["destination"]["blob_prefix"]
             )
             if blob_props.name.endswith(
                 ingress["destination"].get("format", "PARQUET").lower().split("_")[0]

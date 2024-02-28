@@ -1,0 +1,112 @@
+from libs.data import register_binding, from_bind
+import os
+
+if not from_bind("keystone"):
+    register_binding(
+        "keystone",
+        "Structured",
+        "sql",
+        url=os.environ["DATABIND_SQL_KEYSTONE"],
+        schemas=["public"],
+        pool_size=1000,
+        max_overflow=100,
+    )
+if not from_bind("general"):
+    register_binding(
+        "general",
+        "Structured",
+        "sql",
+        url=os.environ["DATABIND_SQL_GENERAL"],
+        schemas=["dbo"],
+        pool_size=1000,
+        max_overflow=100,
+    )
+if not from_bind("audiences"):
+    register_binding(
+        "audiences",
+        "Structured",
+        "sql",
+        url=os.environ["DATABIND_SQL_AUDIENCES"],
+        schemas=["dbo"],
+        pool_size=1000,
+        max_overflow=100,
+    )
+if not from_bind("universal"):
+    register_binding(
+        "universal",
+        "Structured",
+        "sql",
+        url=os.environ["DATABIND_SQL_UNIVERSAL"],
+        schemas=["dbo"],
+        pool_size=1000,
+        max_overflow=100,
+    )
+if not from_bind("foursquare"):
+    register_binding(
+        "foursquare",
+        "Structured",
+        "sql",
+        url=os.environ["DATABIND_SQL_FOURSQUARE"],
+        schemas=["dbo"],
+        pool_size=1000,
+        max_overflow=100,
+    )
+
+MAPPING_DATASOURCE = {
+    # Attom estated data
+    "clt318gg40006t86cgamhhruf": {
+        "bind": "audience",
+        "table": {
+            "schema": "dbo",
+            "name": "addresses",
+        },
+    },
+    # Deepsync mover
+    "clt318gpe0007t86c0psgcl3x": {
+        "bind": "audiences",
+        "table": {
+            "schema": "dbo",
+            "name": "movers",
+        },
+    },
+    # Esquire audiences
+    "clt318gwl0008t86c38m5ysqj": {
+        "bind": "keystone",
+        "table": {
+            "schema": "public",
+            "name": "Audience",
+        },
+    },
+    # Esquire geoframes - will need to change
+    "clt318h5e0009t86c8ayrprkp": {
+        "bind": "universal",
+        "table": {
+            "schema": "dbo",
+            "name": "Locations",
+        },
+    },
+    # Esquire sales - not ready to be used yet
+    "clt318hbt000at86cg7ueg4hc": {
+        "bind": "general",
+        "table": {
+            "schema": "dbo",
+            "name": "sales",
+        },
+    },
+    # Foursquare POI
+    "clt318hj4000bt86cx144hsz9": {
+        "bind": "foursquare",
+        "table": {
+            "schema": "dbo",
+            "name": "poi",
+        },
+    },
+    # OSM Building footprints - not set up in Synapse
+    "clt318hq5000ct86ceqk5uuzy": {
+        "bind": "general",
+        "table": {
+            "schema": "dbo",
+            "name": "osm",
+        },
+    },
+}

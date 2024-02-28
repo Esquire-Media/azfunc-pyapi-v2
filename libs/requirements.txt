@@ -30,11 +30,13 @@ werkzeug
 itsdangerous
 py-abac
 
+
 # optional
 ## database connectors
 boto3
 pymssql
 pyodbc
+psycopg2
 ## formatting
 pyarrow
 orjson # fast (de)serialization

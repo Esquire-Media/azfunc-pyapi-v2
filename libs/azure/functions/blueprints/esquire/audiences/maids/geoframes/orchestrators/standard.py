@@ -56,8 +56,8 @@ def orchestrator_esquireAudienceMaidsGeoframes_standard(
         # Raise an exception if any callback failed
         raise Exception([c for r in onspot for c in r["callbacks"] if not c["success"]])
 
-    # Merge device files into a single file
-    yield context.call_activity_with_retry(
+    # merge all of the device files into one file
+    blob_uri = yield context.call_activity_with_retry(
         "activity_onSpot_mergeDevices",
         retry,
         {
@@ -66,4 +66,4 @@ def orchestrator_esquireAudienceMaidsGeoframes_standard(
         },
     )
 
-    return {}
+    return blob_uri

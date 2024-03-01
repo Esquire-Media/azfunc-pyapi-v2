@@ -9,7 +9,7 @@ bp = Blueprint()
 
 # activity to fill in the geo data for each audience object
 @bp.activity_trigger(input_name="ingress")
-def activity_esquireAudienceBuilder_fetchAudienceDefinitions(ingress: dict):
+def activity_esquireAudienceBuilder_fetchAudienceDatasource(ingress: dict):
     provider = from_bind("keystone")
 
     tables = provider.models["public"]

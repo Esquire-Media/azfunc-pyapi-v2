@@ -39,7 +39,7 @@ def esquire_dashboard_xandr_orchestrator_reporting(
             {
                 "instance_id": context.instance_id,
                 "conn_str": conn_str,
-                "container": container,
+                "container_name": container,
                 "outputPath": "xandr/deltas/{}/{}.parquet".format(
                     state["report_type"],
                     pull_time,
@@ -56,7 +56,7 @@ def esquire_dashboard_xandr_orchestrator_reporting(
                 "table": {"schema": "dashboard", "name": state["report_type"]},
                 "destination": {
                     "conn_str": conn_str,
-                    "container": container,
+                    "container_name": container,
                     "handle": "sa_esquiregeneral",
                     "path": f"xandr/tables/{state['report_type']}/{pull_time}",
                 },

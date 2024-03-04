@@ -58,7 +58,11 @@ CETAS = {
                 AND
                 insertion_order_id != 0
                 AND
+                insertion_order_name NOT LIKE 'Resold%'
+                AND
                 line_item_id != 0
+                AND
+                line_item_name != '--'
                 AND
                 creative_id != 0
         ) AS [data]

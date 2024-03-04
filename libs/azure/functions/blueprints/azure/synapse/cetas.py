@@ -54,11 +54,11 @@ async def synapse_activity_cetas(ingress: dict):
     Azure permissions and configurations to be set up in advance.
     """
     if ingress["destination"].get("container"):
-        ingress["desitnation"]["container_name"] = ingress["desitnation"]["container"]
-        del ingress["desitnation"]["container"]
+        ingress["destination"]["container_name"] = ingress["destination"]["container"]
+        del ingress["destination"]["container"]
     if ingress["destination"].get("path"):
-        ingress["destination"]["blob_prefix"] = ingress["desitnation"]["path"]
-        del ingress["desitnation"]["path"]
+        ingress["destination"]["blob_prefix"] = ingress["destination"]["path"]
+        del ingress["destination"]["path"]
     
     # Construct the table name using the provided schema (or default to 'dbo'), table name, and instance ID.
     table_name = f'[{ingress["table"].get("schema", "dbo")}].[{ingress["table"]["name"]}_{ingress["instance_id"]}]'

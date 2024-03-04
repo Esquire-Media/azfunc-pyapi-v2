@@ -94,7 +94,7 @@ def oneview_orchestrator_segment_uploader(context: DurableOrchestrationContext) 
             "table": {"name": f'{context.instance_id}_{ingress["segment_id"]}'},
             "destination": {
                 "conn_str": ingress["source"]["conn_str"],
-                "container": ingress["source"]["container_name"],
+                "container_name": ingress["source"]["container_name"],
                 "handle": "sa_esquireroku",
                 "format": "CSV_NOHEADER",
                 "path": "{}/segment".format(ingress["source"]["prefix"]),

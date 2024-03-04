@@ -81,7 +81,7 @@ def orchestrator_locationInsights_report(context: DurableOrchestrationContext):
             "table": {"name": "unique_deviceids"},
             "destination": {
                 "conn_str": egress["runtime_container"]["conn_str"],
-                "container": egress["runtime_container"]["container_name"],
+                "container_name": egress["runtime_container"]["container_name"],
                 "handle": "sa_esquirereports",
                 "path": egress["runtime_container"]["unique_devices_blob"],
                 "format": "CSV",

@@ -4,7 +4,7 @@ import os
 import logging
 import orjson as json
 from azure.storage.blob import BlobClient
-from libs.azure.functions.blueprints.esquire.location_insights.helpers import (
+from libs.azure.functions.blueprints.esquire.reporting.location_insights.helpers import (
     cetas_query_unique_deviceids,
 )
 

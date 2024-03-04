@@ -54,7 +54,7 @@ async def synapse_activity_cetas(ingress: dict):
     Azure permissions and configurations to be set up in advance.
     """
     if ingress["destination"].get("container"):
-        ingress["destination"]["container_name"] = ingress["destination"]["container"]
+        ingress["destination"]["container_name"] = ingress["destination"].get("container")
         del ingress["destination"]["container"]
     if ingress["destination"].get("path"):
         ingress["destination"]["blob_prefix"] = ingress["destination"]["path"]

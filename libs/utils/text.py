@@ -115,6 +115,21 @@ def negative_price_check(price, results):
     
     return False
 
+def format_phone_number(phone_number_float):   
+    """
+    Format a string or float as a phone number.
+    """
+    # First, convert the float to a to remove the decimal part and then to string
+    try:
+        phone_number_int = int(phone_number_float)
+        phone_number_str = str(phone_number_int)
+    except:
+        return None
+    
+    # Finally, format the string. Assuming all numbers are US-based for this format
+    formatted_number = f"+1 ({phone_number_str[1:4]})-{phone_number_str[4:7]}-{phone_number_str[7:]}"
+    
+    return formatted_number
 
 def to_number(
     s: str, suffix_map: Dict[str, Union[int, float]] = None

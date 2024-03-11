@@ -5,7 +5,7 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from fuzzywuzzy import fuzz
 from libs.azure.functions import Blueprint
-from libs.utils.smarty import bulk_validate
+from libs.utils.smarty import bulk_validate, detect_column_names
 import pandas as pd, os, logging
 
 
@@ -27,7 +27,8 @@ def activity_smarty_validateAddresses(ingress: dict):
                         of dictionaries containing address components.
             - 'column_mapping': A dictionary mapping the DataFrame columns to address components.
                                 It is used to align input data to the expected format for
-                                the SmartyStreets API.
+                                the SmartyStreets API. If this is missing or incomplete, fuzzy matching
+                                will be used to make a best-effort guess as to the column mapping.
             - 'destination': Specifies the Azure Blob storage location for storing the cleaned
                               addresses. If not provided, the cleaned addresses will be returned.
 
@@ -80,23 +81,20 @@ def activity_smarty_validateAddresses(ingress: dict):
     else:
         raise ValueError("Unsupported source format.")
 
-    # Detecting column names for address components
-    mapped = detect_column_names(df)
+
+    # fill in gaps from the column_mapping variable using fuzzy matching (this is best-effort, not guaranteed to be accurate)
+    mapping = detect_column_names(
+        cols=df.columns,
+        override_mappings=ingress.get('column_mapping',{})
+    )
+
     # Perform bulk address validation
     validated = bulk_validate(
-        df=mapped,
-        address_col=ingress.get("column_mapping", {}).get(
-            "address", "street" if "street" in mapped.columns else None
-        ),
-        city_col=ingress.get("column_mapping", {}).get(
-            "city", "city" if "city" in mapped.columns else None
-        ),
-        state_col=ingress.get("column_mapping", {}).get(
-            "state", "state" if "state" in mapped.columns else None
-        ),
-        zip_col=ingress.get("column_mapping", {}).get(
-            "zip", "zip" if "zip" in mapped.columns else None
-        ),
+        df=df,
+        address_col=mapping['street'],
+        city_col=mapping['city'],
+        state_col=mapping['state'],
+        zip_col=mapping['zip'],
     )
 
     # Handle data output based on destination configuration
@@ -135,50 +133,3 @@ def activity_smarty_validateAddresses(ingress: dict):
     else:
         # Return cleaned addresses as a dictionary
         return validated.to_dict(orient="records")
-
-
-def detect_column_names(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Detect and rename address component columns in a DataFrame.
-
-    This function attempts to automatically detect the columns corresponding to
-    address components in a DataFrame based on common naming patterns. It then renames
-    these columns to a standardized format for further processing.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        A DataFrame containing address data with potentially varied column naming.
-
-    Returns
-    -------
-    pd.DataFrame
-        A modified DataFrame with renamed columns for standardized address components:
-        'street', 'city', 'state', and 'zip'.
-
-    Notes
-    -----
-    The function uses fuzzy string matching to identify the best matches for each address
-    component based on a predefined list of common column names. It returns a DataFrame
-    slice with only the detected and renamed address component columns.
-    """
-
-    # dictionary of common column headers for address components
-    mapping = {
-        "street": ["address", "street", "delivery_line_1", "line1", "add"],
-        "city": ["city", "city_name"],
-        "state": ["state", "st", "state_abbreviation"],
-        "zip": ["zip", "zipcode", "postal", "postalcodeid"],
-    }
-
-    # find best fit for each address field
-    for dropdown, defaults in mapping.items():
-        column_scores = [
-            max([fuzz.ratio(column.upper(), default.upper()) for default in defaults])
-            for column in df.columns
-        ]
-        best_fit_idx = column_scores.index(max(column_scores))
-        best_fit = df.columns[best_fit_idx]
-        df = df.rename(columns={best_fit: dropdown})
-
-    return df[["street", "city", "state", "zip"]]

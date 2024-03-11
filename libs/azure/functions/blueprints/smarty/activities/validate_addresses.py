@@ -118,10 +118,17 @@ def activity_smarty_validateAddresses(ingress: dict):
             _, to_type = os.path.splitext(blob.blob_name)
             if not to_type:
                 to_type = "csv"
-        blob.upload_blob(
-            getattr(validated, "to_" + to_type.replace(".", ""))(),
-            overwrite=True,
-        )
+        # Determine the correct format and whether to include index in the output
+        data_format = to_type.replace(".", "")
+        if data_format == "csv":
+            # Convert DataFrame to CSV without index if the format is CSV
+            csv_data = validated.to_csv(index=False)
+            blob.upload_blob(csv_data, overwrite=True)
+        else:
+            # For other formats, use the appropriate pandas DataFrame method
+            # If new formats are supported, they should be handled here
+            data = getattr(validated, "to_" + data_format)()
+            blob.upload_blob(data, overwrite=True)
 
         return (
             blob.url

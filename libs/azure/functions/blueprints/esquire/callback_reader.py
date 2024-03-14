@@ -4,6 +4,7 @@ import json
 import logging
 import uuid
 import os
+from io import StringIO
 import azure.functions as func
 from azure.storage.blob import BlobClient
 import pandas as pd
@@ -36,7 +37,7 @@ async def starter_callbackReader(req: HttpRequest):
             format = 'json'
         except:
             try:
-                pd.read_csv(body)
+                pd.read_csv(StringIO(body))
                 format = 'csv'
             except:
                 format = 'txt'

@@ -7,6 +7,7 @@ from fuzzywuzzy import fuzz
 from libs.azure.functions import Blueprint
 from libs.utils.smarty import bulk_validate, detect_column_names
 import pandas as pd, os, logging
+from libs.utils.azure_storage import load_dataframe, export_dataframe
 
 
 bp: Blueprint = Blueprint()
@@ -51,38 +52,8 @@ def activity_smarty_validateAddresses(ingress: dict):
     The 'source' key in the ingress dictionary is mandatory and can specify the address data
     in various formats. The 'column_mapping' and 'destination' keys are optional.
     """
-
     # Load DataFrame based on the source type specified in ingress
-    if isinstance(ingress["source"], str):
-        df = pd.read_csv(ingress["source"])
-    elif isinstance(ingress["source"], dict):
-        # Handling Azure Blob storage as the source
-        blob = BlobClient.from_connection_string(
-            conn_str=os.environ[ingress["source"]['conn_str']],
-            container_name=ingress["source"]["container_name"],
-            blob_name=ingress["source"]["blob_name"],
-        )
-        # Generate SAS token for blob access
-        sas_token = generate_blob_sas(
-            account_name=blob.account_name,
-            account_key=blob.credential.account_key,
-            container_name=blob.container_name,
-            blob_name=blob.blob_name,
-            permission=BlobSasPermissions(read=True),
-            expiry=datetime.utcnow() + relativedelta(days=2),
-        )
-        _, from_type = os.path.splitext(blob.blob_name)
-        if not from_type:
-            from_type = "csv"
-        df = getattr(pd, "read_" + from_type.replace(".", ""))(
-            blob.url + "?" + sas_token
-        )
-    elif isinstance(ingress["source"], list):
-        # Handling list of dictionaries as the source
-        df = pd.DataFrame(ingress["source"])
-    else:
-        raise ValueError("Unsupported source format.")
-
+    df = load_dataframe(ingress["source"])
 
     # fill in gaps from the column_mapping variable using fuzzy matching (this is best-effort, not guaranteed to be accurate)
     mapping = detect_column_names(
@@ -104,44 +75,7 @@ def activity_smarty_validateAddresses(ingress: dict):
 
     # Handle data output based on destination configuration
     if ingress.get("destination"):
-        # Configuring BlobClient for data upload
-        if isinstance(ingress["destination"], str):
-            blob = BlobClient.from_blob_url(ingress["destination"])
-        elif isinstance(ingress["destination"], dict):
-            blob = BlobClient.from_connection_string(
-                conn_str=os.environ[ingress["destination"]["conn_str"]],
-                container_name=ingress["destination"]["container_name"],
-                blob_name=ingress["destination"]["blob_name"],
-            )
-            to_type = ingress["destination"].get("format", None)
-        if not to_type:
-            _, to_type = os.path.splitext(blob.blob_name)
-            if not to_type:
-                to_type = "csv"
-        # Determine the correct format and whether to include index in the output
-        data_format = to_type.replace(".", "")
-        if data_format == "csv":
-            # Convert DataFrame to CSV without index if the format is CSV
-            csv_data = validated.to_csv(index=False)
-            blob.upload_blob(csv_data, overwrite=True)
-        else:
-            # For other formats, use the appropriate pandas DataFrame method
-            # If new formats are supported, they should be handled here
-            data = getattr(validated, "to_" + data_format)()
-            blob.upload_blob(data, overwrite=True)
-
-        return (
-            blob.url
-            + "?"
-            + generate_blob_sas(
-                account_name=blob.account_name,
-                account_key=blob.credential.account_key,
-                container_name=blob.container_name,
-                blob_name=blob.blob_name,
-                permission=BlobSasPermissions(read=True),
-                expiry=datetime.utcnow() + relativedelta(days=2),
-            )
-        )
+        export_dataframe(df=validated, destination=ingress["destination"])
     else:
         # Return cleaned addresses as a dictionary
         return validated.to_dict(orient="records")

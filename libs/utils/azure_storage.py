@@ -108,7 +108,7 @@ def load_dataframe(source:str|dict|list) -> pd.DataFrame:
     else:
         raise ValueError("Unsupported source format.")
     
-def export_dataframe(df:pd.DataFrame, destination:str|dict) -> str:
+def export_dataframe(df:pd.DataFrame, destination:str|dict, expiry:timedelta=timedelta(days=2)) -> str:
     """
     Exports a DataFrame to a specified destination. The destination can be a blob URL or
     a dictionary specifying Azure Blob storage details.
@@ -122,6 +122,7 @@ def export_dataframe(df:pd.DataFrame, destination:str|dict) -> str:
           specifying the Azure Blob storage details. The function will export the DataFrame to
           this specified blob in Azure Blob storage.
         - A list indicating multiple destinations is not directly supported in this version of the function.
+    - expiry (timedelta): Optional value specifying how long the returned URL will be valid. Default value of 2 days.
 
     Returns:
     - str: The URL of the exported blob including the generated SAS token for read access.
@@ -176,6 +177,6 @@ def export_dataframe(df:pd.DataFrame, destination:str|dict) -> str:
             container_name=blob.container_name,
             blob_name=blob.blob_name,
             permission=BlobSasPermissions(read=True),
-            expiry=dt.utcnow() + timedelta(days=2),
+            expiry=dt.utcnow() + expiry,
         )
     )

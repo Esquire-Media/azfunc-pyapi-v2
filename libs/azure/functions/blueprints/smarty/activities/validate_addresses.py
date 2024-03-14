@@ -75,7 +75,7 @@ def activity_smarty_validateAddresses(ingress: dict):
 
     # Handle data output based on destination configuration
     if ingress.get("destination"):
-        export_dataframe(df=validated, destination=ingress["destination"])
+        return export_dataframe(df=validated, destination=ingress["destination"])
     else:
         # Return cleaned addresses as a dictionary
         return validated.to_dict(orient="records")

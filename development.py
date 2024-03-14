@@ -1,10 +1,7 @@
 BLUEPRINTS = [
-    # "libs/azure/functions/blueprints/onspot/*",
-    # "libs/azure/functions/blueprints/esquire/dashboard/*",
-    # "libs/azure/functions/blueprints/esquire/dashboard/xandr/*",
-    "libs/azure/functions/blueprints/esquire/dashboard/meta/*",
-    "libs/azure/functions/blueprints/meta/*",
-    # "libs/azure/functions/blueprints/datalake/*",
-    "libs/azure/functions/blueprints/azure/synapse/*",
-    "libs/azure/functions/blueprints/purge_instance_history",
+    "blueprints/pixel_push/*",
+    "libs/azure/functions/blueprints/aws/athena/*",
+    "libs/azure/functions/blueprints/smarty/*",
+    "libs/azure/functions/blueprints/esquire/callback_reader.py",
+    "libs/azure/functions/blueprints/httpx"
 ]

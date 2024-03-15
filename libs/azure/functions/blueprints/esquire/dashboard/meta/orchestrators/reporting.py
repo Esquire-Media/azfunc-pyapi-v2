@@ -51,9 +51,8 @@ def esquire_dashboard_meta_orchestrator_reporting(
 
     tries = 0
     while True:
-        report_run = yield context.call_sub_orchestrator_with_retry(
+        report_run = yield context.call_sub_orchestrator(
             "meta_orchestrator_request",
-            retry,
             {
                 "operationId": "AdAccount.Post.Insights",
                 "parameters": {
@@ -117,9 +116,8 @@ def esquire_dashboard_meta_orchestrator_reporting(
             ingress["account_id"],
         )
     )
-    downloader = yield context.call_activity_with_retry(
+    downloader = yield context.call_activity(
         "esquire_dashboard_meta_activity_download",
-        retry,
         {
             "report_run_id": report_run["report_run_id"],
             "conn_str": ingress["conn_str"],
@@ -140,9 +138,8 @@ def esquire_dashboard_meta_orchestrator_reporting(
         )
         match downloader["message"]:
             case "Download Timeout":
-                yield context.call_sub_orchestrator_with_retry(
+                yield context.call_sub_orchestrator(
                     "meta_orchestrator_request",
-                    retry,
                     {
                         "operationId": "AdReportRun.Get.Insights",
                         "parameters": {
@@ -168,9 +165,8 @@ def esquire_dashboard_meta_orchestrator_reporting(
         context.set_custom_status(
             f"Getting {entity} for account {ingress['account_id']}"
         )
-        yield context.call_sub_orchestrator_with_retry(
+        yield context.call_sub_orchestrator(
             "meta_orchestrator_request",
-            retry,
             {
                 "operationId": f"AdAccount.Get.{entity}",
                 "parameters": {

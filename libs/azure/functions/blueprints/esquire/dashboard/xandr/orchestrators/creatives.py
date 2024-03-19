@@ -1,7 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/xandr/orchestrators/creatives.py
 
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-from datetime import datetime, timedelta
+from datetime import timedelta
 from libs.azure.functions import Blueprint
 from libs.azure.functions.blueprints.esquire.dashboard.xandr.config import CETAS
 import logging, os
@@ -52,7 +52,7 @@ def esquire_dashboard_xandr_orchestrator_creatives(
                     tries += 1
                     if tries > 3:
                         raise Exception("Tried too many times.")
-                    yield context.create_timer(datetime.utcnow() + timedelta(minutes=1))
+                    yield context.create_timer(context.current_utc_datetime + timedelta(minutes=1))
 
         yield context.call_activity_with_retry(
             "synapse_activity_cetas",

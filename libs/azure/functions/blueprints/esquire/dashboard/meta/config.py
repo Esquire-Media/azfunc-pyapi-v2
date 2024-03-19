@@ -492,7 +492,7 @@ CETAS = {
                     [Unique clicks (all)] VARCHAR(16),
                     [Date last edited] VARCHAR(10)
                 ) AS [data]
-                WHERE CAST([data].filepath(1) AS DATETIMEOFFSET) >= DATEADD(MONTH, -3, GETDATE())
+                WHERE CAST([data].filepath(1) AS DATETIMEOFFSET) >= DATEADD(DAY, -7, GETDATE())
             ),
             [report_fallback] AS (
                 SELECT
@@ -546,7 +546,7 @@ CETAS = {
                     [gender] VARCHAR(8),
                     [cpc] VARCHAR(16)
                 ) AS [data]
-                WHERE CAST([data].filepath(1) AS DATETIMEOFFSET) >= DATEADD(MONTH, -3, GETDATE())    
+                WHERE CAST([data].filepath(1) AS DATETIMEOFFSET) >= DATEADD(DAY, -7, GETDATE())    
             ),
             [all_data] AS (
                 SELECT * 
@@ -556,6 +556,9 @@ CETAS = {
                 SELECT * 
                 FROM [report_fallback]
                 WHERE [date_start] >= DATEADD(MONTH, -3, GETDATE())
+                UNION ALL
+                SELECT *
+                FROM [dashboard].[adsinsights]
             ),
             -- Define a CTE named 'selectors' to identify the distinct columnar data
             [selectors] AS (

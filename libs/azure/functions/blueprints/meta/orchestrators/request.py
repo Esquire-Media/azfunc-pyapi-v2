@@ -2,7 +2,7 @@
 
 # from aiopenapi3 import ResponseSchemaError
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-from datetime import datetime, timedelta
+from datetime import timedelta
 from libs.azure.functions import Blueprint
 import json, logging
 

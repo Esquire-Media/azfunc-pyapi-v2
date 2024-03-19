@@ -36,7 +36,7 @@ def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
             retry,
         )
 
-        now = datetime.utcnow()
+        now = context.current_utc_datetime
         today = datetime(now.year, now.month, now.day)
         end = today - relativedelta(days=2)
         start = end - relativedelta(days=75)

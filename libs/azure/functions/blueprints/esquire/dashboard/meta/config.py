@@ -126,7 +126,7 @@ PARAMETERS = {
             "updated_time",  # Filter
         ],
         "date_preset": os.environ.get("META_REPORTING_DATE_PRESET", "last_7d"),
-        # "time_range": {"since": "2023-01-01", "until": "2023-12-18"},
+        # "time_range": {"since": "2023-12-20", "until": "2024-03-19"},
     },
     "AdAccount.Get.Campaigns": {
         "limit": 200,
@@ -492,7 +492,7 @@ CETAS = {
                     [Unique clicks (all)] VARCHAR(16),
                     [Date last edited] VARCHAR(10)
                 ) AS [data]
-                WHERE CAST([data].filepath(1) AS DATETIMEOFFSET) >= DATEADD(DAY, -7, GETDATE())
+                WHERE CAST([data].filepath(1) AS DATETIMEOFFSET) >= DATEADD(MONTH, -3, GETDATE())    
             ),
             [report_fallback] AS (
                 SELECT
@@ -546,7 +546,7 @@ CETAS = {
                     [gender] VARCHAR(8),
                     [cpc] VARCHAR(16)
                 ) AS [data]
-                WHERE CAST([data].filepath(1) AS DATETIMEOFFSET) >= DATEADD(DAY, -7, GETDATE())    
+                WHERE CAST([data].filepath(1) AS DATETIMEOFFSET) >= DATEADD(MONTH, -3, GETDATE())    
             ),
             [all_data] AS (
                 SELECT * 
@@ -556,9 +556,9 @@ CETAS = {
                 SELECT * 
                 FROM [report_fallback]
                 WHERE [date_start] >= DATEADD(MONTH, -3, GETDATE())
-                UNION ALL
-                SELECT *
-                FROM [dashboard].[adsinsights]
+                -- UNION ALL
+                -- SELECT *
+                -- FROM [dashboard].[adsinsights]
             ),
             -- Define a CTE named 'selectors' to identify the distinct columnar data
             [selectors] AS (

@@ -64,8 +64,6 @@ def esquire_audiences_distilled_orchestrator_updater(
             for k, v in {
                 "b2b": 'SELECT * FROM "pixel"."b2b"',
                 "b2c": 'SELECT * FROM "pixel"."b2c"',
-                "pte": 'SELECT * FROM "pixel"."pte"',
-                "hem": 'SELECT * FROM "pixel"."pixel_data_esquireadvertising"',
             }.items()
         ]
     )

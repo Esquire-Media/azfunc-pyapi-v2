@@ -91,13 +91,6 @@ def orchestrator_moversSync_root(context: DurableOrchestrationContext):
         )
 
         for blob_type in affected_datasets:
-            # identify existing tables which will need to be dropped once the new one is created
-            old_tables = yield context.call_activity_with_retry(
-                "activity_synapse_queryTables",
-                retry,
-                {"bind": "audiences", "pattern": f"{blob_type}_%"},
-            )
-
             # for each dataset where data was added/validated, re-create its CETAS table
             yield context.call_activity_with_retry(
                 "synapse_activity_cetas",
@@ -117,12 +110,6 @@ def orchestrator_moversSync_root(context: DurableOrchestrationContext):
                     "commit": True,
                     "view": True,
                 },
-            )
-
-            # drop the tables which were marked for deletion earlier
-            yield context.call_activity(
-                "activity_synapse_cleanupTables",
-                {"bind": "audiences", "table_names": old_tables, "schema": "dbo"},
             )
 
         # Purge history related to this instance

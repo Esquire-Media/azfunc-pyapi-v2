@@ -4,12 +4,13 @@ from azure.durable_functions import DurableOrchestrationClient
 from libs.azure.functions import Blueprint
 from azure.functions import TimerRequest
 import os
+from azure.data.tables import TableClient
 
 bp = Blueprint()
 
 @bp.timer_trigger(arg_name="timer", schedule="0 0 8 * * *")
 @bp.durable_client_input(client_name="client")
-async def starter_PixelPush(
+async def starter_pixelPush(
     timer: TimerRequest, client: DurableOrchestrationClient
 ):
     """
@@ -30,8 +31,7 @@ async def starter_PixelPush(
     HttpResponse
         The response object with details to check the status of the started orchestrator instance.
 
-    """
-    account = 'majikrto'
+    """    
 
     # Start a new instance of the orchestrator function
     instance_id = await client.start_new(
@@ -43,49 +43,9 @@ async def starter_PixelPush(
             "region": "DISTILLED_REGION",
             "database": "DISTILLED_DATABASE",
             "workgroup": "DISTILLED_WORKGROUP",
-            "users_query":get_users_query(account),
-            "events_query":get_events_query(account),
-            "store_locations_source":{
-                "conn_str": "AzureWebJobsStorage",
-                "container_name": f"pixel-push",
-                "blob_name": f"{account}/store_locations.csv"
-            },
-            "account":"majikrto",
             "runtime_container":{
                 "conn_str": "AzureWebJobsStorage",
                 "container_name": f"{os.environ['TASK_HUB_NAME']}-largemessages",
             }
         },
     )
-
-def get_users_query(account:str) -> str:
-    return f"""
-    SELECT DISTINCT
-        hem,
-        first_name,
-        last_name,
-        personal_email,
-        mobile_phone,
-        personal_phone,
-        personal_address,
-        personal_address_2,
-        personal_city,
-        personal_state,
-        personal_zip,
-        personal_zip4
-    FROM pixel.b2c
-    WHERE client = '{account}'
-    AND CAST(activity_date AS DATE) = date_add('day', -1, current_date);
-    """
-
-def get_events_query(account:str) -> str:
-    return f"""
-    SELECT
-        hem,
-        event_date,
-        ref_url,
-        referer_url
-    FROM pixel.b2c
-    WHERE client = '{account}'
-    AND CAST(activity_date AS DATE) = date_add('day', -1, current_date);
-    """

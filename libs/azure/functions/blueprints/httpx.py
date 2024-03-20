@@ -34,7 +34,8 @@ def activity_httpx(ingress: dict):
     """
 
     response = httpx.request(
-        **ingress
+        **ingress,
+        timeout=None
     )
 
     return {

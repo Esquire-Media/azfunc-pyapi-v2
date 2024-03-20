@@ -1,7 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/xandr/orchestrators/reporting.py
 
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-from datetime import datetime, timedelta
+from datetime import timedelta
 from libs.azure.functions import Blueprint
 from libs.azure.functions.blueprints.esquire.dashboard.xandr.config import CETAS
 from libs.openapi.clients.xandr import XandrAPI
@@ -14,7 +14,7 @@ bp = Blueprint()
 def esquire_dashboard_xandr_orchestrator_reporting(
     context: DurableOrchestrationContext,
 ):
-    pull_time = datetime.utcnow().isoformat()
+    pull_time = context.current_utc_datetime.isoformat()
     retry = RetryOptions(15000, 3)
     conn_str = "XANDR_CONN_STR" if "XANDR_CONN_STR" in os.environ.keys() else None
     container = "general"
@@ -31,7 +31,7 @@ def esquire_dashboard_xandr_orchestrator_reporting(
                     break
                 case "error":
                     raise Exception(state["error"])
-            yield context.create_timer(datetime.utcnow() + timedelta(minutes=5))
+            yield context.create_timer(context.current_utc_datetime + timedelta(minutes=5))
 
         yield context.call_activity_with_retry(
             "esquire_dashboard_xandr_activity_download",

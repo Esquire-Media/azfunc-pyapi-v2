@@ -149,7 +149,53 @@ def name_for_collection_relationship(
     >>> # Perform actions with the obtained name.
     """
 
-    if constraint.comment:
-        return f"{constraint.comment.lower()}"
-    if constraint.name:
-        return f"{constraint.name.lower()}"
+    # if constraint.comment:
+    #     return f"{constraint.comment.lower()}"
+    # if constraint.name:
+    #     return f"{constraint.name.lower()}"
+    return "collection_"+referred_cls.__name__
+
+
+def name_for_scalar_relationship(
+    base: Type[Any],
+    local_cls: Type[Any],
+    referred_cls: Type[Any],
+    constraint: ForeignKeyConstraint,
+):
+    """
+    Get the name for the scalar relationship.
+
+    Parameters
+    ----------
+    base : Type[Any]
+        The base class.
+    local_cls : Type[Any]
+        The local class.
+    referred_cls : Type[Any]
+        The referred class.
+    constraint : ForeignKeyConstraint
+        The foreign key constraint.
+
+    Returns
+    -------
+    str
+        The name for the collection relationship.
+
+    Examples
+    --------
+    >>> from sqlalchemy.schema import ForeignKeyConstraint
+    >>> from myapp.models import MyModel
+
+    >>> base = MyModel
+    >>> local_cls = MyModel
+    >>> referred_cls = MyModel
+    >>> constraint = ForeignKeyConstraint()
+    >>> name = name_for_collection_relationship(base, local_cls, referred_cls, constraint)
+    >>> # Perform actions with the obtained name.
+    """
+
+    # if constraint.comment:
+    #     return f"{constraint.comment.lower()}"
+    # if constraint.name:
+    #     return f"{constraint.name.lower()}"
+    return "related_"+referred_cls.__name__

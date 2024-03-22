@@ -23,6 +23,26 @@ bp = Blueprint()
 async def http_salesUploader_getUploadUrls(
     req: HttpRequest, client: DurableOrchestrationClient
 ):
+    """
+    Starter which is called in the background while the user is making selections in the Sales Uploader Teams app.
+    Provides URLs for uploading sales data and notifying the system once the upload is complete. 
+
+    Upon validation of the Microsoft bearer token for authorization, the function generates a SAS URL for the sales data file to be uploaded to Azure Blob Storage. 
+    It also returns URLs to query the upload status and to notify the orchestration client once the upload is complete. 
+    This setup aids in securely and efficiently managing file uploads without exposing storage account keys or permissions directly to the client.
+
+    Parameters:
+    - req (HttpRequest): The request object. It must include a valid Microsoft bearer token in the `Authorization` header for authentication.
+    - client (DurableOrchestrationClient): A client object to start new orchestrations and generate response links for the orchestration instance.
+
+    Returns:
+    - HttpResponse: A JSON response containing the SAS URL for the file upload (`uploadBlobUri`), 
+        the URL to query the status of the upload (`statusQueryGetUri`), 
+        and the URL to post an event once the file upload is completed (`sendEventPostUri`).
+
+    Raises:
+    - TokenValidationError: If the validation of the Microsoft bearer token fails, indicating the request is unauthorized.
+    """
     # validate the MS bearer token to ensure the user is authorized to make requests
     try:
         validator = ValidateMicrosoft(
@@ -68,7 +88,7 @@ async def http_salesUploader_getUploadUrls(
         container_name=blob.container_name,
         blob_name=blob.blob_name,
         permission=BlobSasPermissions(write=True, create=True),
-        start=datetime.utcnow(),
+        start=datetime.utcnow(), # NOTE: Needs to be changed from utcnow to something deterministic
         expiry=datetime.utcnow() + timedelta(minutes=10),
     )
 

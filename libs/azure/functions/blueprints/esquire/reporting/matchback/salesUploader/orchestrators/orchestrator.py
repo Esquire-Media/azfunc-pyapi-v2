@@ -12,6 +12,20 @@ bp = Blueprint()
 
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_salesUploader(context: DurableOrchestrationContext):
+    """
+    Orchestrates the end-to-end process of uploading, validating, and processing sales data within the Sales Uploader application.
+
+    The orchestration involves:
+    - Waiting for an event indicating the sales data upload completion.
+    - Preprocessing the uploaded data to clean and standardize it.
+    - Validating address information with SmartyStreets (optional).
+    - Post-processing the data to merge validated addresses and finalize the dataset.
+    - Caching the upload configuration for future reference.
+
+    Parameters:
+    - context (DurableOrchestrationContext): The context object provided by Azure Durable Functions, containing orchestration metadata and methods to interact with other functions and events.
+    """
+
     logging.warning("Orchestrator Started")
 
     # function ingress

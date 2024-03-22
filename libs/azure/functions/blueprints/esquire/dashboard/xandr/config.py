@@ -61,6 +61,22 @@ CETAS = {
                 line_item_id != 0
                 AND
                 creative_id != 0
+                AND
+                creative_name != '--'
+                AND
+                advertiser_name != '--'
+                AND
+                insertion_order_name != '--'
+                AND
+                line_item_name != '--'
+                AND
+                insertion_order_name NOT LIKE 'Resold%'
+                AND
+                line_item_name NOT LIKE 'Resold%'
+                AND
+                creative_name NOT LIKE 'Resold%'
+                AND
+                advertiser_name NOT LIKE 'Resold%'
         ) AS [data]
         WHERE rank = 1
     """,

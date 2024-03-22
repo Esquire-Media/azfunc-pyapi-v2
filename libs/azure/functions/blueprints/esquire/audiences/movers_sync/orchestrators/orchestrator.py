@@ -91,13 +91,6 @@ def orchestrator_moversSync_root(context: DurableOrchestrationContext):
         )
 
         for blob_type in affected_datasets:
-            # identify existing tables which will need to be dropped once the new one is created
-            old_tables = yield context.call_activity_with_retry(
-                "activity_synapse_queryTables",
-                retry,
-                {"bind": "audiences", "pattern": f"{blob_type}_%"},
-            )
-
             # for each dataset where data was added/validated, re-create its CETAS table
             yield context.call_activity_with_retry(
                 "synapse_activity_cetas",
@@ -108,7 +101,7 @@ def orchestrator_moversSync_root(context: DurableOrchestrationContext):
                     "table": {"name": blob_type},
                     "destination": {
                         "conn_str": egress["runtime_container"]["conn_str"],
-                        "container": egress["runtime_container"]["container_name"],
+                        "container_name": egress["runtime_container"]["container_name"],
                         "handle": "sa_esquiremovers",
                         "path": f"{blob_type}-cetas/{uuid.uuid4().hex}",
                         "format": "PARQUET",
@@ -117,12 +110,6 @@ def orchestrator_moversSync_root(context: DurableOrchestrationContext):
                     "commit": True,
                     "view": True,
                 },
-            )
-
-            # drop the tables which were marked for deletion earlier
-            yield context.call_activity(
-                "activity_synapse_cleanupTables",
-                {"bind": "audiences", "table_names": old_tables, "schema": "dbo"},
             )
 
         # Purge history related to this instance
@@ -138,7 +125,7 @@ def orchestrator_moversSync_root(context: DurableOrchestrationContext):
             {
                 "function_name": "esquire-movers-sync",
                 "instance_id": context.instance_id,
-                "owners":["66c0c96a-2319-494e-a3a3-bc9c1b92739d"],
+                "owners":["8489ce7c-e89f-4710-9d34-1442684ce7fe"],
                 "error": f"{type(e).__name__} : {e}"[:1000],
                 "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
             },

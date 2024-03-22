@@ -129,5 +129,5 @@ class LocationInsightsPayload(BaseModel):
     endDate: Date
     locationIDs: conlist(EsqId, min_length=1)
     creativeSet: Optional[str] = "Furniture Lifestyle"
-    promotionSet: Optional[str] = "HFA Partner"
+    promotionSet: Optional[str] = "Unmasked"
     template: Optional[str] = "Retail"

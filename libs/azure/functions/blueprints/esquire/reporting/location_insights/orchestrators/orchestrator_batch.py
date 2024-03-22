@@ -82,7 +82,7 @@ def orchestrator_locationInsights_batch(context: DurableOrchestrationContext):
             {
                 "function_name": "esquire-location-insights",
                 "instance_id": context.instance_id,
-                "owners":["66c0c96a-2319-494e-a3a3-bc9c1b92739d", egress['user']],
+                "owners":["8489ce7c-e89f-4710-9d34-1442684ce7fe", egress['user']],
                 "error": f"{type(e).__name__} : {e}"[:1000],
                 "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
             },

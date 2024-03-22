@@ -8,7 +8,7 @@ import logging
 import os
 
 bp = Blueprint()
-batch_size = os.environ.get("ADDRESS_FROM_PLACEKEY_BATCH_SIZE", 100000)
+batch_size = int(os.environ.get("ADDRESS_FROM_PLACEKEY_BATCH_SIZE", 100000))
 
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_addresses_fromPlacekey(context: DurableOrchestrationContext):

@@ -19,7 +19,7 @@ sqlalchemy>=2.0.0
 fastparquet
 ## openapi
 git+https://github.com/ggpwnkthx/aiopenapi3
-httpx_auth
+httpx_auth==0.21.0
 ## tools
 frozendict
 fuzzywuzzy

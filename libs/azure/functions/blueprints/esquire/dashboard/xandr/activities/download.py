@@ -11,6 +11,10 @@ bp = Blueprint()
 
 @bp.activity_trigger(input_name="ingress")
 def esquire_dashboard_xandr_activity_download(ingress: dict):
+    if ingress.get("container"):
+        ingress["container_name"] = ingress.get("container")
+        del ingress["container"]
+        
     XA = XandrAPI(asynchronus=False)
     _, report, _ = XA.createRequest("DownloadReport").request(
         parameters={"id": ingress["instance_id"]}
@@ -22,7 +26,7 @@ def esquire_dashboard_xandr_activity_download(ingress: dict):
     
     blob: BlobClient = BlobClient.from_connection_string(
         conn_str=os.environ.get(conn_str),
-        container_name=ingress["container"],
+        container_name=ingress["container_name"],
         blob_name=ingress["outputPath"],
     )
     blob.upload_blob(pd.DataFrame(report).to_parquet(), overwrite=True)

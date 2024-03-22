@@ -3,7 +3,7 @@
 from libs.utils.decorators import staticproperty
 from .interface import QueryFrame
 from .marshmallow import extend_models as extend_models_marshmallow, schema
-from .utils import extend_models as extend_models_base, name_for_collection_relationship
+from .utils import extend_models as extend_models_base, name_for_collection_relationship, name_for_scalar_relationship
 from sqlalchemy import (
     create_engine,
     Column,
@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     MetaData,
     PrimaryKeyConstraint,
+    Table
 )
 from sqlalchemy.ext.automap import automap_base, AutomapBase
 from sqlalchemy.orm import Session
@@ -210,7 +211,7 @@ class SQLAlchemyStructuredProvider:
         # Create the metadata object
         self.metadata = MetaData()
 
-        def prime_table(table):
+        def prime_table(table: Table):
             # Check if the table has a primary key defined
             if not table.primary_key:
                 # Iterate over each column in the table
@@ -253,6 +254,7 @@ class SQLAlchemyStructuredProvider:
         # Prepare the base automap
         self.base.prepare(
             modulename_for_table=self.modulename_for_table,
+            name_for_scalar_relationship=name_for_scalar_relationship,
             name_for_collection_relationship=name_for_collection_relationship,
         )
 

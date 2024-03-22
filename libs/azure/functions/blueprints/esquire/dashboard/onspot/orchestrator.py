@@ -36,7 +36,7 @@ def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
             retry,
         )
 
-        now = datetime.utcnow()
+        now = context.current_utc_datetime
         today = datetime(now.year, now.month, now.day)
         end = today - relativedelta(days=2)
         start = end - relativedelta(days=75)
@@ -96,7 +96,7 @@ def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
                 "table": {"name": "unique_deviceids"},
                 "destination": {
                     "conn_str": conn_str,
-                    "container": container,
+                    "container_name": container,
                     "handle": "sa_esquireonspot",
                     "path": f"raw/{context.instance_id}/unique_deviceids",
                     "format": "CSV",
@@ -146,7 +146,7 @@ def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
                 "table": {"name": "sisense"},
                 "destination": {
                     "conn_str": conn_str,
-                    "container": container,
+                    "container_name": container,
                     "handle": "sa_esquireonspot",
                     "path": f"tables/{context.instance_id}/sisense",
                 },

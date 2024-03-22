@@ -12,6 +12,7 @@ import pandas as pd
 
 bp = Blueprint()
 
+# NOTE : This architecture assumes only one sales file schema per MS Group.
 
 @bp.route(route="esquire/salesUploader/readClientConfig", methods=["POST", "OPTIONS"])
 @bp.durable_client_input(client_name="client")
@@ -19,10 +20,22 @@ async def http_salesUploader_readClientConfig(
     req: HttpRequest, client: DurableOrchestrationClient
 ):
     """
-    POST request that returns sales column mappings of the previous file uploaded for a given client.
+    Handles a POST request to retrieve the sales column mappings from the previous file upload for a specified client, using the Sales Uploader Teams app. 
+    This endpoint validates the Microsoft bearer token from the request header for authorization and queries an Azure Table Storage to fetch the client's configuration.
+    If no prior configuration exists or if the token validation fails, appropriate responses are returned.
 
-    Payload:
-    group_id
+    HTTP Payload:
+    - group_id: The MS Graph ID of the Group which the sales file belongs to.
+
+    Parameters:
+    - req (HttpRequest): The request object, including headers and payload. The payload must contain a `group_id` to identify the client's configuration.
+    - client (DurableOrchestrationClient): A client object to interact with Azure Durable Functions (unused in this function but required by the decorator).
+
+    Returns:
+    - HttpResponse: A JSON-formatted response containing the client's sales column mappings if found, an empty object if no previous configuration exists, or an error message if the token validation fails.
+
+    Raises:
+    - TokenValidationError: If the Microsoft bearer token validation fails.
     """
     
     # validate the MS bearer token to ensure the user is authorized to make requests
@@ -34,7 +47,7 @@ async def http_salesUploader_readClientConfig(
     except TokenValidationError as e:
         return HttpResponse(status_code=401, body=f"TokenValidationError: {e}")
     
-     # ingest the payload from the external event as a Pydantic object
+    # ingest the payload from the external event as a Pydantic object
     payload = HttpRequest.pydantize_body(req, ClientConfigPayload).model_dump()
 
     # set storage connection variables

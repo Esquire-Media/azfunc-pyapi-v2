@@ -34,7 +34,7 @@ class SliderGraph:
         g.xaxis.set_tick_params(length=0)
         g.yaxis.set_ticks([])
 
-        img = plt.imread('libs/azure/functions/blueprints/esquire/location_insights/assets/slider.png')
+        img = plt.imread('libs/azure/functions/blueprints/esquire/reporting/location_insights/assets/slider.png')
         hang = 0.3
         plt.imshow(img, extent=[val-1-hang, val+1+hang, -0-hang, 2+hang], clip_on=False, zorder=1)
         g.figure.set_size_inches(10, 0.5)

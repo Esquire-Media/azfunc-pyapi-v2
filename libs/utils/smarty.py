@@ -3,8 +3,7 @@ from smartystreets_python_sdk.us_street import Lookup as StreetLookup
 import pandas as pd
 import os
 from libs.azure.key_vault import KeyVaultClient
-
-
+from fuzzywuzzy import fuzz
 
 def get_items_recursive(obj, dict={}):
     """
@@ -150,3 +149,54 @@ def bulk_validate(
     )
 
     return cleaned
+
+def detect_column_names(cols:list, override_mappings:dict={}) -> dict:
+    """
+    Detects and maps column names from a list to predefined address components, optionally applying custom mappings.
+
+    This function attempts to match each provided column name to a set of common address components
+    ('street', 'city', 'state', 'zip') using fuzzy matching. The user can override default mappings by
+    providing a `column_mappings` dictionary. If the `inverted` flag is set to True, the function
+    inverts the resulting mapping, swapping keys with their corresponding values.
+
+    Parameters:
+    - cols (list): A list of column names from which to detect address components.
+    - override_mappings (dict, optional): A dictionary where keys are address components and values are
+      the column names to be explicitly mapped to these components. Defaults to an empty dictionary.
+
+    Returns:
+    - dict: A dictionary mapping address components to detected column names. If `inverted` is True,
+      the dictionary maps column names to address components instead.
+
+    Note:
+    The function uses fuzzy logic to determine the best match for each address component. This may not
+    always result in perfect matches, especially with unconventional or highly abbreviated column names.
+    Providing explicit `override_mappings` can help ensure accuracy.
+    """
+    # dictionary of common column headers for address components
+    # this will be modified in-place to build the output dictionary
+    mapping = {
+        "street": ["address", "street", "delivery_line_1"],
+        "city": ["city"],
+        "state": ["state"],
+        "zip": ["zip", "zipcode", "postal", "postalcode"],
+    }
+
+    # find best fit for each address field
+    for key, defaults in mapping.items():
+        # if key is in the column mappings dictionary, use that default value
+        if key in override_mappings and override_mappings[key] in cols:
+            mapping[key] = override_mappings[key]
+        # otherwise, use fuzzy matching to find the best match
+        else:
+            column_scores = [
+                max([fuzz.WRatio(column.upper(), default.upper()) for default in defaults])
+                for column in cols
+            ]
+            if key == 'state':
+                print([*zip(cols, column_scores)])
+            best_fit_idx = column_scores.index(max(column_scores))
+            best_fit = cols[best_fit_idx]
+            mapping[key] = best_fit
+
+    return mapping

@@ -55,7 +55,7 @@ def orchestrator_googleLeadsForm(context: DurableOrchestrationContext):
             {
                 "function_name": "esquire-google-leads",
                 "instance_id": context.instance_id,
-                "owners":["66c0c96a-2319-494e-a3a3-bc9c1b92739d"],
+                "owners":["8489ce7c-e89f-4710-9d34-1442684ce7fe"],
                 "error": f"{type(e).__name__} : {e}"[:1000],
                 "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
             },

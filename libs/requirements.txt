@@ -35,6 +35,7 @@ py-abac
 boto3
 pymssql
 pyodbc
+psycopg2
 ## formatting
 pyarrow
 orjson # fast (de)serialization

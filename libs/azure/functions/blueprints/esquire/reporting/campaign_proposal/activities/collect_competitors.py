@@ -8,7 +8,7 @@ from libs.data import from_bind
 from libs.utils.python import index_by_list
 from libs.azure.key_vault import KeyVaultClient
 from libs.azure.storage.blob.sas import get_blob_download_url
-from libs.azure.functions.blueprints.esquire.campaign_proposal.utility.competitor_map import map_competitors
+from libs.azure.functions.blueprints.esquire.reporting.campaign_proposal.utility.competitor_map import map_competitors
 import re
 import ast
 

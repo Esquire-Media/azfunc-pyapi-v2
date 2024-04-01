@@ -8,7 +8,7 @@ from .utils import (
     name_for_collection_relationship,
     name_for_scalar_relationship,
 )
-from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
+from azure.storage.blob import BlobServiceClient
 from sqlalchemy import (
     create_engine,
     Column,
@@ -21,11 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.ext.automap import automap_base, AutomapBase
 from sqlalchemy.orm import Session
 from typing import Any, Callable, List
-import uuid
-import tempfile
-import os
-import hashlib
-import pickle
+import uuid, tempfile, os, hashlib, pickle
 
 MODEL_EXTENSION_STEPS: List[Callable] = [
     extend_models_base,

@@ -189,6 +189,13 @@ class SQLAlchemyStructuredProvider:
         It also sets up the session and provides access to the models for performing CRUD operations on the structured data.
         """
 
+        # Serialize kwargs to create a unique identifier for caching
+        kwargs_serialized = pickle.dumps(kwargs)
+        hash_kwargs = hashlib.md5(kwargs_serialized).hexdigest()
+        cache_filename = f"sqlalchemy_provider_{hash_kwargs}.pkl"
+        temp_path = os.path.join(tempfile.gettempdir(), cache_filename)
+        print(cache_filename)
+
         kw = kwargs.keys()
 
         # Remove the 'scheme' key from kwargs
@@ -212,12 +219,6 @@ class SQLAlchemyStructuredProvider:
             raise Exception("No engine configuration values specified.")
 
         self.metadata = None
-
-        # Serialize kwargs to create a unique identifier for caching
-        kwargs_serialized = pickle.dumps(kwargs)
-        hash_kwargs = hashlib.md5(kwargs_serialized).hexdigest()
-        cache_filename = f"sqlalchemy_provider_{hash_kwargs}.pkl"
-        temp_path = os.path.join(tempfile.gettempdir(), cache_filename)
 
         # Azure Storage initialization
         if os.environ.get("AzureWebJobsStorage"):

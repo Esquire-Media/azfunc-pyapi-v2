@@ -3,7 +3,12 @@
 from libs.utils.decorators import staticproperty
 from .interface import QueryFrame
 from .marshmallow import extend_models as extend_models_marshmallow, schema
-from .utils import extend_models as extend_models_base, name_for_collection_relationship, name_for_scalar_relationship
+from .utils import (
+    extend_models as extend_models_base,
+    name_for_collection_relationship,
+    name_for_scalar_relationship,
+)
+from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
 from sqlalchemy import (
     create_engine,
     Column,
@@ -11,12 +16,16 @@ from sqlalchemy import (
     Integer,
     MetaData,
     PrimaryKeyConstraint,
-    Table
+    Table,
 )
 from sqlalchemy.ext.automap import automap_base, AutomapBase
 from sqlalchemy.orm import Session
 from typing import Any, Callable, List
 import uuid
+import tempfile
+import os
+import hashlib
+import pickle
 
 MODEL_EXTENSION_STEPS: List[Callable] = [
     extend_models_base,
@@ -201,49 +210,93 @@ class SQLAlchemyStructuredProvider:
         self.engine: Engine = (
             kwargs.pop("engine")
             if "engine" in kw
-            else create_engine(kwargs.pop("url"), **kwargs)
-            if "url" in kw
-            else None
+            else create_engine(kwargs.pop("url"), **kwargs) if "url" in kw else None
         )
         if not self.engine:
             raise Exception("No engine configuration values specified.")
 
-        # Create the metadata object
-        self.metadata = MetaData()
+        self.metadata = None
 
-        def prime_table(table: Table):
-            # Check if the table has a primary key defined
-            if not table.primary_key:
-                # Iterate over each column in the table
-                for col in table.c:
-                    # Check if the column name indicates a primary key
-                    c = col.name.lower()
-                    if c in ["id", "uuid", "guid"] or c[-3:] == "_id":
-                        # Set the column as the primary key
-                        col.primary_key = True
-                        table.append_constraint(PrimaryKeyConstraint(col))
-                # If no primary key is found, add a fake primary key column
+        # Serialize kwargs to create a unique identifier for caching
+        kwargs_serialized = pickle.dumps(kwargs)
+        hash_kwargs = hashlib.md5(kwargs_serialized).hexdigest()
+        cache_filename = f"sqlalchemy_provider_{hash_kwargs}.pkl"
+        temp_path = os.path.join(tempfile.gettempdir(), cache_filename)
+
+        # Azure Storage initialization
+        if os.environ.get("AzureWebJobsStorage"):
+            try:
+                self.blob_service_client = BlobServiceClient.from_connection_string(
+                    os.environ["AzureWebJobsStorage"]
+                )
+                self.container_name = "sqlalchemy-cache"
+                container_client = self.blob_service_client.get_container_client(
+                    self.container_name
+                )
+                if not container_client.exists():
+                    self.blob_service_client.create_container(self.container_name)
+
+                blob_client = self.blob_service_client.get_blob_client(
+                    container=self.container_name, blob=cache_filename
+                )
+                if blob_client.exists():
+                    blob_data = blob_client.download_blob().readall()
+                    self.metadata = pickle.loads(blob_data)
+            except:
+                pass
+
+        if not self.metadata and os.path.exists(temp_path):
+            with open(temp_path, "rb") as f:
+                self.metadata = pickle.load(f)
+
+        if not self.metadata:
+            # Create the metadata object
+            self.metadata = MetaData()
+
+            def prime_table(table: Table):
+                # Check if the table has a primary key defined
                 if not table.primary_key:
-                    table.append_column(Column("fake_pk_id", Integer, primary_key=True))
-                    table.append_constraint(PrimaryKeyConstraint("fake_pk_id"))
+                    # Iterate over each column in the table
+                    for col in table.c:
+                        # Check if the column name indicates a primary key
+                        c = col.name.lower()
+                        if c in ["id", "uuid", "guid"] or c[-3:] == "_id":
+                            # Set the column as the primary key
+                            col.primary_key = True
+                            table.append_constraint(PrimaryKeyConstraint(col))
+                    # If no primary key is found, add a fake primary key column
+                    if not table.primary_key:
+                        table.append_column(
+                            Column("fake_pk_id", Integer, primary_key=True)
+                        )
+                        table.append_constraint(PrimaryKeyConstraint("fake_pk_id"))
 
-        # Reflect the database tables
-        if self.schemas:
-            # Reflect tables for specific schemas
-            for s in self.schemas:
-                # Reflect tables for the given schema and include views
-                self.metadata.reflect(bind=self.engine, schema=s, views=True)
+            # Reflect the database tables
+            if self.schemas:
+                # Reflect tables for specific schemas
+                for s in self.schemas:
+                    # Reflect tables for the given schema and include views
+                    self.metadata.reflect(bind=self.engine, schema=s, views=True)
+                    for table in self.metadata.tables.values():
+                        # Check if the table belongs to the current schema
+                        if table.schema == s:
+                            # Update the table's primary key if necessary
+                            prime_table(table)
+            else:
+                # Reflect tables for all schemas and include views
+                self.metadata.reflect(bind=self.engine, views=True)
                 for table in self.metadata.tables.values():
-                    # Check if the table belongs to the current schema
-                    if table.schema == s:
-                        # Update the table's primary key if necessary
-                        prime_table(table)
-        else:
-            # Reflect tables for all schemas and include views
-            self.metadata.reflect(bind=self.engine, views=True)
-            for table in self.metadata.tables.values():
-                # Update the table's primary key if necessary
-                prime_table(table)
+                    # Update the table's primary key if necessary
+                    prime_table(table)
+            if os.environ.get("AzureWebJobsStorage"):
+                try:
+                    blob_client.upload_blob(pickle.dumps(self.metadata), overwrite=True)
+                except:
+                    with open(temp_path, "wb") as f:
+                        pickle.dump(self.metadata, f)
+            else:
+                with open(temp_path, "wb") as f:
+                    pickle.dump(self.metadata, f)
 
         # Create the base automap
         self.base: AutomapBase = automap_base(metadata=self.metadata)

@@ -285,15 +285,15 @@ class SQLAlchemyStructuredProvider:
                 for table in self.metadata.tables.values():
                     # Update the table's primary key if necessary
                     prime_table(table)
-            if os.environ.get("AzureWebJobsStorage"):
-                try:
-                    blob_client.upload_blob(pickle.dumps(self.metadata), overwrite=True)
-                except:
+            try:
+                pickled_data = pickle.dumps(self.metadata)
+                if os.environ.get("AzureWebJobsStorage"):
+                    blob_client.upload_blob(pickled_data, overwrite=True)
+                else:
                     with open(temp_path, "wb") as f:
-                        pickle.dump(self.metadata, f)
-            else:
-                with open(temp_path, "wb") as f:
-                    pickle.dump(self.metadata, f)
+                        f.write(pickled_data)
+            except:
+                pass
 
         # Create the base automap
         self.base: AutomapBase = automap_base(metadata=self.metadata)

@@ -57,25 +57,27 @@ def activity_smarty_validateAddresses(ingress: dict):
 
     # fill in gaps from the column_mapping variable using fuzzy matching (this is best-effort, not guaranteed to be accurate)
     mapping = detect_column_names(
-        cols=df.columns,
-        override_mappings=ingress.get('column_mapping',{})
+        cols=df.columns, override_mappings=ingress.get("column_mapping", {})
     )
 
     # Perform bulk address validation
     validated = bulk_validate(
         df=df,
-        address_col=mapping['street'],
-        city_col=mapping['city'],
-        state_col=mapping['state'],
-        zip_col=mapping['zip'],
+        address_col=mapping["street"],
+        city_col=mapping["city"],
+        state_col=mapping["state"],
+        zip_col=mapping["zip"],
     )
     # slice return columns if a list was passed
     if ingress.get("columns_to_return"):
-        validated = validated[ingress['columns_to_return']]
+        validated = validated[ingress["columns_to_return"]]
 
     # Handle data output based on destination configuration
     if ingress.get("destination"):
-        return export_dataframe(df=validated, destination=ingress["destination"])
+        return export_dataframe(
+            df=validated.where(pd.notna(validated), None).replace("Nan", None),
+            destination=ingress["destination"],
+        )
     else:
         # Return cleaned addresses as a dictionary
         return validated.to_dict(orient="records")

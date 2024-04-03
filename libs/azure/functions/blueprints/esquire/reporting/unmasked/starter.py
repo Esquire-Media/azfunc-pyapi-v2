@@ -34,7 +34,7 @@ async def starter_pixelPush(
     """    
 
     # Start a new instance of the orchestrator function
-    instance_id = await client.start_new(
+    await client.start_new(
         orchestration_function_name="orchestrator_pixelPush_root",
         client_input={
             "access_key": "DISTILLED_ACCESS_KEY",

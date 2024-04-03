@@ -28,7 +28,7 @@ def orchestrator_pixelPush_majikrtoFormatting(context: DurableOrchestrationConte
             },
             "destination": {
                 **ingress["runtime_container"],
-                "blob_name": f"{ingress['parent_instance']}/{ingress['client']}/{ingress['data_pull_name']}/01_validated",
+                "blob_name": f"{ingress['parent_instance']}/{ingress['client']}/{ingress['data_pull_name']}/01_validated.csv",
             },
             "columns_to_return": [
                 "hem",
@@ -60,7 +60,7 @@ def orchestrator_pixelPush_majikrtoFormatting(context: DurableOrchestrationConte
             },
             "destination": {
                 **ingress["runtime_container"],
-                "blob_name": f"{ingress['parent_instance']}/{ingress['client']}/{ingress['data_pull_name']}/02_distances",
+                "blob_name": f"{ingress['parent_instance']}/{ingress['client']}/{ingress['data_pull_name']}/02_distances.csv",
             },
         },
     )

@@ -56,7 +56,7 @@ def activity_pixelPush_calculateStoreDistances(ingress: dict):
     """
 
     # load the pixel data
-    users = pd.read_csv(ingress["source"])
+    users = pd.read_csv(ingress["source"]).dropna(subset=['latitude', 'longitude'])
 
     # load the client's store address data
     stores = pd.read_csv(get_blob_sas(

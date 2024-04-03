@@ -1,11 +1,16 @@
 # File: libs/azure/functions/blueprints/datalake/activities/copy.py
 
-from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
+from azure.storage.blob import (
+    BlobClient,
+    BlobSasPermissions,
+    generate_blob_sas,
+    BlobBlock,
+)
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
 from urllib.parse import unquote
-import os
+import httpx, os, uuid
 
 bp = Blueprint()
 
@@ -104,10 +109,24 @@ def azure_datalake_copy_blob(ingress: dict) -> str:
             container_name=ingress["target"]["container_name"],
             blob_name=ingress["target"]["blob_name"],
         )
-    blob.upload_blob_from_url(
-        source_url=source_url,
-        overwrite=True,
-    )
+
+    try:
+        blob.upload_blob_from_url(
+            source_url,
+            overwrite=True,
+        )
+    except:
+        # If uploading from url isn't supported (Azurite)
+        with httpx.stream("GET", ingress["url"]) as response:
+            # Ensure the response is successful
+            response.raise_for_status()
+            # Open a stream to Azure Blob and write chunks as they are being received
+            block_list = []
+            for chunk in response.iter_bytes():
+                blk_id = str(uuid.uuid4())
+                blob.stage_block(block_id=blk_id, data=chunk)
+                block_list.append(BlobBlock(block_id=blk_id))
+            blob.commit_block_list(block_list)
 
     return (
         unquote(blob.url)

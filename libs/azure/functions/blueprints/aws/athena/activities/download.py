@@ -1,11 +1,15 @@
 # File: libs/azure/functions/blueprints/asw/athena/activities/download.py
 
-from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
-from datetime import datetime
+from azure.storage.blob import (
+    BlobClient,
+    BlobSasPermissions,
+    generate_blob_sas,
+    BlobBlock,
+)
 from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
 from urllib.parse import unquote
-import os
+import datetime, httpx, os, uuid
 
 bp = Blueprint()
 
@@ -17,11 +21,23 @@ def aws_athena_activity_download(ingress: dict):
         container_name=ingress["container_name"],
         blob_name=ingress["blob_name"],
     )
-    
-    blob.upload_blob_from_url(
-        ingress["url"],
-        overwrite=True,
-    )
+    try:
+        blob.upload_blob_from_url(
+            ingress["url"],
+            overwrite=True,
+        )
+    except:
+        # If uploading from url isn't supported (Azurite)
+        with httpx.stream("GET", ingress["url"]) as response:
+            # Ensure the response is successful
+            response.raise_for_status()
+            # Open a stream to Azure Blob and write chunks as they are being received
+            block_list = []
+            for chunk in response.iter_bytes():
+                blk_id = str(uuid.uuid4())
+                blob.stage_block(block_id=blk_id, data=chunk)
+                block_list.append(BlobBlock(block_id=blk_id))
+            blob.commit_block_list(block_list)
 
     return (
         unquote(blob.url)
@@ -32,6 +48,6 @@ def aws_athena_activity_download(ingress: dict):
             blob_name=blob.blob_name,
             account_key=blob.credential.account_key,
             permission=BlobSasPermissions(read=True),
-            expiry=datetime.utcnow() + relativedelta(days=2),
+            expiry=datetime.datetime.now(datetime.UTC) + relativedelta(days=2),
         )
     )

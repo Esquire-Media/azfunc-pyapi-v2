@@ -54,7 +54,7 @@ if not from_bind("foursquare"):
 
 MAPPING_DATASOURCE = {
     # Attom estated data - can use for testing
-    "clujtgezq0017nh4dqcygpyap": {
+    "clulpbbi2001d12jiy1zvwdhy": {
         "bind": "audience",
         "table": {
             "schema": "dbo",
@@ -62,7 +62,7 @@ MAPPING_DATASOURCE = {
         },
     },
     # Deepsync mover - can use for testing
-    "clujtgf3m0018nh4dri1bl9aw": {
+    "clulpbbl8001e12jii8y3k8gb": {
         "bind": "audiences",
         "table": {
             "schema": "dbo",
@@ -70,7 +70,7 @@ MAPPING_DATASOURCE = {
         },
     },
     # Esquire audiences
-    "clujtgf5i0019nh4dt45yitg0": {
+    "clulpbbn3001f12jiptemet9v": {
         "bind": "keystone",
         "table": {
             "schema": "public",
@@ -78,7 +78,7 @@ MAPPING_DATASOURCE = {
         },
     },
     # Esquire geoframes - will need to change
-    "clujtgf79001anh4dt37ktpjf": {
+    "clulpbbon001g12ji1b939rbs": {
         "bind": "universal",
         "table": {
             "schema": "dbo",
@@ -86,7 +86,7 @@ MAPPING_DATASOURCE = {
         },
     },
     # Esquire sales - not ready to be used yet
-    "clujtgf8v001bnh4dn2zqvi8a": {
+    "clulpbbqg001h12jispdl3car": {
         "bind": "general",
         "table": {
             "schema": "dbo",
@@ -94,7 +94,7 @@ MAPPING_DATASOURCE = {
         },
     },
     # Foursquare POI - can use for testing
-    "clujtgfan001cnh4dg5jn4epm": {
+    "clulpbbsi001i12jik2oojymu": {
         "bind": "foursquare",
         "table": {
             "schema": "dbo",
@@ -102,7 +102,7 @@ MAPPING_DATASOURCE = {
         },
     },
     # OSM Building footprints - not set up in Synapse
-    "clujtgfcf001dnh4dsumr0fkv": {
+    "clulpbbuc001j12ji27yfr796": {
         "bind": "general",
         "table": {
             "schema": "dbo",

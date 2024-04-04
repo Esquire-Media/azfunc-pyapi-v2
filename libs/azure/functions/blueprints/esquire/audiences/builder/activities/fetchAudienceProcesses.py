@@ -1,7 +1,9 @@
 from libs.azure.functions import Blueprint
 from libs.data import from_bind
-import json
-from json_logic import jsonLogic
+from sqlalchemy import select
+from sqlalchemy.orm import joinedload
+
+# from json_logic import jsonLogic
 import logging
 
 bp = Blueprint()
@@ -11,26 +13,44 @@ bp = Blueprint()
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudienceBuilder_fetchAudienceProcesses(ingress: dict):
     provider = from_bind("keystone")
-
-    tables = provider.models["public"]
     session = provider.connect()
 
-    # get the audiences
+    provider = from_bind("keystone")
+    audience = provider.models["public"]["Audience"]
+    datasource = provider.models["public"]["DataSource"]
+    # processingstep = provider.models["public"]["ProcessingStep"]
+
+    session = provider.connect()
+
+    stmt = (
+        select(audience)
+        .options(
+            joinedload(audience.related_DataSource),
+            joinedload(audience.related_ProcessingStep),
+        )
+        .where(audience.id == ingress[0])
+    )
+
+    for row in session.scalars(stmt):
+        logging.warning(
+            row.id
+            + " "
+            + row.related_DataSource.title
+            + " "
+            + row.related_ProcessingStep.outputType,
+        )
+
+    return {}
+    # get the audience processing step
     datasources = [
-        [
-            r.id,
-            r.dataSource,
-            r.dataType,
-            r.title,
-            r.B,
-            r.outputType,
-        ]
+        # r.id
+        # r.dataSource,
+        r.dataType
+        # r.outputType,
         for r in session.query(
             tables["Audience"].id,
             tables["Audience"].dataSource,
             tables["DataSource"].dataType,
-            tables["DataType"].title,
-            tables["_Audience_processes"].B,
             tables["ProcessingStep"].outputType,
         )
         .join(
@@ -38,38 +58,12 @@ def activity_esquireAudienceBuilder_fetchAudienceProcesses(ingress: dict):
             tables["Audience"].dataSource == tables["DataSource"].id,
         )
         .join(
-            tables["DataType"],
-            tables["DataSource"].dataType == tables["DataType"].id,
-        )
-        .join(
-            tables["_Audience_processes"],
-            tables["Audience"].id == tables["_Audience_processes"].A,
-        )
-        .join(
             tables["ProcessingStep"],
-            tables["_Audience_processes"].B == tables["ProcessingStep"].id,
+            tables["Audience"].id == tables["ProcessingStep"].audience,
         )
-        .all()
+        .filter(tables["Audience"].id == ingress[0])
     ]
 
-    # examples output
-    [
-        [
-            "clt318ik2000ft86cgsnpghif",  # Audience ID
-            "clt318h5e0009t86c8ayrprkp",  # DataSource ID
-            "clt318g970005t86ctx76g2ux",  # DataType ID
-            "Polygons",  # DataType Title
-            "clt6badqj0002t80glq4iut46", # Processing Step ID
-            "clt318g390004t86cxigmcnfa", # Output Type
-        ],
-        [
-            "clt318ik2000ft86cgsnpghif",
-            "clt318h5e0009t86c8ayrprkp",
-            "clt318g970005t86ctx76g2ux",
-            "Polygons",
-            "clt6dq82d0003t80gz8jj03wf",
-            "clt318fwa0003t86cftmzzl6q",
-        ],
-    ]
+    logging.warning(datasources)
 
     return datasources

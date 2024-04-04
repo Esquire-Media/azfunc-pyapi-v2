@@ -53,16 +53,16 @@ if not from_bind("foursquare"):
     )
 
 MAPPING_DATASOURCE = {
-    # Attom estated data
-    "clt318gg40006t86cgamhhruf": {
+    # Attom estated data - can use for testing
+    "clujtgezq0017nh4dqcygpyap": {
         "bind": "audience",
         "table": {
             "schema": "dbo",
             "name": "addresses",
         },
     },
-    # Deepsync mover
-    "clt318gpe0007t86c0psgcl3x": {
+    # Deepsync mover - can use for testing
+    "clujtgf3m0018nh4dri1bl9aw": {
         "bind": "audiences",
         "table": {
             "schema": "dbo",
@@ -70,7 +70,7 @@ MAPPING_DATASOURCE = {
         },
     },
     # Esquire audiences
-    "clt318gwl0008t86c38m5ysqj": {
+    "clujtgf5i0019nh4dt45yitg0": {
         "bind": "keystone",
         "table": {
             "schema": "public",
@@ -78,7 +78,7 @@ MAPPING_DATASOURCE = {
         },
     },
     # Esquire geoframes - will need to change
-    "clt318h5e0009t86c8ayrprkp": {
+    "clujtgf79001anh4dt37ktpjf": {
         "bind": "universal",
         "table": {
             "schema": "dbo",
@@ -86,15 +86,15 @@ MAPPING_DATASOURCE = {
         },
     },
     # Esquire sales - not ready to be used yet
-    "clt318hbt000at86cg7ueg4hc": {
+    "clujtgf8v001bnh4dn2zqvi8a": {
         "bind": "general",
         "table": {
             "schema": "dbo",
             "name": "sales",
         },
     },
-    # Foursquare POI
-    "clt318hj4000bt86cx144hsz9": {
+    # Foursquare POI - can use for testing
+    "clujtgfan001cnh4dg5jn4epm": {
         "bind": "foursquare",
         "table": {
             "schema": "dbo",
@@ -102,7 +102,7 @@ MAPPING_DATASOURCE = {
         },
     },
     # OSM Building footprints - not set up in Synapse
-    "clt318hq5000ct86ceqk5uuzy": {
+    "clujtgfcf001dnh4dsumr0fkv": {
         "bind": "general",
         "table": {
             "schema": "dbo",

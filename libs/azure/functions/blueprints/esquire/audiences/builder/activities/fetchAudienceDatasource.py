@@ -1,8 +1,8 @@
 from libs.azure.functions import Blueprint
 from libs.data import from_bind
+from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 import json
-from json_logic import jsonLogic
-import logging
 
 bp = Blueprint()
 
@@ -11,24 +11,19 @@ bp = Blueprint()
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudienceBuilder_fetchAudienceDatasource(ingress: dict):
     provider = from_bind("keystone")
-
-    tables = provider.models["public"]
+    audience = provider.models["public"]["Audience"]
     session = provider.connect()
+    audiences = []
 
-    audiences = [
-        [
-            r.id,
-            r.dataSource,
-            jsonlogic_to_sql(r.dataFilter)
-        ]
-        for r in session.query(
-            tables["Audience"].id,
-            tables["Audience"].dataSource,
-            tables["Audience"].dataFilter,
-        ).all()
-    ]
+    stmt = select(audience).options(joinedload(audience.related_DataSource))
+
+    for row in session.scalars(stmt):
+        audiences.append(
+            (row.id, row.related_DataSource.id, row.related_DataSource.title, row.dataFilter, jsonlogic_to_sql(row.dataFilter))
+        )
 
     return audiences
+
 
 def jsonlogic_to_sql(jsonlogic):
     def parse_logic(logic):
@@ -36,18 +31,32 @@ def jsonlogic_to_sql(jsonlogic):
             return "(" + " AND ".join(map(parse_logic, logic["and"])) + ")"
         elif "or" in logic:
             return "(" + " OR ".join(map(parse_logic, logic["or"])) + ")"
-        elif "<=" in logic:
-            left, right = logic["<="][0], logic["<="][2]
-            var_name = logic["<="][1]["var"]
-            return f"({var_name} BETWEEN '{left}' AND '{right}')"
+        elif "<=" in logic: #
+            var_name = logic["<="][0]["var"]
+            value = logic["<="][1]
+            sql = f"({var_name} <= {value})"
+            return sql
         elif ">=" in logic:
             var_name = logic[">="][0]["var"]
             value = logic[">="][1]
-            return f"({var_name} >= {value})"
+            sql = f"({var_name} => {value})"
+            return sql
         elif "==" in logic:
             var_name = logic["=="][0]["var"]
             value = logic["=="][1]
             return f"({var_name} = '{value}')"
+        elif "!=" in logic:
+            var_name = logic["!="][0]["var"]
+            value = logic["!="][1]
+            return f"({var_name} != '{value}')"
+        elif "<" in logic:
+            var_name = logic["<"][0]["var"]
+            value = logic["<"][1]
+            return f"({var_name} < '{value}')"
+        elif ">" in logic:
+            var_name = logic[">"][0]["var"]
+            value = logic[">"][1]
+            return f"({var_name} > '{value}')"
         elif "in" in logic:
             var_name = logic["in"][0]["var"]
             values = ",".join([f"'{value}'" for value in logic["in"][1]])

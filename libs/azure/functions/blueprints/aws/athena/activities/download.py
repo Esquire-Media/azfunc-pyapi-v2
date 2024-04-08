@@ -48,6 +48,6 @@ def aws_athena_activity_download(ingress: dict):
             blob_name=blob.blob_name,
             account_key=blob.credential.account_key,
             permission=BlobSasPermissions(read=True),
-            expiry=datetime.datetime.now(datetime.UTC) + relativedelta(days=2),
+            expiry=datetime.datetime.utcnow() + relativedelta(days=2),
         )
     )

@@ -3,6 +3,7 @@ from libs.azure.functions import Blueprint
 from urllib.parse import unquote
 from smart_open import open
 from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
+from dateutil.relativedelta import relativedelta
 import datetime, os, ssl
 
 import smart_open.ftp, ssl
@@ -104,7 +105,7 @@ def activity_blob2ftp(ingress: dict) -> str:
                 blob_name=blob.blob_name,
                 account_key=blob.credential.account_key,
                 permission=BlobSasPermissions(read=True),
-                expiry=datetime.datetime.now(datetime.UTC) + datetime.relativedelta(days=2),
+                expiry=datetime.datetime.utcnow() + relativedelta(days=2),
             )
         )
 

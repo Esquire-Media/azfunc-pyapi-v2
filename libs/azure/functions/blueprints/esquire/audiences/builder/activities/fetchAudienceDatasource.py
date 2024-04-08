@@ -2,7 +2,7 @@ from libs.azure.functions import Blueprint
 from libs.data import from_bind
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
-import json
+import orjson
 
 bp = Blueprint()
 
@@ -19,50 +19,71 @@ def activity_esquireAudienceBuilder_fetchAudienceDatasource(ingress: dict):
 
     for row in session.scalars(stmt):
         audiences.append(
-            (row.id, row.related_DataSource.id, row.related_DataSource.title, row.dataFilter, jsonlogic_to_sql(row.dataFilter))
+            (
+                row.id,
+                row.related_DataSource.id,
+                jsonlogic_to_sql(row.dataFilter),
+            )
         )
 
     return audiences
 
 
-def jsonlogic_to_sql(jsonlogic):
-    def parse_logic(logic):
-        if "and" in logic:
-            return "(" + " AND ".join(map(parse_logic, logic["and"])) + ")"
-        elif "or" in logic:
-            return "(" + " OR ".join(map(parse_logic, logic["or"])) + ")"
-        elif "<=" in logic: #
-            var_name = logic["<="][0]["var"]
-            value = logic["<="][1]
-            sql = f"({var_name} <= {value})"
-            return sql
-        elif ">=" in logic:
-            var_name = logic[">="][0]["var"]
-            value = logic[">="][1]
-            sql = f"({var_name} => {value})"
-            return sql
-        elif "==" in logic:
-            var_name = logic["=="][0]["var"]
-            value = logic["=="][1]
-            return f"({var_name} = '{value}')"
-        elif "!=" in logic:
-            var_name = logic["!="][0]["var"]
-            value = logic["!="][1]
-            return f"({var_name} != '{value}')"
-        elif "<" in logic:
-            var_name = logic["<"][0]["var"]
-            value = logic["<"][1]
-            return f"({var_name} < '{value}')"
-        elif ">" in logic:
-            var_name = logic[">"][0]["var"]
-            value = logic[">"][1]
-            return f"({var_name} > '{value}')"
-        elif "in" in logic:
-            var_name = logic["in"][0]["var"]
-            values = ",".join([f"'{value}'" for value in logic["in"][1]])
-            return f"({var_name} IN ({values}))"
-        else:
-            raise ValueError("Unsupported operation")
+def jsonlogic_to_sql(json_logic):
+    """
+    Converts JSON Logic into an SQL WHERE clause, adjusted for MSSQL.
+    """
 
-    logic_dict = json.loads(jsonlogic)
-    return parse_logic(logic_dict)
+    def parse_logic(logic):
+        # Check if logic is directly a dictionary with an operation
+        if isinstance(logic, dict):
+            if "and" in logic:
+                conditions = [parse_logic(sub_logic) for sub_logic in logic["and"]]
+                return " AND ".join(f"({condition})" for condition in conditions)
+
+            elif ">=" in logic:
+                left = parse_logic(logic[">="][0])
+                right = parse_logic(logic[">="][1])
+                return f"{left} >= {right}"
+
+            elif "==" in logic:
+                left = parse_logic(logic["=="][0])
+                right = parse_logic(logic["=="][1])
+                return f"{left} = {right}"
+
+            elif "in" in logic:
+                var = parse_logic(logic["in"][0])
+                values = ", ".join(f"'{value}'" for value in logic["in"][1])
+                return f"{var} IN ({values})"
+
+            elif "var" in logic:
+                return f"{logic['var']}"
+
+            elif "date_add" in logic:
+                base = parse_logic(logic["date_add"][0])
+                offset = logic["date_add"][1]
+                unit = logic["date_add"][2]
+                # Adjusting for MSSQL's DATEADD function
+                date_part = {
+                    "day": "day",
+                    "month": "month",
+                    "year": "year",
+                    "days": "day",  # Handling plural forms
+                    "months": "month",
+                    "years": "year",
+                }[unit]
+                return f"DATEADD({date_part}, {offset}, {base})"
+
+            elif "now" in logic:
+                # Using GETDATE() for the current timestamp in MSSQL
+                return "GETDATE()"
+        # Direct handling for non-dict types (e.g., when logic is a part of a larger operation)
+        elif isinstance(logic, str):
+            return f"'{logic}'"
+        elif isinstance(logic, int):
+            return str(logic)
+        else:
+            raise ValueError(f"Unsupported operation or type: {type(logic)}")
+
+    logic = orjson.loads(json_logic) if isinstance(json_logic, str) else json_logic
+    return f"WHERE {parse_logic(logic)}"

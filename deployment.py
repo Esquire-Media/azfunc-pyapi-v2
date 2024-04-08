@@ -64,14 +64,16 @@ BLUEPRINTS = {
         "libs/azure/functions/blueprints/microsoft/graph/*",
         "libs/azure/functions/blueprints/purge_instance_history",
     ],
-    "esquire-unmasked":[
-        "libs/azure/functions/blueprints/esquire/reporting/unmasked/*",
-        "libs/azure/functions/blueprints/microsoft/graph/*",
+    "esquire-unmasked": [
+        "libs/azure/functions/blueprints/azure/datalake/activities/ftp",
         "libs/azure/functions/blueprints/aws/athena/*",
+        "libs/azure/functions/blueprints/esquire/reporting/unmasked/*",
+        "libs/azure/functions/blueprints/httpx",
+        "libs/azure/functions/blueprints/microsoft/graph/*",
+        "libs/azure/functions/blueprints/purge_instance_history",
         "libs/azure/functions/blueprints/smarty/*",
-        "libs/azure/functions/blueprints/httpx"
     ],
-    "esquire-callback-reader":[
+    "esquire-callback-reader": [
         "libs/azure/functions/blueprints/esquire/callback_reader"
     ],
     "debug": [

@@ -5,7 +5,7 @@ import numpy as np
 import json
 from azure.storage.blob import ContainerClient
 from datetime import datetime as dt, timedelta
-from libs.azure.functions.blueprints.esquire.campaign_proposal.utility.zipcode_map import map_zipcodes
+from libs.azure.functions.blueprints.esquire.reporting.campaign_proposal.utility.zipcode_map import map_zipcodes
 from libs.utils.esquire.movers.mover_engine import MoverEngine
 from libs.utils.esquire.zipcodes.zipcode_engine import ZipcodeEngine
 from libs.azure.key_vault import KeyVaultClient

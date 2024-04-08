@@ -2,8 +2,6 @@ from azure.durable_functions import DurableOrchestrationContext, RetryOptions
 from libs.azure.functions import Blueprint
 import logging
 import os
-from libs.utils.azure_storage import load_dataframe
-from azure.data.tables import TableClient
 
 bp = Blueprint()
 
@@ -58,7 +56,8 @@ def orchestrator_pixelPush_root(context: DurableOrchestrationContext):
         raise e
 
     # Call sub-orchestrator to purge the instance history
-    yield context.call_sub_orchestrator(
+    yield context.call_sub_orchestrator_with_retry(
         "purge_instance_history",
+        retry,
         {"instance_id": context.instance_id},
     )

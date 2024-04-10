@@ -1,32 +1,63 @@
+# File: /libs/azure/functions/blueprints/esquire/audiences/builder/activities/fetchAudience.py.py
+
 from libs.azure.functions import Blueprint
 from libs.data import from_bind
 from sqlalchemy import select
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import Session, lazyload
 import orjson
 
 bp = Blueprint()
 
 
-# activity to fill in the geo data for each audience object
 @bp.activity_trigger(input_name="ingress")
-def activity_esquireAudienceBuilder_fetchAudienceDatasource(ingress: dict):
+def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
     provider = from_bind("keystone")
     audience = provider.models["public"]["Audience"]
-    session = provider.connect()
-    audiences = []
 
-    stmt = select(audience).options(joinedload(audience.related_DataSource))
-
-    for row in session.scalars(stmt):
-        audiences.append(
-            (
-                row.id,
-                row.related_DataSource.id,
-                jsonlogic_to_sql(row.dataFilter),
-            )
+    session: Session = provider.connect()
+    query = (
+        select(audience)
+        .options(
+            lazyload(audience.related_Advertiser),
+            lazyload(audience.related_DataSource),
+            lazyload(audience.collection_ProcessingStep),
         )
+        .where(audience.id == ingress["id"])
+    )
+    result = session.execute(query).one_or_none()
 
-    return audiences
+    if result:
+        return {
+            **ingress,
+            "advertiser": {
+                "id": result.Audience.related_Advertiser.id,
+                "meta": result.Audience.related_Advertiser.meta,
+                "oneview": result.Audience.related_Advertiser.oneview,
+                "xandr": result.Audience.related_Advertiser.xandr,
+            },
+            "status": result.Audience.status,
+            "rebuild": result.Audience.rebuild,
+            "rebuildUnit": result.Audience.rebuildUnit,
+            "TTL_Length": result.Audience.TTL_Length,
+            "TTL_Unit": result.Audience.TTL_Unit,
+            "dataSource": {
+                "id": result.Audience.related_DataSource.id,
+                "dataType": result.Audience.related_DataSource.dataType,
+            },
+            "dataFilter": jsonlogic_to_sql(result.Audience.dataFilter),
+            "processes": list(
+                map(
+                    lambda row: {
+                        "id": row.id,
+                        "sort": row.sort,
+                        "outputType": row.outputType,
+                        "customCoding": row.customCoding,
+                    },
+                    result.Audience.collection_ProcessingStep,
+                )
+            ),
+        }
+    return ingress
 
 
 def jsonlogic_to_sql(json_logic):
@@ -86,4 +117,4 @@ def jsonlogic_to_sql(json_logic):
             raise ValueError(f"Unsupported operation or type: {type(logic)}")
 
     logic = orjson.loads(json_logic) if isinstance(json_logic, str) else json_logic
-    return f"WHERE {parse_logic(logic)}"
+    return parse_logic(logic)

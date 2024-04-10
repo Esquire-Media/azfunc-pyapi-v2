@@ -59,13 +59,35 @@ def orchestrator_esquireAudiences_builder(
                 ),
             },
         )
-
-    if processes := ingress["audience"].get("processes"):
-        for step, process in enumerate(processes):
-            process["inputType"] = (
-                processes[step - 1]["outputType"]
-                if step
-                else ingress["audience"]["dataSource"]["dataType"]
-            )
+        
+        outputType = ingress["audience"]["dataSource"]["dataType"]
+        
+        # Loop through processing steps
+        if processes := ingress["audience"].get("processes"):
+            for step, process in enumerate(processes):
+                process["inputType"] = (
+                    processes[step - 1]["outputType"]
+                    if step
+                    else ingress["audience"]["dataSource"]["dataType"]
+                )
+                # addresses -> deviceids    = orchestrator_esquireAudienceMaidsAddresses_standard
+                # addresses -> polygons     = orchestrator_esquireAudienceMaidsAddresses_footprint
+                # addresses -> addresses    = ???
+                
+                # deviceids -> addresses    = onspot /save/files/household
+                # deviceids -> deviceids    = onspot /save/files/demographics/all
+                # deviceids -> polygons     = ???
+                
+                # polygons  -> addresses    = ???
+                # polygons  -> deviceids    = orchestrator_esquireAudienceMaidsGeoframes_standard
+                # polygons  -> polygons     = ???
+            outputType = processes[-1]["outputType"]
+        
+        # Do a final conversion to device IDs here if necessary
+        if outputType != "deviceids":
+            # addresses -> deviceids    = orchestrator_esquireAudienceMaidsAddresses_standard
+            # polygons  -> deviceids    = orchestrator_esquireAudienceMaidsGeoframes_standard
+            pass
+        
 
     return ingress

@@ -2,6 +2,9 @@
 
 from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
+from libs.azure.functions.blueprints.esquire.audiences.builder.config import (
+    MAPPING_DATASOURCE,
+)
 from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
     CETAS_Primary,
 )
@@ -23,162 +26,18 @@ def orchestrator_esquireAudiences_builder(
 
     if ingress["audience"].get("dataSource"):
         # Generate a primary data set
-        ingress["results"] = yield context.call_activity(
-            "synapse_activity_cetas",
-            CETAS_Primary(instance_id=context.instance_id, ingress=ingress),
+        ingress = yield context.call_sub_orchestrator(
+            "orchestrator_esquireAudiences_primaryData", ingress
         )
 
-        # Loop through processing steps
-        for step, process in enumerate(
-            processes := ingress["audience"].get("processes"), []
-        ):
-            # Reusable common input for sub-orchestrators
-            egress = {
-                "working": {
-                    **ingress["working"],
-                    "blob_prefix": "{}/{}/{}/{}/working".format(
-                        ingress["working"]["blob_prefix"],
-                        context.instance_id,
-                        ingress["audience"]["id"],
-                        step,
-                    ),
-                }
-            }
-            egress["destination"] = {
-                **egress["working"],
-                "blob_name": "{}/results.csv".format(ingress["working"]["blob_prefix"]),
-            }
+        # Run Processing Steps
+        ingress = yield context.call_sub_orchestrator(
+            "orchestrator_esquireAudiences_processingSteps", ingress
+        )
 
-            # Switch logistics based on the input data type
-            match (
-                processes[step - 1]["outputType"]  # Use previous step's output type
-                if step
-                else ingress["audience"]["dataSource"][
-                    "dataType"
-                ]  # Use primary data type
-            ):
-                case "addresses":
-                    match process["outputType"]:
-                        case "addresses":  # addresses -> addresses
-                            # TODO: figure out what (if anything) should happen here
-                            pass
-                        case "deviceids":  # addresses -> deviceids
-                            process["results"] = yield context.task_all(
-                                [
-                                    context.call_sub_orchestrator(
-                                        "orchestrator_esquireAudienceMaidsAddresses_standard",
-                                        {
-                                            **egress,
-                                            "source": source_url,
-                                        },
-                                    )
-                                    for source_url in (
-                                        processes[step - 1]["results"]
-                                        if step
-                                        else ingress["results"]
-                                    )
-                                ]
-                            )
-                        case "polygons":  # addresses -> polygons
-                            process["results"] = yield context.task_all(
-                                [
-                                    context.call_sub_orchestrator(
-                                        "orchestrator_esquireAudienceMaidsAddresses_footprint",
-                                        {
-                                            **egress,
-                                            "source": source_url,
-                                        },
-                                    )
-                                    for source_url in (
-                                        processes[step - 1]["results"]
-                                        if step
-                                        else ingress["results"]
-                                    )
-                                ]
-                            )
-                case "deviceids":
-                    match process["outputType"]:
-                        case "addresses":  # deviceids -> addresses
-                            # onspot /save/files/household
-                            pass
-                        case "deviceids":  # deviceids -> deviceids
-                            # onspot /save/files/demographics/all
-                            pass
-                        case "polygons":  # deviceids -> polygons
-                            # TODO: figure out what (if anything) should happen here
-                            pass
-                case "polygons":
-                    match process["outputType"]:
-                        case "addresses":  # polygons -> addresses
-                            # onspot /save/files/household
-                            pass
-                        case "deviceids":  # polygons -> deviceids
-                            process["results"] = yield context.task_all(
-                                [
-                                    context.call_sub_orchestrator(
-                                        "orchestrator_esquireAudienceMaidsGeoframes_standard",
-                                        {
-                                            **egress,
-                                            "source": source_url,
-                                        },
-                                    )
-                                    for source_url in (
-                                        processes[step - 1]["results"]
-                                        if step
-                                        else ingress["results"]
-                                    )
-                                ]
-                            )
-                        case "polygons":  # polygons -> polygons
-                            # TODO: figure out what (if anything) should happen here
-                            pass
-
-        # Do a final conversion to device IDs here if necessary
-        match (
-            ingress["processes"][-1]["outputType"]
-            if len(ingress["processes"])
-            else ingress["dataSource"]["dataType"]
-        ):
-            case "addresses":  # addresses -> deviceids
-                process["results"] = yield context.task_all(
-                    [
-                        context.call_sub_orchestrator(
-                            "orchestrator_esquireAudienceMaidsAddresses_standard",
-                            {
-                                **egress,
-                                "source": source_url,
-                            },
-                        )
-                        for source_url in (
-                            processes[step - 1]["results"]
-                            if step
-                            else ingress["results"]
-                        )
-                    ]
-                )
-            case "deviceids":  # deviceids -> deviceids
-                # No tranformation, just set the results using the last process
-                ingress["results"] = (
-                    ingress["processes"][-1]["results"]
-                    if len(ingress["processes"])
-                    else ingress["results"]
-                )
-            case "polygons":  # polygons -> deviceids
-                process["results"] = yield context.task_all(
-                    [
-                        context.call_sub_orchestrator(
-                            "orchestrator_esquireAudienceMaidsGeoframes_standard",
-                            {
-                                **egress,
-                                "source": source_url,
-                            },
-                        )
-                        for source_url in (
-                            processes[step - 1]["results"]
-                            if step
-                            else ingress["results"]
-                        )
-                    ]
-                )
+        # Ensure Device IDs are the final data type
+        ingress = yield context.call_sub_orchestrator(
+            "orchestrator_esquireAudiences_finalize", ingress
+        )
 
     return ingress

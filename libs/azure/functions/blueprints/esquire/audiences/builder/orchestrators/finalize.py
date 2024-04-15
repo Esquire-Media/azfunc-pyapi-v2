@@ -18,7 +18,7 @@ def orchestrator_esquireAudiences_builder(
             **ingress["working"],
             "blob_prefix": "{}/{}/{}/{}/working".format(
                 ingress["working"]["blob_prefix"],
-                context.instance_id,
+                ingress["instance_id"],
                 ingress["audience"]["id"],
                 len(ingress["processes"]),
             ),

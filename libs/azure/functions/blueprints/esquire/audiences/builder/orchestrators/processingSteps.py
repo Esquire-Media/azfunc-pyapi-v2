@@ -82,9 +82,41 @@ def orchestrator_esquireAudiences_processingSteps(
                 match process["outputType"]:
                     case "addresses":  # deviceids -> addresses
                         # onspot /save/files/household
+                        process["results"] = yield context.task_all(
+                            [
+                                context.call_sub_orchestrator(
+                                    "orchestrator_esquireAudienceMaidsDeviceIds_toaddresses",
+                                    {
+                                        **egress,
+                                        "source": source_url,
+                                    },
+                                )
+                                for source_url in (
+                                    processes[step - 1]["results"]
+                                    if step
+                                    else ingress["results"]
+                                )
+                            ]
+                        )
                         pass
                     case "deviceids":  # deviceids -> deviceids
                         # onspot /save/files/demographics/all
+                        process["results"] = yield context.task_all(
+                            [
+                                context.call_sub_orchestrator(
+                                    "orchestrator_esquireAudienceMaidsDeviceIds_todevids",
+                                    {
+                                        **egress,
+                                        "source": source_url,
+                                    },
+                                )
+                                for source_url in (
+                                    processes[step - 1]["results"]
+                                    if step
+                                    else ingress["results"]
+                                )
+                            ]
+                        )
                         pass
                     case "polygons":  # deviceids -> polygons
                         # TODO: figure out what (if anything) should happen here

@@ -30,7 +30,6 @@ async def starter_esquireAudiencesBuilder_test(
                 "container_name": "general",
                 "blob_prefix": "audiences",
             },
-            "fetch": True
         },
     )
     

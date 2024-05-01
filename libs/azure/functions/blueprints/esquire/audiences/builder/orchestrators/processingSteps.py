@@ -10,6 +10,57 @@ bp = Blueprint()
 def orchestrator_esquireAudiences_processingSteps(
     context: DurableOrchestrationContext,
 ):
+    # ingress={
+    #     "source": {
+    #         "conn_str": "ONSPOT_CONN_STR",
+    #         "container_name": "general",
+    #         "blob_prefix": "audiences",
+    #     },
+    #     "working": {
+    #         "conn_str": "ONSPOT_CONN_STR",
+    #         "container_name": "general",
+    #         "blob_prefix": "raw",
+    #     },
+    #     "destination": {
+    #         "conn_str": "ONSPOT_CONN_STR",
+    #         "container_name": "general",
+    #         "blob_prefix": "audiences",
+    #     },
+    #     "audience": {"id": "clulpbe4r001s12jigokcm2i7"},
+    #     "advertiser": {
+    # 	"id": "test",
+    # 	"meta": "test",
+    # 	"oneview": "test",
+    # 	"xandr": "test“
+    # 	},
+    #     "status": "test",
+    #     "rebuild": "test",
+    #     "rebuildUnit": "test",
+    #     "TTL_Length": "test",
+    #     "TTL_Unit": "test",
+    #     "dataSource": {"id": "test", "dataType": "test"},
+    #     "dataFilter": "test",
+    #     "processes": {
+    #         "id": "test",
+    #         "sort": "test",
+    #         "outputType": "test",
+    #         "customCoding": "test",
+    #     },
+    #     "results": ["blob_urls"],
+    # }
+    # egress=# {
+    #     "working": {
+    #         "conn_str": "ONSPOT_CONN_STR",
+    #         "container_name": "general",
+    #         "blob_prefix": "raw /instanceid/audienceid/step/working",
+    #     },
+    #     "destination": {
+    #         "conn_str": "ONSPOT_CONN_STR",
+    #         "container_name": "general",
+    #         "blob_prefix": "raw /instanceid/audienceid/step/working",
+    #         "blob_name": "{}/results.csv".format(ingress["working"]["blob_prefix"]),
+    #     },
+
     ingress = context.get_input()
 
     # Loop through processing steps

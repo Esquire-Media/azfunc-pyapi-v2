@@ -13,6 +13,27 @@ bp = Blueprint()
 def orchestrator_esquireAudiences_primaryData(
     context: DurableOrchestrationContext,
 ):
+    # ingress ={
+    #         "source": {
+    #             "conn_str": "ONSPOT_CONN_STR",
+    #             "container_name": "general",
+    #             "blob_prefix": "audiences",
+    #         },
+    #         "working": {
+    #             "conn_str": "ONSPOT_CONN_STR",
+    #             "container_name": "general",
+    #             "blob_prefix": "raw",
+    #         },
+    #         "destination": {
+    #             "conn_str": "ONSPOT_CONN_STR",
+    #             "container_name": "general",
+    #             "blob_prefix": "audiences",
+    #         },
+    #         "audience": {
+    #             "id": id,
+    #         },
+    #     },
+
     ingress = context.get_input()
 
     if ingress["audience"].get("dataSource"):

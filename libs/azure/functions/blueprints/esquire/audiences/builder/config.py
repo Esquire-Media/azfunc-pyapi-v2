@@ -64,7 +64,7 @@ MAPPING_DATASOURCE = {
     },
     # Deepsync mover - can use for testing
     "clulpbbl8001e12jii8y3k8gb": {
-        "dbType": "synapse",,
+        "dbType": "synapse",
         "bind": "audiences",
         "table": {
             "schema": "dbo",
@@ -91,7 +91,7 @@ MAPPING_DATASOURCE = {
     },
     # Esquire sales - not ready to be used yet
     "clulpbbqg001h12jispdl3car": {
-        "dbType": "synapse",,
+        "dbType": "synapse",
         "bind": "general",
         "table": {
             "schema": "dbo",
@@ -100,7 +100,7 @@ MAPPING_DATASOURCE = {
     },
     # Foursquare POI - can use for testing
     "clulpbbsi001i12jik2oojymu": {
-        "dbType": "synapse",,
+        "dbType": "synapse",
         "bind": "foursquare",
         "table": {
             "schema": "dbo",
@@ -109,7 +109,7 @@ MAPPING_DATASOURCE = {
     },
     # OSM Building footprints - not set up in Synapse
     "clulpbbuc001j12ji27yfr796": {
-        "dbType": "synapse",,
+        "dbType": "synapse",
         "bind": "general",
         "table": {
             "schema": "dbo",

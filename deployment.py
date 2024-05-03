@@ -65,6 +65,7 @@ BLUEPRINTS = {
         "libs/azure/functions/blueprints/purge_instance_history",
     ],
     "esquire-unmasked": [
+        "libs/azure/functions/blueprints/azure/datalake/activities/copy",
         "libs/azure/functions/blueprints/azure/datalake/activities/ftp",
         "libs/azure/functions/blueprints/aws/athena/*",
         "libs/azure/functions/blueprints/esquire/reporting/unmasked/*",

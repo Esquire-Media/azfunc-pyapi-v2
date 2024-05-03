@@ -117,7 +117,7 @@ def azure_datalake_copy_blob(ingress: dict) -> str:
         )
     except:
         # If uploading from url isn't supported (Azurite)
-        with httpx.stream("GET", ingress["url"]) as response:
+        with httpx.stream("GET", source_url) as response:
             # Ensure the response is successful
             response.raise_for_status()
             # Open a stream to Azure Blob and write chunks as they are being received

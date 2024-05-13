@@ -1,5 +1,6 @@
 BLUEPRINTS = [
         # "libs/azure/functions/blueprints/azure/datalake/*",
+        "libs/azure/functions/blueprints/azure/postgres/*",
         "libs/azure/functions/blueprints/azure/synapse/*",
         # "libs/azure/functions/blueprints/esquire/dashboard/meta/*",
         # "libs/azure/functions/blueprints/meta/*",

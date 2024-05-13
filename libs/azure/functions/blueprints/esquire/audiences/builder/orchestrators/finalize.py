@@ -7,7 +7,7 @@ bp = Blueprint()
 
 
 @bp.orchestration_trigger(context_name="context")
-def orchestrator_esquireAudiences_builder(
+def orchestrator_esquireAudiences_finalize(
     context: DurableOrchestrationContext,
 ):
     ingress = context.get_input()

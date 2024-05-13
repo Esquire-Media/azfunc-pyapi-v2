@@ -2,6 +2,7 @@
 
 from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
+import logging, json
 
 bp = Blueprint()
 
@@ -65,7 +66,7 @@ def orchestrator_esquireAudiences_processingSteps(
 
     # Loop through processing steps
     for step, process in enumerate(
-        processes := ingress["audience"].get("processes"), []
+        processes := ingress["audience"].get("processes", [])
     ):
         # Reusable common input for sub-orchestrators
         egress = {
@@ -77,12 +78,24 @@ def orchestrator_esquireAudiences_processingSteps(
                     ingress["audience"]["id"],
                     step,
                 ),
-            }
+            },
         }
         egress["destination"] = {
             **egress["working"],
             "blob_name": "{}/results.csv".format(ingress["working"]["blob_prefix"]),
         }
+        logging.warning(
+            "{} -> {}".format(
+                (
+                    processes[step - 1]["outputType"]  # Use previous step's output type
+                    if step
+                    else ingress["audience"]["dataSource"][
+                        "dataType"
+                    ]  # Use primary data type
+                ),
+                process["outputType"],
+            )
+        )
 
         # Switch logistics based on the input data type
         match (

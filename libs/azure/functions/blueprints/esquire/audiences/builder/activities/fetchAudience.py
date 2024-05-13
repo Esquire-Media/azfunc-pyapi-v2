@@ -88,7 +88,7 @@ def jsonlogic_to_sql(json_logic):
                 return f"{var} IN ({values})"
 
             elif "var" in logic:
-                return f"{logic['var']}"
+                return f"\"{logic['var']}\""
 
             elif "date_add" in logic:
                 base = parse_logic(logic["date_add"][0])

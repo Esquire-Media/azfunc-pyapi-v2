@@ -1,23 +1,15 @@
 #  file path:libs/azure/functions/blueprints/esquire/audiences/meta/orchestrator.py
 
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
+from azure.durable_functions import DurableOrchestrationContext
 from azure.storage.blob import (
     BlobClient,
-    BlobSasPermissions,
-    BlobServiceClient,
-    ContainerClient,
-    ContainerSasPermissions,
-    generate_blob_sas,
-    generate_container_sas,
 )
-from dateutil.relativedelta import relativedelta
-from facebook_business.api import FacebookAdsApi
-from facebook_business.adobjects.adaccount import AdAccount
 from libs.azure.functions import Blueprint
-import os, datetime, logging, json
+import os, json, random
 from io import BytesIO
 import pandas as pd
-from urllib.parse import unquote
+import hashlib
+
 
 bp = Blueprint()
 
@@ -72,37 +64,64 @@ def meta_customaudience_orchestrator(
     # get list of the device IDs
     # logging.warning(metaAudience)
 
-    # pass the information to get device IDs and to
-    yield context.call_activity(
-        "activity_esquireAudiencesMeta_facebookUpdateAudience",
+    # get the device IDs (static for testing)
+    blob = BlobClient.from_connection_string(
+        conn_str=os.environ["ESQUIRE_AUDIENCE_CONN_STR"],
+        container_name="general",
+        blob_name="audiences/a0H5A00000aZbI1UAK/2023-12-04T18:16:59.757249+00:00/maids.csv",
+    )
+    df = pd.read_csv(BytesIO(blob.download_blob().readall()), header=None)
+    df.columns = ["DeviceID"]
+
+    short_maid_list = df["DeviceID"].head(100).tolist()
+    total_devices = 100
+
+    # adding users
+    context.set_custom_status("Creating adding users to Meta Audience.")
+    session_id = random.randint(0, 2**32 - 1)
+    metaAudience = yield context.call_sub_orchestrator(
+        "meta_orchestrator_request",
         {
-            "conn_str":os.environ["ESQUIRE_AUDIENCE_CONN_STR"],
-            "container_name":"general",
-            "blob_name":"audiences/a0H5A00000aZbI1UAK/2023-12-04T18:16:59.757249+00:00/maids.csv",
-            "audience_id":ingress["esq"]["audienceid"],
+            "operationId": "CustomAudience.Post.Usersreplace",
+            "parameters": {
+                "CustomAudience-Id": ingress["meta"]["audienceid"],
+                "payload": json.dumps(
+                    {
+                        "schema": "MOBILE_ADVERTISER_ID",
+                        "data_source": {
+                            "type": "THIRD_PARTY_IMPORTED",
+                            "sub_type": "MOBILE_ADVERTISER_IDS",
+                        },
+                        "is_raw": True,
+                        "data": short_maid_list,
+                    }
+                ),
+                "session": json.dumps(
+                    {
+                        "session_id": session_id,
+                        "estimated_num_total": total_devices,
+                        "batch_seq": 1,
+                        "last_batch_flag": True,
+                    }
+                ),
+            },
         },
     )
 
+    # pass the information to get device IDs and push users to Meta - works?
+    # yield context.call_activity(
+    #     "activity_esquireAudiencesMeta_facebookUpdateAudience",
+    #     {
+    #         "conn_str": os.environ["ESQUIRE_AUDIENCE_CONN_STR"],
+    #         "container_name": "general",
+    #         "blob_name": "audiences/a0H5A00000aZbI1UAK/2023-12-04T18:16:59.757249+00:00/maids.csv",
+    #         "audience_id": ingress["esq"]["audienceid"],
+    #     },
+    # )
+
     return metaAudience
 
-    # # get count of devices in this file
-    # source_blob_client = BlobClient.from_connection_string(
-    #     conn_str=os.environ["ONSPOT_CONN_STR"],
-    #     container_name="general",
-    #     blob_name=latest_blob,
-    # )
 
-    # source_url = (
-    #     unquote(source_blob_client.url)
-    #     + "?"
-    #     + generate_blob_sas(
-    #         account_name=source_blob_client.account_name,
-    #         container_name=source_blob_client.container_name,
-    #         blob_name=source_blob_client.blob_name,
-    #         account_key=source_blob_client.credential.account_key,
-    #         permission=BlobSasPermissions(read=True),
-    #         expiry=datetime.utcnow() + relativedelta(days=2),
-    #     )
-    # )
-
-    # count = pd.read_csv(source_url, header=None).count().iloc[0]
+# function to has the MAID values passed into Facebook audience
+def hash_maid(maid):
+    return hashlib.sha256(maid.encode("utf-8")).hexdigest()

@@ -5,7 +5,7 @@ from libs.azure.functions.http import HttpRequest
 bp = Blueprint()
 
 
-@bp.route(route="audiences/builder/test")
+@bp.route(route="audiences/meta/test")
 @bp.durable_client_input(client_name="client")
 async def starter_esquireAudiencesMeta_test(
     req: HttpRequest,

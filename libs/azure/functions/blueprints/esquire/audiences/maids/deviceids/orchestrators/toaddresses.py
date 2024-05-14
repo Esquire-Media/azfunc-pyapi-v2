@@ -1,4 +1,4 @@
-# File: libs/azure/functions/blueprints/esquire/audiences/maids/geoframes/orchestrators/standard.py
+# File: libs/azure/functions/blueprints/esquire/audiences/maids/deviceids/orchestrators/toaddresses.py
 
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
 from azure.storage.blob import BlobClient
@@ -9,14 +9,14 @@ bp = Blueprint()
 
 
 @bp.orchestration_trigger(context_name="context")
-def orchestrator_esquireAudienceMaidsGeoframes_standard(
+def orchestrator_esquireAudienceMaidsDeviceIds_toaddresses(
     context: DurableOrchestrationContext,
 ):
     """
-    Suborchestrator function for processing geoframes data for Esquire Audiences.
+    Suborchestrator function for processing device IDs for Esquire Audiences.
 
-    This function coordinates tasks for processing geoframes data. It calls the OnSpot
-    suborchestrator to process data and then merges the resulting device files.
+    This function coordinates tasks for processing device IDs. It calls the OnSpot
+    suborchestrator to process device IDs and then merges the resulting address files.
 
     Parameters
     ----------
@@ -42,7 +42,7 @@ def orchestrator_esquireAudienceMaidsGeoframes_standard(
                 retry,
                 {
                     **ingress["working"],
-                    "endpoint": "/save/geoframe/all/devices",
+                    "endpoint": "/save/files/household",
                     "request": json.load(
                         BlobClient.from_blob_url(ingress["source"]).download_blob()
                     ),

@@ -2,8 +2,10 @@
 
 from azure.storage.blob import (
     BlobClient,
+    BlobSasPermissions,
     ContainerClient,
     ContainerSasPermissions,
+    generate_blob_sas,
     generate_container_sas,
 )
 from datetime import datetime
@@ -71,4 +73,11 @@ def activity_onSpot_mergeDevices(ingress: dict):
                     source_offset=header_size + 1 if header else None,
                 )
 
-    return {}
+    return destination_blob_client.url + "?" + generate_blob_sas(
+        account_name=destination_blob_client.account_name,
+        account_key=destination_blob_client.credential.account_key,
+        container_name=destination_blob_client.container_name,
+        blob_name=destination_blob_client.blob_name,
+        permission=BlobSasPermissions(read=True),
+        expiry=datetime.utcnow() + relativedelta(days=2),
+    )

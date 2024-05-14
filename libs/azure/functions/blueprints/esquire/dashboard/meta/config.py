@@ -1008,7 +1008,7 @@ CETAS = {
                     [body] VARCHAR(MAX),
                     [branded_content_sponsor_page_id] VARCHAR(32),
                     [bundle_folder_id] VARCHAR(32),
-                    [call_to_action_type] VARCHAR(16),
+                    [call_to_action_type] VARCHAR(32),
                     [categorization_criteria] VARCHAR(16),
                     [category_media_source] VARCHAR(16),
                     [collaborative_ads_lsb_image_bank_id] VARCHAR(32),

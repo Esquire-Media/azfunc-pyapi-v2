@@ -1,7 +1,8 @@
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
 from libs.azure.functions import Blueprint
 from libs.utils.azure_storage import load_dataframe
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
+import uuid
 
 bp = Blueprint()
 
@@ -80,16 +81,37 @@ def orchestrator_pixelPush_job(context: DurableOrchestrationContext):
     match url.scheme:
         case "http" | "https":
             # Push data to webhook
+            output_format = parse_qs(url.query).get("format", ["url"])[0]
+            output_mime = "application/octet-stream"
+            match output_format:
+                case "url":
+                    output_mime += "text/plain"
+                    blob_url = yield context.call_activity(
+                        "azure_datalake_copy_blob",
+                        {
+                            "source": blob_url,
+                            "target": {
+                                **ingress["runtime_container"],
+                                "container_name": "pixel-push",
+                                "blob_name": "processed/{}.csv".format(context.instance_id)
+                            }
+                        }
+                    )
+                case "csv":
+                    output_mime = "text/csv"
+                case "json":
+                    output_mime = "application/json"
+                    
             yield context.call_activity_with_retry(
                 "activity_httpx",
                 retry,
                 {
                     "method": "POST",
                     "url": ingress["webhook_url"],
-                    "data": load_dataframe(blob_url).to_csv(index=False),
+                    "data": format_data(blob_url, output_format),
                     "headers": {
                         "data": ingress["data_pull_name"],
-                        "Content-Type": "text/csv",
+                        "Content-Type": output_mime,
                     },
                 },
             )
@@ -155,3 +177,13 @@ def get_events_query(account: str) -> str:
     WHERE client = '{account}'
     AND CAST(activity_date AS DATE) = date_add('day', -1, current_date);
     """
+
+def format_data(url:str, format:str):
+    match format.lower():
+        case "csv":
+            return load_dataframe(url).to_csv(index=False)
+        case "json":
+            return load_dataframe(url).to_json(index=False, orient="records")
+        case "url":
+            return url
+            

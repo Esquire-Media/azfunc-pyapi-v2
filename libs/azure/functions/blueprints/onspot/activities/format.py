@@ -35,9 +35,11 @@ async def onspot_activity_format(ingress: dict, client: DurableOrchestrationClie
 
     if ingress["endpoint"].startswith("/save/"):
         container = ContainerClient.from_connection_string(
-            os.environ[ingress["conn_str"]]
-            if ingress.get("conn_str", None) in os.environ.keys()
-            else os.environ["AzureWebJobsStorage"],
+            (
+                os.environ[ingress["conn_str"]]
+                if ingress.get("conn_str", None) in os.environ.keys()
+                else os.environ["AzureWebJobsStorage"]
+            ),
             container_name=ingress.get(
                 "container_name", ingress.get("container", "general")
             ),
@@ -72,7 +74,12 @@ async def onspot_activity_format(ingress: dict, client: DurableOrchestrationClie
             if ingress["endpoint"].startswith("/save/"):
                 feature["properties"]["outputLocation"] = (
                     container.url.replace("https://", "az://")
-                    + "/{}?".format(ingress.get("outputPath", ingress["instance_id"]))
+                    + "/{}?".format(
+                        ingress.get(
+                            "blob_prefix",
+                            ingress.get("outputPath", ingress["instance_id"]),
+                        )
+                    )
                     + sas_token
                 )
     elif isinstance(ingress["request"].get("sources"), list):
@@ -82,7 +89,11 @@ async def onspot_activity_format(ingress: dict, client: DurableOrchestrationClie
         if ingress["endpoint"].startswith("/save/"):
             ingress["request"]["outputLocation"] = (
                 container.url.replace("https://", "az://")
-                + "/{}?".format(ingress.get("outputPath", ingress["instance_id"]))
+                + "/{}?".format(
+                    ingress.get(
+                        "blob_prefix", ingress.get("outputPath", ingress["instance_id"])
+                    )
+                )
                 + sas_token
             )
 

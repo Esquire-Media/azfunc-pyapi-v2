@@ -121,4 +121,16 @@ def orchestrator_esquireAudiences_primaryData(
                         },
                     },
                 )
+                match ingress["audience"]["dataSource"]["dataType"]:
+                    case "polygons":
+                        ingress["results"] = yield context.task_all([
+                            context.call_activity(
+                                "activity_esquireAudienceBuilder_formatPolygons",
+                                {
+                                    "source": source_url,
+                                    "destination": ingress["working"]
+                                }
+                            )
+                            for source_url in ingress["results"]
+                        ])
     return ingress

@@ -10,5 +10,5 @@ BLUEPRINTS = [
         # "libs/azure/functions/blueprints/oneview/reports/*",
         "libs/azure/functions/blueprints/onspot/*",
         # "libs/azure/functions/blueprints/purge_instance_history",
-        "libs/azure/functions/blueprints/smarty/*",
+        # "libs/azure/functions/blueprints/smarty/*",
 ]

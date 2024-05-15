@@ -1,14 +1,11 @@
-from azure.storage.blob import(
-    BlobClient,
-    BlobSasPermissions,
-    generate_blob_sas
-)
+from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
 from datetime import datetime as dt, timedelta
-import pandas as pd
-import os
-from datetime import datetime as dt, timedelta
+import os, pandas as pd, uuid
 
-def query_entities_to_list_of_dicts(entities, partition_name:str='PartitionKey', row_name:str='RowKey'):
+
+def query_entities_to_list_of_dicts(
+    entities, partition_name: str = "PartitionKey", row_name: str = "RowKey"
+):
     """
     Convert the results of an Azure storage table query into a list of dictionaries with keys renamed.
 
@@ -21,7 +18,7 @@ def query_entities_to_list_of_dicts(entities, partition_name:str='PartitionKey',
     for entity in entities:
         converted_entity = {
             partition_name: entity["PartitionKey"],
-            row_name: entity["RowKey"]
+            row_name: entity["RowKey"],
         }
         for key, value in entity.items():
             if key not in ["PartitionKey", "RowKey"]:
@@ -30,7 +27,10 @@ def query_entities_to_list_of_dicts(entities, partition_name:str='PartitionKey',
 
     return result
 
-def get_blob_sas(blob:BlobClient, expiry:timedelta=timedelta(days=2), prefix:str="https://") -> str:
+
+def get_blob_sas(
+    blob: BlobClient, expiry: timedelta = timedelta(days=2), prefix: str = "https://"
+) -> str:
     """
     Given a BlobClient object and an expiry time, return a SAS url for that blob.
     """
@@ -48,7 +48,7 @@ def get_blob_sas(blob:BlobClient, expiry:timedelta=timedelta(days=2), prefix:str
     ).replace("https://", prefix)
 
 
-def load_dataframe(source:str|dict|list) -> pd.DataFrame:
+def load_dataframe(source: str | dict | list) -> pd.DataFrame:
     """
     Loads a DataFrame from a specified source which can be a file path, a dictionary
     representing Azure Blob storage details, or a list of dictionaries representing row data.
@@ -83,7 +83,7 @@ def load_dataframe(source:str|dict|list) -> pd.DataFrame:
     elif isinstance(source, dict):
         # Handling Azure Blob storage as the source
         blob = BlobClient.from_connection_string(
-            conn_str=os.environ[source['conn_str']],
+            conn_str=os.environ[source["conn_str"]],
             container_name=source["container_name"],
             blob_name=source["blob_name"],
         )
@@ -107,8 +107,11 @@ def load_dataframe(source:str|dict|list) -> pd.DataFrame:
         return pd.DataFrame(source)
     else:
         raise ValueError("Unsupported source format.")
-    
-def export_dataframe(df:pd.DataFrame, destination:str|dict, expiry:timedelta=timedelta(days=2)) -> str:
+
+
+def export_dataframe(
+    df: pd.DataFrame, destination: str | dict, expiry: timedelta = timedelta(days=2)
+) -> str:
     """
     Exports a DataFrame to a specified destination. The destination can be a blob URL or
     a dictionary specifying Azure Blob storage details.
@@ -137,19 +140,26 @@ def export_dataframe(df:pd.DataFrame, destination:str|dict, expiry:timedelta=tim
     - The SAS token generated for the blob URL grants read access for 2 days from the time of
       generation.
     """
-    
+
     # establish output blob from a destination url
     if isinstance(destination, str):
         blob = BlobClient.from_blob_url(destination)
     # establish output blob from a blob details dictionary
     elif isinstance(destination, dict):
+        to_type = destination.get("format", None)
         blob = BlobClient.from_connection_string(
             conn_str=os.environ[destination["conn_str"]],
             container_name=destination["container_name"],
-            blob_name=destination["blob_name"],
+            blob_name=destination.get(
+                "blob_name",
+                "{}/{}.{}".format(
+                    destination["blob_prefix"],
+                    uuid.uuid4().hex,
+                    to_type if to_type else "csv",
+                ),
+            ),
         )
-        to_type = destination.get("format", None)
-    
+
     # attempt to infer file type from the blob name
     if not to_type:
         _, to_type = os.path.splitext(blob.blob_name)

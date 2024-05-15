@@ -75,6 +75,24 @@ def orchestrator_esquireAudiences_processingSteps(
         processes := ingress["audience"].get("processes", [])
     ):
         # Reusable common input for sub-orchestrators
+        inputType = (
+            processes[step - 1]["outputType"]  # Use previous step's output type
+            if step
+            else ingress["audience"]["dataSource"]["dataType"]  # Use primary data type
+        )
+        source_urls = (
+            processes[step - 1].get("results", []) if step else ingress["results"]
+        )
+        if not source_urls:
+            raise Exception(
+                "No data to process from previous step. [{}]: {} -> {}".format(
+                    step - 1, inputType, process["outputType"]
+                )
+            )
+        try:
+            custom_coding = json.loads(process.get("customCoding", "{}"))
+        except:
+            custom_coding = {}
         egress = {
             "working": {
                 **ingress["working"],
@@ -94,26 +112,10 @@ def orchestrator_esquireAudiences_processingSteps(
                     step,
                 ),
             },
+            "transform": [inputType, process["outputType"]],
+            "source_urls": source_urls,
+            "custom_coding": custom_coding,
         }
-        inputType = (
-            processes[step - 1]["outputType"]  # Use previous step's output type
-            if step
-            else ingress["audience"]["dataSource"]["dataType"]  # Use primary data type
-        )
-        egress["transform"] = [inputType, process["outputType"]]
-        source_urls = (
-            processes[step - 1].get("results", []) if step else ingress["results"]
-        )
-        if not source_urls:
-            raise Exception(
-                "No data to process from previous step. [{}]: {} -> {}".format(
-                    step - 1, inputType, process["outputType"]
-                )
-            )
-        try:
-            custom_coding = json.loads(process.get("customCoding", "{}"))
-        except:
-            custom_coding = {}
 
         # Switch logistics based on the input data type
         match inputType:
@@ -123,52 +125,10 @@ def orchestrator_esquireAudiences_processingSteps(
                         # TODO: figure out what (if anything) should happen here
                         pass
                     case "device_ids":  # addresses -> deviceids
-                        onspot = yield context.task_all(
-                            [
-                                context.call_sub_orchestrator(
-                                    "onspot_orchestrator",
-                                    {
-                                        **egress["working"],
-                                        "endpoint": "/save/addresses/all/devices",
-                                        "request": {
-                                            "hash": False,
-                                            "name": uuid.uuid4().hex,
-                                            "fileName": uuid.uuid4().hex + ".csv",
-                                            "fileFormat": {
-                                                "delimiter": ",",
-                                                "quoteEncapsulate": True,
-                                            },
-                                            "mappings": {
-                                                # "street": ["delivery_line_1"],
-                                                "city": ["city"],
-                                                "state": ["state"],
-                                                "zip": ["zipcode"],
-                                                "zip4": ["zip4"],
-                                            },
-                                            "matchAcceptanceThreshold": 29.9,
-                                            "sources": [
-                                                source_url.replace(
-                                                    "https://", "az://"
-                                                )
-                                                for source_url in source_urls
-                                            ],
-                                        },
-                                    },
-                                )
-                            ]
+                        process["results"] = yield context.call_sub_orchestrator(
+                            "orchestrator_esquireAudiencesSteps_addresses2deviceids",
+                            egress,
                         )
-                        process["results"] = []
-                        for result in onspot:
-                            job_location_map = {
-                                job["id"]: job["location"].replace("az://", "https://")
-                                for job in result["jobs"]
-                            }
-                            for callback in result["callbacks"]:
-                                if callback["success"]:
-                                    if callback["id"] in job_location_map:
-                                        process["results"].append(
-                                            job_location_map[callback["id"]]
-                                        )
                     case "polygons":  # addresses -> polygons
                         process["results"] = yield context.task_all(
                             [
@@ -185,51 +145,10 @@ def orchestrator_esquireAudiences_processingSteps(
             case "device_ids":
                 match process["outputType"]:
                     case "addresses":  # deviceids -> addresses
-                        # onspot /save/files/household
-                        onspot = yield context.task_all(
-                            [
-                                context.call_sub_orchestrator(
-                                    "onspot_orchestrator",
-                                    {
-                                        **egress["working"],
-                                        "endpoint": "/save/files/household",
-                                        "request": {
-                                            "type": "FeatureCollection",
-                                            "features": [
-                                                {
-                                                    "type": "Files",
-                                                    "paths": [
-                                                        url.replace("https://", "az://")
-                                                        for url in source_urls
-                                                    ],
-                                                    "properties": {
-                                                        "name": uuid.uuid4().hex,
-                                                        "fileName": uuid.uuid4().hex + ".csv",
-                                                        "hash": False,
-                                                        "fileFormat": {
-                                                            "delimiter": ",",
-                                                            "quoteEncapsulate": True,
-                                                        },
-                                                    },
-                                                }
-                                            ],
-                                        },
-                                    },
-                                )
-                            ]
+                        process["results"] = yield context.call_sub_orchestrator(
+                            "orchestrator_esquireAudiencesSteps_deviceids2addresses",
+                            egress,
                         )
-                        process["results"] = []
-                        for result in onspot:
-                            job_location_map = {
-                                job["id"]: job["location"].replace("az://", "https://")
-                                for job in result["jobs"]
-                            }
-                            for callback in result["callbacks"]:
-                                if callback["success"]:
-                                    if callback["id"] in job_location_map:
-                                        process["results"].append(
-                                            job_location_map[callback["id"]]
-                                        )
                     case "device_ids":  # deviceids -> deviceids
                         # onspot /save/files/demographics/all
                         process["results"] = yield context.task_all(
@@ -260,48 +179,10 @@ def orchestrator_esquireAudiences_processingSteps(
                         # onspot /save/files/household
                         pass
                     case "device_ids":  # polygons -> deviceids
-                        requests = yield context.task_all(
-                            [
-                                context.call_activity(
-                                    "activity_esquireAudienceBuilder_formatOnspotRequest",
-                                    {
-                                        **egress,
-                                        "custom_coding": custom_coding,
-                                        "source_url": source_url,
-                                    },
-                                )
-                                for source_url in source_urls
-                            ]
+                        process["results"] = yield context.call_sub_orchestrator(
+                            "orchestrator_esquireAudiencesSteps_polygon2deviceids",
+                            egress,
                         )
-                        onspot = yield context.task_all(
-                            [
-                                context.call_sub_orchestrator(
-                                    "onspot_orchestrator",
-                                    {
-                                        **egress["working"],
-                                        "endpoint": "/save/geoframe/all/devices",
-                                        "request": json.loads(
-                                            BlobClient.from_blob_url(source_url)
-                                            .download_blob()
-                                            .readall()
-                                        ),
-                                    },
-                                )
-                                for source_url in requests
-                            ]
-                        )
-                        process["results"] = []
-                        for result in onspot:
-                            job_location_map = {
-                                job["id"]: job["location"].replace("az://", "https://")
-                                for job in result["jobs"]
-                            }
-                            for callback in result["callbacks"]:
-                                if callback["success"]:
-                                    if callback["id"] in job_location_map:
-                                        process["results"].append(
-                                            job_location_map[callback["id"]]
-                                        )
                     case "polygons":  # polygons -> polygons
                         # TODO: figure out what (if anything) should happen here
                         pass

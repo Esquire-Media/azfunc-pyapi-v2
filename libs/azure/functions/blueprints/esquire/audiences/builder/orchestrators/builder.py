@@ -2,6 +2,7 @@
 
 from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
+import json
 
 bp = Blueprint()
 
@@ -39,7 +40,7 @@ def orchestrator_esquireAudiences_builder(
         "activity_esquireAudienceBuilder_fetchAudience",
         ingress["audience"],
     )
-
+    
     if ingress["audience"].get("dataSource"):
         # Generate a primary data set
         ingress = yield context.call_sub_orchestrator(

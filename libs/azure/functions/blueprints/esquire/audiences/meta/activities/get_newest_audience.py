@@ -9,7 +9,7 @@ bp: Blueprint = Blueprint()
 
 # activity to grab the geojson data and format the request files for OnSpot
 @bp.activity_trigger(input_name="ingress")
-async def activity_esquireAudiencesMeta_newestAudience(ingress: dict):
+async def activity_esquireAudiencesMeta_newestAudienceOld(ingress: dict):
     sources_container_client = ContainerClient.from_connection_string(
         conn_str=os.environ[ingress['conn_str']],
         container_name=ingress['container_name'],

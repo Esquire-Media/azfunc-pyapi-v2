@@ -1,24 +1,15 @@
-#  file path:libs/azure/functions/blueprints/esquire/audiences/meta/activities/newestAudience.py
+#  file path:libs/azure/functions/blueprints/esquire/audiences/utils/activities/newestAudience.py
 
-from azure.storage.blob.aio import ContainerClient
-from azure.storage.blob import (
-    BlobClient,
-    BlobServiceClient,
-    DelimitedTextDialect,
-    BlobSasPermissions,
-    generate_blob_sas,
-)
+from azure.storage.blob import BlobServiceClient
 from datetime import datetime
-from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
-import os
 
 bp: Blueprint = Blueprint()
 
 
 # activity to grab the geojson data and format the request files for OnSpot
 @bp.activity_trigger(input_name="ingress")
-async def activity_esquireAudiencesMeta_newestAudience(ingress: dict):
+async def activity_esquireAudiencesUtils_newestAudience(ingress: dict):
     # ingress = {
     #     "conn_str": os.environ["ESQUIRE_AUDIENCE_CONN_STR"],
     #     "container_name": "general",

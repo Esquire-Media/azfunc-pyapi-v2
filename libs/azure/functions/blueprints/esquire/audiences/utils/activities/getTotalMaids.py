@@ -1,6 +1,5 @@
-#  file path:libs/azure/functions/blueprints/esquire/audiences/meta/activities/getTotalMaids.py
+#  file path:libs/azure/functions/blueprints/esquire/audiences/utils/activities/getTotalMaids.py
 
-from libs.azure.functions import Blueprint
 from azure.storage.blob import (
     BlobClient,
     BlobServiceClient,
@@ -8,20 +7,17 @@ from azure.storage.blob import (
     BlobSasPermissions,
     generate_blob_sas,
 )
-from memory_profiler import profile
-from libs.azure.functions import Blueprint
-from io import BytesIO
-import logging, os, json
-import pandas as pd
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+from libs.azure.functions import Blueprint
+import logging
 
 bp: Blueprint = Blueprint()
 
 
 # activity to grab the geojson data and format the request files for OnSpot
 @bp.activity_trigger(input_name="ingress")
-async def activity_esquireAudiencesMeta_getTotalMaids(ingress: dict):   
+async def activity_esquireAudiencesUtils_getTotalMaids(ingress: dict):   
     # ingress = {
     #     "conn_str": os.environ["ESQUIRE_AUDIENCE_CONN_STR"],
     #     "container_name": "general",
@@ -55,10 +51,11 @@ async def activity_esquireAudiencesMeta_getTotalMaids(ingress: dict):
 
         # get maids count
         total_maids = blob.query_blob(
-            "SELECT COUNT() FROM BlobStorage",
+            "SELECT COUNT(*) FROM BlobStorage",
             blob_format=dialect,
             output_format=dialect,
         )
+        # total_maids = int((total_maids.read()).strip())
 
         # get the blob_url
         blob_url_with_sas = (
@@ -79,5 +76,5 @@ async def activity_esquireAudiencesMeta_getTotalMaids(ingress: dict):
             'url': blob_url_with_sas,
             'maids_count': total_maids
         }
-
-    return result
+    logging.warning(result)
+    return {}

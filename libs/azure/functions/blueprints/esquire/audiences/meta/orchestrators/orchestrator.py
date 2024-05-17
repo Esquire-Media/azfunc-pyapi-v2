@@ -18,10 +18,10 @@ def meta_customaudience_orchestrator(
 
     # reach out to audience definition DB - get adaccount and audienceid (if it exists)
     # ids = yield context.call_activity(
-    #     "activity_esquireAudienceMeta_fetchAudience", ingress
+    #     "activity_esquireAudienceMeta_fetchAudience", ingress,
     # )
 
-    # newAudienceNeeded = not metaAudience["audience"]
+    # newAudienceNeeded = not ids["audience"]
 
     # if not newAudienceNeeded:
     #     metaAudience = yield context.call_sub_orchestrator(
@@ -54,10 +54,9 @@ def meta_customaudience_orchestrator(
     #     )
     #     # need to update the database to have that new audience ID - there is no column in DB for this at this time
 
-    # activity to get the number of MAIDs
+    # activity to get the folder with the most recent MAIDs
     blobs_path = yield context.call_activity(
-        # "activity_esquireAudiencesMeta_getTotalMaids",
-        "activity_esquireAudiencesMeta_newestAudience",
+        "activity_esquireAudiencesUtils_newestAudience",
         {
             "conn_str": os.environ["ESQUIRE_AUDIENCE_CONN_STR"],
             "container_name": "general",
@@ -65,9 +64,9 @@ def meta_customaudience_orchestrator(
         },
     )
 
-    # get list of all blobs in the blob_path
+    # get object with all of the blob URLs and how many MAIDs are in that file
     url_maids = yield context.call_activity(
-        "activity_esquireAudiencesMeta_getTotalMaids",
+        "activity_esquireAudiencesUtils_getTotalMaids",
         {
             "conn_str": os.environ["ESQUIRE_AUDIENCE_CONN_STR"],
             "container_name": "general",

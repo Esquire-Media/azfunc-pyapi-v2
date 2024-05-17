@@ -1,9 +1,6 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/meta/activities/fetchAudience.py
 
 from libs.azure.functions import Blueprint
-from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
-    jsonlogic_to_sql,
-)
 from libs.data import from_bind
 from sqlalchemy import select
 from sqlalchemy.orm import Session, lazyload

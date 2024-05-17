@@ -55,7 +55,6 @@ async def activity_esquireAudiencesUtils_getTotalMaids(ingress: dict):
             blob_format=dialect,
             output_format=dialect,
         )
-        # total_maids = int((total_maids.read()).strip())
 
         # get the blob_url
         blob_url_with_sas = (
@@ -74,7 +73,7 @@ async def activity_esquireAudiencesUtils_getTotalMaids(ingress: dict):
         result['count'] = blob_count
         result[f'Blob_{blob_count}'] = {
             'url': blob_url_with_sas,
-            'maids_count': total_maids
+            'maids_count': int(total_maids.readall().decode('utf-8').strip())
         }
-    logging.warning(result)
-    return {}
+    
+    return result

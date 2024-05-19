@@ -96,7 +96,7 @@ def orchestrator_esquireAudiences_processingSteps(
         egress = {
             "working": {
                 **ingress["working"],
-                "blob_prefix": "{}/{}/{}/{}".format(
+                "blob_prefix": "{}/{}/{}/{}/working".format(
                     ingress["working"]["blob_prefix"],
                     ingress["instance_id"],
                     ingress["audience"]["id"],
@@ -104,8 +104,8 @@ def orchestrator_esquireAudiences_processingSteps(
                 ),
             },
             "destination": {
-                **ingress["destination"],
-                "blob_prefix": "{}/{}/{}/{}/results".format(
+                **ingress["working"],
+                "blob_prefix": "{}/{}/{}/{}".format(
                     ingress["working"]["blob_prefix"],
                     ingress["instance_id"],
                     ingress["audience"]["id"],

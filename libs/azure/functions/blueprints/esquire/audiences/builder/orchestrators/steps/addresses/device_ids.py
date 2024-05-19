@@ -12,12 +12,17 @@ def orchestrator_esquireAudiencesSteps_addresses2deviceids(
     context: DurableOrchestrationContext,
 ):
     ingress = context.get_input()
+    destination = (
+        ingress["working"]
+        if ingress.get("custom_coding", {}).get("filter", False)
+        else ingress["destination"]
+    )
     onspot = yield context.task_all(
         [
             context.call_sub_orchestrator(
                 "onspot_orchestrator",
                 {
-                    **ingress["working"],
+                    **destination,
                     "endpoint": "/save/addresses/all/devices",
                     "request": {
                         "hash": False,
@@ -52,16 +57,16 @@ def orchestrator_esquireAudiencesSteps_addresses2deviceids(
             if callback["success"]:
                 if callback["id"] in job_location_map:
                     source_urls["results"].append(job_location_map[callback["id"]])
-                    
+
     if not ingress["custom_coding"]:
         return source_urls
-    
+
     demographics_results = yield context.task_all(
         [
             context.call_sub_orchestrator(
                 "onspot_orchestrator",
                 {
-                    **ingress["working"],
+                    **ingress["destination"],
                     "endpoint": "/save/files/demographics/all",
                     "request": {
                         "type": "FeatureCollection",

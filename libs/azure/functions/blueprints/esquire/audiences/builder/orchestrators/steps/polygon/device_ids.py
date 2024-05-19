@@ -18,6 +18,11 @@ def orchestrator_esquireAudiencesSteps_polygon2deviceids(
     context: DurableOrchestrationContext,
 ):
     ingress = context.get_input()
+    destination = (
+        ingress["working"]
+        if ingress.get("custom_coding", {}).get("filter", False)
+        else ingress["destination"]
+    )
     requests = yield context.task_all(
         [
             context.call_activity(
@@ -35,7 +40,7 @@ def orchestrator_esquireAudiencesSteps_polygon2deviceids(
             context.call_sub_orchestrator(
                 "onspot_orchestrator",
                 {
-                    **ingress["working"],
+                    **destination,
                     "endpoint": "/save/geoframe/all/devices",
                     "request": json.loads(
                         BlobClient.from_blob_url(source_url).download_blob().readall()
@@ -64,7 +69,7 @@ def orchestrator_esquireAudiencesSteps_polygon2deviceids(
             context.call_sub_orchestrator(
                 "onspot_orchestrator",
                 {
-                    **ingress["working"],
+                    **ingress["destination"],
                     "endpoint": "/save/files/demographics/all",
                     "request": {
                         "type": "FeatureCollection",

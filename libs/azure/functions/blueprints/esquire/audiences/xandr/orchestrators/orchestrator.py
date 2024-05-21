@@ -24,6 +24,7 @@ def xandr_audience_orchestrator(
     newAudienceNeeded = not ids["audience"]
     
     if not newAudienceNeeded:
+        # orchestrator that will get the information for the segment associated with the ESQ audience ID
         xandrSegment = yield context.call_sub_orchestrator(
             "_orchestrator_request",
             {
@@ -32,7 +33,7 @@ def xandr_audience_orchestrator(
         )
         newAudienceNeeded = bool(xandrSegment.get("error", False))
         
-    # if there is no Xandr audience (segment) ID
+    # if there is no Xandr audience (segment) ID, create one
     if newAudienceNeeded:
         context.set_custom_status("Creating new Xandr Audience (Segment).")
         xandrSegment = yield context.call_sub_orchestrator(
@@ -62,6 +63,24 @@ def xandr_audience_orchestrator(
             "audience_id": ingress,
         },
     )
+
+    maids_info, blob_count = url_maids
     
-    blob_url, total_maids = url_maids
-    logging.warning(f"{blob_url} {total_maids}")
+    # Create the list of tasks
+    context.set_custom_status("Creating list of user tasks for Meta Audience.")
+    session_id = random.randint(0, 2**32 - 1)
+
+    xandrSegment =  yield context.task_all(
+        [
+            context.call_sub_orchestrator(
+                "_orchestrator_request",
+                {
+                }
+            )
+            for key, value in maids_info.items()
+            if key.startswith("Blob_")
+        ]
+    )
+    logging.warning(xandrSegment)
+    
+    return {}

@@ -1,8 +1,9 @@
 #  file path:libs/azure/functions/blueprints/esquire/audiences/meta/orchestrator.py
 
 from azure.durable_functions import DurableOrchestrationContext
+from azure.storage.blob import BlobClient
 from libs.azure.functions import Blueprint
-import os, json, random, logging, datetime
+import os, json, random, re, logging, datetime
 import pandas as pd
 
 
@@ -18,7 +19,8 @@ def meta_customaudience_orchestrator(
 
     # reach out to audience definition DB - get adaccount and audienceid (if it exists)
     # ids = yield context.call_activity(
-    #     "activity_esquireAudienceMeta_fetchAudience", ingress,
+    #     "activity_esquireAudienceMeta_fetchAudience",
+    #     ingress,
     # )
 
     # newAudienceNeeded = not ids["audience"]
@@ -75,55 +77,57 @@ def meta_customaudience_orchestrator(
         },
     )
 
-    logging.warning(url_maids)
+    maids_info, blob_count = url_maids
 
-    return {}
+    # Create the list of tasks
+    context.set_custom_status("Creating list of user tasks for Meta Audience.")
+    session_id = random.randint(0, 2**32 - 1)
 
-    # # Create the list of tasks
-    # context.set_custom_status("Creating list of user tasks for Meta Audience.")
-    # session_id = random.randint(0, 2**32 - 1)
-    # task_list = []  # list to hold the tasks
-    # batch_seq = 1  # Start the batch sequence at 1
-    # last_batch = False
-
-    # for maids in pd.read_csv(blob_url, header=None, chunksize=1000):
-    #     maids.columns = ["maids"]
-    #     task = context.call_sub_orchestrator(
-    #         "meta_orchestrator_request",
-    #         {
-    #             "operationId": "CustomAudience.Post.Usersreplace",
-    #             "parameters": {
-    #                 "CustomAudience-Id": ids["audience"],
-    #                 "payload": json.dumps(
-    #                     {
-    #                         "schema": "MOBILE_ADVERTISER_ID",
-    #                         "data_source": {
-    #                             "type": "THIRD_PARTY_IMPORTED",
-    #                             "sub_type": "MOBILE_ADVERTISER_IDS",
-    #                         },
-    #                         "is_raw": True,
-    #                         "data": maids["maids"].tolist(),  # list of maids from CSV
-    #                     }
-    #                 ),
-    #                 "session": json.dumps(
-    #                     {
-    #                         "session_id": session_id,
-    #                         "estimated_num_total": total_maids,
-    #                         "batch_seq": batch_seq,  # Use the current batch sequence
-    #                         "last_batch_flag": last_batch,  # Assume not the last by default
-    #                     }
-    #                 ),
-    #             },
-    #         },
-    #     )
-    #     task_list.append(task)
-    #     batch_seq += 1
-    #     # change the value of last_batch if needed
-    #     if len(maids) < 1000:
-    #         last_batch = True
-
+    metaAudience = yield context.task_all(
+        [
+            context.call_sub_orchestrator(
+                "meta_orchestrator_request",
+                {
+                    "operationId": "CustomAudience.Post.Usersreplace",
+                    "parameters": {
+                        # "CustomAudience-Id": ids["audience"],
+                        "CustomAudience-Id": "23854129551430390",
+                        "payload": json.dumps(
+                            {
+                                "schema": "MOBILE_ADVERTISER_ID",
+                                "data_source": {
+                                    "type": "THIRD_PARTY_IMPORTED",
+                                    "sub_type": "MOBILE_ADVERTISER_IDS",
+                                },
+                                "is_raw": True,
+                                "data": BlobClient.from_blob_url(value["url"]).download_blob().readall().decode('utf-8').split('\r\n')[1:-1],
+                            }
+                        ),
+                        "session": json.dumps(
+                            {
+                                "session_id": session_id,
+                                "estimated_num_total": value["maids_count"],
+                                "batch_seq": int(
+                                    re.search(r"\d+", key).group()
+                                ),  # Use the current blob number for batch sequence
+                                "last_batch_flag": (
+                                    True
+                                    if int(re.search(r"\d+", key).group()) == blob_count
+                                    else False
+                                ), #True is the the blob number is equal to the total number of blobs
+                            }
+                        ),
+                    },
+                },
+            )
+            for key, value in maids_info.items()
+            if key.startswith("Blob_")
+        ]
+    )
+    logging.warning(metaAudience)
+    
     # # run the task_all for the created lsit of tasks to add all the users
     # context.set_custom_status("Adding users to Meta Audience.")
     # metaAudience = yield context.task_all(task_list)
-
-    # return metaAudience
+    
+    return {}

@@ -29,7 +29,7 @@ async def activity_esquireAudiencesUtils_getTotalMaids(ingress: dict):
     container_client = blob_service_client.get_container_client(ingress['container_name'])
     
     result = {
-        "count": 0 
+        "blob_count": 0 
     }
     blob_count = 0
     # get list of all blobs in the given folder
@@ -70,10 +70,10 @@ async def activity_esquireAudiencesUtils_getTotalMaids(ingress: dict):
             )
         )
         
-        result['count'] = blob_count
+        result['blob_count'] = blob_count
         result[f'Blob_{blob_count}'] = {
             'url': blob_url_with_sas,
             'maids_count': int(total_maids.readall().decode('utf-8').strip())
         }
     
-    return result
+    return (result, result['blob_count'])

@@ -194,7 +194,6 @@ class SQLAlchemyStructuredProvider:
         hash_kwargs = hashlib.md5(kwargs_serialized).hexdigest()
         cache_filename = f"sqlalchemy_provider_{hash_kwargs}.pkl"
         temp_path = os.path.join(tempfile.gettempdir(), cache_filename)
-        print(cache_filename)
 
         kw = kwargs.keys()
 

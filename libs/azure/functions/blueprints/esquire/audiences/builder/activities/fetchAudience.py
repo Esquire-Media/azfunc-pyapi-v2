@@ -13,26 +13,25 @@ bp = Blueprint()
 def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
     provider = from_bind("keystone")
     audience = provider.models["public"]["Audience"]
+    processing = provider.models["public"]["TargetingProcessingStep"]
 
     session: Session = provider.connect()
     query = (
         select(audience)
         .options(
             lazyload(audience.related_Advertiser),
-            lazyload(audience.related_DataSource),
-            lazyload(audience.collection_ProcessingStep),
+            lazyload(audience.related_TargetingDataSource),
+            lazyload(audience.collection_AudienceProcess)
         )
-        .where(audience.id == ingress["id"])
+        .where(audience.id == "clwjn2qer005crw04tn61motq")
     )
     result = session.execute(query).one_or_none()
-
     if result:
         return {
             **ingress,
             "advertiser": {
-                "id": result.Audience.related_Advertiser.id,
                 "meta": result.Audience.related_Advertiser.meta,
-                "oneview": result.Audience.related_Advertiser.oneview,
+                "oneview": result.Audience.related_Advertiser.oneView,
                 "xandr": result.Audience.related_Advertiser.xandr,
             },
             "status": result.Audience.status,
@@ -41,8 +40,8 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
             "TTL_Length": result.Audience.TTL_Length,
             "TTL_Unit": result.Audience.TTL_Unit,
             "dataSource": {
-                "id": result.Audience.related_DataSource.id,
-                "dataType": result.Audience.related_DataSource.dataType,
+                "id": result.Audience.related_TargetingDataSource.id,
+                "dataType": result.Audience.related_TargetingDataSource.dataType,
             },
             "dataFilter": jsonlogic_to_sql(result.Audience.dataFilter),
             "processes": list(
@@ -53,8 +52,8 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
                         "outputType": row.outputType,
                         "customCoding": row.customCoding,
                     },
-                    result.Audience.collection_ProcessingStep,
+                    result.Audience.collection_AudienceProcess,
                 )
             ),
-        }
+    }
     return ingress

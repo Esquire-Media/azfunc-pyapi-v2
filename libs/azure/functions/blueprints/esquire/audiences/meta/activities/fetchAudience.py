@@ -4,14 +4,14 @@ from libs.azure.functions import Blueprint
 from libs.data import from_bind
 from sqlalchemy import select
 from sqlalchemy.orm import Session, lazyload
+import logging
 
 bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudienceMeta_fetchAudience(ingress: str):
-    handle = "keystone"
-    provider = from_bind(handle)
+    provider = from_bind("keystone")
     audience = provider.models["public"]["Audience"]
 
     session: Session = provider.connect()
@@ -27,7 +27,7 @@ def activity_esquireAudienceMeta_fetchAudience(ingress: str):
         )
     )
     result = session.execute(query).one_or_none()
-
+    logging.warning(result)
     if result:
         return {
             "adAccount": result.Audience.related_Advertiser.meta, 

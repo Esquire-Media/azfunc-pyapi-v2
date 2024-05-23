@@ -15,8 +15,8 @@ async def starter_esquireAudiencesXandr_test(
 ):
     # Start a new instance of the orchestrator function
     instance_id = await client.start_new(
-        orchestration_function_name="meta_customaudience_orchestrator",
-        client_input="clulpbfdg001v12jixniohdne",
+        orchestration_function_name="xandr_audience_orchestrator",
+        client_input="clwjn2qeu005drw043l2lrnbv",
     )
 
     return client.create_check_status_response(req, instance_id)

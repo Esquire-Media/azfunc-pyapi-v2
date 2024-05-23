@@ -15,33 +15,33 @@ def xandr_audience_orchestrator(
     ingress = context.get_input()
     # ingress="clulpbfdg001v12jixniohdne"
 
-    # reach out to audience definition DB - get information pertaining to the xandr audience (segment)
-    ids = yield context.call_activity(
-        "activity_esquireAudienceXandr_fetchAudience",
-        ingress,
-    )
+    # # reach out to audience definition DB - get information pertaining to the xandr audience (segment)
+    # ids = yield context.call_activity(
+    #     "activity_esquireAudienceXandr_fetchAudience",
+    #     ingress,
+    # )
 
-    newAudienceNeeded = not ids["audience"]
+    # newAudienceNeeded = not ids["audience"]
     
-    if not newAudienceNeeded:
-        # orchestrator that will get the information for the segment associated with the ESQ audience ID
-        xandrSegment = yield context.call_sub_orchestrator(
-            "_orchestrator_request",
-            {
+    # if not newAudienceNeeded:
+    #     # orchestrator that will get the information for the segment associated with the ESQ audience ID
+    #     xandrSegment = yield context.call_sub_orchestrator(
+    #         "_orchestrator_request",
+    #         {
                 
-            }
-        )
-        newAudienceNeeded = bool(xandrSegment.get("error", False))
+    #         }
+    #     )
+    #     newAudienceNeeded = bool(xandrSegment.get("error", False))
         
-    # if there is no Xandr audience (segment) ID, create one
-    if newAudienceNeeded:
-        context.set_custom_status("Creating new Xandr Audience (Segment).")
-        xandrSegment = yield context.call_sub_orchestrator(
-            "_orchestrator_request",
-            {
+    # # if there is no Xandr audience (segment) ID, create one
+    # if newAudienceNeeded:
+    #     context.set_custom_status("Creating new Xandr Audience (Segment).")
+    #     xandrSegment = yield context.call_sub_orchestrator(
+    #         "_orchestrator_request",
+    #         {
                 
-            }
-        )
+    #         }
+    #     )
         
     # activity to get the folder with the most recent MAIDs
     blobs_path = yield context.call_activity(
@@ -67,19 +67,15 @@ def xandr_audience_orchestrator(
     maids_info, blob_count = url_maids
     
     # Create the list of tasks
-    context.set_custom_status("Creating list of user tasks for Meta Audience.")
-    session_id = random.randint(0, 2**32 - 1)
+    context.set_custom_status("Creating avro file for Xandr Audience.")
+    # session_id = random.randint(0, 2**32 - 1)
 
-    xandrSegment =  yield context.task_all(
-        [
-            context.call_sub_orchestrator(
-                "_orchestrator_request",
-                {
-                }
-            )
-            for key, value in maids_info.items()
-            if key.startswith("Blob_")
-        ]
+    xandrSegment =  yield context.call_activity(
+        "activity_esquireAudienceXandr_generateAvro",
+        {
+            "xandr_segment_id": 34606932, #static for testing
+            "maids_url":maids_info,            
+        }
     )
     logging.warning(xandrSegment)
     

@@ -14,7 +14,7 @@ def activity_esquireAudienceBuilder_fetchAudienceIds(ingress: dict):
     audience = provider.models["public"]["Audience"]
     session: Session = provider.connect()
 
-    query = select(audience.id)
+    query = select(audience.id).where(audience.status == True)
     results = session.execute(query).all()
 
     return list(map(lambda row: row.id, results))

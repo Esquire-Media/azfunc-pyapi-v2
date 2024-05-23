@@ -2,7 +2,7 @@
 
 from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
-import uuid
+import logging
 
 bp = Blueprint()
 
@@ -18,8 +18,12 @@ def orchestrator_esquireAudiences_finalize(
         if steps
         else ingress["audience"]["dataSource"]["dataType"]
     )
+    source_urls = (
+        ingress["audience"]["processes"][-1]["results"]
+        if steps
+        else ingress["results"]
+    )
 
-    source_urls = ingress["audience"]["processes"][-1].get("results", [])
     if not source_urls:
         raise Exception(
             "No data to process from last step. [{}]: {}".format(steps, inputType)

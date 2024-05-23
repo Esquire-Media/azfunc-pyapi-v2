@@ -23,7 +23,7 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
             lazyload(audience.related_TargetingDataSource),
             lazyload(audience.collection_AudienceProcess)
         )
-        .where(audience.id == "clwjn2qer005crw04tn61motq")
+        .where(audience.id == ingress["id"])
     )
     result = session.execute(query).one_or_none()
     if result:

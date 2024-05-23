@@ -86,7 +86,7 @@ MAPPING_DATASOURCE = {
         "bind": "keystone",
         "table": {
             "schema": "public",
-            "name": "GeoFrame",
+            "name": "TargetingGeoFrame",
         },
     },
     # Esquire sales - not ready to be used yet

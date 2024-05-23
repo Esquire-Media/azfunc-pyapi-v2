@@ -26,7 +26,7 @@ bp = Blueprint()
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudienceBuilder_formatOnspotRequest(ingress: dict):
     now = datetime.utcnow()
-    if ingress["custom_coding"].get("request", {}):
+    if ingress.get("custom_coding", {}).get("request", {}):
         start, end = extract_dates(ingress["custom_coding"]["request"], now)
     else:
         start = now - relativedelta(days=33)

@@ -2,7 +2,6 @@
 
 from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
-import logging
 
 bp = Blueprint()
 

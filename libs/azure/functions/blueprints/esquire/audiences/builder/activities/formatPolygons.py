@@ -9,7 +9,7 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
 from urllib.parse import unquote
-import os, pandas as pd
+import os, pandas as pd, uuid
 
 try:
     import orjson as json
@@ -27,7 +27,7 @@ def activity_esquireAudienceBuilder_formatPolygons(ingress: dict):
     output_blob = BlobClient.from_connection_string(
         conn_str=os.environ[ingress["destination"]["conn_str"]],
         container_name=input_blob.container_name,
-        blob_name=input_blob.blob_name,
+        blob_name=input_blob.blob_name + ".json",
     )
     output_blob.upload_blob(
         json.dumps(

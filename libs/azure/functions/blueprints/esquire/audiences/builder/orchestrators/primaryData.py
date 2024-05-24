@@ -5,7 +5,6 @@ from libs.azure.functions import Blueprint
 from libs.azure.functions.blueprints.esquire.audiences.builder.config import (
     MAPPING_DATASOURCE,
 )
-import logging
 
 bp = Blueprint()
 

@@ -44,23 +44,26 @@ def activity_esquireAudienceBuilder_finalize(ingress: dict):
         has_header="true",  # Use 'true' if the CSV has a header row, otherwise 'false'
     )
     column = "deviceid"
-    columns = str(
+    columns = (
         next(
             input_blob.query_blob(
                 "SELECT * FROM BlobStorage", blob_format=dialect
             ).records()
         )
-    ).split(",")
-    for c in columns:
-        if "device" in c:
-            column = c
-            break
+        .decode()
+        .split(",")
+    )
+    if columns != "deviceid":
+        for c in columns:
+            if "device" in c:
+                column = c
+                break
 
     output_blob.upload_blob(
         pd.read_csv(
             io.BytesIO(
                 input_blob.query_blob(
-                    'SELECT "{}" FROM BlobStorage'.format(column),
+                    "SELECT {} FROM BlobStorage".format(column),
                     blob_format=dialect,
                 ).readall()
             )
@@ -70,6 +73,7 @@ def activity_esquireAudienceBuilder_finalize(ingress: dict):
         .to_csv(index=False),
         overwrite=True,
     )
+
     return (
         unquote(output_blob.url)
         + "?"

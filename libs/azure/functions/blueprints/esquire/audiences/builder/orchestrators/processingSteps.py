@@ -1,9 +1,8 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/processingSteps.py
 
 from azure.durable_functions import DurableOrchestrationContext
-from azure.storage.blob import BlobClient
 from libs.azure.functions import Blueprint
-import uuid, logging
+import logging
 
 try:
     import orjson as json

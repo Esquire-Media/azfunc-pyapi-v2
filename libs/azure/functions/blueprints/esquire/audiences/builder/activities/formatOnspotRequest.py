@@ -5,7 +5,6 @@ from azure.storage.blob import (
     BlobSasPermissions,
     generate_blob_sas,
 )
-from azure.storage.blob._quick_query_helper import BlobQueryReader
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
@@ -13,7 +12,7 @@ from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
     extract_dates,
 )
 from urllib.parse import unquote
-import os, uuid, pandas as pd, logging
+import os, uuid
 try:
     import orjson as json
 except:

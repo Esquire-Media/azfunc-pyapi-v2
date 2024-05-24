@@ -2,7 +2,7 @@
 
 from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
-import uuid, logging
+import uuid
 
 bp = Blueprint()
 

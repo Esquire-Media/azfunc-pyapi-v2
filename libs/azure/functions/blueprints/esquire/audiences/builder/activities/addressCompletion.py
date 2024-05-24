@@ -6,7 +6,7 @@ from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
 from sqlalchemy import select, func
 from urllib.parse import unquote
-import os, pandas as pd, uuid, logging
+import os, pandas as pd, uuid
 
 from libs.data import from_bind
 
@@ -25,7 +25,6 @@ def activity_esquireAudienceBuilder_addressCompletion(ingress: dict):
         )
     df = pd.read_csv(input_blob.download_blob())
     df = df[~df["zip4"].isnull()][["zipcode", "zip4"]]
-    logging.warning(df.columns)
 
     output_blob = BlobClient.from_connection_string(
         conn_str=os.environ[ingress["destination"]["conn_str"]],

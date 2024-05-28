@@ -6,7 +6,6 @@ from azure.storage.blob import (
     generate_blob_sas,
     DelimitedTextDialect,
 )
-from azure.storage.blob._quick_query_helper import BlobQueryReader
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
@@ -14,7 +13,7 @@ from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
     jsonlogic_to_sql,
 )
 from urllib.parse import unquote
-import os, logging
+import os
 
 
 bp = Blueprint()

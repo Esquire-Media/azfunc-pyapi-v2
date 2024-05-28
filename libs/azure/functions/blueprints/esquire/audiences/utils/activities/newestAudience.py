@@ -6,7 +6,6 @@ from libs.azure.functions import Blueprint
 
 bp: Blueprint = Blueprint()
 
-
 # activity to grab the geojson data and format the request files for OnSpot
 @bp.activity_trigger(input_name="ingress")
 async def activity_esquireAudiencesUtils_newestAudience(ingress: dict):
@@ -24,6 +23,7 @@ async def activity_esquireAudiencesUtils_newestAudience(ingress: dict):
 
     # get list of blobs
     blob_list = []
+    
     for blob in container_client.list_blobs(
         name_starts_with=f"audiences/{ingress['audience_id']}/"
     ):

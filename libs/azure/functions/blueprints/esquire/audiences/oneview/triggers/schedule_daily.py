@@ -41,13 +41,19 @@ async def esquire_audiences_oneview_schedule_daily(
     # Initialize the NocoDB API client with necessary credentials
     api = NocoDB(
         host=os.environ["NOCODB_HOST"],
-        project_id=os.environ["ONEVIEW_NOCODB_PROJECT_ID"],
+        project_id=os.environ["ONEVIEW_NOCODB_BASE_ID"],
         api_token=os.environ["NOCODB_API_KEY"],
     )
 
     # Start an orchestrator instance for each record
-    for record in [None] + api.createRequest(("/OneView Segments", "get"))(
-        parameters={"limit": 1000, "where": "(Enabled,eq,1)"}
+    for record in [None] + api.createRequest(
+        ("/api/v2/tables/{}/records".format(os.environ["ONEVIEW_NOCODB_TABLE_ID"]), "get")
+    )(
+        parameters={
+            "viewId": os.environ["ONEVIEW_NOCODB_VIEW_ID"],
+            "limit": 1000,
+            "where": "(Enabled,eq,1)",
+        }
     ).list:
         # Start the `esquire_audiences_oneview_segment_updater` orchestrator
         # If the record is not None, dump its model data as input

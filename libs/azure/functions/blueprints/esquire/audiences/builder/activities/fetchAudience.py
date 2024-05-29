@@ -1,4 +1,4 @@
-# File: /libs/azure/functions/blueprints/esquire/audiences/builder/activities/fetchAudience.py.py
+# File: /libs/azure/functions/blueprints/esquire/audiences/builder/activities/fetchAudience.py
 
 from libs.azure.functions import Blueprint
 from libs.azure.functions.blueprints.esquire.audiences.builder.utils import jsonlogic_to_sql

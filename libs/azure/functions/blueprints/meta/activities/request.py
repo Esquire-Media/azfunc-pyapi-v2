@@ -3,7 +3,7 @@
 from libs.azure.functions import Blueprint
 from libs.openapi.clients import Meta
 from uuid import uuid4
-import os, pandas as pd
+import os, json, pandas as pd
 
 bp = Blueprint()
 
@@ -85,7 +85,7 @@ def meta_activity_request(ingress: dict) -> dict:
     return {
         "headers": headers,
         "data": (
-            (data if isinstance(data, dict) or isinstance(data, list) else dict(data))
+            (data if isinstance(data, dict) or isinstance(data, list) else json.loads(data.json()))
             if ingress.get("return", True)
             else url
         ),

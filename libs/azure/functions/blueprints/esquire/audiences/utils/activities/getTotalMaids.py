@@ -17,24 +17,22 @@ bp: Blueprint = Blueprint()
 
 # activity to grab the geojson data and format the request files for OnSpot
 @bp.activity_trigger(input_name="ingress")
-async def activity_esquireAudiencesUtils_getTotalMaids(ingress: dict):   
+async def activity_esquireAudiencesUtils_getTotalMaids(ingress: dict):
     # ingress = {
     #     "conn_str": os.environ["ESQUIRE_AUDIENCE_CONN_STR"],
     #     "container_name": "general",
     #     "path_to_blobs": blob_path,
     #     "audience_id": ingress,
     # }
-    
-    blob_service_client = BlobServiceClient.from_connection_string(ingress['conn_str'])
-    container_client = blob_service_client.get_container_client(ingress['container_name'])
-    
-    result = {
-        "blob_count": 0 
-    }
-    blob_count = 0
+
+    blob_service_client = BlobServiceClient.from_connection_string(ingress["conn_str"])
+    container_client = blob_service_client.get_container_client(
+        ingress["container_name"]
+    )
+
+    result = []
     # get list of all blobs in the given folder
-    for blob in container_client.list_blobs(name_starts_with=ingress['path_to_blobs']):
-        blob_count +=1 
+    for blob in container_client.list_blobs(name_starts_with=ingress["path_to_blobs"]):
         # set blob information
         blob = BlobClient.from_connection_string(
             conn_str=ingress["conn_str"],
@@ -69,11 +67,12 @@ async def activity_esquireAudiencesUtils_getTotalMaids(ingress: dict):
                 expiry=datetime.utcnow() + relativedelta(days=2),
             )
         )
-        
-        result['blob_count'] = blob_count
-        result[f'Blob_{blob_count}'] = {
-            'url': blob_url_with_sas,
-            'maids_count': int(total_maids.readall().decode('utf-8').strip())
-        }
-    
-    return (result, result['blob_count'])
+
+        result.append(
+            {
+                "url_with_sas": blob_url_with_sas,
+                "count": int(total_maids.readall().decode("utf-8").strip()),
+            }
+        )
+
+    return result

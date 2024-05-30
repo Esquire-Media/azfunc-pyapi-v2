@@ -3,6 +3,11 @@
 from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
 
+try:
+    import orjson as json
+except:
+    import json
+
 bp = Blueprint()
 
 
@@ -18,10 +23,29 @@ def orchestrator_esquireAudiences_finalize(
         else ingress["audience"]["dataSource"]["dataType"]
     )
     source_urls = (
-        ingress["audience"]["processes"][-1]["results"]
-        if steps
-        else ingress["results"]
+        ingress["audience"]["processes"][-1]["results"] if steps else ingress["results"]
     )
+
+    if not steps:
+        custom_coding = {
+            "request": {
+                "dateStart": {
+                    "date_add": [
+                        {"now": []},
+                        0 - int(ingress["audience"]["TTL_Length"]),
+                        ingress["audience"]["TTL_Unit"],
+                    ]
+                },
+                "dateEnd": {"date_add": [{"now": []}, -2, "days"]},
+            }
+        }
+    elif ingress["audience"]["processes"][-1].get("customCoding", False):
+        try:
+            custom_coding = json.loads(
+                ingress["audience"]["processes"][-1]["customCoding"]
+            )
+        except:
+            custom_coding = {}
 
     if not source_urls:
         raise Exception(
@@ -47,6 +71,7 @@ def orchestrator_esquireAudiences_finalize(
                 context.current_utc_datetime.isoformat(),
             ),
         },
+        "custom_coding": custom_coding,
     }
 
     # Do a final conversion to device IDs here if necessary

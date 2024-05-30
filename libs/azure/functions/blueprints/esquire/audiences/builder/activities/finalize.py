@@ -70,6 +70,7 @@ def activity_esquireAudienceBuilder_finalize(ingress: dict):
         )
         .rename(columns={column: "deviceid"})
         .drop_duplicates(keep="first")
+        .pipe(lambda df: df[df['deviceid'].str.len() == 36]) # Only UUIDs
         .to_csv(index=False),
         overwrite=True,
     )

@@ -61,7 +61,7 @@ def orchestrator_esquireAudiencesSteps_polygon2deviceids(
                 if callback["id"] in job_location_map:
                     source_urls.append(job_location_map[callback["id"]])
                     
-    if not ingress.get("custom_coding"):
+    if not ingress.get("custom_coding", {}).get("filter", False):
         return source_urls
     
     demographics_results = yield context.task_all(

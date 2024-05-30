@@ -88,10 +88,25 @@ def orchestrator_esquireAudiences_processingSteps(
                     step - 1, inputType, process["outputType"]
                 )
             )
-        try:
-            custom_coding = json.loads(process.get("customCoding", "{}"))
-        except:
-            custom_coding = {}
+        if not step:
+            custom_coding = {
+                "request": {
+                    "dateStart": {
+                        "date_add": [
+                            {"now": []},
+                            0 - int(ingress["audience"]["TTL_Length"]),
+                            ingress["audience"]["TTL_Unit"],
+                        ]
+                    },
+                    "dateEnd": {"date_add": [{"now": []}, -2, "days"]},
+                }
+            }
+        elif process.get("customCoding", False):
+            try:
+                custom_coding = json.loads(process["customCoding"])
+            except:
+                custom_coding = {}
+
         egress = {
             "working": {
                 **ingress["working"],

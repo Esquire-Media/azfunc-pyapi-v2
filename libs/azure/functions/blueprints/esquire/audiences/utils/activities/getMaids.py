@@ -17,7 +17,7 @@ bp: Blueprint = Blueprint()
 @bp.activity_trigger(input_name="ingress")
 async def activity_esquireAudiencesUtils_getMaids(ingress: dict):
     # ingress = {
-    #     "conn_str": os.environ["ESQUIRE_AUDIENCE_CONN_STR"],
+    #     "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
     #     "container_name": "general",
     #     "path_to_blobs": blob_path,
     # }

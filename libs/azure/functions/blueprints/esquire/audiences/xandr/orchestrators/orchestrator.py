@@ -47,7 +47,7 @@ def xandr_audience_orchestrator(
     blobs_path = yield context.call_activity(
         "activity_esquireAudiencesUtils_newestAudienceBlobPaths",
         {
-            "conn_str": os.environ["ESQUIRE_AUDIENCE_CONN_STR"],
+            "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
             "container_name": "general",
             "audience_id": ingress,
         },
@@ -57,7 +57,7 @@ def xandr_audience_orchestrator(
     url_maids = yield context.call_activity(
         "activity_esquireAudiencesUtils_getTotalMaids",
         {
-            "conn_str": os.environ["ESQUIRE_AUDIENCE_CONN_STR"],
+            "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
             "container_name": "general",
             "path_to_blobs": blobs_path,
             "audience_id": ingress,

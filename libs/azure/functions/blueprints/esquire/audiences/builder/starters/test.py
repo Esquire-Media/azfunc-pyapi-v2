@@ -16,17 +16,17 @@ async def starter_esquireAudiencesBuilder_test(
         orchestration_function_name="orchestrator_esquireAudiences_batch",
         client_input={
             "source": {
-                "conn_str": "ONSPOT_CONN_STR",
+                "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
                 "container_name": "general",
                 "blob_prefix": "audiences",
             },
             "working": {
-                "conn_str": "ONSPOT_CONN_STR",
+                "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
                 "container_name": "general",
                 "blob_prefix": "raw",
             },
             "destination": {
-                "conn_str": "ONSPOT_CONN_STR",
+                "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
                 "container_name": "general",
                 "blob_prefix": "audiences",
             },

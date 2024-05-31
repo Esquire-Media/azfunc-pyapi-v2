@@ -3,7 +3,7 @@
 from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
 from libs.data import from_bind
-import os, uuid, random, pandas as pd, logging
+import os, uuid, random, pandas as pd
 
 try:
     import orjson as json
@@ -155,7 +155,6 @@ def meta_customaudience_orchestrator(
         },
     )
     count = response[0]["count"]
-    logging.warning(count)
 
     # Add users to the Meta audience
     context.set_custom_status("Adding users to Meta Audience.")

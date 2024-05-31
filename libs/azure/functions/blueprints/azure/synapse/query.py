@@ -2,7 +2,7 @@
 
 from libs.azure.functions import Blueprint
 from libs.data import from_bind
-import pandas as pd, logging
+import pandas as pd
 
 # Try to import orjson for faster JSON serialization/deserialization.
 # Fall back to the built-in json module if orjson is not available.
@@ -32,7 +32,6 @@ async def activity_synapse_query(ingress: dict):
     with from_bind(ingress["bind"]).connect() as connection:
         # Execute the SQL query and read the result into a pandas DataFrame.
         df = pd.read_sql(ingress["query"], connection.connection())
-        logging.warning(df)
         # Convert the DataFrame to JSON format with orient="records" to ensure it is JSON-serializable.
         json_result = df.to_json(orient="records")
         # Deserialize the JSON string to a Python dictionary and return it.

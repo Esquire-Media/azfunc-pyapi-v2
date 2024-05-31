@@ -1,7 +1,8 @@
 #  file path:libs/azure/functions/blueprints/esquire/audiences/meta/orchestrator.py
 from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
-import os, json, uuid, logging
+from libs.data import from_bind
+import os, json, uuid, random, pandas as pd, logging
 
 bp = Blueprint()
 
@@ -10,7 +11,7 @@ bp = Blueprint()
 def meta_customaudience_orchestrator(
     context: DurableOrchestrationContext,
 ):
-    batch_size = 10000
+    batch_size = 1000
     audience_id = context.get_input()
     # audience_id="clwjn2qeu005drw043l2lrnbv"
 
@@ -135,180 +136,119 @@ def meta_customaudience_orchestrator(
         },
     )
     count = response[0]["count"]
-    
-    results = yield context.task_all(
-        [
-            context.call_activity(
-                "activity_synapse_query",
+
+    # Add the users
+    context.set_custom_status("Adding users to Meta Audience.")
+    sessionStarter = yield context.call_sub_orchestrator(
+        "meta_orchestrator_request",
+        {
+            "operationId": "CustomAudience.Post.Usersreplace",
+            "parameters": {
+                "CustomAudience-Id": metaAudience["id"],
+                "payload": json.dumps(
+                    {
+                        "schema": "MOBILE_ADVERTISER_ID",
+                        "data_source": {
+                            "type": "THIRD_PARTY_IMPORTED",
+                            "sub_type": "MOBILE_ADVERTISER_IDS",
+                        },
+                        "is_raw": True,
+                        "data": pd.read_sql(
+                            """
+                                SELECT DISTINCT deviceid
+                                FROM OPENROWSET(
+                                    BULK '{}/{}',
+                                    DATA_SOURCE = '{}',  
+                                    FORMAT = 'CSV',
+                                    PARSER_VERSION = '2.0',
+                                    HEADER_ROW = TRUE
+                                ) WITH (
+                                    deviceid UNIQUEIDENTIFIER
+                                ) AS [data]
+                                ORDER BY deviceid
+                                OFFSET {} ROWS
+                                FETCH NEXT {} ROWS ONLY
+                            """.format(
+                                os.environ["ESQUIRE_AUDIENCE_CONTAINER_NAME"],
+                                audience_blob_prefix,
+                                os.environ["ESQUIRE_AUDIENCE_DATA_SOURCE"],
+                                0,
+                                batch_size,
+                            ),
+                            from_bind("audiences").connect().connection(),
+                        )["deviceid"]
+                        .apply(lambda x: str(x))
+                        .to_list(),
+                    }
+                ),
+                "session": json.dumps(
+                    {
+                        "session_id": random.randint(0, 2**32 - 1),
+                        "estimated_num_total": count,
+                        "batch_seq": 1,
+                        "last_batch_flag": count < batch_size,
+                    }
+                ),
+            },
+        },
+    )
+    sessionActions = [sessionStarter]
+    if count > batch_size:
+        for batch_seq, offset in enumerate(range(batch_size, count, batch_size), 2):
+            sessionAction = yield context.call_sub_orchestrator(
+                "meta_orchestrator_request",
                 {
-                    "bind": "audiences",
-                    "query": """
-                    SELECT DISTINCT deviceid
-                    FROM OPENROWSET(
-                        BULK '{}/{}',
-                        DATA_SOURCE = '{}',  
-                        FORMAT = 'CSV',
-                        PARSER_VERSION = '2.0',
-                        HEADER_ROW = TRUE
-                    ) WITH (
-                        deviceid UNIQUEIDENTIFIER
-                    ) AS [data]
-                    ORDER BY deviceid
-                    OFFSET {} ROWS
-                    FETCH NEXT {} ROWS ONLY
-                    """.format(
-                        os.environ["ESQUIRE_AUDIENCE_CONTAINER_NAME"],
-                        audience_blob_prefix,
-                        os.environ["ESQUIRE_AUDIENCE_DATA_SOURCE"],
-                        offset,
-                        batch_size,
-                    ),
+                    "operationId": "CustomAudience.Post.Usersreplace",
+                    "parameters": {
+                        "CustomAudience-Id": metaAudience["id"],
+                        "payload": json.dumps(
+                            {
+                                "schema": "MOBILE_ADVERTISER_ID",
+                                "data_source": {
+                                    "type": "THIRD_PARTY_IMPORTED",
+                                    "sub_type": "MOBILE_ADVERTISER_IDS",
+                                },
+                                "is_raw": True,
+                                "data": pd.read_sql(
+                                    """
+                                        SELECT DISTINCT deviceid
+                                        FROM OPENROWSET(
+                                            BULK '{}/{}',
+                                            DATA_SOURCE = '{}',  
+                                            FORMAT = 'CSV',
+                                            PARSER_VERSION = '2.0',
+                                            HEADER_ROW = TRUE
+                                        ) WITH (
+                                            deviceid UNIQUEIDENTIFIER
+                                        ) AS [data]
+                                        ORDER BY deviceid
+                                        OFFSET {} ROWS
+                                        FETCH NEXT {} ROWS ONLY
+                                    """.format(
+                                        os.environ["ESQUIRE_AUDIENCE_CONTAINER_NAME"],
+                                        audience_blob_prefix,
+                                        os.environ["ESQUIRE_AUDIENCE_DATA_SOURCE"],
+                                        offset,
+                                        batch_size,
+                                    ),
+                                    from_bind("audiences").connect().connection(),
+                                )["deviceid"]
+                                .apply(lambda x: str(x))
+                                .to_list(),
+                            }
+                        ),
+                        "session": json.dumps(
+                            {
+                                "session_id": sessionStarter["session_id"],
+                                "estimated_num_total": count,
+                                "batch_seq": batch_seq,
+                                "last_batch_flag": count < offset + batch_size,
+                            }
+                        ),
+                    },
                 },
             )
-            for offset in range(0, count, batch_size)
-        ]
-    )
-    return results
+        sessionActions.append(sessionAction)
 
-    # # Add the users
-    # context.set_custom_status("Adding users to Meta Audience.")
-
-    # sessionStarter = yield context.call_sub_orchestrator(
-    #     "meta_orchestrator_request",
-    #     {
-    #         "operationId": "CustomAudience.Post.Usersreplace",
-    #         "parameters": {
-    #             "CustomAudience-Id": metaAudience["id"],
-    #             "payload": json.dumps(
-    #                 {
-    #                     "schema": "MOBILE_ADVERTISER_ID",
-    #                     "data_source": {
-    #                         "type": "THIRD_PARTY_IMPORTED",
-    #                         "sub_type": "MOBILE_ADVERTISER_IDS",
-    #                     },
-    #                     "is_raw": True,
-    #                     "data": maids[0]
-    #                 }
-    #             ),
-    #             "session": json.dumps(
-    #                 {
-    #                     "session_id": random.randint(0, 2**32 - 1),
-    #                     "estimated_num_total": count,
-    #                     "batch_seq": 1,
-    #                     "last_batch_flag": 1 == len(maids),
-    #                 }
-    #             ),
-    #         },
-    #     },
-    # )
-
-    # metaAudience_list = yield context.task_all(
-    #     [
-    #         context.call_sub_orchestrator(
-    #             "meta_orchestrator_request",
-    #             {
-    #                 "operationId": "CustomAudience.Post.Usersreplace",
-    #                 "parameters": {
-    #                     "CustomAudience-Id": metaAudience["id"],
-    #                     "payload": json.dumps(
-    #                         {
-    #                             "schema": "MOBILE_ADVERTISER_ID",
-    #                             "data_source": {
-    #                                 "type": "THIRD_PARTY_IMPORTED",
-    #                                 "sub_type": "MOBILE_ADVERTISER_IDS",
-    #                             },
-    #                             "is_raw": True,
-    #                             "data": maid_list,
-    #                         }
-    #                     ),
-    #                     "session": json.dumps(
-    #                         {
-    #                             "session_id": sessionStarter["session_id"],
-    #                             "estimated_num_total": count,
-    #                             "batch_seq": index + 1,
-    #                             "last_batch_flag": index + 1 == len(maids),
-    #                         }
-    #                     ),
-    #                 },
-    #             },
-    #         )
-    #         for index, maid_list in enumerate(maids, 1)
-    #     ]
-    # )
-
-    # return {}
-    # # Add the users
-    # context.set_custom_status("Adding users to Meta Audience.")
-
-    # sessionStarter = yield context.call_sub_orchestrator(
-    #     "meta_orchestrator_request",
-    #     {
-    #         "operationId": "CustomAudience.Post.Usersreplace",
-    #         "parameters": {
-    #             "CustomAudience-Id": metaAudience["id"],
-    #             "payload": json.dumps(
-    #                 {
-    #                     "schema": "MOBILE_ADVERTISER_ID",
-    #                     "data_source": {
-    #                         "type": "THIRD_PARTY_IMPORTED",
-    #                         "sub_type": "MOBILE_ADVERTISER_IDS",
-    #                     },
-    #                     "is_raw": True,
-    #                     "data": BlobClient.from_blob_url(url_maids[0]["url"])
-    #                     .download_blob()
-    #                     .readall()
-    #                     .decode("utf-8")
-    #                     .split("\r\n")[1:-1],
-    #                 }
-    #             ),
-    #             "session": json.dumps(
-    #                 {
-    #                     "session_id": random.randint(0, 2**32 - 1),
-    #                     "estimated_num_total": url_maids[0]["count"],
-    #                     "batch_seq": 1,
-    #                     "last_batch_flag": 1 == len(url_maids),
-    #                 }
-    #             ),
-    #         },
-    #     },
-    # )
-
-    # metaAudience_list = yield context.task_all(
-    #     [
-    #         context.call_sub_orchestrator(
-    #             "meta_orchestrator_request",
-    #             {
-    #                 "operationId": "CustomAudience.Post.Usersreplace",
-    #                 "parameters": {
-    #                     "CustomAudience-Id": metaAudience["id"],
-    #                     "payload": json.dumps(
-    #                         {
-    #                             "schema": "MOBILE_ADVERTISER_ID",
-    #                             "data_source": {
-    #                                 "type": "THIRD_PARTY_IMPORTED",
-    #                                 "sub_type": "MOBILE_ADVERTISER_IDS",
-    #                             },
-    #                             "is_raw": True,
-    #                             "data": BlobClient.from_blob_url(blob["url"])
-    #                             .download_blob()
-    #                             .readall()
-    #                             .decode("utf-8")
-    #                             .split("\r\n")[1:-1],
-    #                         }
-    #                     ),
-    #                     "session": json.dumps(
-    #                         {
-    #                             "session_id": sessionStarter["session_id"],
-    #                             "estimated_num_total": blob["count"],
-    #                             "batch_seq": index + 1,
-    #                             "last_batch_flag": index + 1 == len(url_maids),
-    #                         }
-    #                     ),
-    #                 },
-    #             },
-    #         )
-    #         for index, blob in enumerate(url_maids, 1)
-    #     ]
-    # )
-
-    # return metaAudience
+    logging.warning(sessionActions)
+    return {}

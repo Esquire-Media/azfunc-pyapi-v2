@@ -135,7 +135,7 @@ def orchestrator_esquireAudiences_finalize(
             )
 
     # Finalize and store the results
-    yield context.task_all(
+    ingress["results"] = yield context.task_all(
         [
             context.call_activity(
                 "activity_esquireAudienceBuilder_finalize",

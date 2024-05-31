@@ -5,6 +5,7 @@ from libs.azure.functions import Blueprint
 
 bp = Blueprint()
 
+
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_esquireAudiences_builder(
     context: DurableOrchestrationContext,
@@ -72,22 +73,25 @@ def orchestrator_esquireAudiences_builder(
 
         # Push the newly generated audiences to the DSPs that are configured
         tasks = []
-        if ingress["advertiser"]["meta"]:
+        if ingress["audience"]["advertiser"]["meta"]:
             tasks.append(
                 context.call_sub_orchestrator(
-                    "meta_customaudience_orchestrator", ingress["audience"]["id"]
+                    "meta_customaudience_orchestrator",
+                    ingress["audience"]["audience"]["id"],
                 )
             )
-        if ingress["advertiser"]["oneview"]:
+        if ingress["audience"]["advertiser"]["oneview"]:
             tasks.append(
                 context.call_sub_orchestrator(
-                    "oneview_customaudience_orchestrator", ingress["audience"]["id"]
+                    "oneview_customaudience_orchestrator",
+                    ingress["audience"]["audience"]["id"],
                 )
             )
-        if ingress["advertiser"]["xandr"]:
+        if ingress["audience"]["advertiser"]["xandr"]:
             tasks.append(
                 context.call_sub_orchestrator(
-                    "xandr_customaudience_orchestrator", ingress["audience"]["id"]
+                    "xandr_customaudience_orchestrator",
+                    ingress["audience"]["audience"]["id"],
                 )
             )
 

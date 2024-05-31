@@ -2,7 +2,7 @@
 
 from libs.azure.functions import Blueprint
 from libs.data import from_bind
-import pandas as pd
+import pandas as pd, logging
 
 # Try to import orjson for faster JSON serialization/deserialization.
 # Fall back to the built-in json module if orjson is not available.
@@ -12,6 +12,7 @@ except ImportError:
     import json
 
 bp = Blueprint()
+
 
 @bp.activity_trigger(input_name="ingress")
 async def activity_synapse_query(ingress: dict):
@@ -26,18 +27,13 @@ async def activity_synapse_query(ingress: dict):
     Returns:
     dict: The result of the query in JSON-serializable format, or an error message if an exception occurs.
     """
-    bind = from_bind(ingress["bind"])
-    query = ingress["query"]
-    
-    try:
-        # Use a context manager to ensure the database connection is properly closed after use.
-        with bind.connect() as connection:
-            # Execute the SQL query and read the result into a pandas DataFrame.
-            df = pd.read_sql(query, connection.connection())
-            # Convert the DataFrame to JSON format with orient="records" to ensure it is JSON-serializable.
-            json_result = df.to_json(orient="records")
-            # Deserialize the JSON string to a Python dictionary and return it.
-            return json.loads(json_result)
-    except Exception as e:
-        # If an exception occurs, return the error message.
-        return {"error": str(e)}
+
+    # Use a context manager to ensure the database connection is properly closed after use.
+    with from_bind(ingress["bind"]).connect() as connection:
+        # Execute the SQL query and read the result into a pandas DataFrame.
+        df = pd.read_sql(ingress["query"], connection.connection())
+        logging.warning(df)
+        # Convert the DataFrame to JSON format with orient="records" to ensure it is JSON-serializable.
+        json_result = df.to_json(orient="records")
+        # Deserialize the JSON string to a Python dictionary and return it.
+        return json.loads(json_result)

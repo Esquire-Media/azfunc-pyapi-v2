@@ -3,7 +3,7 @@
 from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
 from libs.data import from_bind
-import os, uuid, random, pandas as pd
+import os, uuid, random, pandas as pd, logging
 
 try:
     import orjson as json
@@ -155,6 +155,7 @@ def meta_customaudience_orchestrator(
         },
     )
     count = response[0]["count"]
+    logging.warning(count)
 
     # Add users to the Meta audience
     context.set_custom_status("Adding users to Meta Audience.")
@@ -199,7 +200,7 @@ def meta_customaudience_orchestrator(
                         .apply(lambda x: str(x))
                         .to_list(),
                     }
-                ),
+                ).decode("utf-8"),
                 "session": json.dumps(
                     {
                         "session_id": random.randint(0, 2**32 - 1),
@@ -207,7 +208,7 @@ def meta_customaudience_orchestrator(
                         "batch_seq": 1,
                         "last_batch_flag": count < batch_size,
                     }
-                ),
+                ).decode("utf-8"),
             },
         },
     )
@@ -257,7 +258,7 @@ def meta_customaudience_orchestrator(
                                 .apply(lambda x: str(x))
                                 .to_list(),
                             }
-                        ),
+                        ).decode("utf-8"),
                         "session": json.dumps(
                             {
                                 "session_id": sessionStarter["session_id"],
@@ -265,7 +266,7 @@ def meta_customaudience_orchestrator(
                                 "batch_seq": batch_seq,
                                 "last_batch_flag": count < offset + batch_size,
                             }
-                        ),
+                        ).decode("utf-8"),
                     },
                 },
             )

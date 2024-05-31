@@ -13,7 +13,7 @@ async def starter_esquireAudiencesBuilder_test(
 ):
     # Start a new instance of the orchestrator function
     instance_id = await client.start_new(
-        orchestration_function_name="orchestrator_esquireAudiences_batch",
+        orchestration_function_name="orchestrator_esquireAudiences_builder",
         client_input={
             "source": {
                 "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
@@ -30,7 +30,8 @@ async def starter_esquireAudiencesBuilder_test(
                 "container_name": "general",
                 "blob_prefix": "audiences",
             },
+            "audience": {"id": "clwjn2qeu005drw043l2lrnbv"},
         },
     )
-    
+
     return client.create_check_status_response(req, instance_id)

@@ -1,29 +1,47 @@
-#  file path:libs/azure/functions/blueprints/esquire/audiences/meta/orchestrator.py
+# File path: libs/azure/functions/blueprints/esquire/audiences/meta/orchestrator.py
+
 from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
 from libs.data import from_bind
-import os, json, uuid, random, pandas as pd, logging
+import os, uuid, random, pandas as pd
 
+try:
+    import orjson as json
+except:
+    import json
+
+# Initialize a Blueprint object to define and manage functions
 bp = Blueprint()
 
 
+# Define the orchestration trigger function for managing Meta custom audiences
 @bp.orchestration_trigger(context_name="context")
 def meta_customaudience_orchestrator(
     context: DurableOrchestrationContext,
 ):
-    batch_size = 1000
-    audience_id = context.get_input()
-    # audience_id="clwjn2qeu005drw043l2lrnbv"
+    """
+    Orchestrates the process of managing and updating Meta custom audiences.
 
-    # reach out to audience definition DB - get adaccount and audienceid (if it exists)
+    This function handles the creation of new Meta audiences, fetching existing audience information,
+    updating audience data, and adding users to the audience.
+
+    Args:
+        context (DurableOrchestrationContext): The orchestration context.
+    """
+    batch_size = 1000  # Define the batch size for processing audience data
+    audience_id = context.get_input()  # Get the audience ID from the input
+
+    # Fetch audience definition from the database
     ids = yield context.call_activity(
         "activity_esquireAudienceMeta_fetchAudience",
         audience_id,
     )
 
+    # Determine if a new Meta audience needs to be created
     newAudienceNeeded = not ids["audience"]
 
     if not newAudienceNeeded:
+        # Check the status of the existing Meta audience
         metaAudience = yield context.call_sub_orchestrator(
             "meta_orchestrator_request",
             {
@@ -34,10 +52,11 @@ def meta_customaudience_orchestrator(
                 },
             },
         )
+        # If there is an error, a new audience is needed
         newAudienceNeeded = bool(metaAudience.get("error", False))
 
     if newAudienceNeeded:
-        # create a new audience in facebook
+        # Create a new Meta audience
         context.set_custom_status("Creating new Meta Audience.")
         metaAudience = yield context.call_sub_orchestrator(
             "meta_orchestrator_request",
@@ -52,7 +71,7 @@ def meta_customaudience_orchestrator(
                 },
             },
         )
-        # need to update the database to have that new audience ID - there is no column in DB for this at this time
+        # Update the database with the new audience ID
         yield context.call_activity(
             "activity_esquireAudienceMeta_putAudience",
             {
@@ -62,11 +81,10 @@ def meta_customaudience_orchestrator(
         )
 
     if metaAudience.get("operation_status", False):
-        # get the status of the audience
+        # Handle the status of the audience
         match metaAudience["operation_status"]["code"]:
-            # Update in progress
-            case 300 | 414:
-                # Hacky way to close out a stuck session
+            case 300 | 414:  # Update in progress
+                # Close out a stuck session if any
                 sessions = yield context.call_sub_orchestrator(
                     "meta_orchestrator_request",
                     {
@@ -105,7 +123,7 @@ def meta_customaudience_orchestrator(
                             },
                         )
 
-    # activity to get the folder with the most recent MAIDs
+    # Get the folder with the most recent MAIDs (Mobile Advertiser IDs)
     audience_blob_prefix = yield context.call_activity(
         "activity_esquireAudiencesUtils_newestAudienceBlobPrefix",
         {
@@ -115,6 +133,7 @@ def meta_customaudience_orchestrator(
         },
     )
 
+    # Query to count distinct device IDs in the audience data
     response = yield context.call_activity(
         "activity_synapse_query",
         {
@@ -137,7 +156,7 @@ def meta_customaudience_orchestrator(
     )
     count = response[0]["count"]
 
-    # Add the users
+    # Add users to the Meta audience
     context.set_custom_status("Adding users to Meta Audience.")
     sessionStarter = yield context.call_sub_orchestrator(
         "meta_orchestrator_request",
@@ -193,6 +212,8 @@ def meta_customaudience_orchestrator(
         },
     )
     sessionActions = [sessionStarter]
+
+    # Handle batching if count exceeds batch_size
     if count > batch_size:
         for batch_seq, offset in enumerate(range(batch_size, count, batch_size), 2):
             sessionAction = yield context.call_sub_orchestrator(
@@ -248,7 +269,6 @@ def meta_customaudience_orchestrator(
                     },
                 },
             )
-        sessionActions.append(sessionAction)
+            sessionActions.append(sessionAction)
 
-    logging.warning(sessionActions)
-    return {}
+    return sessionActions  # Return the list of session actions to be executed

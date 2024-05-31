@@ -25,6 +25,5 @@ async def activity_synapse_query(ingress: dict):
     df = pd.read_sql(
         ingress["query"], from_bind(ingress["bind"]).connect().connection()
     )
-
-    # return table names in a flat list
-    return df.to_dict(orient="records")
+    json_data = df.to_json(orient="records")
+    return json.loads(json_data)

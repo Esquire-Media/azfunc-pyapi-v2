@@ -2,7 +2,7 @@
 
 from azure.storage.blob import (
     BlobClient,
-    BlobServiceClient,
+    ContainerClient,
     DelimitedTextDialect,
     BlobSasPermissions,
     generate_blob_sas,
@@ -10,7 +10,7 @@ from azure.storage.blob import (
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from libs.azure.functions import Blueprint
-import logging
+import os
 
 bp: Blueprint = Blueprint()
 
@@ -19,15 +19,15 @@ bp: Blueprint = Blueprint()
 @bp.activity_trigger(input_name="ingress")
 async def activity_esquireAudiencesUtils_getTotalMaids(ingress: dict):
     # ingress = {
-    #     "conn_str": os.environ["ESQUIRE_AUDIENCE_CONN_STR"],
+    #     "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
     #     "container_name": "general",
     #     "path_to_blobs": blob_path,
     #     "audience_id": ingress,
     # }
 
-    blob_service_client = BlobServiceClient.from_connection_string(ingress["conn_str"])
-    container_client = blob_service_client.get_container_client(
-        ingress["container_name"]
+    container_client = ContainerClient.from_connection_string(
+        conn_str=os.environ.get(ingress["conn_str"], ingress["conn_str"]),
+        container_name=ingress["container_name"]
     )
 
     result = []

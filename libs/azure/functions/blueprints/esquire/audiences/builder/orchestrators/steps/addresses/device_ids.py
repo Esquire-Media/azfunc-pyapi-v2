@@ -11,12 +11,44 @@ bp = Blueprint()
 def orchestrator_esquireAudiencesSteps_addresses2deviceids(
     context: DurableOrchestrationContext,
 ):
+    """
+    Orchestrates the conversion of addresses to device IDs for Esquire audiences.
+
+    This orchestrator processes addresses to generate corresponding device IDs, and optionally performs additional processing if custom coding is specified.
+
+    Parameters:
+    context (DurableOrchestrationContext): The context object provided by Azure Durable Functions, used to manage and track the orchestration.
+
+    Returns:
+    list: The URLs of the processed data results.
+
+    Expected format for context.get_input():
+    {
+        "working": {
+            "conn_str": str,
+            "container_name": str,
+            "blob_prefix": str,
+        },
+        "destination": {
+            "conn_str": str,
+            "container_name": str,
+            "blob_prefix": str,
+        },
+        "source_urls": [str],
+        "custom_coding": {
+            "filter": bool
+        }
+    }
+    """
+
     ingress = context.get_input()
     destination = (
         ingress["working"]
         if ingress.get("custom_coding", {}).get("filter", False)
         else ingress["destination"]
     )
+
+    # Convert addresses to device IDs
     onspot = yield context.task_all(
         [
             context.call_sub_orchestrator(
@@ -47,6 +79,8 @@ def orchestrator_esquireAudiencesSteps_addresses2deviceids(
             for source_url in ingress["source_urls"]
         ]
     )
+
+    # Collect URLs of the converted results
     source_urls = []
     for result in onspot:
         job_location_map = {
@@ -56,11 +90,12 @@ def orchestrator_esquireAudiencesSteps_addresses2deviceids(
         for callback in result["callbacks"]:
             if callback["success"]:
                 if callback["id"] in job_location_map:
-                    source_urls["results"].append(job_location_map[callback["id"]])
+                    source_urls.append(job_location_map[callback["id"]])
 
     if not ingress.get("custom_coding"):
         return source_urls
 
+    # Further process the results if custom coding is specified
     demographics_results = yield context.task_all(
         [
             context.call_sub_orchestrator(
@@ -91,6 +126,8 @@ def orchestrator_esquireAudiencesSteps_addresses2deviceids(
             for source_url in source_urls
         ]
     )
+
+    # Collect URLs of the demographic results
     result_urls = []
     for result in demographics_results:
         job_location_map = {

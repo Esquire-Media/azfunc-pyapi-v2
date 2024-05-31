@@ -13,31 +13,51 @@ bp = Blueprint()
 def orchestrator_esquireAudiences_primaryData(
     context: DurableOrchestrationContext,
 ):
-    # ingress ={
-    #         "source": {
-    #             "conn_str": "ONSPOT_CONN_STR",
-    #             "container_name": "general",
-    #             "blob_prefix": "audiences",
-    #         },
-    #         "working": {
-    #             "conn_str": "ONSPOT_CONN_STR",
-    #             "container_name": "general",
-    #             "blob_prefix": "raw",
-    #         },
-    #         "destination": {
-    #             "conn_str": "ONSPOT_CONN_STR",
-    #             "container_name": "general",
-    #             "blob_prefix": "audiences",
-    #         },
-    #         "audience": {
-    #             "id": id,
-    #         },
-    #     },
+    """
+    Orchestrates the generation of primary data sets for Esquire audiences.
 
+    This orchestrator processes the data source specified for an audience, executes the necessary queries, and stores the results in the specified storage location.
+
+    Parameters:
+    context (DurableOrchestrationContext): The context object provided by Azure Durable Functions, used to manage and track the orchestration.
+
+    Returns:
+    dict: The updated ingress data with the results of the data processing.
+
+    Expected format for context.get_input():
+    {
+        "source": {
+            "conn_str": str,
+            "container_name": str,
+            "blob_prefix": str,
+        },
+        "working": {
+            "conn_str": str,
+            "container_name": str,
+            "blob_prefix": str,
+        },
+        "destination": {
+            "conn_str": str,
+            "container_name": str,
+            "blob_prefix": str,
+        },
+        "audience": {
+            "id": str,
+            "dataSource": {
+                "id": str,
+                "dataType": str
+            },
+            "dataFilter": str
+        }
+    }
+    """
+
+    # Retrieve the input data for the orchestration
     ingress = context.get_input()
-    
+
+    # Check if the audience has a data source
     if ingress["audience"].get("dataSource"):
-        # Generate a primary data set
+        # Generate a primary data set based on the data source type
         match MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]]["dbType"]:
             case "synapse":
                 ingress["results"] = yield context.call_activity(
@@ -120,16 +140,21 @@ def orchestrator_esquireAudiences_primaryData(
                         },
                     },
                 )
+                # Check the data type and format polygons if necessary
                 match ingress["audience"]["dataSource"]["dataType"]:
                     case "polygons":
-                        ingress["results"] = yield context.task_all([
-                            context.call_activity(
-                                "activity_esquireAudienceBuilder_formatPolygons",
-                                {
-                                    "source": source_url,
-                                    "destination": ingress["working"]
-                                }
-                            )
-                            for source_url in ingress["results"]
-                        ])
+                        ingress["results"] = yield context.task_all(
+                            [
+                                context.call_activity(
+                                    "activity_esquireAudienceBuilder_formatPolygons",
+                                    {
+                                        "source": source_url,
+                                        "destination": ingress["working"],
+                                    },
+                                )
+                                for source_url in ingress["results"]
+                            ]
+                        )
+
+    # Return the updated ingress data with the results
     return ingress

@@ -7,9 +7,26 @@ from sqlalchemy.orm import Session
 
 bp = Blueprint()
 
-
 @bp.activity_trigger(input_name="ingress")
-def activity_esquireAudienceMeta_putAudience(ingress: str):
+def activity_esquireAudienceMeta_putAudience(ingress: dict):
+    """
+    Updates audience metadata in the database.
+
+    This activity updates the 'meta' field of the specified audience in the database with the provided metadata.
+
+    Parameters:
+    ingress (dict): A dictionary containing the audience ID and the new metadata.
+        {
+            "audience": str,
+            "metaAudienceId": str
+        }
+
+    Returns:
+    None: Returns None if the update is successful.
+
+    Raises:
+    Exception: If an error occurs during the database operation.
+    """
     provider = from_bind("keystone")
     audience = provider.models["public"]["Audience"]
 
@@ -20,6 +37,6 @@ def activity_esquireAudienceMeta_putAudience(ingress: str):
         .where(audience.id == ingress['audience'])
         .values(meta=ingress['metaAudienceId'])
     )
-    result = session.commit()
+    session.commit()
     
-    return result
+    return None

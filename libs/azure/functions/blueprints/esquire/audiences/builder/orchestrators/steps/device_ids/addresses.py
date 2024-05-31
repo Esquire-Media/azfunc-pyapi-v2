@@ -6,12 +6,35 @@ import uuid
 
 bp = Blueprint()
 
-
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_esquireAudiencesSteps_deviceids2addresses(
     context: DurableOrchestrationContext,
 ):
+    """
+    Orchestrates the conversion of device IDs to addresses for Esquire audiences.
+
+    This orchestrator processes device IDs to generate corresponding addresses and returns the URLs of the processed data.
+
+    Parameters:
+    context (DurableOrchestrationContext): The context object provided by Azure Durable Functions, used to manage and track the orchestration.
+
+    Returns:
+    list: The URLs of the processed data results.
+
+    Expected format for context.get_input():
+    {
+        "working": {
+            "conn_str": str,
+            "container_name": str,
+            "blob_prefix": str,
+        },
+        "source_urls": [str]
+    }
+    """
+
     ingress = context.get_input()
+
+    # Convert device IDs to addresses
     onspot = yield context.task_all(
         [
             context.call_sub_orchestrator(
@@ -42,6 +65,8 @@ def orchestrator_esquireAudiencesSteps_deviceids2addresses(
             for source_url in ingress["source_urls"]
         ]
     )
+
+    # Collect URLs of the converted results
     source_urls = []
     for result in onspot:
         job_location_map = {
@@ -63,4 +88,5 @@ def orchestrator_esquireAudiencesSteps_deviceids2addresses(
     #     ]
     # )
 
+    # Return the URLs of the processed data results
     return source_urls

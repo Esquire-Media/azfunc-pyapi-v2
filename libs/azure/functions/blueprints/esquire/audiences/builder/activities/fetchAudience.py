@@ -1,7 +1,9 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/activities/fetchAudience.py
 
 from libs.azure.functions import Blueprint
-from libs.azure.functions.blueprints.esquire.audiences.builder.utils import jsonlogic_to_sql
+from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
+    jsonlogic_to_sql,
+)
 from libs.data import from_bind
 from sqlalchemy import select
 from sqlalchemy.orm import Session, lazyload
@@ -11,9 +13,25 @@ bp = Blueprint()
 
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
+    """
+    Fetches audience data from the database using the given audience ID.
+
+    This activity retrieves the audience data, including related advertiser information, targeting data source, and audience processes, from the database.
+
+    Parameters:
+    ingress (dict): A dictionary containing the audience ID.
+        {
+            "id": str
+        }
+
+    Returns:
+    dict: A dictionary containing the audience data along with the initial ingress data.
+
+    Raises:
+    Exception: If no results are found for the given audience ID.
+    """
     provider = from_bind("keystone")
     audience = provider.models["public"]["Audience"]
-    processing = provider.models["public"]["TargetingProcessingStep"]
 
     session: Session = provider.connect()
     query = (
@@ -21,10 +39,11 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
         .options(
             lazyload(audience.related_Advertiser),
             lazyload(audience.related_TargetingDataSource),
-            lazyload(audience.collection_AudienceProcess)
+            lazyload(audience.collection_AudienceProcess),
         )
         .where(audience.id == ingress["id"])
     )
+
     result = session.execute(query).one_or_none()
     if result:
         return {
@@ -55,5 +74,6 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
                     result.Audience.collection_AudienceProcess,
                 )
             ),
-    }
+        }
+
     return ingress

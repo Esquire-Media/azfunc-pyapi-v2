@@ -15,6 +15,51 @@ bp = Blueprint()
 def orchestrator_esquireAudiences_finalize(
     context: DurableOrchestrationContext,
 ):
+    """
+    Finalizes the processing of Esquire audiences, ensuring the data is in the correct format and location.
+
+    This orchestrator performs the final conversion to device IDs if necessary and stores the results in the specified destination.
+
+    Parameters:
+    context (DurableOrchestrationContext): The context object provided by Azure Durable Functions, used to manage and track the orchestration.
+
+    Returns:
+    dict: The updated ingress data after finalization.
+
+    Expected format for context.get_input():
+    {
+        "working": {
+            "conn_str": str,
+            "container_name": str,
+            "blob_prefix": str,
+        },
+        "destination": {
+            "conn_str": str,
+            "container_name": str,
+            "blob_prefix": str,
+        },
+        "audience": {
+            "id": str,
+            "dataSource": {
+                "id": str,
+                "dataType": str
+            },
+            "dataFilter": str,
+            "processes": [
+                {
+                    "id": str,
+                    "sort": str,
+                    "outputType": str,
+                    "customCoding": str
+                }
+            ],
+            "TTL_Length": str,
+            "TTL_Unit": str
+        },
+        "results": [str]
+    }
+    """
+
     ingress = context.get_input()
     steps = len(ingress["audience"].get("processes", []))
     inputType = (
@@ -26,6 +71,7 @@ def orchestrator_esquireAudiences_finalize(
         ingress["audience"]["processes"][-1]["results"] if steps else ingress["results"]
     )
 
+    # Prepare custom coding for the first step or as specified
     if not steps:
         custom_coding = {
             "request": {
@@ -47,6 +93,7 @@ def orchestrator_esquireAudiences_finalize(
         except:
             custom_coding = {}
 
+    # Check if there are source URLs to process
     if not source_urls:
         raise Exception(
             "No data to process from last step. [{}]: {}".format(steps, inputType)
@@ -74,7 +121,7 @@ def orchestrator_esquireAudiences_finalize(
         "custom_coding": custom_coding,
     }
 
-    # Do a final conversion to device IDs here if necessary
+    # Perform final conversion to device IDs if necessary
     match inputType:
         case "addresses":  # addresses -> deviceids
             source_urls = yield context.call_sub_orchestrator(
@@ -87,6 +134,7 @@ def orchestrator_esquireAudiences_finalize(
                 {**egress, "source_urls": source_urls},
             )
 
+    # Finalize and store the results
     yield context.task_all(
         [
             context.call_activity(
@@ -97,4 +145,5 @@ def orchestrator_esquireAudiences_finalize(
         ]
     )
 
+    # Return the updated ingress data
     return ingress

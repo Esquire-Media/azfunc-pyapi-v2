@@ -10,10 +10,23 @@ bp = Blueprint()
 
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudienceMeta_fetchAudience(ingress: str):
+    """
+    Fetches audience metadata from the database using the given audience ID.
+
+    This activity retrieves the audience metadata, including related advertiser information and audience tags, from the database.
+
+    Parameters:
+    ingress (str): The ID of the audience to fetch.
+
+    Returns:
+    dict: A dictionary containing the ad account metadata, audience metadata, and tags.
+
+    Raises:
+    Exception: If no results are found for the given audience ID.
+    """
     provider = from_bind("keystone")
     audience = provider.models["public"]["Audience"]
     advertiser = provider.models["public"]["Advertiser"]
-    tag = provider.models["public"]["Tag"]
 
     session: Session = provider.connect()
     query = (
@@ -26,9 +39,9 @@ def activity_esquireAudienceMeta_fetchAudience(ingress: str):
             audience.id == ingress,  # esq audience
             audience.status == True,
             advertiser.meta != None,
-            
         )
     )
+
     result = session.execute(query).one_or_none()
     if result:
         return {
@@ -36,10 +49,12 @@ def activity_esquireAudienceMeta_fetchAudience(ingress: str):
             "audience": result.Audience.meta,
             "tags": [
                 related_tag.related_Tag.title
-                for related_tag in sorted(result.Audience.collection_AudienceTag, key=lambda x: x.order)
+                for related_tag in sorted(
+                    result.Audience.collection_AudienceTag, key=lambda x: x.order
+                )
             ],
         }
 
     raise Exception(
-        f"There were no Meta AdAccount results for the given ESQ audience ({ingress}) while using the binding {handle}."
+        f"There were no Meta AdAccount results for the given ESQ audience ({ingress}) while using the binding {provider.handle}."
     )

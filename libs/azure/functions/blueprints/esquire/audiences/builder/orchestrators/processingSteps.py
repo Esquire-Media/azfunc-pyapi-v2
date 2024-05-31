@@ -16,64 +16,72 @@ bp = Blueprint()
 def orchestrator_esquireAudiences_processingSteps(
     context: DurableOrchestrationContext,
 ):
-    # ingress = {
-    #     "source": {
-    #         "conn_str": "ONSPOT_CONN_STR",
-    #         "container_name": "general",
-    #         "blob_prefix": "audiences",
-    #     },
-    #     "working": {
-    #         "conn_str": "ONSPOT_CONN_STR",
-    #         "container_name": "general",
-    #         "blob_prefix": "raw",
-    #     },
-    #     "destination": {
-    #         "conn_str": "ONSPOT_CONN_STR",
-    #         "container_name": "general",
-    #         "blob_prefix": "audiences",
-    #     },
-    #     "audience": {"id": "clulpbe4r001s12jigokcm2i7"},
-    #     "advertiser": {
-    #         "id": "test",
-    #         "meta": "test",
-    #         "oneview": "test",
-    #         "xandr": "test",
-    #     },
-    #     "status": "test",
-    #     "rebuild": "test",
-    #     "rebuildUnit": "test",
-    #     "TTL_Length": "test",
-    #     "TTL_Unit": "test",
-    #     "dataSource": {"id": "test", "dataType": "test"},
-    #     "dataFilter": "test",
-    #     "processes": {
-    #         "id": "test",
-    #         "sort": "test",
-    #         "outputType": "test",
-    #         "customCoding": "test",
-    #     },
-    #     "results": ["blob_urls"],
-    # }
-    # egress = {
-    #     "working": {
-    #         "conn_str": "ONSPOT_CONN_STR",
-    #         "container_name": "general",
-    #         "blob_prefix": "raw /instanceid/audienceid/step/working",
-    #     },
-    #     "destination": {
-    #         "conn_str": "ONSPOT_CONN_STR",
-    #         "container_name": "general",
-    #         "blob_prefix": "raw /instanceid/audienceid/step",
-    #     },
-    # }
+    """
+    Orchestrates the processing steps for Esquire audiences.
+
+    This orchestrator processes the data through multiple steps, transforming it as specified by each process step. It handles various input and output data types, and can apply custom coding and filtering.
+
+    Parameters:
+    context (DurableOrchestrationContext): The context object provided by Azure Durable Functions, used to manage and track the orchestration.
+
+    Returns:
+    dict: The updated ingress data after all processing steps are completed.
+
+    Expected format for context.get_input():
+    {
+        "source": {
+            "conn_str": str,
+            "container_name": str,
+            "blob_prefix": str,
+        },
+        "working": {
+            "conn_str": str,
+            "container_name": str,
+            "blob_prefix": str,
+        },
+        "destination": {
+            "conn_str": str,
+            "container_name": str,
+            "blob_prefix": str,
+        },
+        "audience": {
+            "id": str,
+            "dataSource": {
+                "id": str,
+                "dataType": str
+            },
+            "dataFilter": str,
+            "processes": [
+                {
+                    "id": str,
+                    "sort": str,
+                    "outputType": str,
+                    "customCoding": str
+                }
+            ]
+        },
+        "advertiser": {
+            "id": str,
+            "meta": str,
+            "oneview": str,
+            "xandr": str
+        },
+        "status": str,
+        "rebuild": str,
+        "rebuildUnit": str,
+        "TTL_Length": str,
+        "TTL_Unit": str,
+        "results": [str]
+    }
+    """
 
     ingress = context.get_input()
 
-    # Loop through processing steps
+    # Loop through each processing step
     for step, process in enumerate(
         processes := ingress["audience"].get("processes", [])
     ):
-        # Reusable common input for sub-orchestrators
+        # Determine the input type and source URLs for the current step
         inputType = (
             processes[step - 1]["outputType"]  # Use previous step's output type
             if step
@@ -88,6 +96,8 @@ def orchestrator_esquireAudiences_processingSteps(
                     step - 1, inputType, process["outputType"]
                 )
             )
+
+        # Prepare custom coding for the first step or as specified
         if not step:
             custom_coding = {
                 "request": {
@@ -107,6 +117,7 @@ def orchestrator_esquireAudiences_processingSteps(
             except:
                 custom_coding = {}
 
+        # Set up the egress data structure for the current step
         egress = {
             "working": {
                 **ingress["working"],
@@ -131,12 +142,12 @@ def orchestrator_esquireAudiences_processingSteps(
             "custom_coding": custom_coding,
         }
 
-        # Switch logistics based on the input data type
+        # Process the data based on the input and output types
         match inputType:
             case "addresses":
                 match process["outputType"]:
                     case "addresses":  # addresses -> addresses
-                        # TODO: figure out what (if anything) should happen here
+                        # No specific processing required
                         pass
                     case "device_ids":  # addresses -> deviceids
                         process["results"] = yield context.call_sub_orchestrator(
@@ -164,7 +175,6 @@ def orchestrator_esquireAudiences_processingSteps(
                             egress,
                         )
                     case "device_ids":  # deviceids -> deviceids
-                        # onspot /save/files/demographics/all
                         process["results"] = yield context.task_all(
                             [
                                 context.call_sub_orchestrator(
@@ -185,12 +195,12 @@ def orchestrator_esquireAudiences_processingSteps(
                             ]
                         )
                     case "polygons":  # deviceids -> polygons
-                        # TODO: figure out what (if anything) should happen here
+                        # No specific processing required
                         pass
             case "polygons":
                 match process["outputType"]:
                     case "addresses":  # polygons -> addresses
-                        # onspot /save/files/household
+                        # No specific processing required
                         pass
                     case "device_ids":  # polygons -> deviceids
                         process["results"] = yield context.call_sub_orchestrator(
@@ -198,9 +208,10 @@ def orchestrator_esquireAudiences_processingSteps(
                             egress,
                         )
                     case "polygons":  # polygons -> polygons
-                        # TODO: figure out what (if anything) should happen here
+                        # No specific processing required
                         pass
 
+        # Apply custom coding filters if specified
         if custom_coding.get("filter", False):
             logging.warning(
                 "[{}]: {} -> {}".format(step, inputType, process["outputType"])
@@ -219,4 +230,5 @@ def orchestrator_esquireAudiences_processingSteps(
                 ]
             )
 
+    # Return the updated ingress data after all processing steps
     return ingress

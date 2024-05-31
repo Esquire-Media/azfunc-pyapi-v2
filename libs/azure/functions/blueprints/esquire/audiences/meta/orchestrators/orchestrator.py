@@ -3,9 +3,7 @@
 from azure.durable_functions import DurableOrchestrationContext
 from azure.storage.blob import BlobClient
 from libs.azure.functions import Blueprint
-from datetime import datetime
-import os, json, random, re, logging
-import pandas as pd
+import os, json, uuid
 
 
 bp = Blueprint()
@@ -15,6 +13,7 @@ bp = Blueprint()
 def meta_customaudience_orchestrator(
     context: DurableOrchestrationContext,
 ):
+    batch_size = 10000
     ingress = context.get_input()
     # ingress="clwjn2qeu005drw043l2lrnbv"
 
@@ -27,7 +26,6 @@ def meta_customaudience_orchestrator(
     newAudienceNeeded = not ids["audience"]
 
     if not newAudienceNeeded:
-        logging.warning("Do not need to create an audience.")
         metaAudience = yield context.call_sub_orchestrator(
             "meta_orchestrator_request",
             {
@@ -39,34 +37,9 @@ def meta_customaudience_orchestrator(
             },
         )
         newAudienceNeeded = bool(metaAudience.get("error", False))
-
-        # get the status of the audience - if running, cancel it
-        logging.warning(("Line 44: ", metaAudience))
-        match metaAudience["operation_status"]["code"]:
-            # Replace in progress
-            case 300 | 414:
-                metaAudience = yield context.call_sub_orchestrator(
-                    "meta_orchestrator_request",
-                    {
-                        "operationId": "CustomAudience.Get",
-                        "parameters": {
-                            "CustomAudience-Id": ids["audience"],
-                            "fields": ["operation_status"],
-                        },
-                        "session": json.dumps(
-                            {
-                                "last_batch_flag": True,
-                            }
-                        ),
-                    },
-                )
-                # throw exception 
-                # logging.warning(("Line 63: ", metaAudience))
-    # return {}
-    # if there is no facebook audience ID
+        
     if newAudienceNeeded:
         # create a new audience in facebook
-        logging.warning("Creating an audience.")
         context.set_custom_status("Creating new Meta Audience.")
         metaAudience = yield context.call_sub_orchestrator(
             "meta_orchestrator_request",
@@ -89,10 +62,53 @@ def meta_customaudience_orchestrator(
                 "metaAudienceId": metaAudience["id"],
             },
         )
+    
+    if metaAudience.get("operation_status", False):
+        # get the status of the audience
+        match metaAudience["operation_status"]["code"]:
+            # Update in progress
+            case 300 | 414:
+                # Hacky way to close out a stuck session
+                sessions = yield context.call_sub_orchestrator(
+                    "meta_orchestrator_request",
+                    {
+                        "operationId": "CustomAudience.Get.Sessions",
+                        "parameters": {
+                            "CustomAudience-Id": ids["audience"]
+                        },
+                    },
+                )
+                for s in sessions:
+                    if s["stage"] in ["uploading"]:
+                        yield context.call_sub_orchestrator(
+                            "meta_orchestrator_request",
+                            {
+                                "operationId": "CustomAudience.Post.Usersreplace",
+                                "payload": json.dumps(
+                                    {
+                                        "schema": "MOBILE_ADVERTISER_ID",
+                                        "data_source": {
+                                            "type": "THIRD_PARTY_IMPORTED",
+                                            "sub_type": "MOBILE_ADVERTISER_IDS",
+                                        },
+                                        "is_raw": True,
+                                        "data": [str(uuid.uuid4())],
+                                    }
+                                ),
+                                "session": json.dumps(
+                                    {
+                                        "session_id": s["session_id"],
+                                        "estimated_num_total": int(s["num_received"]) + 1,
+                                        "batch_seq": int(s["num_received"]) // batch_size + 1,
+                                        "last_batch_flag": True,
+                                    }
+                                ),
+                            },
+                        )
 
     # activity to get the folder with the most recent MAIDs
-    blobs_path = yield context.call_activity(
-        "activity_esquireAudiencesUtils_newestAudience",
+    audience_blob_paths = yield context.call_activity(
+        "activity_esquireAudiencesUtils_newestAudienceBlobPaths",
         {
             "conn_str": os.environ["ESQUIRE_AUDIENCE_CONN_STR"],
             "container_name": "general",
@@ -106,7 +122,7 @@ def meta_customaudience_orchestrator(
     #     {
     #         "conn_str": os.environ["ESQUIRE_AUDIENCE_CONN_STR"],
     #         "container_name": "general",
-    #         "path_to_blobs": blobs_path,
+    #         "path_to_blobs": audience_blob_paths,
     #         "audience_id": ingress,
     #     },
     # )
@@ -119,7 +135,7 @@ def meta_customaudience_orchestrator(
         {
             "conn_str": os.environ["ESQUIRE_AUDIENCE_CONN_STR"],
             "container_name": "general",
-            "path_to_blobs": blobs_path,
+            "path_to_blobs": audience_blob_paths,
         },
     )
     

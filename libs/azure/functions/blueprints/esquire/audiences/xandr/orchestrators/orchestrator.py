@@ -45,7 +45,7 @@ def xandr_audience_orchestrator(
         
     # activity to get the folder with the most recent MAIDs
     blobs_path = yield context.call_activity(
-        "activity_esquireAudiencesUtils_newestAudience",
+        "activity_esquireAudiencesUtils_newestAudienceBlobPaths",
         {
             "conn_str": os.environ["ESQUIRE_AUDIENCE_CONN_STR"],
             "container_name": "general",

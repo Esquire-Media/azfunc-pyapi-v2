@@ -51,13 +51,13 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/AppInstallation'
+            $ref: "#/components/schemas/AppInstallation"
       required: true
     ChangeLog:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ChangeLog'
+            $ref: "#/components/schemas/ChangeLog"
     ChangeLogDetail:
       description: Change Log Detail request body
       required: true
@@ -80,33 +80,33 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Credential'
+            $ref: "#/components/schemas/Credential"
       description: Authentication credentials
       required: true
     Developer:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Developer'
+            $ref: "#/components/schemas/Developer"
       required: true
     DomainList:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/DomainList'
+            $ref: "#/components/schemas/DomainList"
       required: true
     Member:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Member'
+            $ref: "#/components/schemas/Member"
       description: Member details
       required: true
     MemberProfile:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/MemberProfile'
+            $ref: "#/components/schemas/MemberProfile"
       description: Member profile details
       required: true
     Report:
@@ -116,16 +116,23 @@ components:
             type: object
             properties:
               report:
-                $ref: '#/components/schemas/Report'
+                $ref: "#/components/schemas/Report"
       description: Report details
       required: true
     User:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/User'
+            $ref: "#/components/schemas/User"
       description: User details
       required: true
+    Segment:
+      description: Segment object that needs to be added or updated
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Segment"
   responses:
     AccountRecovery:
       description: Account Recovery response
@@ -135,7 +142,7 @@ components:
             type: object
             properties:
               response:
-                $ref: '#/components/schemas/Response'
+                $ref: "#/components/schemas/Response"
     AdSize:
       content:
         application/json:
@@ -144,14 +151,14 @@ components:
             properties:
               response:
                 allOf:
-                  - $ref: '#/components/schemas/Response'
-                  - $ref: '#/components/schemas/Pagination'
+                  - $ref: "#/components/schemas/Response"
+                  - $ref: "#/components/schemas/Pagination"
                 properties:
                   adsize:
-                    $ref: '#/components/schemas/AdSize'
+                    $ref: "#/components/schemas/AdSize"
                   adsizes:
                     items:
-                      $ref: '#/components/schemas/AdSize'
+                      $ref: "#/components/schemas/AdSize"
                     type: array
       description: A list of ad sizes
     AppInstallation:
@@ -164,21 +171,21 @@ components:
               response:
                 type: object
                 allOf:
-                  - $ref: '#/components/schemas/Response'
-                  - $ref: '#/components/schemas/Pagination'
+                  - $ref: "#/components/schemas/Response"
+                  - $ref: "#/components/schemas/Pagination"
                 properties:
                   app-installation:
-                    $ref: '#/components/schemas/AppInstallation'
+                    $ref: "#/components/schemas/AppInstallation"
                   app-installations:
                     items:
-                      $ref: '#/components/schemas/AppInstallation'
+                      $ref: "#/components/schemas/AppInstallation"
                     type: array
     ChangeLog:
       description: Successful operation
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ChangeLog'
+            $ref: "#/components/schemas/ChangeLog"
     ChangeLogDetail:
       description: Change Log Detail response
       content:
@@ -189,14 +196,14 @@ components:
               response:
                 type: object
                 allOf:
-                  - $ref: '#/components/schemas/Response'
-                  - $ref: '#/components/schemas/Pagination'
+                  - $ref: "#/components/schemas/Response"
+                  - $ref: "#/components/schemas/Pagination"
                 properties:
                   app-installation:
-                    $ref: '#/components/schemas/ChangeLogDetail'
+                    $ref: "#/components/schemas/ChangeLogDetail"
                   app-installations:
                     items:
-                      $ref: '#/components/schemas/ChangeLogDetail'
+                      $ref: "#/components/schemas/ChangeLogDetail"
                     type: array
     Creative:
       description: Creative response
@@ -208,14 +215,14 @@ components:
               response:
                 type: object
                 allOf:
-                  - $ref: '#/components/schemas/Response'
-                  - $ref: '#/components/schemas/Pagination'
+                  - $ref: "#/components/schemas/Response"
+                  - $ref: "#/components/schemas/Pagination"
                 properties:
                   app-installation:
-                    $ref: '#/components/schemas/Creative'
+                    $ref: "#/components/schemas/Creative"
                   app-installations:
                     items:
-                      $ref: '#/components/schemas/Creative'
+                      $ref: "#/components/schemas/Creative"
                     type: array
     Credential:
       content:
@@ -225,7 +232,7 @@ components:
             properties:
               response:
                 allOf:
-                  - $ref: '#/components/schemas/Response'
+                  - $ref: "#/components/schemas/Response"
                 properties:
                   token:
                     description: The token issued after successful authentication
@@ -246,14 +253,14 @@ components:
               response:
                 type: object
                 allOf:
-                  - $ref: '#/components/schemas/Response'
-                  - $ref: '#/components/schemas/Pagination'
+                  - $ref: "#/components/schemas/Response"
+                  - $ref: "#/components/schemas/Pagination"
                 properties:
                   country:
-                    $ref: '#/components/schemas/Country'
+                    $ref: "#/components/schemas/Country"
                   countries:
                     items:
-                      $ref: '#/components/schemas/Country'
+                      $ref: "#/components/schemas/Country"
                     type: array
       description: A list of countries or a specific country
     Developer:
@@ -265,14 +272,14 @@ components:
               response:
                 type: object
                 allOf:
-                  - $ref: '#/components/schemas/Response'
-                  - $ref: '#/components/schemas/Pagination'
+                  - $ref: "#/components/schemas/Response"
+                  - $ref: "#/components/schemas/Pagination"
                 properties:
                   developer:
-                    $ref: '#/components/schemas/Developer'
+                    $ref: "#/components/schemas/Developer"
                   developers:
                     items:
-                      $ref: '#/components/schemas/Developer'
+                      $ref: "#/components/schemas/Developer"
                     type: array
       description: A list of countries or a specific country
     DomainList:
@@ -284,14 +291,14 @@ components:
               response:
                 type: object
                 allOf:
-                  - $ref: '#/components/schemas/Response'
-                  - $ref: '#/components/schemas/Pagination'
+                  - $ref: "#/components/schemas/Response"
+                  - $ref: "#/components/schemas/Pagination"
                 properties:
                   domain-list:
-                    $ref: '#/components/schemas/DomainList'
+                    $ref: "#/components/schemas/DomainList"
                   domain-lists:
                     items:
-                      $ref: '#/components/schemas/DomainList'
+                      $ref: "#/components/schemas/DomainList"
                     type: array
       description: A Domain
     Error:
@@ -325,14 +332,14 @@ components:
               response:
                 type: object
                 allOf:
-                  - $ref: '#/components/schemas/Response'
-                  - $ref: '#/components/schemas/Pagination'
+                  - $ref: "#/components/schemas/Response"
+                  - $ref: "#/components/schemas/Pagination"
                 properties:
                   member:
-                    $ref: '#/components/schemas/Member'
+                    $ref: "#/components/schemas/Member"
                   members:
                     items:
-                      $ref: '#/components/schemas/Member'
+                      $ref: "#/components/schemas/Member"
                     type: array
       description: Successful operation
     MemberProfile:
@@ -344,14 +351,14 @@ components:
               response:
                 type: object
                 allOf:
-                  - $ref: '#/components/schemas/Response'
-                  - $ref: '#/components/schemas/Pagination'
+                  - $ref: "#/components/schemas/Response"
+                  - $ref: "#/components/schemas/Pagination"
                 properties:
                   member-profile:
-                    $ref: '#/components/schemas/MemberProfile'
+                    $ref: "#/components/schemas/MemberProfile"
                   member-profiles:
                     items:
-                      $ref: '#/components/schemas/MemberProfile'
+                      $ref: "#/components/schemas/MemberProfile"
                     type: array
       description: Successful operation
     ReportCreate:
@@ -363,7 +370,7 @@ components:
               response:
                 type: object
                 allOf:
-                  - $ref: '#/components/schemas/Response'
+                  - $ref: "#/components/schemas/Response"
                 properties:
                   report_id:
                     type: string
@@ -377,7 +384,7 @@ components:
               response:
                 type: object
                 allOf:
-                  - $ref: '#/components/schemas/Response'
+                  - $ref: "#/components/schemas/Response"
                 properties:
                   execution_status:
                     type: string
@@ -465,7 +472,7 @@ components:
               response:
                 type: object
                 allOf:
-                  - $ref: '#/components/schemas/Response'
+                  - $ref: "#/components/schemas/Response"
                 properties:
                   reports:
                     type: object
@@ -850,16 +857,39 @@ components:
               response:
                 type: object
                 allOf:
-                  - $ref: '#/components/schemas/Response'
-                  - $ref: '#/components/schemas/Pagination'
+                  - $ref: "#/components/schemas/Response"
+                  - $ref: "#/components/schemas/Pagination"
                 properties:
                   user:
-                    $ref: '#/components/schemas/User'
+                    $ref: "#/components/schemas/User"
                   users:
                     items:
-                      $ref: '#/components/schemas/User'
+                      $ref: "#/components/schemas/User"
                     type: array
       description: Successful operation
+    Segment:
+      description: Segment response object
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Segment"
+    Segments:
+      description: A list of segments
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: "#/components/schemas/Segment"
+    SegmentDelete:
+      description: Segment delete response
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
   schemas:
     AdSize:
       type: object
@@ -912,7 +942,7 @@ components:
         permissions:
           type: array
           items:
-            $ref: '#/components/schemas/Permission'
+            $ref: "#/components/schemas/Permission"
           description: >-
             The operations that the app can perform on behalf of the currently
             logged in user.
@@ -1337,7 +1367,7 @@ components:
             you, whether you trust their inventory audit, and whether you allow
             unaudited inventory from them.
           items:
-            $ref: '#/components/schemas/Member'
+            $ref: "#/components/schemas/Member"
           type: array
     Pagination:
       type: object
@@ -1354,7 +1384,7 @@ components:
         privileges:
           type: array
           items:
-            $ref: '#/components/schemas/Privilege'
+            $ref: "#/components/schemas/Privilege"
           description: >-
             The types of calls that the app can make to the API service and the
             specific fields that can be used.
@@ -1445,7 +1475,7 @@ components:
             A list of available categories that you can apply to publishers,
             sites, and placements. Can be customized by the member.
           items:
-            $ref: '#/components/schemas/ContentCategory'
+            $ref: "#/components/schemas/ContentCategory"
           type: array
         contract_allows_unaudited:
           default: true
@@ -1490,7 +1520,7 @@ components:
           type: integer
         deal_types:
           items:
-            $ref: '#/components/schemas/DealType'
+            $ref: "#/components/schemas/DealType"
           type: array
         default_accept_data_provider_usersync:
           default: true
@@ -1567,7 +1597,7 @@ components:
             Default country for the member. The objects are 'country_id',
             'country_name', 'country_code'.
           items:
-            $ref: '#/components/schemas/Country'
+            $ref: "#/components/schemas/Country"
           type: array
         default_currency:
           default: USD
@@ -1643,7 +1673,7 @@ components:
             Floor Optimization below for the definitions of the objects in this
             array. May also be set to null to disable the feature.
           items:
-            $ref: '#/components/schemas/FloorOptimization'
+            $ref: "#/components/schemas/FloorOptimization"
           type: array
         id:
           description: The ID of the member.
@@ -1655,7 +1685,7 @@ components:
           description: This field is being deprecated.
           type: string
         inventory_trust:
-          $ref: '#/components/schemas/InventoryTrust'
+          $ref: "#/components/schemas/InventoryTrust"
         is_iash_compliant:
           default: false
           description: >-
@@ -1672,7 +1702,7 @@ components:
             enables the member to host videos with Xandr.
           type: integer
         mediation:
-          $ref: '#/components/schemas/Mediation'
+          $ref: "#/components/schemas/Mediation"
         member_brand_exceptions:
           default: true
           description: >-
@@ -1699,7 +1729,7 @@ components:
             list of native custom keys using the read-only Native Custom Key
             Service.
           items:
-            $ref: '#/components/schemas/NativeCustomKey'
+            $ref: "#/components/schemas/NativeCustomKey"
           type: array
         no_reselling_priority:
           description: >-
@@ -1709,10 +1739,10 @@ components:
             value must be greater than the priority of the managed bid.
           type: integer
         pitbull_segment_id:
-          description: 'Note: This field has been deprecated.'
+          description: "Note: This field has been deprecated."
           type: integer
         pitbull_segment_value:
-          description: 'Note: This field has been deprecated.'
+          description: "Note: This field has been deprecated."
           type: integer
         platform_exposure:
           default: public
@@ -1728,7 +1758,7 @@ components:
             The plugins that users see on the Apps tab in . See Plugins below
             for more details.
           items:
-            $ref: '#/components/schemas/Plugin'
+            $ref: "#/components/schemas/Plugin"
           type: array
         plugins_enabled:
           default: false
@@ -1770,7 +1800,7 @@ components:
             which this member belongs. See Seller Member Group below for more
             information.
           items:
-            $ref: '#/components/schemas/SellerMemberGroup'
+            $ref: "#/components/schemas/SellerMemberGroup"
           type: array
         seller_revshare_pct:
           description: >-
@@ -1779,7 +1809,7 @@ components:
             indicated here.
           type: integer
         server_of_record:
-          $ref: '#/components/schemas/ServerOfRecord'
+          $ref: "#/components/schemas/ServerOfRecord"
         serving_domain:
           type: object
           description: Admin-only. The domain through which advertisements are served.
@@ -1806,7 +1836,7 @@ components:
             The list of sizes which are included in the standard sizes dropdown
             in when creating creatives.
           items:
-            $ref: '#/components/schemas/AdSize'
+            $ref: "#/components/schemas/AdSize"
           type: array
         state:
           default: active
@@ -1822,10 +1852,10 @@ components:
             owned by this member using the Third-party Pixel service or attach
             them individually at the creative level using the Creative Service.
           items:
-            $ref: '#/components/schemas/ThirdparyPixel'
+            $ref: "#/components/schemas/ThirdparyPixel"
           type: array
         timezone:
-          $ref: '#/components/schemas/Timezone'
+          $ref: "#/components/schemas/Timezone"
         use_insertion_orders:
           default: false
           description: >-
@@ -1848,7 +1878,7 @@ components:
         country_targets:
           description: The countries from which you will accept third-party impressions.
           items:
-            $ref: '#/components/schemas/Country'
+            $ref: "#/components/schemas/Country"
           type: array
         domain_list_action:
           description: The action to perform on domain_list_targets.
@@ -1859,7 +1889,7 @@ components:
         domain_list_targets:
           description: The domain lists to include or exclude.
           items:
-            $ref: '#/components/schemas/DomainList'
+            $ref: "#/components/schemas/DomainList"
           type: array
         id:
           description: The ID of the member profile.
@@ -1867,7 +1897,7 @@ components:
         inventory_url_list_targets:
           description: Contains a list of inventory list IDs.
           items:
-            $ref: '#/components/schemas/InventoryList'
+            $ref: "#/components/schemas/InventoryList"
           type: array
         last_modified:
           description: The date on which the member profile was last modified.
@@ -1946,7 +1976,7 @@ components:
             - psp_health_analytics
           description: Determines which information will be returned.
         timezone:
-          $ref: '#/components/schemas/Timezone'
+          $ref: "#/components/schemas/Timezone"
         filters:
           type: array
           items:
@@ -2791,6 +2821,115 @@ components:
         username:
           description: The login name of the user.
           type: string
+    Segment:
+      type: object
+      properties:
+        code:
+          type: string
+          maxLength: 50
+        id:
+          type: integer
+        state:
+          type: string
+          enum:
+            - active
+            - inactive
+          default: active
+        short_name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 500
+        member_id:
+          type: integer
+        expire_minutes:
+          type: integer
+        enable_rm_piggyback:
+          type: boolean
+        max_usersync_pixels:
+          type: integer
+          default: 0
+        last_modified:
+          type: string
+          format: date-time
+        provider_id:
+          type: integer
+        advertiser_id:
+          type: integer
+          default: null
+        piggyback_pixels:
+          type: array
+          items:
+            $ref: "#/components/schemas/PiggybackPixel"
+        price:
+          type: number
+          format: double
+          default: 0
+        parent_segment_id:
+          type: integer
+        querystring_mapping:
+          type: object
+          properties:
+            param:
+              type: string
+            value_type:
+              type: string
+              enum:
+                - text
+                - numeric
+                - none
+            values:
+              type: array
+              items:
+                type: string
+            allow_empty_text:
+              type: boolean
+              default: false
+            publishers:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+            sites:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+            placements:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+        querystring_mapping_key_value:
+          type: object
+          properties:
+            qs_key:
+              type: string
+            qs_value:
+              type: string
+    PiggybackPixel:
+      type: object
+      properties:
+        url:
+          type: string
+        pixel_type:
+          type: string
+          enum:
+            - js
+            - img
   securitySchemes:
     token:
       type: http
@@ -2908,6 +3047,36 @@ components:
         type: integer
         format: int64
       description: The ID of the change transaction.
+    MemberId:
+      name: member_id
+      in: query
+      required: false
+      schema:
+        type: integer
+    SegmentId:
+      name: id
+      in: query
+      required: true
+      schema:
+        type: integer
+    SegmentCode:
+      name: code
+      in: query
+      required: false
+      schema:
+        type: string
+    SegmentIdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    SearchTerm:
+      name: search
+      in: query
+      required: true
+      schema:
+        type: string
 paths:
   /account-recovery:
     post:
@@ -2916,31 +3085,31 @@ paths:
       tags:
         - Authentication
       requestBody:
-        $ref: '#/components/requestBodies/AccountRecovery'
+        $ref: "#/components/requestBodies/AccountRecovery"
       responses:
-        '200':
-          $ref: '#/components/responses/AccountRecovery'
+        "200":
+          $ref: "#/components/responses/AccountRecovery"
     put:
       operationId: ConfirmAccountRecovery
       summary: Confirm password reset with token
       tags:
         - Authentication
       requestBody:
-        $ref: '#/components/requestBodies/AccountRecoveryConfirm'
+        $ref: "#/components/requestBodies/AccountRecoveryConfirm"
       responses:
-        '200':
-          $ref: '#/components/responses/AccountRecovery'
+        "200":
+          $ref: "#/components/responses/AccountRecovery"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
   /app-installation:
     get:
       operationId: GetApps
       summary: View all installations or a specific installation
       parameters:
-        - $ref: '#/components/parameters/ID'
-        - $ref: '#/components/parameters/Sort'
-        - $ref: '#/components/parameters/Offset'
-        - $ref: '#/components/parameters/Limit'
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Sort"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Limit"
         - name: type
           in: query
           schema:
@@ -2950,10 +3119,10 @@ paths:
               - subscriber
           description: The unique identification number of the installation to view.
       responses:
-        '200':
-          $ref: '#/components/responses/AppInstallation'
+        "200":
+          $ref: "#/components/responses/AppInstallation"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       tags:
@@ -2962,12 +3131,12 @@ paths:
       operationId: InstallApp
       summary: Install an app for a client
       requestBody:
-        $ref: '#/components/requestBodies/AppInstallation'
+        $ref: "#/components/requestBodies/AppInstallation"
       responses:
-        '200':
-          $ref: '#/components/responses/AppInstallation'
+        "200":
+          $ref: "#/components/responses/AppInstallation"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       tags:
@@ -2976,15 +3145,15 @@ paths:
       operationId: UpdateApp
       summary: Update an app installation
       parameters:
-        - $ref: '#/components/parameters/ID'
-        - $ref: '#/components/parameters/Append'
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Append"
       requestBody:
-        $ref: '#/components/requestBodies/AppInstallation'
+        $ref: "#/components/requestBodies/AppInstallation"
       responses:
-        '200':
-          $ref: '#/components/responses/AppInstallation'
+        "200":
+          $ref: "#/components/responses/AppInstallation"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       tags:
@@ -2993,12 +3162,12 @@ paths:
       operationId: DeleteApp
       summary: Delete an app installation
       parameters:
-        - $ref: '#/components/parameters/ID'
+        - $ref: "#/components/parameters/ID"
       responses:
-        '200':
-          $ref: '#/components/responses/AppInstallation'
+        "200":
+          $ref: "#/components/responses/AppInstallation"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       tags:
@@ -3007,12 +3176,12 @@ paths:
     post:
       operationId: Authenticate
       requestBody:
-        $ref: '#/components/requestBodies/Credential'
+        $ref: "#/components/requestBodies/Credential"
       responses:
-        '200':
-          $ref: '#/components/responses/Credential'
+        "200":
+          $ref: "#/components/responses/Credential"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       summary: Authenticate and get a token
       tags:
         - Authentication
@@ -3023,18 +3192,18 @@ paths:
       tags:
         - Change Log
       parameters:
-        - $ref: '#/components/parameters/Service'
-        - $ref: '#/components/parameters/ResourceID'
+        - $ref: "#/components/parameters/Service"
+        - $ref: "#/components/parameters/ResourceID"
         - in: query
           name: additional_fields
           schema:
             type: string
           description: Additional data to be included in the response.
       responses:
-        '200':
-          $ref: '#/components/responses/ChangeLog'
+        "200":
+          $ref: "#/components/responses/ChangeLog"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
     post:
@@ -3042,12 +3211,12 @@ paths:
       tags:
         - Change Log
       requestBody:
-        $ref: '#/components/requestBodies/ChangeLog'
+        $ref: "#/components/requestBodies/ChangeLog"
       responses:
-        '200':
-          $ref: '#/components/responses/ChangeLog'
+        "200":
+          $ref: "#/components/responses/ChangeLog"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
   /change-log-detail:
@@ -3057,13 +3226,13 @@ paths:
       tags:
         - Change Log
       parameters:
-        - $ref: '#/components/parameters/Service'
-        - $ref: '#/components/parameters/ResourceID'
+        - $ref: "#/components/parameters/Service"
+        - $ref: "#/components/parameters/ResourceID"
       responses:
-        '200':
-          $ref: '#/components/responses/ChangeLogDetail'
+        "200":
+          $ref: "#/components/responses/ChangeLogDetail"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
     post:
@@ -3071,22 +3240,22 @@ paths:
       tags:
         - Change Log
       requestBody:
-        $ref: '#/components/requestBodies/ChangeLogDetail'
+        $ref: "#/components/requestBodies/ChangeLogDetail"
       responses:
-        '200':
-          $ref: '#/components/responses/ChangeLogDetail'
+        "200":
+          $ref: "#/components/responses/ChangeLogDetail"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
   /country:
     get:
       operationId: GetCountries
       parameters:
-        - $ref: '#/components/parameters/ID'
-        - $ref: '#/components/parameters/Sort'
-        - $ref: '#/components/parameters/Offset'
-        - $ref: '#/components/parameters/Limit'
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Sort"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Limit"
         - name: name
           in: query
           schema:
@@ -3098,10 +3267,10 @@ paths:
             type: string
           description: ISO code of the country
       responses:
-        '200':
-          $ref: '#/components/responses/Country'
+        "200":
+          $ref: "#/components/responses/Country"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: View all countries or a specific country by ID, NAME, or CODE
@@ -3111,20 +3280,20 @@ paths:
     post:
       operationId: CreateCreative
       parameters:
-        - $ref: '#/components/parameters/AdvertiserID'
-        - $ref: '#/components/parameters/PublisherID'
+        - $ref: "#/components/parameters/AdvertiserID"
+        - $ref: "#/components/parameters/PublisherID"
       summary: Create a new creative
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Creative'
+              $ref: "#/components/schemas/Creative"
       responses:
-        '200':
-          $ref: '#/components/responses/Creative'
+        "200":
+          $ref: "#/components/responses/Creative"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       tags:
@@ -3133,20 +3302,20 @@ paths:
       operationId: UpdateCreative
       summary: Update an existing creative
       parameters:
-        - $ref: '#/components/parameters/ID'
-        - $ref: '#/components/parameters/AdvertiserID'
-        - $ref: '#/components/parameters/PublisherID'
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/AdvertiserID"
+        - $ref: "#/components/parameters/PublisherID"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Creative'
+              $ref: "#/components/schemas/Creative"
       responses:
-        '200':
-          $ref: '#/components/responses/Creative'
+        "200":
+          $ref: "#/components/responses/Creative"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       tags:
@@ -3155,20 +3324,20 @@ paths:
       operationId: GetCreative
       summary: Retrieve a specific creative
       parameters:
-        - $ref: '#/components/parameters/ID'
-        - $ref: '#/components/parameters/AdvertiserID'
-        - $ref: '#/components/parameters/AdvertiserCode'
-        - $ref: '#/components/parameters/AuditStats'
-        - $ref: '#/components/parameters/PublisherID'
-        - $ref: '#/components/parameters/PublisherCode'
-        - $ref: '#/components/parameters/Sort'
-        - $ref: '#/components/parameters/Offset'
-        - $ref: '#/components/parameters/Limit'
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/AdvertiserID"
+        - $ref: "#/components/parameters/AdvertiserCode"
+        - $ref: "#/components/parameters/AuditStats"
+        - $ref: "#/components/parameters/PublisherID"
+        - $ref: "#/components/parameters/PublisherCode"
+        - $ref: "#/components/parameters/Sort"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Limit"
       responses:
-        '200':
-          $ref: '#/components/responses/Creative'
+        "200":
+          $ref: "#/components/responses/Creative"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       tags:
@@ -3176,14 +3345,14 @@ paths:
     delete:
       summary: Delete a specific creative
       parameters:
-        - $ref: '#/components/parameters/ID'
-        - $ref: '#/components/parameters/AdvertiserID'
-        - $ref: '#/components/parameters/PublisherID'
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/AdvertiserID"
+        - $ref: "#/components/parameters/PublisherID"
       responses:
-        '200':
-          $ref: '#/components/responses/Creative'
+        "200":
+          $ref: "#/components/responses/Creative"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       tags:
@@ -3193,10 +3362,10 @@ paths:
       operationId: GetDeveloperApp
       summary: View all installations or a specific installation
       parameters:
-        - $ref: '#/components/parameters/ID'
-        - $ref: '#/components/parameters/Sort'
-        - $ref: '#/components/parameters/Offset'
-        - $ref: '#/components/parameters/Limit'
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Sort"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Limit"
         - name: type
           in: query
           schema:
@@ -3206,10 +3375,10 @@ paths:
               - subscriber
           description: The unique identification number of the installation to view.
       responses:
-        '200':
-          $ref: '#/components/responses/Developer'
+        "200":
+          $ref: "#/components/responses/Developer"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       tags:
@@ -3218,12 +3387,12 @@ paths:
       operationId: InstallDeveloperApp
       summary: Install an app for a client
       requestBody:
-        $ref: '#/components/requestBodies/Developer'
+        $ref: "#/components/requestBodies/Developer"
       responses:
-        '200':
-          $ref: '#/components/responses/Developer'
+        "200":
+          $ref: "#/components/responses/Developer"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       tags:
@@ -3232,15 +3401,15 @@ paths:
       operationId: UpdateDeveloperApp
       summary: Update an app installation
       parameters:
-        - $ref: '#/components/parameters/ID'
-        - $ref: '#/components/parameters/Append'
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Append"
       requestBody:
-        $ref: '#/components/requestBodies/Developer'
+        $ref: "#/components/requestBodies/Developer"
       responses:
-        '200':
-          $ref: '#/components/responses/Developer'
+        "200":
+          $ref: "#/components/responses/Developer"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       tags:
@@ -3249,12 +3418,12 @@ paths:
       operationId: DeleteDeveloperApp
       summary: Delete an app installation
       parameters:
-        - $ref: '#/components/parameters/ID'
+        - $ref: "#/components/parameters/ID"
       responses:
-        '200':
-          $ref: '#/components/responses/Developer'
+        "200":
+          $ref: "#/components/responses/Developer"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       tags:
@@ -3263,12 +3432,12 @@ paths:
     delete:
       operationId: DeleteDomainList
       parameters:
-        - $ref: '#/components/parameters/ID'
+        - $ref: "#/components/parameters/ID"
       responses:
-        '200':
-          $ref: '#/components/responses/DomainList'
+        "200":
+          $ref: "#/components/responses/DomainList"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: Delete an existing domain list
@@ -3277,10 +3446,10 @@ paths:
     get:
       operationId: GetDomainList
       parameters:
-        - $ref: '#/components/parameters/ID'
-        - $ref: '#/components/parameters/Sort'
-        - $ref: '#/components/parameters/Offset'
-        - $ref: '#/components/parameters/Limit'
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Sort"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Limit"
         - name: search
           in: query
           schema:
@@ -3289,10 +3458,10 @@ paths:
             Search term for domain lists with names or descriptions containing
             certain characters
       responses:
-        '200':
-          $ref: '#/components/responses/DomainList'
+        "200":
+          $ref: "#/components/responses/DomainList"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: View domain lists
@@ -3301,12 +3470,12 @@ paths:
     post:
       operationId: CreateDomainList
       requestBody:
-        $ref: '#/components/requestBodies/DomainList'
+        $ref: "#/components/requestBodies/DomainList"
       responses:
-        '200':
-          $ref: '#/components/responses/DomainList'
+        "200":
+          $ref: "#/components/responses/DomainList"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: Add a new domain list
@@ -3315,15 +3484,15 @@ paths:
     put:
       operationId: UpdateDomainList
       parameters:
-        - $ref: '#/components/parameters/ID'
-        - $ref: '#/components/parameters/Append'
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Append"
       requestBody:
-        $ref: '#/components/requestBodies/DomainList'
+        $ref: "#/components/requestBodies/DomainList"
       responses:
-        '200':
-          $ref: '#/components/responses/DomainList'
+        "200":
+          $ref: "#/components/responses/DomainList"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: Modify an existing domain list
@@ -3333,15 +3502,15 @@ paths:
     get:
       operationId: GetMember
       parameters:
-        - $ref: '#/components/parameters/ID'
-        - $ref: '#/components/parameters/Sort'
-        - $ref: '#/components/parameters/Offset'
-        - $ref: '#/components/parameters/Limit'
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Sort"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Limit"
       responses:
-        '200':
-          $ref: '#/components/responses/Member'
+        "200":
+          $ref: "#/components/responses/Member"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: Get member information
@@ -3350,12 +3519,12 @@ paths:
     post:
       operationId: AddMember
       requestBody:
-        $ref: '#/components/requestBodies/Member'
+        $ref: "#/components/requestBodies/Member"
       responses:
-        '200':
-          $ref: '#/components/responses/Member'
+        "200":
+          $ref: "#/components/responses/Member"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: Add a new member
@@ -3364,13 +3533,13 @@ paths:
     put:
       operationId: UpdateMember
       parameters:
-        - $ref: '#/components/parameters/ID'
-        - $ref: '#/components/parameters/Append'
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Append"
       responses:
-        '200':
-          $ref: '#/components/responses/Member'
+        "200":
+          $ref: "#/components/responses/Member"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: Update member information
@@ -3380,12 +3549,12 @@ paths:
     delete:
       operationId: DeleteMemberProfile
       parameters:
-        - $ref: '#/components/parameters/ID'
+        - $ref: "#/components/parameters/ID"
       responses:
-        '200':
+        "200":
           description: Successful operation
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: Delete the current member profile
@@ -3394,15 +3563,15 @@ paths:
     get:
       operationId: GetMemberProfile
       parameters:
-        - $ref: '#/components/parameters/ID'
-        - $ref: '#/components/parameters/Sort'
-        - $ref: '#/components/parameters/Offset'
-        - $ref: '#/components/parameters/Limit'
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Sort"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Limit"
       responses:
-        '200':
-          $ref: '#/components/responses/MemberProfile'
+        "200":
+          $ref: "#/components/responses/MemberProfile"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: Get the current member profile
@@ -3411,12 +3580,12 @@ paths:
     post:
       operationId: CreateMemberProfile
       requestBody:
-        $ref: '#/components/requestBodies/MemberProfile'
+        $ref: "#/components/requestBodies/MemberProfile"
       responses:
-        '200':
-          $ref: '#/components/responses/MemberProfile'
+        "200":
+          $ref: "#/components/responses/MemberProfile"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: Create a new member profile
@@ -3425,15 +3594,15 @@ paths:
     put:
       operationId: UpdateMemberProfile
       parameters:
-        - $ref: '#/components/parameters/ID'
-        - $ref: '#/components/parameters/Append'
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Append"
       requestBody:
-        $ref: '#/components/requestBodies/MemberProfile'
+        $ref: "#/components/requestBodies/MemberProfile"
       responses:
-        '200':
-          $ref: '#/components/responses/MemberProfile'
+        "200":
+          $ref: "#/components/responses/MemberProfile"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: Update an existing member profile
@@ -3442,10 +3611,10 @@ paths:
   /prebid/ad-sizes:
     get:
       responses:
-        '200':
-          $ref: '#/components/responses/AdSize'
+        "200":
+          $ref: "#/components/responses/AdSize"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: Return all ad sizes
@@ -3455,20 +3624,20 @@ paths:
     get:
       operationId: GetUsers
       parameters:
-        - $ref: '#/components/parameters/ID'
-        - $ref: '#/components/parameters/Sort'
-        - $ref: '#/components/parameters/Offset'
-        - $ref: '#/components/parameters/Limit'
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Sort"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Limit"
         - name: current
           in: query
           schema:
             type: boolean
           description: If present, returns the current user
       responses:
-        '200':
-          $ref: '#/components/responses/User'
+        "200":
+          $ref: "#/components/responses/User"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: Get a list of users
@@ -3477,12 +3646,12 @@ paths:
     post:
       operationId: CreateUser
       requestBody:
-        $ref: '#/components/requestBodies/User'
+        $ref: "#/components/requestBodies/User"
       responses:
-        '200':
-          $ref: '#/components/responses/User'
+        "200":
+          $ref: "#/components/responses/User"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: Add a new user
@@ -3491,15 +3660,15 @@ paths:
     put:
       operationId: UpdateUser
       parameters:
-        - $ref: '#/components/parameters/ID'
-        - $ref: '#/components/parameters/Append'
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Append"
       requestBody:
-        $ref: '#/components/requestBodies/User'
+        $ref: "#/components/requestBodies/User"
       responses:
-        '200':
-          $ref: '#/components/responses/User'
+        "200":
+          $ref: "#/components/responses/User"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: Modify an existing user
@@ -3510,12 +3679,12 @@ paths:
       operationId: GetReportStatus
       description: Request the status of a report using the report ID.
       parameters:
-        - $ref: '#/components/parameters/ID'
+        - $ref: "#/components/parameters/ID"
       responses:
-        '200':
-          $ref: '#/components/responses/ReportStatus'
+        "200":
+          $ref: "#/components/responses/ReportStatus"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: Request the status of a report
@@ -3525,12 +3694,12 @@ paths:
       operationId: GenerateReport
       description: Request a report by sending a JSON-formatted report request.
       requestBody:
-        $ref: '#/components/requestBodies/Report'
+        $ref: "#/components/requestBodies/Report"
       responses:
-        '200':
-          $ref: '#/components/responses/ReportCreate'
+        "200":
+          $ref: "#/components/responses/ReportCreate"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: Request a report
@@ -3541,12 +3710,12 @@ paths:
       operationId: DownloadReport
       description: Retrieve report data using the report ID.
       parameters:
-        - $ref: '#/components/parameters/ID'
+        - $ref: "#/components/parameters/ID"
       responses:
-        '200':
-          $ref: '#/components/responses/ReportDownload'
+        "200":
+          $ref: "#/components/responses/ReportDownload"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: Retrieve report data
@@ -3567,15 +3736,85 @@ paths:
             type: array
           style: form
       responses:
-        '200':
-          $ref: '#/components/responses/ReportStatuses'
+        "200":
+          $ref: "#/components/responses/ReportStatuses"
         default:
-          $ref: '#/components/responses/Error'
+          $ref: "#/components/responses/Error"
       security:
         - token: []
       summary: View the status of all reports
       tags:
         - Reporting
+  /segment:
+    post:
+      summary: Add a new segment
+      operationId: CreateSegment
+      tags:
+        - Segment
+      parameters:
+        - $ref: "#/components/parameters/MemberId"
+        - $ref: "#/components/parameters/AdvertiserId"
+        - $ref: "#/components/parameters/AdvertiserCode"
+      requestBody:
+        $ref: "#/components/requestBodies/SegmentRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/SegmentResponse"
+    get:
+      summary: View all segments
+      operationId: GetSegments
+      tags:
+        - Segment
+      responses:
+        "200":
+          $ref: "#/components/responses/SegmentsResponse"
+    put:
+      summary: Modify an existing segment
+      operationId: UpdateSegment
+      tags:
+        - Segment
+      parameters:
+        - $ref: "#/components/parameters/SegmentId"
+        - $ref: "#/components/parameters/AdvertiserId"
+        - $ref: "#/components/parameters/SegmentCode"
+        - $ref: "#/components/parameters/AdvertiserCode"
+      requestBody:
+        $ref: "#/components/requestBodies/SegmentRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/SegmentResponse"
+  /segment/{id}:
+    get:
+      summary: View a particular segment
+      operationId: GetSegment
+      tags:
+        - Segment
+      parameters:
+        - $ref: "#/components/parameters/SegmentIdPath"
+      responses:
+        "200":
+          $ref: "#/components/responses/SegmentResponse"
+    delete:
+      summary: Delete an existing segment
+      operationId: DeleteSegment
+      tags:
+        - Segment
+      parameters:
+        - $ref: "#/components/parameters/SegmentIdPath"
+      responses:
+        "200":
+          $ref: "#/components/responses/SegmentDeleteResponse"
+  /segment/search:
+    get:
+      summary: Search for segments
+      operationId: SearchSegments
+      tags:
+        - Segment
+      parameters:
+        - $ref: "#/components/parameters/SearchTerm"
+      responses:
+        "200":
+          $ref: "#/components/responses/SegmentsResponse"
 servers:
   - url: https://api.appnexus.com
 tags:
@@ -3632,3 +3871,9 @@ tags:
       \"User\" refers to people or groups able to log in to or API. Users are
       classified by a user_type, which determines what type of information they
       have access to.
+  - name: Segment
+    description: >-
+      The Segment Service lets you create segment IDs, which are then used to 
+      create segment pixels for placement on inventory pages. If you are working 
+      with third-party data providers through the Xandr platform, it will show 
+      you a list of segments for those providers.

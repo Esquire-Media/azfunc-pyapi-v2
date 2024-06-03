@@ -15,12 +15,14 @@ def xandr_audience_orchestrator(
     ingress = context.get_input()
     # ingress="clulpbfdg001v12jixniohdne"
 
-    # # reach out to audience definition DB - get information pertaining to the xandr audience (segment)
-    # ids = yield context.call_activity(
-    #     "activity_esquireAudienceXandr_fetchAudience",
-    #     ingress,
-    # )
+    # reach out to audience definition DB - get information pertaining to the xandr audience (segment)
+    ids = yield context.call_activity(
+        "activity_esquireAudienceXandr_fetchAudience",
+        ingress,
+    )
 
+    logging.warning(ids)
+    return {}
     # newAudienceNeeded = not ids["audience"]
     
     # if not newAudienceNeeded:

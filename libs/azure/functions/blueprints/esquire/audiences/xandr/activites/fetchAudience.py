@@ -10,8 +10,21 @@ bp = Blueprint()
 
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudienceXandr_fetchAudience(ingress: str):
-    handle = "keystone"
-    provider = from_bind(handle)
+    """
+    Fetches audience metadata from the database using the given audience ID.
+
+    This activity retrieves the audience metadata, including related advertiser information and audience tags, from the database.
+
+    Parameters:
+    ingress (str): The ID of the audience to fetch.
+
+    Returns:
+    dict: A dictionary containing the ad account metadata, audience metadata, and tags.
+
+    Raises:
+    Exception: If no results are found for the given audience ID.
+    """
+    provider = from_bind("keystone")
     audience = provider.models["public"]["Audience"]
 
     session: Session = provider.connect()
@@ -30,8 +43,14 @@ def activity_esquireAudienceXandr_fetchAudience(ingress: str):
 
     if result:
         return {
-            "adAccount": result.Audience.related_Advertiser.meta, 
-            "audience": None, # once the DB is updated, this will need to change (xandr segment)
+            "adAccount": result.Audience.related_Advertiser.xandr, 
+            "audience": result.Audience.xandr,
+            "tags": [
+                related_tag.related_Tag.title
+                for related_tag in sorted(
+                    result.Audience.collection_AudienceTag, key=lambda x: x.order
+                )
+            ],
         }
         
-    raise Exception(f"There were no Xandr Advertiser results for the given ESQ audience ({ingress}) while using the binding {handle}.")
+    raise Exception(f"There were no Xandr Advertiser results for the given ESQ audience ({ingress}) while using the binding {provider.handle}.")

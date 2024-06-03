@@ -2,7 +2,12 @@
 
 from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
-import logging, json
+import logging
+
+try:
+    import orjson as json
+except:
+    import json
 
 bp = Blueprint()
 
@@ -11,64 +16,108 @@ bp = Blueprint()
 def orchestrator_esquireAudiences_processingSteps(
     context: DurableOrchestrationContext,
 ):
-    # ingress={
-    #     "source": {
-    #         "conn_str": "ONSPOT_CONN_STR",
-    #         "container_name": "general",
-    #         "blob_prefix": "audiences",
-    #     },
-    #     "working": {
-    #         "conn_str": "ONSPOT_CONN_STR",
-    #         "container_name": "general",
-    #         "blob_prefix": "raw",
-    #     },
-    #     "destination": {
-    #         "conn_str": "ONSPOT_CONN_STR",
-    #         "container_name": "general",
-    #         "blob_prefix": "audiences",
-    #     },
-    #     "audience": {"id": "clulpbe4r001s12jigokcm2i7"},
-    #     "advertiser": {
-    # 	"id": "test",
-    # 	"meta": "test",
-    # 	"oneview": "test",
-    # 	"xandr": "test“
-    # 	},
-    #     "status": "test",
-    #     "rebuild": "test",
-    #     "rebuildUnit": "test",
-    #     "TTL_Length": "test",
-    #     "TTL_Unit": "test",
-    #     "dataSource": {"id": "test", "dataType": "test"},
-    #     "dataFilter": "test",
-    #     "processes": {
-    #         "id": "test",
-    #         "sort": "test",
-    #         "outputType": "test",
-    #         "customCoding": "test",
-    #     },
-    #     "results": ["blob_urls"],
-    # }
-    # egress=# {
-    #     "working": {
-    #         "conn_str": "ONSPOT_CONN_STR",
-    #         "container_name": "general",
-    #         "blob_prefix": "raw /instanceid/audienceid/step/working",
-    #     },
-    #     "destination": {
-    #         "conn_str": "ONSPOT_CONN_STR",
-    #         "container_name": "general",
-    #         "blob_prefix": "raw /instanceid/audienceid/step/working",
-    #         "blob_name": "{}/results.csv".format(ingress["working"]["blob_prefix"]),
-    #     },
+    """
+    Orchestrates the processing steps for Esquire audiences.
+
+    This orchestrator processes the data through multiple steps, transforming it as specified by each process step. It handles various input and output data types, and can apply custom coding and filtering.
+
+    Parameters:
+    context (DurableOrchestrationContext): The context object provided by Azure Durable Functions, used to manage and track the orchestration.
+
+    Returns:
+    dict: The updated ingress data after all processing steps are completed.
+
+    Expected format for context.get_input():
+    {
+        "source": {
+            "conn_str": str,
+            "container_name": str,
+            "blob_prefix": str,
+        },
+        "working": {
+            "conn_str": str,
+            "container_name": str,
+            "blob_prefix": str,
+        },
+        "destination": {
+            "conn_str": str,
+            "container_name": str,
+            "blob_prefix": str,
+        },
+        "audience": {
+            "id": str,
+            "dataSource": {
+                "id": str,
+                "dataType": str
+            },
+            "dataFilter": str,
+            "processes": [
+                {
+                    "id": str,
+                    "sort": str,
+                    "outputType": str,
+                    "customCoding": str
+                }
+            ]
+        },
+        "advertiser": {
+            "id": str,
+            "meta": str,
+            "oneview": str,
+            "xandr": str
+        },
+        "status": str,
+        "rebuild": str,
+        "rebuildUnit": str,
+        "TTL_Length": str,
+        "TTL_Unit": str,
+        "results": [str]
+    }
+    """
 
     ingress = context.get_input()
 
-    # Loop through processing steps
+    # Loop through each processing step
     for step, process in enumerate(
         processes := ingress["audience"].get("processes", [])
     ):
-        # Reusable common input for sub-orchestrators
+        # Determine the input type and source URLs for the current step
+        inputType = (
+            processes[step - 1]["outputType"]  # Use previous step's output type
+            if step
+            else ingress["audience"]["dataSource"]["dataType"]  # Use primary data type
+        )
+        source_urls = (
+            processes[step - 1].get("results", []) if step else ingress["results"]
+        )
+        if not source_urls:
+            raise Exception(
+                "No data to process from previous step. [{}]: {} -> {}".format(
+                    step - 1, inputType, process["outputType"]
+                )
+            )
+
+        # Prepare custom coding for the first step or as specified
+        if not step:
+            custom_coding = {
+                "request": {
+                    "dateStart": {
+                        "date_add": [
+                            {"now": []},
+                            0 - int(ingress["audience"]["TTL_Length"]),
+                            ingress["audience"]["TTL_Unit"],
+                        ]
+                    },
+                    "dateEnd": {"date_add": [{"now": []}, -2, "days"]},
+                }
+            }
+        elif process.get("customCoding", False):
+            try:
+                custom_coding = json.loads(process["customCoding"])
+            except:
+                custom_coding = {}
+
+        # Set up the egress data structure for the current step
         egress = {
             "working": {
                 **ingress["working"],
@@ -79,51 +128,31 @@ def orchestrator_esquireAudiences_processingSteps(
                     step,
                 ),
             },
-        }
-        egress["destination"] = {
-            **egress["working"],
-            "blob_name": "{}/results.csv".format(ingress["working"]["blob_prefix"]),
-        }
-        logging.warning(
-            "{} -> {}".format(
-                (
-                    processes[step - 1]["outputType"]  # Use previous step's output type
-                    if step
-                    else ingress["audience"]["dataSource"][
-                        "dataType"
-                    ]  # Use primary data type
+            "destination": {
+                **ingress["working"],
+                "blob_prefix": "{}/{}/{}/{}".format(
+                    ingress["working"]["blob_prefix"],
+                    ingress["instance_id"],
+                    ingress["audience"]["id"],
+                    step,
                 ),
-                process["outputType"],
-            )
-        )
+            },
+            "transform": [inputType, process["outputType"]],
+            "source_urls": source_urls,
+            "custom_coding": custom_coding,
+        }
 
-        # Switch logistics based on the input data type
-        match (
-            processes[step - 1]["outputType"]  # Use previous step's output type
-            if step
-            else ingress["audience"]["dataSource"]["dataType"]  # Use primary data type
-        ):
+        # Process the data based on the input and output types
+        match inputType:
             case "addresses":
                 match process["outputType"]:
                     case "addresses":  # addresses -> addresses
-                        # TODO: figure out what (if anything) should happen here
+                        # No specific processing required
                         pass
-                    case "deviceids":  # addresses -> deviceids
-                        process["results"] = yield context.task_all(
-                            [
-                                context.call_sub_orchestrator(
-                                    "orchestrator_esquireAudienceMaidsAddresses_standard",
-                                    {
-                                        **egress,
-                                        "source": source_url,
-                                    },
-                                )
-                                for source_url in (
-                                    processes[step - 1]["results"]
-                                    if step
-                                    else ingress["results"]
-                                )
-                            ]
+                    case "device_ids":  # addresses -> deviceids
+                        process["results"] = yield context.call_sub_orchestrator(
+                            "orchestrator_esquireAudiencesSteps_addresses2deviceids",
+                            egress,
                         )
                     case "polygons":  # addresses -> polygons
                         process["results"] = yield context.task_all(
@@ -135,80 +164,71 @@ def orchestrator_esquireAudiences_processingSteps(
                                         "source": source_url,
                                     },
                                 )
-                                for source_url in (
-                                    processes[step - 1]["results"]
-                                    if step
-                                    else ingress["results"]
-                                )
+                                for source_url in source_urls
                             ]
                         )
-            case "deviceids":
+            case "device_ids":
                 match process["outputType"]:
                     case "addresses":  # deviceids -> addresses
-                        # onspot /save/files/household
-                        process["results"] = yield context.task_all(
-                            [
-                                context.call_sub_orchestrator(
-                                    "orchestrator_esquireAudienceMaidsDeviceIds_toaddresses",
-                                    {
-                                        **egress,
-                                        "source": source_url,
-                                    },
-                                )
-                                for source_url in (
-                                    processes[step - 1]["results"]
-                                    if step
-                                    else ingress["results"]
-                                )
-                            ]
+                        process["results"] = yield context.call_sub_orchestrator(
+                            "orchestrator_esquireAudiencesSteps_deviceids2addresses",
+                            egress,
                         )
-                        pass
-                    case "deviceids":  # deviceids -> deviceids
-                        # onspot /save/files/demographics/all
+                    case "device_ids":  # deviceids -> deviceids
                         process["results"] = yield context.task_all(
                             [
                                 context.call_sub_orchestrator(
                                     "orchestrator_esquireAudienceMaidsDeviceIds_todevids",
                                     {
-                                        **egress,
+                                        "working": egress["working"],
                                         "source": source_url,
+                                        "destination": {
+                                            **egress["destination"],
+                                            "blob_name": "{}/results/{}.csv".format(
+                                                egress["destination"]["blob_prefix"],
+                                                index,
+                                            ),
+                                        },
                                     },
                                 )
-                                for source_url in (
-                                    processes[step - 1]["results"]
-                                    if step
-                                    else ingress["results"]
-                                )
+                                for index, source_url in enumerate(source_urls)
                             ]
                         )
-                        pass
                     case "polygons":  # deviceids -> polygons
-                        # TODO: figure out what (if anything) should happen here
+                        # No specific processing required
                         pass
             case "polygons":
                 match process["outputType"]:
                     case "addresses":  # polygons -> addresses
-                        # onspot /save/files/household
+                        # No specific processing required
                         pass
-                    case "deviceids":  # polygons -> deviceids
-                        process["results"] = yield context.task_all(
-                            [
-                                context.call_sub_orchestrator(
-                                    "orchestrator_esquireAudienceMaidsGeoframes_standard",
-                                    {
-                                        **egress,
-                                        "source": source_url,
-                                    },
-                                )
-                                for source_url in (
-                                    processes[step - 1]["results"]
-                                    if step
-                                    else ingress["results"]
-                                )
-                            ]
+                    case "device_ids":  # polygons -> deviceids
+                        process["results"] = yield context.call_sub_orchestrator(
+                            "orchestrator_esquireAudiencesSteps_polygon2deviceids",
+                            egress,
                         )
                     case "polygons":  # polygons -> polygons
-                        # TODO: figure out what (if anything) should happen here
+                        # No specific processing required
                         pass
 
+        # Apply custom coding filters if specified
+        if custom_coding.get("filter", False):
+            logging.warning(
+                "[{}]: {} -> {}".format(step, inputType, process["outputType"])
+            )
+            process["results"] = yield context.task_all(
+                [
+                    context.call_activity(
+                        "activity_esquireAudienceBuilder_filterResults",
+                        {
+                            "source": url,
+                            "destination": egress["working"],
+                            "filter": custom_coding["filter"],
+                        },
+                    )
+                    for url in process["results"]
+                ]
+            )
+
+    # Return the updated ingress data after all processing steps
     return ingress

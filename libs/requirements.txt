@@ -29,6 +29,7 @@ werkzeug
 ## security
 itsdangerous
 py-abac
+fastavro
 
 
 # optional

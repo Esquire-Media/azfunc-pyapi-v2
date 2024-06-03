@@ -113,6 +113,9 @@ def meta_orchestrator_request(context: DurableOrchestrationContext):
                     # Permissions error
                     case 10:
                         break
+                    # Audience Update Errors
+                    # case 2650:
+                        
                     # Other errors
                     case _:
                         # Raise an exception for other error codes

@@ -24,12 +24,12 @@ def orchestrator_azurePostgres_queryToBlob(context: DurableOrchestrationContext)
     count = yield context.call_activity(
         "activity_azurePostgres_getRecordCount", ingress["source"]
     )
-    limit = 100
+    limit = ingress.get("limit", 1000)
     urls = yield context.task_all(
         [
             context.call_activity(
                 "activity_azurePostgres_resultToBlob",
-                {**ingress, "limit": 100, "offset": i},
+                {**ingress, "limit": limit, "offset": i},
             )
             for i in range(0, count, limit)
         ]

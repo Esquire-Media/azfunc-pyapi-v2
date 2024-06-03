@@ -9,6 +9,7 @@ from .utils import (
     name_for_scalar_relationship,
 )
 from azure.storage.blob import BlobServiceClient
+from functools import cached_property
 from sqlalchemy import (
     create_engine,
     Column,
@@ -191,10 +192,7 @@ class SQLAlchemyStructuredProvider:
 
         # Serialize kwargs to create a unique identifier for caching
         kwargs_serialized = pickle.dumps(kwargs)
-        hash_kwargs = hashlib.md5(kwargs_serialized).hexdigest()
-        cache_filename = f"sqlalchemy_provider_{hash_kwargs}.pkl"
-        temp_path = os.path.join(tempfile.gettempdir(), cache_filename)
-        print(cache_filename)
+        self._hash_kwargs = hashlib.md5(kwargs_serialized).hexdigest()
 
         kw = kwargs.keys()
 
@@ -218,37 +216,48 @@ class SQLAlchemyStructuredProvider:
         if not self.engine:
             raise Exception("No engine configuration values specified.")
 
-        self.metadata = None
+        self._metadata: MetaData = None
+        self._base: AutomapBase = None
+        self._models = None
 
-        # Azure Storage initialization
-        if os.environ.get("AzureWebJobsStorage"):
-            try:
-                self.blob_service_client = BlobServiceClient.from_connection_string(
-                    os.environ["AzureWebJobsStorage"]
-                )
-                self.container_name = "sqlalchemy-cache"
-                container_client = self.blob_service_client.get_container_client(
-                    self.container_name
-                )
-                if not container_client.exists():
-                    self.blob_service_client.create_container(self.container_name)
+    def session(self) -> Session:
+        return Session(self.engine)
 
-                blob_client = self.blob_service_client.get_blob_client(
-                    container=self.container_name, blob=cache_filename
-                )
-                if blob_client.exists():
-                    blob_data = blob_client.download_blob().readall()
-                    self.metadata = pickle.loads(blob_data)
-            except:
-                pass
+    @property
+    def metadata(self) -> MetaData:
+        if not self._metadata:
+            cache_filename = f"sqlalchemy_provider_{self._hash_kwargs}.pkl"
+            temp_path = os.path.join(tempfile.gettempdir(), cache_filename)
 
-        if not self.metadata and os.path.exists(temp_path):
-            with open(temp_path, "rb") as f:
-                self.metadata = pickle.load(f)
+            # Azure Storage initialization
+            if os.environ.get("AzureWebJobsStorage"):
+                try:
+                    self.blob_service_client = BlobServiceClient.from_connection_string(
+                        os.environ["AzureWebJobsStorage"]
+                    )
+                    self.container_name = "sqlalchemy-cache"
+                    container_client = self.blob_service_client.get_container_client(
+                        self.container_name
+                    )
+                    if not container_client.exists():
+                        self.blob_service_client.create_container(self.container_name)
 
-        if not self.metadata:
+                    blob_client = self.blob_service_client.get_blob_client(
+                        container=self.container_name, blob=cache_filename
+                    )
+                    if blob_client.exists():
+                        blob_data = blob_client.download_blob().readall()
+                        self._metadata = pickle.loads(blob_data)
+                except:
+                    pass
+
+            if os.path.exists(temp_path):
+                with open(temp_path, "rb") as f:
+                    self._metadata = pickle.load(f)
+
             # Create the metadata object
-            self.metadata = MetaData()
+            self._metadata = MetaData()
+            
 
             def prime_table(table: Table):
                 # Check if the table has a primary key defined
@@ -273,20 +282,20 @@ class SQLAlchemyStructuredProvider:
                 # Reflect tables for specific schemas
                 for s in self.schemas:
                     # Reflect tables for the given schema and include views
-                    self.metadata.reflect(bind=self.engine, schema=s, views=True)
-                    for table in self.metadata.tables.values():
+                    self._metadata.reflect(bind=self.engine, schema=s, views=True)
+                    for table in self._metadata.tables.values():
                         # Check if the table belongs to the current schema
                         if table.schema == s:
                             # Update the table's primary key if necessary
                             prime_table(table)
             else:
                 # Reflect tables for all schemas and include views
-                self.metadata.reflect(bind=self.engine, views=True)
-                for table in self.metadata.tables.values():
+                self._metadata.reflect(bind=self.engine, views=True)
+                for table in self._metadata.tables.values():
                     # Update the table's primary key if necessary
                     prime_table(table)
             try:
-                pickled_data = pickle.dumps(self.metadata)
+                pickled_data = pickle.dumps(self._metadata)
                 if os.environ.get("AzureWebJobsStorage"):
                     blob_client.upload_blob(pickled_data, overwrite=True)
                 else:
@@ -294,34 +303,37 @@ class SQLAlchemyStructuredProvider:
                         f.write(pickled_data)
             except:
                 pass
+        return self._metadata
 
-        # Create the base automap
-        self.base: AutomapBase = automap_base(metadata=self.metadata)
+    @property
+    def base(self) -> AutomapBase:
+        if not self._base:
+            self._base: AutomapBase = automap_base(metadata=self.metadata)
+            self._base.prepare(
+                modulename_for_table=self.modulename_for_table,
+                name_for_scalar_relationship=name_for_scalar_relationship,
+                name_for_collection_relationship=name_for_collection_relationship,
+            )
+        return self._base
+    
+    @property
+    def models(self):
+        if not self._models:
+            # Retrieve the models for the provider's ID
+            self._models = self.base.by_module.get(self.id)
 
-        # Set up the session
-        self.session: Callable = lambda: Session(self.engine)
-
-        # Prepare the base automap
-        self.base.prepare(
-            modulename_for_table=self.modulename_for_table,
-            name_for_scalar_relationship=name_for_scalar_relationship,
-            name_for_collection_relationship=name_for_collection_relationship,
-        )
-
-        # Retrieve the models for the provider's ID
-        self.models = self.base.by_module.get(self.id)
-
-        # Extend the models with additional functionality
-        if hasattr(self.models, "keys"):
-            for func in MODEL_EXTENSION_STEPS:
-                func(
-                    models=[
-                        self.models[schema][model]
-                        for schema in self.models.keys()
-                        for model in self.models[schema].keys()
-                    ],
-                    session=self.session,
-                )
+            # Extend the models with additional functionality
+            if hasattr(self._models, "keys"):
+                for func in MODEL_EXTENSION_STEPS:
+                    func(
+                        models=[
+                            self.models[schema][model]
+                            for schema in self.models.keys()
+                            for model in self.models[schema].keys()
+                        ],
+                        session=self.session,
+                    )
+        return self._models
 
     def __getitem__(self, handle):
         """

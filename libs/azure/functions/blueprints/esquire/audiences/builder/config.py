@@ -54,7 +54,7 @@ if not from_bind("foursquare"):
 
 MAPPING_DATASOURCE = {
     # Attom estated data - can use for testing
-    "clulpbbi2001d12jiy1zvwdhy": {
+    "clwjn2q4s0055rw04ojmpvg77": {
         "dbType": "synapse",
         "bind": "audience",
         "table": {
@@ -63,7 +63,7 @@ MAPPING_DATASOURCE = {
         },
     },
     # Deepsync mover - can use for testing
-    "clulpbbl8001e12jii8y3k8gb": {
+    "clwjn2q4s0056rw04ra44j8k9": {
         "dbType": "synapse",
         "bind": "audiences",
         "table": {
@@ -72,7 +72,7 @@ MAPPING_DATASOURCE = {
         },
     },
     # Esquire audiences
-    "clulpbbn3001f12jiptemet9v": {
+    "clwjn2q4r0053rw04l2rscs07": {
         "dbType": "postgres",
         "bind": "keystone",
         "table": {
@@ -81,16 +81,16 @@ MAPPING_DATASOURCE = {
         },
     },
     # Esquire geoframes - will need to change
-    "clulpbbon001g12ji1b939rbs": {
+    "clwjn2q4r0054rw04f76se61o": {
         "dbType": "postgres",
         "bind": "keystone",
         "table": {
             "schema": "public",
-            "name": "GeoFrame",
+            "name": "TargetingGeoFrame",
         },
     },
     # Esquire sales - not ready to be used yet
-    "clulpbbqg001h12jispdl3car": {
+    "clwjn2q4t0057rw04kbhlog0s": {
         "dbType": "synapse",
         "bind": "general",
         "table": {
@@ -99,7 +99,7 @@ MAPPING_DATASOURCE = {
         },
     },
     # Foursquare POI - can use for testing
-    "clulpbbsi001i12jik2oojymu": {
+    "clwjn2q4t0058rw04fx6qanbh": {
         "dbType": "synapse",
         "bind": "foursquare",
         "table": {
@@ -108,7 +108,7 @@ MAPPING_DATASOURCE = {
         },
     },
     # OSM Building footprints - not set up in Synapse
-    "clulpbbuc001j12ji27yfr796": {
+    "clwjn2q4t0059rw04qxcw5q3h": {
         "dbType": "synapse",
         "bind": "general",
         "table": {

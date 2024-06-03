@@ -10,28 +10,43 @@ bp = Blueprint()
 def orchestrator_esquireAudiences_batch(
     context: DurableOrchestrationContext,
 ):
-    # client_input={
-    #         "source": {
-    #             "conn_str": "ONSPOT_CONN_STR",
-    #             "container_name": "general",
-    #             "blob_prefix": "audiences",
-    #         },
-    #         "working": {
-    #             "conn_str": "ONSPOT_CONN_STR",
-    #             "container_name": "general",
-    #             "blob_prefix": "raw",
-    #         },
-    #         "destination": {
-    #             "conn_str": "ONSPOT_CONN_STR",
-    #             "container_name": "general",
-    #             "blob_prefix": "audiences",
-    #         },
-    #     },
-    
+    """
+    Orchestrates batch processing of Esquire audiences.
+
+    This orchestrator retrieves a list of audience IDs and triggers the `orchestrator_esquireAudiences_builder` for each audience ID. The results of all orchestrations are collected and returned.
+
+    Parameters:
+    context (DurableOrchestrationContext): The context object provided by Azure Durable Functions, used to manage and track the orchestration.
+
+    Returns:
+    list: The results of each audience processing orchestration.
+
+    Expected format for context.get_input():
+    {
+        "source": {
+            "conn_str": str,
+            "container_name": str,
+            "blob_prefix": str,
+        },
+        "working": {
+            "conn_str": str,
+            "container_name": str,
+            "blob_prefix": str,
+        },
+        "destination": {
+            "conn_str": str,
+            "container_name": str,
+            "blob_prefix": str,
+        }
+    }
+    """
+
+    # Retrieve the list of audience IDs to process
     audience_ids = yield context.call_activity(
         "activity_esquireAudienceBuilder_fetchAudienceIds"
     )
 
+    # Trigger the builder orchestrator for each audience ID and collect the results
     results = yield context.task_all(
         [
             context.call_sub_orchestrator(
@@ -44,8 +59,8 @@ def orchestrator_esquireAudiences_batch(
                 },
             )
             for id in audience_ids
-            if id == "clulpbfdg001v12jixniohdne"
         ]
     )
 
+    # Return the results of the batch processing
     return results

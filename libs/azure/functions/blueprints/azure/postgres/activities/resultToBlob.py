@@ -49,7 +49,11 @@ def activity_azurePostgres_resultToBlob(ingress: dict) -> int:
 
     match ingress["destination"]["format"]:
         case "CSV":
-            output_blob.upload_blob(df.to_csv(index=False))
+            output_blob.upload_blob(df.to_csv())
+        case _:
+            raise Exception(
+                "Format not supported: {}".format(ingress["destination"]["format"])
+            )
 
     return (
         unquote(output_blob.url)

@@ -18,3 +18,15 @@ if not from_bind("general"):
         url=os.environ["DATABIND_SQL_GENERAL"],
         schemas=["dbo"],
     )
+    
+# db pulls
+if not from_bind("keystone"):
+    register_binding(
+        "keystone",
+        "Structured",
+        "sql",
+        url=os.environ["DATABIND_SQL_KEYSTONE"],
+        schemas=["public"],
+        pool_size=1000,
+        max_overflow=100,
+    )

@@ -2952,7 +2952,6 @@ components:
       name: code
       in: query
       description: Code
-      required: true
       schema:
         type: string
     Search:
@@ -3759,69 +3758,51 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/Segment"
+      security:
+        - token: []
     get:
       summary: View all segments
-      operationId: GetSegments
+      operationId: GetSegment
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Code"
+        - $ref: "#/components/parameters/Search"
       tags:
         - Segment
       responses:
         "200":
           $ref: "#/components/responses/Segment"
+      security:
+        - token: []
     put:
       summary: Modify an existing segment
       operationId: UpdateSegment
       tags:
         - Segment
       parameters:
-        - $ref: "#/components/parameters/SegmentID"
+        - $ref: "#/components/parameters/ID"
         - $ref: "#/components/parameters/AdvertiserID"
-        - $ref: "#/components/parameters/SegmentCode"
+        - $ref: "#/components/parameters/Code"
         - $ref: "#/components/parameters/AdvertiserCode"
       requestBody:
         $ref: "#/components/requestBodies/Segment"
       responses:
         "200":
           $ref: "#/components/responses/Segment"
-  /segment/{id}:
-    get:
-      summary: View a particular segment
-      operationId: GetSegment
-      tags:
-        - Segment
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          $ref: "#/components/responses/Segment"
+      security:
+        - token: []
     delete:
       summary: Delete an existing segment
       operationId: DeleteSegment
       tags:
         - Segment
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
+        - $ref: "#/components/parameters/ID"
       responses:
         "200":
           $ref: "#/components/responses/SegmentDelete"
-  /segment/search:
-    get:
-      summary: Search for segments
-      operationId: SearchSegments
-      tags:
-        - Segment
-      parameters:
-        - $ref: "#/components/parameters/SearchTerm"
-      responses:
-        "200":
-          $ref: "#/components/responses/Segment"
+      security:
+        - token: []
 servers:
   - url: https://api.appnexus.com
 tags:

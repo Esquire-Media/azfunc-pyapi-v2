@@ -868,19 +868,24 @@ components:
                     type: array
       description: Successful operation
     Segment:
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              response:
+                type: object
+                allOf:
+                  - $ref: "#/components/schemas/Response"
+                  - $ref: "#/components/schemas/Pagination"
+                properties:
+                  segment:
+                    $ref: "#/components/schemas/Segment"
+                  segments:
+                    items:
+                      $ref: "#/components/schemas/Segment"
+                    type: array
       description: Segment response object
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/Segment"
-    Segments:
-      description: A list of segments
-      content:
-        application/json:
-          schema:
-            type: array
-            items:
-              $ref: "#/components/schemas/Segment"
     SegmentDelete:
       description: Segment delete response
       content:
@@ -3759,7 +3764,7 @@ paths:
         $ref: "#/components/requestBodies/SegmentRequest"
       responses:
         "200":
-          $ref: "#/components/responses/SegmentResponse"
+          $ref: "#/components/responses/Segment"
     get:
       summary: View all segments
       operationId: GetSegments
@@ -3767,7 +3772,7 @@ paths:
         - Segment
       responses:
         "200":
-          $ref: "#/components/responses/SegmentsResponse"
+          $ref: "#/components/responses/Segment"
     put:
       summary: Modify an existing segment
       operationId: UpdateSegment
@@ -3782,7 +3787,7 @@ paths:
         $ref: "#/components/requestBodies/SegmentRequest"
       responses:
         "200":
-          $ref: "#/components/responses/SegmentResponse"
+          $ref: "#/components/responses/Segment"
   /segment/{id}:
     get:
       summary: View a particular segment
@@ -3793,7 +3798,7 @@ paths:
         - $ref: "#/components/parameters/SegmentIdPath"
       responses:
         "200":
-          $ref: "#/components/responses/SegmentResponse"
+          $ref: "#/components/responses/Segment"
     delete:
       summary: Delete an existing segment
       operationId: DeleteSegment
@@ -3803,7 +3808,7 @@ paths:
         - $ref: "#/components/parameters/SegmentIdPath"
       responses:
         "200":
-          $ref: "#/components/responses/SegmentDeleteResponse"
+          $ref: "#/components/responses/SegmentDelete"
   /segment/search:
     get:
       summary: Search for segments
@@ -3814,7 +3819,7 @@ paths:
         - $ref: "#/components/parameters/SearchTerm"
       responses:
         "200":
-          $ref: "#/components/responses/SegmentsResponse"
+          $ref: "#/components/responses/Segment"
 servers:
   - url: https://api.appnexus.com
 tags:

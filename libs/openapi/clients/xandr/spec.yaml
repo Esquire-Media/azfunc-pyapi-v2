@@ -3058,7 +3058,7 @@ components:
       required: false
       schema:
         type: integer
-    SegmentId:
+    SegmentID:
       name: id
       in: query
       required: true
@@ -3070,12 +3070,6 @@ components:
       required: false
       schema:
         type: string
-    SegmentIdPath:
-      name: id
-      in: path
-      required: true
-      schema:
-        type: integer
     SearchTerm:
       name: search
       in: query
@@ -3758,7 +3752,7 @@ paths:
         - Segment
       parameters:
         - $ref: "#/components/parameters/MemberId"
-        - $ref: "#/components/parameters/AdvertiserId"
+        - $ref: "#/components/parameters/AdvertiserID"
         - $ref: "#/components/parameters/AdvertiserCode"
       requestBody:
         $ref: "#/components/requestBodies/SegmentRequest"
@@ -3779,8 +3773,8 @@ paths:
       tags:
         - Segment
       parameters:
-        - $ref: "#/components/parameters/SegmentId"
-        - $ref: "#/components/parameters/AdvertiserId"
+        - $ref: "#/components/parameters/SegmentID"
+        - $ref: "#/components/parameters/AdvertiserID"
         - $ref: "#/components/parameters/SegmentCode"
         - $ref: "#/components/parameters/AdvertiserCode"
       requestBody:
@@ -3795,7 +3789,11 @@ paths:
       tags:
         - Segment
       parameters:
-        - $ref: "#/components/parameters/SegmentIdPath"
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
       responses:
         "200":
           $ref: "#/components/responses/Segment"
@@ -3805,7 +3803,11 @@ paths:
       tags:
         - Segment
       parameters:
-        - $ref: "#/components/parameters/SegmentIdPath"
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
       responses:
         "200":
           $ref: "#/components/responses/SegmentDelete"

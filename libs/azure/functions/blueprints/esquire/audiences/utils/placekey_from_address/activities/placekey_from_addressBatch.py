@@ -1,22 +1,13 @@
-# File: libs/azure/functions/blueprints/esquire/audiences/mover_sync/activities/validate_address_chunks.py
+# File: libs/azure/functions/blueprints/esquire/audiences/ingress/mover_sync/activities/validate_address_chunks.py
 
-from azure.storage.blob import BlobClient
 from libs.azure.functions import Blueprint
-from libs.data import from_bind
-from libs.utils.smarty import bulk_validate
-from libs.utils.text import format_zipcode, format_zip4, format_full_address
-from sqlalchemy.orm import Session
-from sqlalchemy.sql import text
-import h3, logging, os, pandas as pd
-import hashlib
 from azure.data.tables import TableClient
 from datetime import (
     datetime as dt,
     timedelta,
     timezone,
 )
-import requests
-import json
+import hashlib, os, pandas as pd, requests, json
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()

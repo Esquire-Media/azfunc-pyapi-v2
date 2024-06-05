@@ -3755,7 +3755,7 @@ paths:
         - $ref: "#/components/parameters/AdvertiserID"
         - $ref: "#/components/parameters/AdvertiserCode"
       requestBody:
-        $ref: "#/components/requestBodies/SegmentRequest"
+        $ref: "#/components/requestBodies/Segment"
       responses:
         "200":
           $ref: "#/components/responses/Segment"
@@ -3778,7 +3778,7 @@ paths:
         - $ref: "#/components/parameters/SegmentCode"
         - $ref: "#/components/parameters/AdvertiserCode"
       requestBody:
-        $ref: "#/components/requestBodies/SegmentRequest"
+        $ref: "#/components/requestBodies/Segment"
       responses:
         "200":
           $ref: "#/components/responses/Segment"

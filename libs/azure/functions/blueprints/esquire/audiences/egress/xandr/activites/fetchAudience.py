@@ -1,5 +1,6 @@
-# File: /libs/azure/functions/blueprints/esquire/audiences/xandr/activities/fetchAudience.py
+# File: /libs/azure/functions/blueprints/esquire/audiences/egress/xandr/activities/fetchAudience.py
 
+from datetime import timedelta
 from libs.azure.functions import Blueprint
 from libs.data import from_bind
 from sqlalchemy import select
@@ -26,31 +27,35 @@ def activity_esquireAudienceXandr_fetchAudience(ingress: str):
     """
     provider = from_bind("keystone")
     audience = provider.models["public"]["Audience"]
+    advertiser = provider.models["public"]["Advertiser"]
 
     session: Session = provider.connect()
     query = (
         select(audience)
         .options(
             lazyload(audience.related_Advertiser),
+            lazyload(audience.collection_AudienceTag),
         )
         .where(
             audience.id == ingress,  # esq audience
             audience.status == True,
-            audience.related_Advertiser.xandr != None,
+            audience.xandr != None,
+            advertiser.xandr != None,
         )
     )
     result = session.execute(query).one_or_none()
 
     if result:
         return {
-            "adAccount": result.Audience.related_Advertiser.xandr, 
-            "audience": result.Audience.xandr,
+            "advertiser": result.Audience.related_Advertiser.xandr, 
+            "segment": result.Audience.xandr,
             "tags": [
                 related_tag.related_Tag.title
                 for related_tag in sorted(
                     result.Audience.collection_AudienceTag, key=lambda x: x.order
                 )
             ],
+            "expiration": timedelta(**{result.audience.rebuildUnit: result.audience.rebuild}).total_seconds() // 60
         }
         
-    raise Exception(f"There were no Xandr Advertiser results for the given ESQ audience ({ingress}) while using the binding {provider.handle}.")
+    raise Exception(f"There were no Xandr Advertiser results for the given ESQ audience ({ingress}).")

@@ -36,105 +36,31 @@ def oneview_customaudience_orchestrator(
         "activity_esquireAudienceOneView_fetchAudience",
         audience_id,
     )
-    
-    logging.warning(ids)
-
-    return {}
-    # Determine if a new Meta audience needs to be created
-    newAudienceNeeded = not ids["audience"]
-
-    if not newAudienceNeeded:
-        # Check the status of the existing Meta audience
-        metaAudience = yield context.call_sub_orchestrator(
-            "meta_orchestrator_request",
-            {
-                "operationId": "CustomAudience.Get",
-                "parameters": {
-                    "CustomAudience-Id": ids["audience"],
-                    "fields": ["operation_status"],
-                },
-            },
-        )
-        # If there is an error, a new audience is needed
-        newAudienceNeeded = bool(metaAudience.get("error", False))
-
-    if newAudienceNeeded:
-        # Create a new Meta audience
-        context.set_custom_status("Creating new Meta Audience.")
-        metaAudience = yield context.call_sub_orchestrator(
-            "meta_orchestrator_request",
-            {
-                "operationId": "AdAccount.Post.Customaudiences",
-                "parameters": {
-                    "AdAccount-Id": ids["adAccount"],
-                    "name": f"{'_'.join(ids['tags'])}_{audience_id}",
-                    "description": audience_id,
-                    "customer_file_source": "USER_PROVIDED_ONLY",
-                    "subtype": "CUSTOM",
-                },
-            },
-        )
-        # Update the database with the new audience ID
-        yield context.call_activity(
-            "activity_esquireAudienceMeta_putAudience",
-            {
-                "audience": audience_id,
-                "metaAudienceId": metaAudience["id"],
-            },
-        )
-
-    if metaAudience.get("operation_status", False):
-        # Handle the status of the audience
-        match metaAudience["operation_status"]["code"]:
-            case 300 | 414:  # Update in progress
-                # Close out a stuck session if any
-                sessions = yield context.call_sub_orchestrator(
-                    "meta_orchestrator_request",
-                    {
-                        "operationId": "CustomAudience.Get.Sessions",
-                        "parameters": {"CustomAudience-Id": ids["audience"]},
-                    },
-                )
-                for s in sessions:
-                    if s["stage"] in ["uploading"]:
-                        yield context.call_sub_orchestrator(
-                            "meta_orchestrator_request",
-                            {
-                                "operationId": "CustomAudience.Post.Usersreplace",
-                                "payload": json.dumps(
-                                    {
-                                        "schema": "MOBILE_ADVERTISER_ID",
-                                        "data_source": {
-                                            "type": "THIRD_PARTY_IMPORTED",
-                                            "sub_type": "MOBILE_ADVERTISER_IDS",
-                                        },
-                                        "is_raw": True,
-                                        "data": [str(uuid.uuid4())],
-                                    }
-                                ),
-                                "session": json.dumps(
-                                    {
-                                        "session_id": s["session_id"],
-                                        "estimated_num_total": int(s["num_received"])
-                                        + 1,
-                                        "batch_seq": int(s["num_received"])
-                                        // batch_size
-                                        + 1,
-                                        "last_batch_flag": True,
-                                    }
-                                ),
-                            },
-                        )
 
     # Get the folder with the most recent MAIDs (Mobile Advertiser IDs)
-    audience_blob_prefix = yield context.call_activity(
-        "activity_esquireAudiencesUtils_newestAudienceBlobPrefix",
+    audience_blob_prefix = yield context.call_sub_orchestrator(
+        "orchestrator_esquireAudienceOneView_generateSegment",
         {
-            "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
-            "container_name": os.environ["ESQUIRE_AUDIENCE_CONTAINER_NAME"],
+            "blobInfo": {
+                "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
+                "container_name": os.environ["ESQUIRE_AUDIENCE_CONTAINER_NAME"],
+                "audience_id": audience_id,
+            },
             "audience_id": audience_id,
+            "segmentId": ids['segment'],
         },
     )
+    
+    return {}
+    # steps
+    # df with device ids from blob
+        # apply segment id column
+        # copy this dataframe
+    # for both, apply new column (device type)
+        # idfa/google_ad_id (both in all caps)
+    # create new blob
+        # write contents of first df in csv format without headers
+        # write contents of second df in csv format without headers
 
     # Query to count distinct device IDs in the audience data
     response = yield context.call_activity(

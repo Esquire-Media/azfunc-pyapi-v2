@@ -1,4 +1,4 @@
-# File: /libs/azure/functions/blueprints/esquire/audiences/oneview/activities/fetchAudience.py
+# File: /libs/azure/functions/blueprints/esquire/audiences/egress/oneview/activities/fetchAudience.py
 
 from libs.azure.functions import Blueprint
 from libs.data import from_bind
@@ -28,7 +28,6 @@ def activity_esquireAudienceOneView_fetchAudience(ingress: str):
     provider = from_bind("keystone")
     audience = provider.models["public"]["Audience"]
     advertiser = provider.models["public"]["Advertiser"]
-    logging.warning(provider)
 
     session: Session = provider.connect()
     query = (
@@ -40,18 +39,18 @@ def activity_esquireAudienceOneView_fetchAudience(ingress: str):
         .where(
             audience.id == ingress,  # esq audience
             audience.status == True,
+            audience.oneView != None,
+            audience.oneView != "",
             advertiser.oneView != None,
         )
     )
 
-    logging.warning(ingress)
     result = session.execute(query).one_or_none()
 
-    logging.warning(result)
     if result:
         return {
-            "adAccount": result.Audience.related_Advertiser.oneView,
-            "audience": result.Audience.oneView,
+            "advertiser": result.Audience.related_Advertiser.oneView,
+            "segment": result.Audience.oneView,
             "tags": [
                 related_tag.related_Tag.title
                 for related_tag in sorted(
@@ -61,5 +60,5 @@ def activity_esquireAudienceOneView_fetchAudience(ingress: str):
         }
 
     raise Exception(
-        f"There were no OneView advertiser results for the given ESQ audience ({ingress}) while using the binding {provider.handle}."
+        f"There were no OneView advertiser results for the given ESQ audience ({ingress})."
     )

@@ -15,7 +15,7 @@ async def activity_esquireAudiencesUtils_newestAudienceBlobPaths(ingress: dict):
     # }
 
     container_client = ContainerClient.from_connection_string(
-        conn_str=os.environ.get(ingress["conn_str"], ingress["conn_str"]),
+        conn_str=os.environ.get(ingress["conn_str"]),
         container_name=ingress["container_name"]
     )
     most_recent_prefix = None

@@ -1,4 +1,4 @@
-# File: /libs/azure/functions/blueprints/esquire/audiences/meta/activities/fetchAudience.py
+# File: /libs/azure/functions/blueprints/esquire/audiences/egress/meta/activities/fetchAudience.py
 
 from libs.azure.functions import Blueprint
 from libs.data import from_bind
@@ -38,6 +38,7 @@ def activity_esquireAudienceMeta_fetchAudience(ingress: str):
         .where(
             audience.id == ingress,  # esq audience
             audience.status == True,
+            audience.meta != None,
             advertiser.meta != None,
         )
     )
@@ -56,5 +57,5 @@ def activity_esquireAudienceMeta_fetchAudience(ingress: str):
         }
 
     raise Exception(
-        f"There were no Meta AdAccount results for the given ESQ audience ({ingress}) while using the binding {provider.handle}."
+        f"There were no Meta AdAccount results for the given ESQ audience ({ingress})."
     )

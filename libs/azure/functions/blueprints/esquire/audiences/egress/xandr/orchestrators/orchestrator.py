@@ -2,8 +2,7 @@
 
 from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
-import os, json, random, logging, datetime
-import pandas as pd
+import os, logging, uuid
 
 bp = Blueprint()
 
@@ -12,83 +11,83 @@ bp = Blueprint()
 def xandr_audience_orchestrator(
     context: DurableOrchestrationContext,
 ):
-    audience_id = context.get_input()
-    # ingress="clulpbfdg001v12jixniohdne"
-
     # reach out to audience definition DB - get information pertaining to the xandr audience (segment)
-    ids = yield context.call_activity(
+    audience = yield context.call_activity(
         "activity_esquireAudienceXandr_fetchAudience",
-        audience_id,
+        {"id": context.get_input()},
     )
-    
-    newSegmentNeeded = not ids["segment"]
-    
+
+    newSegmentNeeded = not audience["segment"]
+
     if not newSegmentNeeded:
         # orchestrator that will get the information for the segment associated with the ESQ audience ID
         state = yield context.call_activity(
-            "activity_esquireAudienceXandr_getSegment",
-            ids["segment"]
+            "activity_esquireAudienceXandr_getSegment", audience["segment"]
         )
         newSegmentNeeded = not bool(state)
-        
+
     # if there is no Xandr audience (segment) ID, create one
     if newSegmentNeeded:
         context.set_custom_status("Creating new Xandr Audience (Segment).")
-        xandrSegment = yield context.call_activity(
+        segment = yield context.call_activity(
             "activity_esquireAudienceXandr_createSegment",
             {
-                "parameters":{
-                    "advertiser_id": ids['advertiser'],
+                "parameters": {
+                    "advertiser_id": audience["advertiser"],
                 },
-                "data":{
-                    "short_name": f"{'_'.join(ids['tags'])}_{audience_id}",
-                }
-            }
+                "data": {
+                    "short_name": "{}_{}".format(
+                        "_".join(audience["tags"]),
+                        audience["id"],
+                    ),
+                },
+            },
         )
         # Update the database with the new segment ID
         yield context.call_activity(
             "activity_esquireAudienceXandr_putAudience",
             {
-                "audience": audience_id,
-                "xandrAudienceId": xandrSegment["id"],
+                "audience": audience["id"],
+                "xandrAudienceId": segment["id"],
             },
         )
+        audience["segment"] = segment["id"]
 
-    
-    yield context.call_sub_orchestrator(
-        "xandr_audience_avroGenerator",
-        {
-            "audienceId": audience_id,
-            "segmentId": xandrSegment["id"],
-            "expiration": ids["expiration"]
-        },
-    )
-    return {}
-    
-    # get object with all of the blob URLs and how many MAIDs are in that file
-    url_maids = yield context.call_activity(
-        "activity_esquireAudiencesUtils_getTotalMaids",
+    blob_names = yield context.call_activity(
+        "activity_esquireAudiencesUtils_newestAudienceBlobPaths",
         {
             "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
-            "container_name": "general",
-            # "path_to_blobs": blobs_path,
-            # "audience_id": ingress,
+            "container_name": os.environ["ESQUIRE_AUDIENCE_CONTAINER_NAME"],
+            "audience_id": audience["id"],
         },
     )
-
-    maids_info, blob_count = url_maids
-    
-    # Create the list of tasks
-    context.set_custom_status("Creating avro file for Xandr Audience.")
-    # session_id = random.randint(0, 2**32 - 1)
-
-    xandrSegment =  yield context.call_activity(
-        "activity_esquireAudienceXandr_generateAvro",
-        {
-            "xandr_segment_id": 34606932, #static for testing
-            "maids_url":maids_info,            
-        }
+    yield context.task_all(
+        [
+            context.call_activity(
+                "activity_esquireAudienceXandr_generateAvro",
+                {
+                    "audience": audience,
+                    "source": {
+                        "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
+                        "container_name": os.environ["ESQUIRE_AUDIENCE_CONTAINER_NAME"],
+                        "blob_name": blob_name,
+                    },
+                    # "destination": {
+                    #     "conn_str": "AzureWebJobsStorage",
+                    #     "container_name": os.environ["TASK_HUB_NAME"]
+                    #     + "-largemessages",
+                    #     "blob_prefix": f"{context.instance_id}",
+                    # },
+                    "destination": {
+                        "access_key": os.environ["XANDR_SEGMENTS_AWS_ACCESS_KEY"],
+                        "secret_key": os.environ["XANDR_SEGMENTS_AWS_SECRET_KEY"],
+                        "bucket": os.environ["XANDR_SEGMENTS_S3_BUCKET"],
+                        "object_key": "submitted/{}.avro".format(uuid.uuid4().hex),
+                    },
+                },
+            )
+            for blob_name in blob_names
+        ]
     )
-    logging.warning(xandrSegment)
-    
+
     return {}

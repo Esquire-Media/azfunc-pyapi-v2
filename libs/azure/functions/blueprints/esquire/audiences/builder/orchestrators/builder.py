@@ -80,20 +80,20 @@ def orchestrator_esquireAudiences_builder(
                     ingress["audience"]["id"],
                 )
             )
-        # if ingress["audience"]["advertiser"]["oneview"]:
-        #     tasks.append(
-        #         context.call_sub_orchestrator(
-        #             "oneview_customaudience_orchestrator",
-        #             ingress["audience"]["id"],
-        #         )
-        #     )
-        # if ingress["audience"]["advertiser"]["xandr"]:
-        #     tasks.append(
-        #         context.call_sub_orchestrator(
-        #             "xandr_customaudience_orchestrator",
-        #             ingress["audience"]["id"],
-        #         )
-        #     )
+        if ingress["audience"]["advertiser"]["oneview"]:
+            tasks.append(
+                context.call_sub_orchestrator(
+                    "oneview_customaudience_orchestrator",
+                    ingress["audience"]["id"],
+                )
+            )
+        if ingress["audience"]["advertiser"]["xandr"]:
+            tasks.append(
+                context.call_sub_orchestrator(
+                    "xandr_customaudience_orchestrator",
+                    ingress["audience"]["id"],
+                )
+            )
 
         # Wait for all tasks to complete
         yield context.task_all(tasks)

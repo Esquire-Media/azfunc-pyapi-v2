@@ -15,8 +15,11 @@ marshmallow-jsonapi
 marshmallow-sqlalchemy>=0.29.0
 pandas>=2.0.0
 smart-open
+fsspec
+s3fs
 sqlalchemy>=2.0.0
 fastparquet
+fastavro
 ## openapi
 git+https://github.com/ggpwnkthx/aiopenapi3
 httpx_auth==0.21.0
@@ -29,7 +32,6 @@ werkzeug
 ## security
 itsdangerous
 py-abac
-fastavro
 
 
 # optional

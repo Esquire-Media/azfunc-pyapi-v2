@@ -8,7 +8,7 @@ bp: Blueprint = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-async def activity_esquireAudiencesUtils_newestAudienceBlobPrefix(ingress: dict):
+def activity_esquireAudiencesUtils_newestAudienceBlobPrefix(ingress: dict):
     # ingress = {
     #     "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
     #     "container_name": "general",

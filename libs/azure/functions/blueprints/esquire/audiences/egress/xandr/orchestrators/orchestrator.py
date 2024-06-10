@@ -2,7 +2,7 @@
 
 from azure.durable_functions import DurableOrchestrationContext
 from libs.azure.functions import Blueprint
-import os, logging, uuid
+import os, uuid
 
 bp = Blueprint()
 
@@ -72,12 +72,6 @@ def xandr_audience_orchestrator(
                         "container_name": os.environ["ESQUIRE_AUDIENCE_CONTAINER_NAME"],
                         "blob_name": blob_name,
                     },
-                    # "destination": {
-                    #     "conn_str": "AzureWebJobsStorage",
-                    #     "container_name": os.environ["TASK_HUB_NAME"]
-                    #     + "-largemessages",
-                    #     "blob_prefix": f"{context.instance_id}",
-                    # },
                     "destination": {
                         "access_key": os.environ["XANDR_SEGMENTS_AWS_ACCESS_KEY"],
                         "secret_key": os.environ["XANDR_SEGMENTS_AWS_SECRET_KEY"],

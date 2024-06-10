@@ -181,32 +181,12 @@ def activity_esquireAudienceXandr_generateAvro(ingress: dict):
         )
     df = pd.read_csv(source_blob.download_blob())
 
-    # fs = fsspec
-    # if isinstance(ingress["destination"], str):
-    #     destination_blob = BlobClient.from_blob_url(ingress["destination"])
-    #     destination_path = ingress["destination"]
-    # else:
-    #     destination_blob = BlobClient.from_connection_string(
-    #         conn_str=os.environ[ingress["destination"]["conn_str"]],
-    #         container_name=ingress["destination"]["container_name"],
-    #         blob_name="{}/{}.avro".format(
-    #             ingress["destination"]["blob_prefix"], uuid.uuid4().hex
-    #         ),
-    #     )
-    #     fs = fsspec.filesystem(
-    #         "az", connection_string=os.environ[ingress["destination"]["conn_str"]]
-    #     )
-    #     destination_path = "az://{}/{}".format(
-    #         destination_blob.container_name,
-    #         destination_blob.blob_name,
-    #     )
     fs = fsspec.filesystem(
         "s3",
         key=ingress["destination"]["access_key"],
         secret=ingress["destination"]["secret_key"],
     )
 
-    # with fs.open(destination_path, "wb") as blob:
     with fs.open(
         "s3://{}/submitted/{}.avro".format(
             ingress["destination"]["bucket"], uuid.uuid4().hex

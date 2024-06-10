@@ -2,6 +2,54 @@ from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
 from datetime import datetime as dt, timedelta
 import os, pandas as pd, uuid
 
+def init_blob_client(**kwargs) -> BlobClient:
+    """
+    Create a BlobClient based on the provided keyword arguments.
+    
+    Parameters can include:
+    - connection_string
+    - account_url
+    - container_name
+    - blob_name
+    - account_key
+    - sas_token
+    - blob_url
+    
+    Returns:
+    - BlobClient object
+    """
+    if 'blob_url' in kwargs:
+        # Initialize using the blob URL
+        return BlobClient.from_blob_url(kwargs['blob_url'])
+    
+    if 'connection_string' in kwargs:
+        # Initialize using the connection string
+        return BlobClient.from_connection_string(
+            kwargs['connection_string'],
+            kwargs['container_name'],
+            kwargs['blob_name']
+        )
+    
+    if 'account_url' in kwargs:
+        if 'sas_token' in kwargs:
+            # Initialize using account URL and SAS token
+            return BlobClient(
+                account_url=kwargs['account_url'],
+                container_name=kwargs['container_name'],
+                blob_name=kwargs['blob_name'],
+                credential=kwargs['sas_token']
+            )
+        if 'account_key' in kwargs:
+            # Initialize using account URL and account key
+            return BlobClient(
+                account_url=kwargs['account_url'],
+                container_name=kwargs['container_name'],
+                blob_name=kwargs['blob_name'],
+                credential=kwargs['account_key']
+            )
+    
+    raise ValueError("Insufficient or incorrect parameters provided to initialize a BlobClient.")
+
 
 def query_entities_to_list_of_dicts(
     entities, partition_name: str = "PartitionKey", row_name: str = "RowKey"

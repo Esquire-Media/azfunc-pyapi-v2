@@ -4,13 +4,12 @@ from libs.azure.functions import Blueprint
 from libs.data import from_bind
 from sqlalchemy import select
 from sqlalchemy.orm import Session, lazyload
-import logging
 
 bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def activity_esquireAudienceOneView_fetchAudience(ingress: str):
+def activity_esquireAudienceOneview_fetchAudience(ingress: str):
     """
     Fetches audience metadata from the database using the given audience ID.
 
@@ -37,7 +36,7 @@ def activity_esquireAudienceOneView_fetchAudience(ingress: str):
             lazyload(audience.collection_AudienceTag),
         )
         .where(
-            audience.id == ingress,  # esq audience
+            audience.id == ingress["id"],  # esq audience
             audience.status == True,
             audience.oneView != None,
             audience.oneView != "",
@@ -49,6 +48,7 @@ def activity_esquireAudienceOneView_fetchAudience(ingress: str):
 
     if result:
         return {
+            **ingress,
             "advertiser": result.Audience.related_Advertiser.oneView,
             "segment": result.Audience.oneView,
             "tags": [

@@ -17,9 +17,13 @@ development.py
 *.csv
 .tools
 
+*__pycache__*
+*.py[cod]
+*$py.class
+
 /example_addresses.csv
 /development.py
 /logging.logging
 /matched_data.csv
 /Untitled*
-/xandr_*
+xandr_docs_cache

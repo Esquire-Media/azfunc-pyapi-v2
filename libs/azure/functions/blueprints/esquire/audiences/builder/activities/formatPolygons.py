@@ -11,7 +11,6 @@ from libs.azure.functions import Blueprint
 from urllib.parse import unquote
 import os
 import pandas as pd
-import uuid
 
 try:
     import orjson as json

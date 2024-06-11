@@ -1,39 +1,13 @@
 # File: libs/azure/functions/blueprints/datalake/activities/copy.py
 from libs.azure.functions import Blueprint
 from urllib.parse import unquote
-from smart_open import open
 from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
 from dateutil.relativedelta import relativedelta
 import datetime, os, ssl
-
-import smart_open.ftp, ssl
-from ftplib import FTP, FTP_TLS, error_reply
-def _connect(hostname, username, port, password, secure_connection, transport_params):
-    kwargs = smart_open.ftp.convert_transport_params_to_args(transport_params)
-    if secure_connection:
-        ssl_context = transport_params.get("ssl_context", ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH))
-        ftp = FTP_TLS(context=ssl_context, **kwargs)
-    else:
-        ftp = FTP(**kwargs)
-    try:
-        ftp.connect(hostname, port)
-    except Exception as e:
-        smart_open.ftp.logger.error("Unable to connect to FTP server: try checking the host and port!")
-        raise e
-    try:
-        ftp.login(username, password)
-    except error_reply as e:
-        smart_open.ftp.logger.error(
-            "Unable to login to FTP server: try checking the username and password!"
-        )
-        raise e
-    if secure_connection:
-        ftp.prot_p()
-    return ftp
-smart_open.ftp._connect = _connect
-from smart_open import open
+import fsspec
 
 bp = Blueprint()
+
 
 @bp.activity_trigger(input_name="ingress")
 def activity_blob2ftp(ingress: dict) -> str:
@@ -67,7 +41,7 @@ def activity_blob2ftp(ingress: dict) -> str:
 
         def orchestrator_function(context: df.DurableOrchestrationContext):
             copied_url = yield context.call_activity('azure_datalake_copy_blob', {
-                "source": "source_blob_url_with_read_SAS_token",
+                "source": "https://storage_account.",
                 "target": "ftps://username:password@host:port/path/to/file"
             })
             return copied_url
@@ -109,16 +83,20 @@ def activity_blob2ftp(ingress: dict) -> str:
             )
         )
 
-    with open(ingress["source"], "rb") as source_file:
+    # Use fsspec to handle file operations
+    with fsspec.open(ingress["source"], "rb") as source_file:
         try:
-            with open(ingress["target"], "wb") as target_file:
+            with fsspec.open(ingress["target"], "wb") as target_file:
                 target_file.write(source_file.read())
         except:
             # Attempt connection without verifying the SSL certificate
             context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
-            with open(ingress["target"], "wb", transport_params={"ssl_context": context}) as target_file:
+            target_fs_ssl = fsspec.open(
+                ingress["target"], "wb", transport_params={"ssl_context": context}
+            )
+            with target_fs_ssl as target_file:
                 target_file.write(source_file.read())
 
     return ingress["target"]

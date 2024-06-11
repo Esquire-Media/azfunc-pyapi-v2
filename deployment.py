@@ -6,7 +6,7 @@ except:
     DEV_BPS = []
 
 BLUEPRINTS = {
-    "esquire-audience-automation": [
+    "esquire-auto-audience": [
         "libs/azure/functions/blueprints/azure/datalake/*",
         "libs/azure/functions/blueprints/azure/postgres/*",
         "libs/azure/functions/blueprints/azure/synapse/*",

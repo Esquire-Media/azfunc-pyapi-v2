@@ -1,78 +1,75 @@
 # azure
-azure-data-tables
-azure-functions>=1.14.0
-azure-functions-durable>=1.2.3 # Blueprints Required
-azure-identity
-azure-keyvault-secrets
-azure-storage-blob
-azure-storage-file-datalake
-azure-storage-queue
+azure-data-tables==12.5.0
+azure-functions==1.19.0
+azure-functions-durable==1.2.9 # Blueprints Required
+azure-identity==1.16.1
+azure-keyvault-secrets==4.8.0
+azure-storage-blob==12.20.0
+azure-storage-file-datalake==12.15.0
+azure-storage-queue==12.10.0
 
 # required
+## database connectors
+boto3<=1.34.100
+pymssql==2.3.0
+pyodbc==5.1.0
+psycopg2==2.9.9
+sqlalchemy==2.0.30
 ## data handling
-marshmallow
-marshmallow-jsonapi
-marshmallow-sqlalchemy>=0.29.0
-pandas>=2.0.0
-smart-open
-fsspec
-s3fs
-sqlalchemy>=2.0.0
-fastparquet
-fastavro
+marshmallow==3.21.3
+marshmallow-geojson==0.5.0
+marshmallow-jsonapi==0.24.0
+marshmallow-sqlalchemy==0.29.0
+pydantic==2.4.2
+pandas==2.0.0
+fsspec==2024.6.0
+s3fs==2024.6.0
 ## openapi
 git+https://github.com/ggpwnkthx/aiopenapi3
 httpx_auth==0.21.0
 ## tools
 frozendict
 fuzzywuzzy
-googlemaps>=4.10.0
-querystring-parser
+googlemaps==4.10.0
 werkzeug
 ## security
 itsdangerous
 py-abac
-
-
-# optional
-## database connectors
-boto3
-pymssql
-pyodbc
-psycopg2
-## formatting
-pyarrow
-orjson # fast (de)serialization
-simplejson # flexible (de)serialization
-sql-formatter
-xlsxwriter
+requests-auth-aws-sigv4
+## notification
+adaptive-cards-py @ git+https://github.com/dennis6p/adaptive-cards-py.git
 ## geometry/geography
 geoalchemy2 @ git+https://github.com/Esquire-Media/geoalchemy2
-geojson
-marshmallow-geojson
 pyproj
 shapely
 haversine
 h3
-bitarray
+## time
 pytz
 timezonefinder
 timezonefinder[pytz]
-scikit-learn
-## security
-requests-auth-aws-sigv4
+
+## formatting
+pyarrow
+fastparquet
+fastavro
+orjson # fast (de)serialization
+geojson
+sql-formatter
 ## temporary necessities
-facebook-business
 smartystreets-python-sdk
 fuzzywuzzy
 python-Levenshtein
-python-dotenv
-pydantic==2.4.2
-# data viz
+xlsxwriter
+bitarray
+scikit-learn
+## data viz
 plotly
 kaleido
 python-pptx==0.6.21
 matplotlib
 seaborn
-adaptive-cards-py @ git+https://github.com/dennis6p/adaptive-cards-py.git
-nbformat>=4.2.0
+
+## dev only
+# facebook-business
+# nbformat==4.2.0

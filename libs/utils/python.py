@@ -1,4 +1,4 @@
-from dotenv import load_dotenv  # pip install as  `python-dotenv`
+# from dotenv import load_dotenv  # pip install as  `python-dotenv`
 from pathlib import Path
 import json
 import os
@@ -6,12 +6,12 @@ import pandas as pd
 import ast
 from fuzzywuzzy import fuzz, process
 
-def load_env():
-    """
-    Load environment variables from a .env file.
-    """
-    env_path = Path('.') / '.env'
-    load_dotenv(dotenv_path=env_path)
+# def load_env():
+#     """
+#     Load environment variables from a .env file.
+#     """
+#     env_path = Path('.') / '.env'
+#     load_dotenv(dotenv_path=env_path)
 
 def load_local_settings():
     """

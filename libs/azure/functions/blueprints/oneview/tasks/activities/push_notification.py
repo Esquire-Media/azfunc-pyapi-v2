@@ -6,7 +6,7 @@ from libs.utils.email import send_email
 import os
 
 try:
-    import simplejson as json
+    import orjson as json
 except:
     import json
 

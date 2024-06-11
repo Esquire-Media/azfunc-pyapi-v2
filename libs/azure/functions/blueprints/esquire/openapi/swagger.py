@@ -1,7 +1,7 @@
 from libs.azure.functions import Blueprint
 from libs.azure.functions.http import HttpRequest, HttpResponse
 from libs.openapi.clients import specifications
-import simplejson as json
+import orjson as json
 
 # Create a Blueprint instance
 bp = Blueprint()

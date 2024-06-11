@@ -4,7 +4,7 @@ from marshmallow_sqlalchemy.fields import Nested
 from sqlalchemy.orm import Session, Relationship, RelationshipProperty
 from typing import Any, Callable, List
 try:
-    import simplejson as json
+    import orjson as json
 except ImportError:
     import json
 

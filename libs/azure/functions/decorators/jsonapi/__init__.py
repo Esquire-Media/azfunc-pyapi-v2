@@ -2,10 +2,10 @@
 
 from .exceptions import *
 from libs.azure.functions.http import HttpRequest, HttpResponse
-from querystring_parser import parser
+from urllib.parse import parse_qs
 
 try:
-    import simplejson as json
+    import orjson as json
 except:
     import json
 
@@ -93,14 +93,16 @@ def parse_query(url: str):
     query = {}
     query_string = url.split("?")
     if len(query_string) > 1:
-        for key, value in parser.parse(query_string[1]).items():
+        query_params = parse_qs(query_string[1])
+        for key, value in query_params.items():
             key = key.lower()
+            value = value[0]  # Get the first value from the list
             match key:
                 case "include":
                     query["include"] = value.split(",")
                 case "fields":
                     query["fields"] = [
-                        {"type": k, "fields": v.split(",")} for k, v in value.items()
+                        {"type": k, "fields": v.split(",")} for k, v in json.loads(value).items()
                     ]
                 case "sort":
                     query["sort"] = [
@@ -109,7 +111,7 @@ def parse_query(url: str):
                         if (f := field.split("-"))
                     ]
                 case "filters":
-                    query[key] = {k: json.loads(v) for k, v in value.items()}
+                    query[key] = {k: json.loads(v) for k, v in json.loads(value).items()}
                 case _:
                     query[key] = value
 

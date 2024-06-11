@@ -1,8 +1,6 @@
 from libs.azure.functions import Blueprint
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
 import os
-import orjson as json
-from azure.storage.blob import BlobClient
 import logging
 
 bp = Blueprint()

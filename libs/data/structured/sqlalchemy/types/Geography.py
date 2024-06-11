@@ -1,13 +1,10 @@
-from libs.utils.geometry import wkb2geojson, wkt2geojson, geojson2wkb, geojson2wkt
-from geoalchemy2.elements import WKBElement, WKTElement
+from libs.utils.geometry import wkb2geojson, geojson2wkt
 from geoalchemy2.types import select_dialect
 from marshmallow.fields import Nested
 from marshmallow_geojson import GeoJSONSchema
 from marshmallow_sqlalchemy.convert import ModelConverter
-from sqlalchemy import text, func
 from sqlalchemy.dialects.mssql.base import ischema_names as mssql_ischema_names
 import geoalchemy2.types
-import geojson, logging
 
 
 class GeometryJSON(geoalchemy2.types.Geometry):

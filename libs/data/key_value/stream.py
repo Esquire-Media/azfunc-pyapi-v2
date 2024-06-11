@@ -1,8 +1,7 @@
 from libs.utils.decorators import staticproperty
 from shutil import copyfileobj
-from smart_open import open
+import fsspec
 from typing import Any, Callable, List
-import smart_open.transport
 
 _RENAME = {"azure": "azure_blob"}
 
@@ -29,7 +28,7 @@ class StreamKeyValueProvider:
         return list(
             map(
                 lambda x: _RENAME[x] if x in _RENAME else x,
-                filter(len, smart_open.transport.SUPPORTED_SCHEMES),
+                filter(len, fsspec.registry.target),
             )
         )
 
@@ -88,7 +87,8 @@ class StreamKeyValueProvider:
         The connection object can be used with standard file-like operations such as write, read, and close.
         """
 
-        return open(self.scheme + "://" + key, **{**kwargs, **self.config})
+        fs = fsspec.filesystem(self.scheme, **self.config)
+        return fs.open(key, **{**kwargs, **self.config})
 
     def save(self, key: str, value: Any, encoder: Callable = None, **kwargs) -> None:
         """
@@ -128,16 +128,11 @@ class StreamKeyValueProvider:
             value = encoder(value, **kwargs)
             return self.save(key, value)
         elif callable(getattr(value, "read", None)):
-            copyfileobj(value, self.connect(key))
+            with self.connect(key, mode="wb") as out_file:
+                copyfileobj(value, out_file)
         else:
-            if isinstance(value, bytes):
-                self.connect(key, mode="wb").write(value)
-            elif isinstance(value, str):
-                self.connect(key, mode="w").write(value)
-            else:
-                raise TypeError(
-                    "StreamStorageProvider can only save strings and bytes. Use the encoder argument and any keyword arguments to transform the value into a bytes type object."
-                )
+            with self.connect(key, mode="wb" if isinstance(value, bytes) else "w") as out_file:
+                out_file.write(value)
 
     def load(self, key: str, decoder: Callable = None, **kwargs) -> Any:
         """
@@ -172,9 +167,8 @@ class StreamKeyValueProvider:
         from the connected key. The decoded or raw value is returned.
         """
 
-        if decoder:
-            return decoder(self.connect(key, mode="rb"), **kwargs)
-        return self.connect(key, mode="r").read()
+        with self.connect(key, mode="rb" if decoder else "r") as in_file:
+            return decoder(in_file, **kwargs) if decoder else in_file.read()
 
     def drop(self, key: str, **kwargs) -> None:
         """
@@ -199,4 +193,5 @@ class StreamKeyValueProvider:
         Any additional keyword arguments are ignored in this implementation.
         """
 
-        pass
+        fs = fsspec.filesystem(self.scheme, **self.config)
+        fs.rm(key)

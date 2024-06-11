@@ -3,7 +3,7 @@ from datetime import datetime
 from libs.azure.functions import Blueprint
 from libs.azure.functions.http import HttpRequest, HttpResponse
 from libs.utils.gravityforms import extract_answers
-import simplejson as json
+import orjson as json
 
 bp = Blueprint()
 

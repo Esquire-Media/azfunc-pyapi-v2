@@ -11,7 +11,7 @@ import logging
 import os
 
 try:
-    import simplejson as json
+    import orjson as json
 except:
     import json
 

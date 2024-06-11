@@ -15,7 +15,7 @@ from py_abac.exceptions import PolicyExistsError
 from py_abac.policy import Policy
 from typing import Union, Generator
 try:
-    import simplejson as json
+    import orjson as json
 except:
     import json
 

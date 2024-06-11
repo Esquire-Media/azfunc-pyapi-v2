@@ -71,5 +71,5 @@ matplotlib
 seaborn
 
 ## dev only
-# facebook-business
+facebook-business
 # nbformat==4.2.0

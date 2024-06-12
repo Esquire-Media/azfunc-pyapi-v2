@@ -1,15 +1,14 @@
 # File: libs/data/structured/sqlalchemy/__init__.py
 
 from libs.utils.decorators import staticproperty
-from .interface import QueryFrame
-from .marshmallow import extend_models as extend_models_marshmallow, schema
-from .utils import (
+from libs.data.structured.sqlalchemy.interface import QueryFrame
+from libs.data.structured.sqlalchemy.marshmallow import extend_models as extend_models_marshmallow, schema
+from libs.data.structured.sqlalchemy.utils import (
     extend_models as extend_models_base,
     name_for_collection_relationship,
     name_for_scalar_relationship,
 )
 from azure.storage.blob import BlobServiceClient
-from functools import cached_property
 from sqlalchemy import (
     create_engine,
     Column,

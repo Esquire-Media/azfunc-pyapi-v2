@@ -1,7 +1,6 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/oneview/orchestrators/updater.py
 
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-from azure.durable_functions import Blueprint
+from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 from urllib.parse import urlparse
 import os
 

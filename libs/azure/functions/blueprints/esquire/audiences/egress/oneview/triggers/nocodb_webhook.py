@@ -1,9 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/oneview/triggers/nocodb_webhook.py
 
-from azure.durable_functions import DurableOrchestrationClient
-from azure.functions import AuthLevel
-from azure.durable_functions import Blueprint
-from azure.functions import HttpRequest, HttpResponse
+from azure.durable_functions import Blueprint, DurableOrchestrationClient
+from azure.functions import AuthLevel, HttpRequest, HttpResponse
 
 bp = Blueprint()
 

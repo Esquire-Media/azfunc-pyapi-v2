@@ -1,6 +1,6 @@
 from libs.utils.pluginloader import load
 from typing import Any, List, Protocol, runtime_checkable
-import inspect
+import inspect, logging
 
 # Define StorageProvider protocol. 
 # Classes implementing this protocol must have save() and load() methods.
@@ -59,7 +59,7 @@ class StorageProviderRegistry(Protocol):
     """
 
     @classmethod
-    def get_protocol(cls) -> Protocol:
+    def get_protocol(cls):
         """
         Get the protocol associated with the registry.
 
@@ -172,14 +172,22 @@ def get_provider(protocol: str, scheme: str, *args, **kwargs) -> StorageProvider
     It checks the registered storage provider registries for the given protocol and scheme,
     and returns an instance of the storage provider if found.
     """
-
-    global _REGISTRY
-    cls = _REGISTRY.get(protocol) or _REGISTRY.get(protocol + "Registry")
-    if scheme in cls.get_schemes():
-        return cls.get_instance(scheme, *args, **kwargs)
-    if hasattr(cls, "regex_schemes"):
-        if cls.regex_schemes(scheme):
+    try:
+        global _REGISTRY
+        cls = _REGISTRY.get(protocol) or _REGISTRY.get(protocol + "Registry")
+        if scheme in cls.get_schemes():
             return cls.get_instance(scheme, *args, **kwargs)
+        if hasattr(cls, "regex_schemes"):
+            if cls.regex_schemes(scheme):
+                return cls.get_instance(scheme, *args, **kwargs)
+    except Exception as e:
+        import os
+        from azure.storage.blob import BlobClient
+        BlobClient.from_connection_string(
+            conn_str=os.environ["AzureWebJobsStorage"],
+            container_name="general",
+            blob_name="error.txt"
+        ).upload_blob(str(e), overwrite=True)
 
 # Function to retrieve a dictionary of supported schemes for each protocol
 def get_supported() -> dict:
@@ -238,7 +246,6 @@ def register_binding(handle: str, protocol: str, scheme: str, *args, **kwargs) -
     This function registers a binding between a handle and a provider instance.
     The handle can be used to retrieve the provider instance later using the `from_bind()` function.
     """
-
     global _BINDINGS
     if handle not in _BINDINGS:
         _BINDINGS[handle] = get_provider(protocol, scheme, *args, **kwargs)

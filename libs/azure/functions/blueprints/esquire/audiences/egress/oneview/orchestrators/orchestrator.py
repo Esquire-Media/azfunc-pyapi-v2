@@ -1,7 +1,6 @@
 # File path: libs/azure/functions/blueprints/esquire/audiences/oneview/orchestrator.py
 
-from azure.durable_functions import DurableOrchestrationContext
-from azure.durable_functions import Blueprint
+from azure.durable_functions import Blueprint, DurableOrchestrationContext
 import os
 
 # Initialize a Blueprint object to define and manage functions

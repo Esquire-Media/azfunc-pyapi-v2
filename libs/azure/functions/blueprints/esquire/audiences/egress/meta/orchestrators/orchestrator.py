@@ -1,7 +1,6 @@
 # File path: libs/azure/functions/blueprints/esquire/audiences/meta/orchestrator.py
 
-from azure.durable_functions import DurableOrchestrationContext
-from azure.durable_functions import Blueprint
+from azure.durable_functions import Blueprint, DurableOrchestrationContext
 from libs.data import from_bind
 import os, uuid, random, pandas as pd, orjson as json
 

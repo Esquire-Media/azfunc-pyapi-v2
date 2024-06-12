@@ -171,7 +171,7 @@ class StructuredRegistry:
     _providers = []
 
     @classmethod
-    def get_protocol(cls) -> Protocol:
+    def get_protocol(cls):
         """
         Get the protocol for structured data storage providers.
 

@@ -2,7 +2,7 @@
 
 from azure.storage.blob import ContainerClient
 from azure.durable_functions import Blueprint
-import os, logging
+import os
 
 bp: Blueprint = Blueprint()
 

@@ -1,12 +1,7 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/utils.py
 
 from dateutil.relativedelta import relativedelta
-import datetime
-
-try:
-    import orjson as json
-except:
-    import json
+import datetime, orjson as json
 
 
 def extract_dates(request, now=datetime.datetime.now()):

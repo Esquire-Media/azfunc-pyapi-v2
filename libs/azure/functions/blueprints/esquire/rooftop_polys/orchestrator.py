@@ -1,5 +1,5 @@
 # File: libs/azure/functions/blueprints/esquire/rooftop_polys/orchestrator.py
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
 bp: Blueprint = Blueprint()
 

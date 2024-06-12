@@ -1,8 +1,8 @@
 import os
 from datetime import timedelta
-from libs.azure.storage.blob.sas import get_blob_download_url
 from azure.storage.blob import BlobClient
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
+from libs.utils.azure_storage import get_blob_sas
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()
@@ -15,7 +15,7 @@ def activity_locationInsights_generateCallback(settings: dict):
     content = f"""Your Location Insights Reports are done processing and ready for download. 
     <br><br>The following download link(s) will expire in 14 days:"""
     for output_blob_name in settings["output_blob_names"]:
-        url_pptx = get_blob_download_url(
+        url_pptx = get_blob_sas(
             blob_client=BlobClient.from_connection_string(
                 container_name=settings["runtime_container"]['container_name'],
                 conn_str=os.environ[settings["runtime_container"]["conn_str"]], 

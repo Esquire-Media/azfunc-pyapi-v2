@@ -1,7 +1,7 @@
 #  file path:libs/azure/functions/blueprints/esquire/audiences/egress/xandr/orchestrators/orchestrator.py
 
 from azure.durable_functions import DurableOrchestrationContext
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 import os, uuid
 
 bp = Blueprint()

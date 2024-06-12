@@ -1,9 +1,7 @@
-from azure.functions import Out
+from azure.functions import Blueprint, HttpRequest, HttpResponse, Out
 from datetime import datetime
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest, HttpResponse
 from libs.utils.gravityforms import extract_answers
-import orjson as json
+import orjson as json, reportlab
 
 bp = Blueprint()
 
@@ -21,7 +19,7 @@ async def io_collector(req: HttpRequest, table: Out[str]):
                 "CreationTime": datetime.utcnow().isoformat(),
                 **extract_answers(req.get_json()),
             }
-        )
+        ).decode()
     )
 
     return HttpResponse("OK")

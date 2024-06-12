@@ -1,5 +1,5 @@
 import os
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.data import from_bind
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import text

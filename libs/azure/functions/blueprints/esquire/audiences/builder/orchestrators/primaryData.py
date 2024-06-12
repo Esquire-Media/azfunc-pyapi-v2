@@ -1,7 +1,7 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/primaryData.py
 
 from azure.durable_functions import DurableOrchestrationContext
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.azure.functions.blueprints.esquire.audiences.builder.config import (
     MAPPING_DATASOURCE,
 )

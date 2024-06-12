@@ -1,12 +1,8 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/finalize.py
 
 from azure.durable_functions import DurableOrchestrationContext
-from libs.azure.functions import Blueprint
-
-try:
-    import orjson as json
-except:
-    import json
+from azure.durable_functions import Blueprint
+import orjson as json
 
 bp = Blueprint()
 

@@ -1,4 +1,4 @@
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 import mailchimp_marketing as MailchimpMarketing
 
 # Create a Blueprint instance for defining Azure Functions

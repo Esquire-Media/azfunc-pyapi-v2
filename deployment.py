@@ -1,10 +1,3 @@
-import os
-
-try:
-    from development import BLUEPRINTS as DEV_BPS
-except:
-    DEV_BPS = []
-
 BLUEPRINTS = {
     "esquire-auto-audience": [
         "libs/azure/functions/blueprints/azure/datalake/*",
@@ -100,16 +93,3 @@ BLUEPRINTS = {
     ],
     # !!! SECRET DATA !!!
 }
-
-
-def get_bps(debug=False) -> list:
-    return (
-        BLUEPRINTS.get(os.environ.get("WEBSITE_SITE_NAME", ""), [])
-        + (BLUEPRINTS["debug"] if debug else [])
-        + (
-            BLUEPRINTS["debug_env"]
-            if debug and not os.environ.get("WEBSITE_SITE_NAME")
-            else []
-        )
-        + DEV_BPS
-    )

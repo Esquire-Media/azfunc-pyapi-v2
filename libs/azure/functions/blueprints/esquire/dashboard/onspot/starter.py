@@ -2,7 +2,7 @@
 
 from azure.durable_functions import DurableOrchestrationClient
 from azure.functions import TimerRequest
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 import logging
 
 # Create a Blueprint instance

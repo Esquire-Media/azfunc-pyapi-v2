@@ -1,15 +1,8 @@
 # File: libs/azure/functions/blueprints/synapse/query.py
 
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.data import from_bind
-import pandas as pd
-
-# Try to import orjson for faster JSON serialization/deserialization.
-# Fall back to the built-in json module if orjson is not available.
-try:
-    import orjson as json
-except ImportError:
-    import json
+import pandas as pd, orjson as json
 
 bp = Blueprint()
 

@@ -1,4 +1,4 @@
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from azure.data.tables import TableClient
 import pandas as pd
 import os

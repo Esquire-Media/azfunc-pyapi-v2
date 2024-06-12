@@ -1,8 +1,8 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/xandr/activities/status.py
 
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.openapi.clients.xandr import XandrAPI
-import json
+import orjson as json
 
 bp = Blueprint()
 

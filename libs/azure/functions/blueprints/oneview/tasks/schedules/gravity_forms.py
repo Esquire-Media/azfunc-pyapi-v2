@@ -6,7 +6,7 @@ from libs.azure.functions.blueprints.oneview.tasks.helpers import (
     TABLE_CLIENTS,
     request_initializer,
 )
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.openapi.clients.gravity_forms import GravityFormsAPI
 
 bp = Blueprint()

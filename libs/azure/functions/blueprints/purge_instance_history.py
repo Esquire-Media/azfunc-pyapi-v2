@@ -6,7 +6,7 @@ from azure.durable_functions import (
 )
 from azure.functions import TimerRequest
 from azure.data.tables import TableClient
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.azure.functions.suborchestrators import get_sub_orchestrator_ids
 import os
 

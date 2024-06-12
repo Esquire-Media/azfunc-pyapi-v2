@@ -5,7 +5,7 @@ BLUEPRINTS = [
         # "libs/azure/functions/blueprints/esquire/audiences/builder/*",
         # "libs/azure/functions/blueprints/esquire/audiences/egress/*",
         # "libs/azure/functions/blueprints/esquire/audiences/utils/activities/*",
-        "libs/azure/functions/blueprints/esquire/dashboard/meta/*",
+        # "libs/azure/functions/blueprints/esquire/dashboard/meta/*",
         # "libs/azure/functions/blueprints/esquire/dashboard/oneview/*",
         # "libs/azure/functions/blueprints/keep_alive",
         "libs/azure/functions/blueprints/meta/*",

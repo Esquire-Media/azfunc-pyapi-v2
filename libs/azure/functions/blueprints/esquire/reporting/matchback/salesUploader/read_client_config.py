@@ -1,14 +1,10 @@
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest, HttpResponse
-from azure.durable_functions import DurableOrchestrationClient
-import logging
-import json
 from azure.data.tables import TableClient
-import os
-from libs.utils.oauth2.tokens.microsoft import ValidateMicrosoft
+from azure.durable_functions import Blueprint, DurableOrchestrationClient
+from azure.functions import HttpRequest, HttpResponse
 from libs.utils.oauth2.tokens import TokenValidationError
+from libs.utils.oauth2.tokens.microsoft import ValidateMicrosoft
 from pydantic import BaseModel
-import pandas as pd
+import orjson as json, os, pandas as pd
 
 bp = Blueprint()
 
@@ -82,7 +78,7 @@ async def http_salesUploader_readClientConfig(
         cached_data = {}
 
     return HttpResponse(
-        json.dumps(cached_data, indent=3),
+        json.dumps(cached_data, indent=2).decode(),
         status_code=200
     )
 

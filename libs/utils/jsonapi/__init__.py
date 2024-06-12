@@ -1,8 +1,5 @@
 from six import iteritems
-try:
-    import orjson as json
-except:
-    import json
+import orjson as json
 
 
 class BaseResponder(object):
@@ -22,7 +19,7 @@ class BaseResponder(object):
 
     @classmethod
     def respond(cls, *args, **kwargs):
-        return json.dumps(cls()._respond(*args, **kwargs))
+        return json.dumps(cls()._respond(*args, **kwargs)).decode()
 
     def _respond(self, instance_or_instances, meta=None, links=None, linked=None):
         links = self.links(links, linked)

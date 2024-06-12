@@ -1,13 +1,11 @@
-import adaptive_cards.card_types as types
+from adaptive_cards import card_types as types
 from adaptive_cards.card import AdaptiveCard
 from adaptive_cards.elements import TextBlock
 from adaptive_cards.containers import Container, ContainerTypes, ColumnSet, Column
-import httpx
-import json
+from azure.durable_functions import Blueprint
 from libs.utils.graph import MicrosoftGraph
 from libs.azure.key_vault import KeyVaultClient
-import logging
-from libs.azure.functions import Blueprint
+import httpx, orjson as json
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()

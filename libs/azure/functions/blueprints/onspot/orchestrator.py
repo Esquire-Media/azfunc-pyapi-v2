@@ -1,7 +1,7 @@
 # File: libs/azure/functions/blueprints/onspot/orchestrator.py
 
 from azure.durable_functions import DurableOrchestrationContext
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from urllib.parse import urlparse
 
 bp = Blueprint()

@@ -3,10 +3,7 @@ from marshmallow_sqlalchemy.convert import ModelConverter
 from marshmallow_sqlalchemy.fields import Nested
 from sqlalchemy.orm import Session, Relationship, RelationshipProperty
 from typing import Any, Callable, List
-try:
-    import orjson as json
-except ImportError:
-    import json
+import orjson as json
 
 
 DEFAULT_CONVERTER = ModelConverter()

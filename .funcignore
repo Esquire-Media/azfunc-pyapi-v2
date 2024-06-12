@@ -16,9 +16,8 @@ example
 *.py[cod]
 *$py.class
 
-/dev.settings.json
-/local.settings.json
-/config.py.example
-/getting_started.md
-/development.py
-/logging.logging
+*.settings.json
+config.py.example
+getting_started.md
+development.py
+logging.logging

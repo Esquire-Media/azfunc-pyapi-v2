@@ -1,22 +1,17 @@
-import pandas as pd
-import numpy as np
-from datetime import date
 from haversine import haversine, Unit
-from shapely.geometry.polygon import Polygon
-import json
-from shapely.wkt import loads as wkt_loads
 from libs.utils.geometry import (
     latlon_buffer,
     points_in_poly_numpy,
     points_in_multipoly_numpy,
 )
 from libs.utils.h3 import hex_intersections
+from libs.utils.python import literal_eval_list
 from shapely.ops import unary_union
-import pandas as pd
+from shapely.wkt import loads as wkt_loads
+from sklearn.neighbors import BallTree
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-from libs.utils.python import literal_eval_list
-from sklearn.neighbors import BallTree
+import orjson as json, pandas as pd, numpy as np
 
 class POIEngine:
     def __init__(self, provider_poi, provider_esq):

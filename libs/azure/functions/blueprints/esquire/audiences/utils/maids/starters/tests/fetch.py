@@ -1,6 +1,6 @@
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from azure.durable_functions import DurableOrchestrationClient
-from libs.azure.functions.http import HttpRequest
+from azure.functions import HttpRequest
 
 bp = Blueprint()
 

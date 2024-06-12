@@ -1,6 +1,6 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/meta/activities/putAudience.py
 
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.data import from_bind
 from sqlalchemy import update
 from sqlalchemy.orm import Session

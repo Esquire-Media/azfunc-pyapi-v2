@@ -7,7 +7,7 @@ from azure.storage.blob import (
     BlobBlock,
 )
 from dateutil.relativedelta import relativedelta
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from urllib.parse import unquote
 import datetime, httpx, os, uuid
 

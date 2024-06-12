@@ -1,7 +1,7 @@
 from azure.functions import Context
 from azure.storage.blob import BlobClient
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest, HttpResponse
+from azure.durable_functions import Blueprint
+from azure.functions import HttpRequest, HttpResponse
 import os
 import logging
 

@@ -4,7 +4,7 @@ from azure.durable_functions import DurableOrchestrationContext, RetryOptions
 from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.azure.functions.blueprints.esquire.audiences.utils.maids.config import (
     unvalidated_addresses_name,
     validated_addresses_name,

@@ -1,5 +1,5 @@
 from azure.storage.blob import BlobClient, ContainerClient
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.utils.azure_storage import get_blob_sas
 import pandas as pd, os, uuid, fsspec
 

@@ -1,6 +1,6 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/batch.py
 
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from azure.durable_functions import DurableOrchestrationContext
 
 bp = Blueprint()

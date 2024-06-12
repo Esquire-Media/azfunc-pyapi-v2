@@ -1,7 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/meta/orchestrators/report_batch.py
 
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.azure.functions.blueprints.esquire.dashboard.meta.config import (
     PARAMETERS,
     CETAS,

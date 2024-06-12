@@ -2,13 +2,8 @@
 
 from azure.durable_functions import DurableOrchestrationContext
 from azure.storage.blob import BlobClient
-from libs.azure.functions import Blueprint
-import uuid
-
-try:
-    import orjson as json
-except:
-    import json
+from azure.durable_functions import Blueprint
+import uuid, orjson as json
 
 bp = Blueprint()
 

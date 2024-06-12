@@ -1,13 +1,8 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/processingSteps.py
 
 from azure.durable_functions import DurableOrchestrationContext
-from libs.azure.functions import Blueprint
-import logging
-
-try:
-    import orjson as json
-except:
-    import json
+from azure.durable_functions import Blueprint
+import orjson as json
 
 bp = Blueprint()
 
@@ -213,9 +208,6 @@ def orchestrator_esquireAudiences_processingSteps(
 
         # Apply custom coding filters if specified
         if custom_coding.get("filter", False):
-            logging.warning(
-                "[{}]: {} -> {}".format(step, inputType, process["outputType"])
-            )
             process["results"] = yield context.task_all(
                 [
                     context.call_activity(

@@ -1,14 +1,9 @@
 # File path: libs/azure/functions/blueprints/esquire/audiences/meta/orchestrator.py
 
 from azure.durable_functions import DurableOrchestrationContext
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.data import from_bind
-import os, uuid, random, pandas as pd
-
-try:
-    import orjson as json
-except:
-    import json
+import os, uuid, random, pandas as pd, orjson as json
 
 # Initialize a Blueprint object to define and manage functions
 bp = Blueprint()
@@ -108,7 +103,7 @@ def meta_customaudience_orchestrator(
                                         "is_raw": True,
                                         "data": [str(uuid.uuid4())],
                                     }
-                                ),
+                                ).decode(),
                                 "session": json.dumps(
                                     {
                                         "session_id": s["session_id"],
@@ -119,7 +114,7 @@ def meta_customaudience_orchestrator(
                                         + 1,
                                         "last_batch_flag": True,
                                     }
-                                ),
+                                ).decode(),
                             },
                         )
 

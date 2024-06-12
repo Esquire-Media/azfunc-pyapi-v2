@@ -1,8 +1,8 @@
 import os
-from datetime import datetime as dt, timedelta
-from libs.azure.storage.blob.sas import get_blob_download_url
-from libs.azure.functions import Blueprint
+from datetime import timedelta
+from azure.durable_functions import Blueprint
 from azure.storage.blob import BlobClient
+from libs.utils.azure_storage import get_blob_sas
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()
@@ -12,7 +12,7 @@ bp = Blueprint()
 def activity_campaignProposal_generateCallback(settings: dict):
 
     # get a 14-day download URL for each file attachment
-    url_pptx = get_blob_download_url(
+    url_pptx = get_blob_sas(
         blob_client=BlobClient.from_connection_string(
             conn_str=os.environ[settings["runtime_container"]["conn_str"]], 
             container_name=settings["runtime_container"]['container_name'],
@@ -20,7 +20,7 @@ def activity_campaignProposal_generateCallback(settings: dict):
         ),
         expiry=timedelta(days=14)
     )
-    url_comps = get_blob_download_url(
+    url_comps = get_blob_sas(
         blob_client=BlobClient.from_connection_string(
             conn_str=os.environ[settings["runtime_container"]["conn_str"]], 
             container_name=settings["runtime_container"]['container_name'],

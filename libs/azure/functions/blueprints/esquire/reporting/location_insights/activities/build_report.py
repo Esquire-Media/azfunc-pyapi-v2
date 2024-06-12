@@ -1,17 +1,13 @@
-from libs.azure.functions import Blueprint
-import pandas as pd
-import json
-import os
-import re
-from io import BytesIO
-from pptx import Presentation
+from azure.durable_functions import Blueprint
 from azure.storage.blob import BlobClient, ContainerClient
+from io import BytesIO
+from libs.utils.azure_storage import get_blob_sas
 from libs.utils.pptx import add_custom_image, replace_text
-from libs.azure.storage.blob.sas import get_blob_download_url
 from libs.utils.esquire.onspot_graphics.demographics import Demographics
 from libs.utils.esquire.onspot_graphics.observations import Observations
 from libs.utils.esquire.onspot_graphics.slider import SliderGraph
-import logging
+from pptx import Presentation
+import os, pandas as pd, re
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()
@@ -34,7 +30,7 @@ def activity_locationInsights_buildReport(settings: dict):
 
     # load location info from blob
     location = pd.read_csv(
-        get_blob_download_url(
+        get_blob_sas(
             BlobClient.from_connection_string(
                 conn_str=os.environ[settings["runtime_container"]["conn_str"]],
                 container_name=settings["runtime_container"]["container_name"],
@@ -43,11 +39,13 @@ def activity_locationInsights_buildReport(settings: dict):
         )
     )
     info = location.iloc[0].copy()
-    info["Full Address"] = f"{info['Address']}, {info['City']}, {info['State']} {info['Zip']}"
+    info["Full Address"] = (
+        f"{info['Address']}, {info['City']}, {info['State']} {info['Zip']}"
+    )
 
     # load observations data from blob
     observations_data = pd.read_csv(
-        get_blob_download_url(
+        get_blob_sas(
             BlobClient.from_connection_string(
                 conn_str=os.environ[settings["runtime_container"]["conn_str"]],
                 container_name=settings["runtime_container"]["container_name"],
@@ -66,7 +64,7 @@ def activity_locationInsights_buildReport(settings: dict):
 
     # load demographics data from blob
     demographics_data = pd.read_csv(
-        get_blob_download_url(
+        get_blob_sas(
             BlobClient.from_connection_string(
                 conn_str=os.environ[settings["runtime_container"]["conn_str"]],
                 container_name=settings["runtime_container"]["container_name"],
@@ -114,9 +112,7 @@ def activity_locationInsights_buildReport(settings: dict):
         .replace("__", "_")
     )
     output_blob_name = f"{settings['runtime_container']['output_blob']}/{filename}.pptx"
-    runtime_container.upload_blob(
-        name=output_blob_name, data=output_io, overwrite=True
-    )
+    runtime_container.upload_blob(name=output_blob_name, data=output_io, overwrite=True)
 
     return output_blob_name
 
@@ -263,7 +259,7 @@ def execute_graphics_replacements(
             )
 
 
-def execute_text_replacements(obs:Observations, info:dict, template:Presentation):
+def execute_text_replacements(obs: Observations, info: dict, template: Presentation):
     """
     Calls functions which update all generated text in the template pptx.
     """

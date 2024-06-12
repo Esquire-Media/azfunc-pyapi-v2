@@ -1,9 +1,5 @@
-import json
-import h3
-import pandas as pd
 from shapely.geometry import shape, box
-import shapely.wkt
-import geojson
+import geojson, h3, orjson as json, pandas as pd, shapely.wkt
 
 # main entry point is the hex_intersections function
 

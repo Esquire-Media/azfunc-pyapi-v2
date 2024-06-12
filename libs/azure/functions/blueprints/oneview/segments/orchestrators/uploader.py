@@ -1,7 +1,7 @@
 # File: libs/azure/functions/blueprints/oneview/segments/orchestrators/uploader.py
 
 from azure.durable_functions import DurableOrchestrationContext
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 import os
 
 bp = Blueprint()

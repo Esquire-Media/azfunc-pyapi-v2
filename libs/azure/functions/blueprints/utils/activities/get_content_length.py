@@ -1,4 +1,4 @@
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 import requests
 
 from libs.utils.azure_storage import get_blob_sas, init_blob_client

@@ -1,24 +1,11 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/mover_sync/orchestrators/orchestrator.py
 
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest, HttpResponse
+from azure.durable_functions import Blueprint
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
 import os
-import json
-import jwt
-import pandas as pd
-from azure.data.tables import TableClient
-import hashlib
 import logging
 from pydantic import BaseModel, conlist
-from typing import Optional
-from libs.utils.logging import AzureTableHandler
-from pydantic import validator
-from libs.utils.oauth2.tokens.microsoft import ValidateMicrosoft
-from libs.utils.oauth2.tokens import TokenValidationError
 from libs.utils.pydantic.address import AddressComponents2
-from datetime import datetime as dt, timedelta
-import requests
 
 bp = Blueprint()
 batch_size = os.environ.get("PLACEKEY_FROM_ADDRESS_BATCH_SIZE", 1000)

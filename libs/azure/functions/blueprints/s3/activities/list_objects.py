@@ -1,6 +1,6 @@
 # File: libs/azure/functions/blueprints/s3/activities/list_objects.py
 
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 import boto3, os
 
 bp = Blueprint()

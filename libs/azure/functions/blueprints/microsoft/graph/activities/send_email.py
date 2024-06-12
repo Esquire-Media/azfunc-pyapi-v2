@@ -1,7 +1,7 @@
 import msal
 import httpx
 import os
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 import logging
 from libs.azure.key_vault import KeyVaultClient
 

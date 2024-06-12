@@ -1,14 +1,9 @@
 # File: libs/azure/functions/blueprints/oneview/tasks/activities/push_notification.py
 
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.azure.key_vault import KeyVaultClient
 from libs.utils.email import send_email
-import os
-
-try:
-    import orjson as json
-except:
-    import json
+import orjson as json, os
 
 bp = Blueprint()
 
@@ -47,6 +42,6 @@ def oneview_activity_push_notification(message: dict):
         # Subject of the email
         subject="Notification",
         # Convert the dictionary message to a JSON string
-        message=json.dumps(message),
+        message=json.dumps(message).decode(),
     )
     return None

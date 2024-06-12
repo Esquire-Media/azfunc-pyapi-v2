@@ -1,7 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/mover_sync/activities/get_blob_row_count.py
 
 from azure.data.tables import TableClient
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.data import from_bind
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import text

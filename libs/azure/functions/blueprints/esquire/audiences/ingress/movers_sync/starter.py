@@ -1,12 +1,10 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/mover_sync/starter.py
 
 from azure.durable_functions import DurableOrchestrationClient
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest
+from azure.durable_functions import Blueprint
 from azure.functions import TimerRequest
 from libs.utils.logging import AzureTableHandler
-import json, logging
-import requests
+import orjson as json, logging
 
 bp = Blueprint()
 
@@ -53,7 +51,7 @@ async def starter_moversSync(timer: TimerRequest, client: DurableOrchestrationCl
             "context": {
                 "PartitionKey": "moversSync",
                 "RowKey": instance_id,
-                # **{k: v if isinstance(v, str) else json.dumps(v) for k, v in payload.items()}
+                # **{k: v if isinstance(v, str) else json.dumps(v).decode() for k, v in payload.items()}
             }
         },
     )

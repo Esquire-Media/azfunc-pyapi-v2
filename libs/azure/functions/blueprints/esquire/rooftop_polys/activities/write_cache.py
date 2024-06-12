@@ -1,6 +1,6 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/daily_audience_generation/activities/write_cache.py
 
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from typing import List
 from sqlalchemy.orm import Session
 from libs.data import from_bind

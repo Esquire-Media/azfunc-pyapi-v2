@@ -1,6 +1,6 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/ingress/mover_sync/activities/validate_address_chunks.py
 
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from azure.data.tables import TableClient
 from datetime import timedelta
 import os

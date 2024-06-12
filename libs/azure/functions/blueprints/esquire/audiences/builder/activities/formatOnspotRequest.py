@@ -7,18 +7,12 @@ from azure.storage.blob import (
 )
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
     extract_dates,
 )
 from urllib.parse import unquote
-import os
-import uuid
-
-try:
-    import orjson as json
-except:
-    import json
+import os, uuid, orjson as json
 
 bp = Blueprint()
 

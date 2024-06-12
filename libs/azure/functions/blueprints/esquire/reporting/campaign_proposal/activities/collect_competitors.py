@@ -1,5 +1,5 @@
 import os
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 import pandas as pd
 from azure.storage.blob import BlobServiceClient, ContainerClient
 from io import BytesIO
@@ -7,8 +7,8 @@ from libs.utils.esquire.point_of_interest.poi_engine import POIEngine, recreate_
 from libs.data import from_bind
 from libs.utils.python import index_by_list
 from libs.azure.key_vault import KeyVaultClient
-from libs.azure.storage.blob.sas import get_blob_download_url
 from libs.azure.functions.blueprints.esquire.reporting.campaign_proposal.utility.competitor_map import map_competitors
+from libs.utils.azure_storage import get_blob_sas
 import re
 import ast
 
@@ -22,7 +22,7 @@ def activity_campaignProposal_collectCompetitors(settings: dict):
     # import cleaned addresses from previous step
     container_client: ContainerClient = ContainerClient.from_connection_string(conn_str=os.environ[settings["runtime_container"]['conn_str']], container_name=settings["runtime_container"]["container_name"])
     in_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/addresses.csv")
-    addresses = pd.read_csv(get_blob_download_url(in_client), usecols=['address','latitude','longitude'])
+    addresses = pd.read_csv(get_blob_sas(in_client), usecols=['address','latitude','longitude'])
 
     # connect to key vault to get mapbox token
     mapbox_key_vault = KeyVaultClient('mapbox-service')

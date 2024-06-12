@@ -1,5 +1,5 @@
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.utils.azure_storage import load_dataframe
 from urllib.parse import urlparse, parse_qs
 import uuid

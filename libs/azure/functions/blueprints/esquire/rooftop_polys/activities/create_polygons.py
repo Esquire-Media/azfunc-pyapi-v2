@@ -1,7 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/daily_audience_generation/activities/create_polygons.py
 
 import os
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 import pandas as pd
 import os
 import googlemaps

@@ -1,9 +1,8 @@
 # File: libs/azure/functions/blueprints/meta/orchestrators/request.py
 
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
+from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 from datetime import timedelta
-from libs.azure.functions import Blueprint
-import json, logging
+import orjson as json, logging
 
 bp = Blueprint()
 

@@ -1,5 +1,5 @@
 from azure.functions import TimerRequest
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 import os
 from azure.data.tables import TableServiceClient
 from azure.storage.blob import ContainerClient

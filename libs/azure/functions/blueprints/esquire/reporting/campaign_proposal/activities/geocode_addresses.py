@@ -1,5 +1,5 @@
 import os
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 import pandas as pd
 from libs.utils.smarty import bulk_validate
 from azure.storage.blob import BlobServiceClient, ContainerClient

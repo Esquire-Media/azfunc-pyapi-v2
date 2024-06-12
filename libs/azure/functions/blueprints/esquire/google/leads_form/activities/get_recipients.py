@@ -1,5 +1,5 @@
 import os
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from azure.data.tables import TableClient
 
 # Create a Blueprint instance for defining Azure Functions

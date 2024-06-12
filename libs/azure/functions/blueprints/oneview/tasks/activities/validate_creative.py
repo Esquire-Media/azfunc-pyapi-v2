@@ -2,7 +2,7 @@
 
 from azure.durable_functions import DurableOrchestrationClient, EntityId
 from libs.azure.functions.blueprints.oneview.tasks.schemas import RequestSchema
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 import isobmff
 import fsspec
 import hashlib

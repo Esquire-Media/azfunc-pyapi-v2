@@ -1,7 +1,7 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/egress/oneview/orchestrators/generateSegment.py
 
 from azure.durable_functions import DurableOrchestrationContext
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from azure.storage.blob import (
     BlobClient,
     BlobSasPermissions,

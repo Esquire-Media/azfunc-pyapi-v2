@@ -8,7 +8,7 @@ from azure.storage.blob import (
 )
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from urllib.parse import unquote
 import boto3, os, pandas as pd
 

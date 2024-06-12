@@ -2,7 +2,7 @@
 
 from azure.durable_functions import DurableOrchestrationContext
 from datetime import datetime, timedelta
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 
 bp = Blueprint()
 

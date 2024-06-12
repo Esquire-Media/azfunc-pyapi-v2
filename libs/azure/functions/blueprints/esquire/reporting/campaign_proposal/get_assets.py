@@ -1,12 +1,9 @@
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest, HttpResponse
-from azure.durable_functions import DurableOrchestrationClient
-import os
-import json
-import pandas as pd
 from azure.data.tables import TableServiceClient
+from azure.durable_functions import Blueprint, DurableOrchestrationClient
+from azure.functions import HttpRequest, HttpResponse
 from libs.utils.oauth2.tokens.microsoft import ValidateMicrosoft
 from libs.utils.oauth2.tokens import TokenValidationError
+import orjson as json, os, pandas as pd
 
 bp = Blueprint()
 
@@ -46,7 +43,7 @@ async def starter_campaignProposal_getAssets(req: HttpRequest, client: DurableOr
         assets_dict[asset_type] = df['RowKey'].unique().tolist()
 
     return HttpResponse(
-        json.dumps(assets_dict, indent=3),
+        json.dumps(assets_dict, indent=2).decode(),
         status_code=200
     )
 

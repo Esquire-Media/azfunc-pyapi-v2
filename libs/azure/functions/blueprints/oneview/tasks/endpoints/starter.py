@@ -2,15 +2,10 @@
 
 from libs.azure.functions.blueprints.oneview.tasks.helpers import request_initializer
 from azure.durable_functions import DurableOrchestrationClient
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest, HttpResponse
+from azure.durable_functions import Blueprint
+from azure.functions import HttpRequest, HttpResponse
 from urllib.parse import urlparse
-import os
-
-try:
-    import orjson as json
-except:
-    import json
+import orjson as json, os
 
 bp = Blueprint()
 
@@ -64,6 +59,6 @@ async def oneview_endpoint_starter(
                 "instance_id": instanceId,
                 "statusQueryGetUri": f"{url.scheme}://{url.netloc}{url.path}/{instanceId}",
             }
-        ),
+        ).decode(),
         headers={"Content-Type": "application/json"},
     )

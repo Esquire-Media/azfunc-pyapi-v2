@@ -1,6 +1,6 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/egress/xandr/activities/createSegment.py
 
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.openapi.clients import XandrAPI
 import logging
 

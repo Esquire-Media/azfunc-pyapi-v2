@@ -2,8 +2,8 @@
 
 from azure.durable_functions import DurableOrchestrationClient
 from azure.functions import AuthLevel
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest, HttpResponse
+from azure.durable_functions import Blueprint
+from azure.functions import HttpRequest, HttpResponse
 
 bp = Blueprint()
 

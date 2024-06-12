@@ -1,5 +1,5 @@
 # File: libs/azure/functions/blueprints/datalake/activities/copy.py
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from urllib.parse import unquote
 from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
 from dateutil.relativedelta import relativedelta

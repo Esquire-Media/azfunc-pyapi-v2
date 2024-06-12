@@ -1,11 +1,9 @@
-from libs.azure.functions import Blueprint
-import pandas as pd
-import json
-import os
+from azure.durable_functions import Blueprint
 from azure.storage.blob import BlobClient
 from datetime import datetime as dt, timedelta
-from libs.azure.storage.blob.sas import get_blob_download_url
+from libs.utils.azure_storage import get_blob_sas
 from libs.utils.time import get_local_timezone, local_time_to_utc
+import orjson as json, os, pandas as pd
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()
@@ -29,7 +27,7 @@ def activity_locationInsights_createObservationsRequest(settings: dict):
         container_name=settings["runtime_container"]["container_name"],
         blob_name=settings["runtime_container"]["location_blob"],
     )
-    locations = pd.read_csv(get_blob_download_url(blob_client=blob_client))
+    locations = pd.read_csv(get_blob_sas(blob_client=blob_client))
     loc = locations.iloc[0]
 
     # build a feature collection with the fields required for Onspot observations request

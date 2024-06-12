@@ -2,7 +2,7 @@
 
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
 from datetime import timedelta
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.azure.functions.blueprints.esquire.dashboard.meta.config import PARAMETERS
 
 bp = Blueprint()

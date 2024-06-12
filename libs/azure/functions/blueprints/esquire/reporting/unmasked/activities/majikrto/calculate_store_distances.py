@@ -1,5 +1,5 @@
 import os
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 import numpy as np
 import pandas as pd
 from azure.storage.blob import BlobClient

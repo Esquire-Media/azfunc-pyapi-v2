@@ -8,7 +8,7 @@ from libs.azure.functions.blueprints.oneview.tasks.helpers import (
     process_state as OrchestartorStateOperation,
 )
 from libs.azure.functions.blueprints.oneview.tasks.schemas import RequestSchema
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 
 bp = Blueprint()
 

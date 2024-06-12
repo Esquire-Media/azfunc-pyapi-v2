@@ -1,8 +1,8 @@
 #  file path:libs/azure/functions/blueprints/esquire/audiences/meta/starters/test.py
 
 from azure.durable_functions import DurableOrchestrationClient
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest
+from azure.durable_functions import Blueprint
+from azure.functions import HttpRequest
 
 bp = Blueprint()
 

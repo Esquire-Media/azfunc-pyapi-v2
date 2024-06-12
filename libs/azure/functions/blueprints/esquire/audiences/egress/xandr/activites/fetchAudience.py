@@ -1,7 +1,7 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/egress/xandr/activities/fetchAudience.py
 
 from datetime import timedelta
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.data import from_bind
 from sqlalchemy import select
 from sqlalchemy.orm import Session, lazyload

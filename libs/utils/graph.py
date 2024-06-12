@@ -1,12 +1,6 @@
-import json
-import logging
-import msal
-import os
-import requests
-import jwt
-from datetime import datetime, timezone, timedelta
-
 from azure.identity import InteractiveBrowserCredential
+from datetime import datetime, timezone, timedelta
+import orjson as json, logging, msal, os, requests, jwt
 
 class MicrosoftGraph:
     __cache = {}

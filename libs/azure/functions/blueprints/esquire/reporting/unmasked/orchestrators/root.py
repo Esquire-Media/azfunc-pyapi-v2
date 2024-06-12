@@ -1,5 +1,5 @@
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 import logging
 import os
 

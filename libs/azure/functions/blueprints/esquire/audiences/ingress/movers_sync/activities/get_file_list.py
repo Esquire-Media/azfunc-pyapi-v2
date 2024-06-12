@@ -1,7 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/mover_sync/activities/get_file_list.py
 
 from azure.storage.blob import ContainerClient
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.azure.key_vault import KeyVaultClient
 from libs.utils.s3 import s3_path_to_azure_path, is_fresher_than_six_months
 import boto3, os

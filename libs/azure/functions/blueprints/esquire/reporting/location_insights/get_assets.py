@@ -1,13 +1,9 @@
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest, HttpResponse
-from azure.durable_functions import DurableOrchestrationClient
-import os
-import json
-import pandas as pd
 from azure.data.tables import TableClient
-from libs.utils.oauth2.tokens.microsoft import ValidateMicrosoft
+from azure.durable_functions import Blueprint, DurableOrchestrationClient
+from azure.functions import HttpRequest, HttpResponse
 from libs.utils.oauth2.tokens import TokenValidationError
-import logging
+from libs.utils.oauth2.tokens.microsoft import ValidateMicrosoft
+import orjson as json, os, pandas as pd
 
 bp = Blueprint()
 
@@ -16,7 +12,6 @@ bp = Blueprint()
 async def starter_locationInsights_getAssets(req: HttpRequest, client: DurableOrchestrationClient):
 
     # validate the MS bearer token to ensure the user is authorized to make requests
-    logging.warning(req.headers.get('authorization'))
     try:
         validator = ValidateMicrosoft(
             tenant_id=os.environ['MS_TENANT_ID'], 
@@ -47,7 +42,7 @@ async def starter_locationInsights_getAssets(req: HttpRequest, client: DurableOr
         assets_dict[asset_type] = df['RowKey'].unique().tolist()
 
     return HttpResponse(
-        json.dumps(assets_dict, indent=3),
+        json.dumps(assets_dict, indent=2).decode(),
         status_code=200
     )
 

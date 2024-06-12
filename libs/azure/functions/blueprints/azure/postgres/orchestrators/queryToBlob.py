@@ -1,7 +1,7 @@
 # File: /libs/azure/functions/blueprints/azure/postgres/queryToBlob.py
 
 from azure.durable_functions import DurableOrchestrationContext
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 
 bp = Blueprint()
 

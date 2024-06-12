@@ -1,7 +1,7 @@
 from aiopenapi3 import OpenAPI
 from libs.openapi.clients.base import OpenAPIClient
 from typing import Dict, List, Pattern, Union
-import httpx, orjson, logging
+import httpx, orjson as json
 
 
 class NocoDB(OpenAPIClient):
@@ -31,7 +31,7 @@ class NocoDB(OpenAPIClient):
             session_factory=cls.session_sync if sync else cls.session_async,
             **kwargs,
             url=spec_url,
-            data=orjson.dumps(spec),
+            data=json.dumps(spec).decode(),
             use_operation_tags=False
         )
         if api_token:

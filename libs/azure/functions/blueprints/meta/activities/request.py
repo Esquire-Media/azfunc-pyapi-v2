@@ -1,6 +1,6 @@
 # File: libs/azure/functions/blueprints/meta/activities/request.py
 
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.openapi.clients import Meta
 from uuid import uuid4
 import os, json, pandas as pd

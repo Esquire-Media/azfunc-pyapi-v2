@@ -1,5 +1,5 @@
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest, HttpResponse
+from azure.durable_functions import Blueprint
+from azure.functions import HttpRequest, HttpResponse
 from libs.openapi.clients import specifications
 import orjson as json
 import yaml
@@ -23,7 +23,7 @@ async def documentation_yaml(req: HttpRequest):
 async def documentation_json(req: HttpRequest):
     if req.route_params.get("spec") in specifications.keys():
         return HttpResponse(
-            json.dumps(specifications[req.route_params["spec"]]()),
+            json.dumps(specifications[req.route_params["spec"]]()).decode(),
             headers={"Content-Type": "application/json"},
         )
     return HttpResponse(status_code=404)

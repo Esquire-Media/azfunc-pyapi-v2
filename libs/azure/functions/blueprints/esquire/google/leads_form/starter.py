@@ -1,14 +1,11 @@
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest, HttpResponse
+from azure.durable_functions import Blueprint
+from azure.functions import HttpRequest, HttpResponse
 from azure.durable_functions import DurableOrchestrationClient
-import logging
-from pydantic import BaseModel, validator
-import json
 from libs.utils.logging import AzureTableHandler
 from libs.utils.dicts import flatten
-import azure.functions as func
-import uuid
+from pydantic import BaseModel, validator
 from typing import Optional, Any
+import azure.functions as func, orjson as json, uuid, logging
 
 bp = Blueprint()
 
@@ -42,7 +39,7 @@ async def starter_googleLeadsForm(req: HttpRequest, client: DurableOrchestration
                 "PartitionKey": str(payload['form_id']),
                 "RowKey": instance_id,
                 **{
-                    k: v if isinstance(v, str) else json.dumps(v) for k, v in flatten(dictionary=payload, separator='.').items() if k != 'form_id'
+                    k: v if isinstance(v, str) else json.dumps(v).decode() for k, v in flatten(dictionary=payload, separator='.').items() if k != 'form_id'
                 },
             }
         },
@@ -53,7 +50,7 @@ async def starter_googleLeadsForm(req: HttpRequest, client: DurableOrchestration
         request=req, instance_id=instance_id
     )
     return HttpResponse(
-        body=json.dumps({}),
+        body=json.dumps({}).decode(),
         headers={"Content-Type": "application/json"},
         status_code=200,
     )

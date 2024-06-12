@@ -3,10 +3,10 @@
 from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.data import from_bind
 from sqlalchemy.orm import Session
-import json, geojson, os, pandas as pd, logging
+import orjson as json, geojson, os, pandas as pd
 
 bp: Blueprint = Blueprint()
 
@@ -93,7 +93,7 @@ def activity_esquireAudiencesMaidsGeoframes_geoframes(ingress: dict):
                 blob_name=ingress["destination"]["blob_name"],
             )
         blob.upload_blob(
-            data=json.dumps(feature_collection),
+            data=json.dumps(feature_collection).decode(),
             overwrite=True,
         )
 

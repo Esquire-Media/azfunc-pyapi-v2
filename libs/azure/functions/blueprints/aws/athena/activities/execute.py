@@ -1,6 +1,6 @@
 # File: libs/azure/functions/blueprints/aws/athena/activities/execute.py
 
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 import boto3, os
 
 

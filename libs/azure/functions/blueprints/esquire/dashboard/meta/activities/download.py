@@ -1,7 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/meta/activities/download.py
 
 from azure.storage.blob import BlobClient
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.openapi.clients.facebook import Facebook
 import os, pandas as pd
 

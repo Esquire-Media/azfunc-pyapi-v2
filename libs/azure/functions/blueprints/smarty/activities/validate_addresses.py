@@ -1,12 +1,8 @@
 # File: libs/azure/functions/blueprints/smarty/activities/validate_addresses.py
 
-from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
-from fuzzywuzzy import fuzz
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.utils.smarty import bulk_validate, detect_column_names
-import pandas as pd, os, logging
+import pandas as pd
 from libs.utils.azure_storage import load_dataframe, export_dataframe
 
 

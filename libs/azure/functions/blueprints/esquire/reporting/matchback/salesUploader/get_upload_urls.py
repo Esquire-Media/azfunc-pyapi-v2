@@ -1,19 +1,14 @@
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest, HttpResponse
-from azure.durable_functions import DurableOrchestrationClient
-import logging
-import json
+from azure.durable_functions import Blueprint, DurableOrchestrationClient
+from azure.functions import HttpRequest, HttpResponse
 from azure.storage.blob import (
     BlobClient,
     BlobSasPermissions,
     generate_blob_sas,
 )
 from datetime import datetime, timedelta
-import os
 from libs.utils.oauth2.tokens.microsoft import ValidateMicrosoft
 from libs.utils.oauth2.tokens import TokenValidationError
-from pydantic import BaseModel
-import uuid
+import orjson as json, os
 
 bp = Blueprint()
 
@@ -102,7 +97,7 @@ async def http_salesUploader_getUploadUrls(
                 "statusQueryGetUri": response_uris["statusQueryGetUri"],
                 "sendEventPostUri": response_uris["sendEventPostUri"].replace("{eventName}", "salesUploaded"),
             }
-        ),
+        ).decode(),
         headers={"Content-Type": "application/json"},
         status_code=200,
     )

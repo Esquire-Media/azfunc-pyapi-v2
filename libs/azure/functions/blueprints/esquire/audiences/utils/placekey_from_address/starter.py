@@ -1,22 +1,11 @@
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest, HttpResponse
+from azure.durable_functions import Blueprint
+from azure.functions import HttpRequest
 from azure.durable_functions import DurableOrchestrationClient
-import os
-import json
-import jwt
-import pandas as pd
-from azure.data.tables import TableClient
-import hashlib
 import logging
 from pydantic import BaseModel, conlist
-from typing import Optional
 from libs.utils.logging import AzureTableHandler
-from pydantic import validator
-from libs.utils.oauth2.tokens.microsoft import ValidateMicrosoft
-from libs.utils.oauth2.tokens import TokenValidationError
 from libs.utils.pydantic.address import AddressComponents2
-from datetime import datetime as dt, timedelta
-import requests
+from datetime import timedelta
 
 bp = Blueprint()
 

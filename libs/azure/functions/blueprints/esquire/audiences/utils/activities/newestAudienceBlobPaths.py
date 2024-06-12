@@ -1,7 +1,7 @@
 #  file path:libs/azure/functions/blueprints/esquire/audiences/utils/activities/newestAudienceBlobPaths.py
 
 from azure.storage.blob import ContainerClient
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 import os, logging
 
 bp: Blueprint = Blueprint()

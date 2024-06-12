@@ -1,6 +1,6 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/onspot/activities/geoframes.py
 
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.data import from_bind
 from libs.data.structured.sqlalchemy import SQLAlchemyStructuredProvider
 import geojson

@@ -1,9 +1,5 @@
 # from dotenv import load_dotenv  # pip install as  `python-dotenv`
-from pathlib import Path
-import json
-import os
-import pandas as pd
-import ast
+import ast, orjson as json, os, pandas as pd
 from fuzzywuzzy import fuzz, process
 
 # def load_env():

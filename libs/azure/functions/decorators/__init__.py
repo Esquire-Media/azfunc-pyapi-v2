@@ -1,19 +1,11 @@
 from .http import HttpDecoratorApi
 from azure.durable_functions.decorators.durable_app import Blueprint as DFBlueprint
-from azure.functions import AuthLevel, FunctionRegister
+from azure.functions import AuthLevel, FunctionRegister, TriggerApi, BindingApi,SettingsApi
 from azure.functions.decorators.function_app import FunctionBuilder
 from functools import wraps
 from libs.utils.logging import AzureTableHandler
 from typing import Callable, List
-import importlib.util
-import inspect
-import logging
-import os
-
-try:
-    import orjson as json
-except:
-    import json
+import orjson as json, importlib.util, inspect, logging, os
 
 
 __handler = AzureTableHandler()
@@ -80,7 +72,7 @@ class Blueprint(DFBlueprint, HttpDecoratorApi):
                                 "params": dict(trigger_arg.route_params),
                                 "body": trigger_arg.get_body(),
                             }
-                        ),
+                        ).decode(),
                     }
                 },
             )
@@ -160,7 +152,7 @@ class Blueprint(DFBlueprint, HttpDecoratorApi):
         fb._function._func = user_code_with_middleware
 
 
-class FunctionApp(Blueprint, FunctionRegister):
+class FunctionApp(FunctionRegister, TriggerApi, BindingApi, SettingsApi):
     def __init__(self, http_auth_level: AuthLevel | str = AuthLevel.FUNCTION):
         """
         Function app class for registering blueprints.

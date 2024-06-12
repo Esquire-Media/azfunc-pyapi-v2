@@ -1,11 +1,11 @@
 from azure.durable_functions import (
+    Blueprint,
     DurableOrchestrationClient,
     DurableOrchestrationContext,
     EntityId,
     DurableEntityContext,
 )
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest
+from azure.functions import HttpRequest
 import logging
 import uuid
 
@@ -64,6 +64,8 @@ This is important because the Durable Task Framework replays orchestrator functi
 multiple times. Non-deterministic operations, such as generating random numbers or
 calling non-deterministic functions, should be avoided in orchestrator functions.
 """
+
+
 @bp.orchestration_trigger(context_name="context")
 def example_orchestrator(context: DurableOrchestrationContext):
     # Create an EntityId for the Durable Entity

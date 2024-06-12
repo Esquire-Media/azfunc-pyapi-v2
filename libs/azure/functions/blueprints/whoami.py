@@ -1,6 +1,5 @@
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest, HttpResponse
-
+from azure.durable_functions import Blueprint
+from azure.functions import HttpRequest, HttpResponse
 import orjson as json
 
 # Create a Blueprint instance
@@ -40,5 +39,5 @@ async def who_am_i(req: HttpRequest):
                 for k, v in req.headers.items()
                 if k.startswith("x-ms-client-principal-")
             }
-        )
+        ).decode()
     )

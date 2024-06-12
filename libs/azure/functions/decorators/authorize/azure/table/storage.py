@@ -2,7 +2,6 @@
     Azure Table storage implementation
 """
 
-import logging
 from azure.data.tables import TableServiceClient
 from azure.core.credentials import (
     AzureKeyCredential,
@@ -14,10 +13,7 @@ from py_abac.storage.memory import MemoryStorage
 from py_abac.exceptions import PolicyExistsError
 from py_abac.policy import Policy
 from typing import Union, Generator
-try:
-    import orjson as json
-except:
-    import json
+import orjson as json, logging
 
 LOG = logging.getLogger(__name__)
 
@@ -153,7 +149,6 @@ class AzureTableStorage(MemoryStorage):
                 data["rules"] = json.loads(data["rules"])
                 data["targets"] = json.loads(data["targets"])
                 yield Policy.from_json(data)
-    
 
     def add(self, policy: Policy):
         """
@@ -166,8 +161,8 @@ class AzureTableStorage(MemoryStorage):
                     "PartitionKey": self.partition_key,
                     "RowKey": data["uid"],
                     "description": data["description"],
-                    "rules": json.dumps(data["rules"]),
-                    "targets": json.dumps(data["targets"]),
+                    "rules": json.dumps(data["rules"]).decode(),
+                    "targets": json.dumps(data["targets"]).decode(),
                     "effect": data["effect"],
                     "priority": data["priority"],
                 }
@@ -195,8 +190,8 @@ class AzureTableStorage(MemoryStorage):
                     "PartitionKey": self.partition_key,
                     "RowKey": data["uid"],
                     "description": data["description"],
-                    "rules": json.dumps(data["rules"]),
-                    "targets": json.dumps(data["targets"]),
+                    "rules": json.dumps(data["rules"]).decode(),
+                    "targets": json.dumps(data["targets"]).decode(),
                     "effect": data["effect"],
                     "priority": data["priority"],
                 }

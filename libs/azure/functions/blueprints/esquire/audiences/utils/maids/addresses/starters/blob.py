@@ -2,7 +2,7 @@
 
 # from azure.durable_functions import DurableOrchestrationClient
 # from azure.functions import InputStream
-# from libs.azure.functions import Blueprint
+# from azure.durable_functions import Blueprint
 # from libs.data import from_bind
 
 # bp = Blueprint()

@@ -1,13 +1,8 @@
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest
-import json
-import logging
-import uuid
-import os
-from io import StringIO
-import azure.functions as func
+from azure.durable_functions import Blueprint
+from azure.functions import HttpRequest
 from azure.storage.blob import BlobClient
-import pandas as pd
+from io import StringIO
+import orjson as json, uuid, os, azure.functions as func, pandas as pd
 
 bp = Blueprint()
 

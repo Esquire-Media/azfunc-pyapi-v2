@@ -2,7 +2,7 @@ import logging
 import os
 import fsspec
 from libs.utils.s3 import s3_path_to_azure_path
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.azure.key_vault import KeyVaultClient
 import shutil
 

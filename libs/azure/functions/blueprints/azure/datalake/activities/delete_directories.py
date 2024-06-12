@@ -1,7 +1,7 @@
 # File: libs/azure/functions/blueprints/datalake/delete_directories.py
 
 from azure.storage.filedatalake import FileSystemClient
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 import os
 
 bp = Blueprint()

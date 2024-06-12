@@ -1,7 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/mover_sync/orchestrators/orchestrator.py
 
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from pydantic import BaseModel, conlist
 from libs.utils.pydantic.address import Placekey
 import logging

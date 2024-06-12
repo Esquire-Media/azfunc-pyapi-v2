@@ -1,13 +1,9 @@
 # File: libs/azure/functions/decorators/jsonapi/__init__.py
 
 from .exceptions import *
-from libs.azure.functions.http import HttpRequest, HttpResponse
+from azure.functions import HttpRequest, HttpResponse
 from urllib.parse import parse_qs
-
-try:
-    import orjson as json
-except:
-    import json
+import orjson as json
 
 JSONAPI_VERSION = "1.1"
 
@@ -199,7 +195,7 @@ def alter_response(response: HttpResponse, request: HttpRequest, **kwargs):
             response.set_body("[" + ",".join([str(row) for row in resources()]) + "]")
         else:
             try:
-                response.set_body(json.dumps(resources))
+                response.set_body(json.dumps(resources).decode())
             except:
                 response.set_body(str(resources))
         break

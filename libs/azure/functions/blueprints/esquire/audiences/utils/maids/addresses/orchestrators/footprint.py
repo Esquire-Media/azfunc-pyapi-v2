@@ -1,6 +1,6 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/maids/addresses/orchestrators/footprint.py
 
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
 import pandas as pd
 import uuid

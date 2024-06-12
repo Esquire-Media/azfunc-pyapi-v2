@@ -2,10 +2,9 @@
 
 from azure.durable_functions import DurableOrchestrationContext, RetryOptions
 from datetime import timedelta
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.azure.functions.blueprints.esquire.dashboard.xandr.config import CETAS
-from libs.openapi.clients.xandr import XandrAPI
-import json, os
+import os
 
 bp = Blueprint()
 

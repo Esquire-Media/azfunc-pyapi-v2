@@ -1,7 +1,7 @@
 # File: /libs/azure/functions/blueprints/azure/datalake/concatenate.py
 
 from azure.durable_functions import DurableOrchestrationContext
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.utils.azure_storage import get_blob_sas, init_blob_client
 
 bp = Blueprint()

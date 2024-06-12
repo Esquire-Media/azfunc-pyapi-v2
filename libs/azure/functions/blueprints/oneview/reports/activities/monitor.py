@@ -1,6 +1,6 @@
 # File: libs/azure/functions/blueprints/oneview/reports/activities/monitor.py
 
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.openapi.clients.oneview import OneView
 
 bp = Blueprint()

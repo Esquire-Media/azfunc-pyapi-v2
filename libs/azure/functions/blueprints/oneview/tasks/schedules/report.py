@@ -1,10 +1,9 @@
 # File: libs/azure/functions/blueprints/schedules/report.py
 
-from azure.functions import TimerRequest
 from libs.azure.functions.blueprints.oneview.tasks.helpers import TABLE_CLIENTS
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.data import from_bind
 import logging
 import pandas as pd

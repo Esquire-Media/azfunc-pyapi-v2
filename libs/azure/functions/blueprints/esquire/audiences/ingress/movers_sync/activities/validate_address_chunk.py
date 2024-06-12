@@ -1,7 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/mover_sync/activities/validate_address_chunks.py
 
 from azure.storage.blob import BlobClient
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.data import from_bind
 from libs.utils.smarty import bulk_validate
 from libs.utils.text import format_zipcode, format_zip4, format_full_address

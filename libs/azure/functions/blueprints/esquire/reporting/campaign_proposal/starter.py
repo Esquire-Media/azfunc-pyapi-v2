@@ -1,18 +1,14 @@
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest, HttpResponse
-from azure.durable_functions import DurableOrchestrationClient
-from libs.utils.pydantic.address import AddressComponents, AddressGeocoded
-from libs.utils.pydantic.email import EmailAddress
-import os
-import json
 from azure.data.tables import TableClient
-import logging
-from pydantic import BaseModel, conlist
-from typing import Union, Optional
+from azure.durable_functions import Blueprint, DurableOrchestrationClient
+from azure.functions import HttpRequest, HttpResponse
 from libs.utils.logging import AzureTableHandler
-from pydantic import validator
 from libs.utils.oauth2.tokens.microsoft import ValidateMicrosoft
 from libs.utils.oauth2.tokens import TokenValidationError
+from libs.utils.pydantic.address import AddressComponents, AddressGeocoded
+from pydantic import BaseModel, conlist, validator
+from typing import Union, Optional
+import orjson as json, logging, os
+
 bp = Blueprint()
 
 # initialize logging features
@@ -56,7 +52,7 @@ async def starter_campaignProposal(req: HttpRequest, client: DurableOrchestratio
     # ensure that each value is json serializable
     logger.info(
         msg="started",
-        extra={"context": {"PartitionKey": "campaignProposal", "RowKey": instance_id, **{k:v if isinstance(v, str) else json.dumps(v) for k,v in payload.items()}}},
+        extra={"context": {"PartitionKey": "campaignProposal", "RowKey": instance_id, **{k:v if isinstance(v, str) else json.dumps(v).decode() for k,v in payload.items()}}},
     )
 
     # Return a response that includes the status query URLs

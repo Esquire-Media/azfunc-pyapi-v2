@@ -1,5 +1,5 @@
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest, HttpResponse
+from azure.durable_functions import Blueprint
+from azure.functions import HttpRequest, HttpResponse
 
 # Create a Blueprint instance
 bp = Blueprint()

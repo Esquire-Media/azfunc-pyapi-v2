@@ -7,7 +7,7 @@ from libs.azure.functions.blueprints.esquire.dashboard.onspot.helpers import (
     cetas_query_unique_deviceids,
     cetas_query_sisense,
 )
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 import os
 
 bp = Blueprint()

@@ -1,9 +1,9 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/xandr/activities/creatives.py
 
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.data import from_bind
 from libs.openapi.clients.xandr import XandrAPI
-import json, os, pandas as pd
+import orjson as json, os, pandas as pd
 
 bp = Blueprint()
 

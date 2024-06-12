@@ -7,15 +7,9 @@ from azure.storage.blob import (
 )
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from urllib.parse import unquote
-import os
-import pandas as pd
-
-try:
-    import orjson as json
-except:
-    import json
+import os, pandas as pd, orjson as json
 
 bp = Blueprint()
 

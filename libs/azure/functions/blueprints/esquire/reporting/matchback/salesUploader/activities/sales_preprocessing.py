@@ -1,13 +1,11 @@
 from azure.storage.blob import BlobClient
 from datetime import timedelta
-from libs.azure.functions import Blueprint
-from libs.utils.smarty import bulk_validate
+from azure.durable_functions import Blueprint
 import pandas as pd, os, logging
 from uuid import uuid4
-from libs.azure.storage.blob.sas import get_blob_download_url
+from libs.utils.azure_storage import get_blob_sas
 from libs.utils.text import (
     format_zipcode,
-    format_zip4,
     format_sales,
     format_date,
 )
@@ -49,7 +47,7 @@ def activity_salesUploader_salesPreProcessing(ingress: dict):
         blob_name=f"{ingress['instance_id']}/01_ingress",
     )
     df = pd.read_csv(
-        get_blob_download_url(blob_client=ingress_client, expiry=timedelta(minutes=10)), dtype=str
+        get_blob_sas(blob_client=ingress_client, expiry=timedelta(minutes=10)), dtype=str
     )
     df = df.dropna(axis=1, how='all') # drop null columns
     df = df.dropna(axis=0, how='all') # drop null rows

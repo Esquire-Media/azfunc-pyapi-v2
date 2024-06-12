@@ -1,7 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/xandr/activities/download.py
 
 from azure.storage.blob import BlobClient
-from libs.azure.functions import Blueprint
+from azure.durable_functions import Blueprint
 from libs.openapi.clients.xandr import XandrAPI
 import os
 import pandas as pd

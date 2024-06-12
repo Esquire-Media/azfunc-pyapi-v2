@@ -13,8 +13,8 @@ from libs.azure.functions.blueprints.oneview.tasks.schemas import (
     RequestSchema,
     StatusSchema,
 )
-from libs.azure.functions import Blueprint
-from libs.azure.functions.http import HttpRequest, HttpResponse
+from azure.durable_functions import Blueprint
+from azure.functions import HttpRequest, HttpResponse
 
 bp = Blueprint()
 

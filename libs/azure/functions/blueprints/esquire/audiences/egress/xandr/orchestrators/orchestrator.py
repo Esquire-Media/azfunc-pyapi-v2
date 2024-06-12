@@ -8,7 +8,7 @@ bp = Blueprint()
 
 
 @bp.orchestration_trigger(context_name="context")
-def xandr_audience_orchestrator(
+def xandr_segment_orchestrator(
     context: DurableOrchestrationContext,
 ):
     # reach out to audience definition DB - get information pertaining to the xandr audience (segment)

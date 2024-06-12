@@ -9,7 +9,7 @@ bp = Blueprint()
 
 # Define the orchestration trigger function for managing Meta custom audiences
 @bp.orchestration_trigger(context_name="context")
-def oneview_customaudience_orchestrator(
+def oneview_segment_orchestrator(
     context: DurableOrchestrationContext,
 ):
     """

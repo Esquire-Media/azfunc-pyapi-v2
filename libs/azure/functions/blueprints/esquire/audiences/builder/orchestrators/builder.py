@@ -83,14 +83,14 @@ def orchestrator_esquireAudiences_builder(
         if ingress["audience"]["advertiser"]["oneview"]:
             tasks.append(
                 context.call_sub_orchestrator(
-                    "oneview_customaudience_orchestrator",
+                    "oneview_segment_orchestrator",
                     ingress["audience"]["id"],
                 )
             )
         if ingress["audience"]["advertiser"]["xandr"]:
             tasks.append(
                 context.call_sub_orchestrator(
-                    "xandr_customaudience_orchestrator",
+                    "xandr_segment_orchestrator",
                     ingress["audience"]["id"],
                 )
             )

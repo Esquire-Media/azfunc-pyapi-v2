@@ -26,10 +26,13 @@ def meta_customaudience_orchestrator(
     audience_id = context.get_input()  # Get the audience ID from the input
 
     # Fetch audience definition from the database
-    ids = yield context.call_activity(
-        "activity_esquireAudienceMeta_fetchAudience",
-        audience_id,
-    )
+    try:
+        ids = yield context.call_activity(
+            "activity_esquireAudienceMeta_fetchAudience",
+            audience_id,
+        )
+    except:
+        return {}
 
     # Determine if a new Meta audience needs to be created
     newAudienceNeeded = not ids["audience"]
@@ -116,7 +119,6 @@ def meta_customaudience_orchestrator(
                                 ).decode(),
                             },
                         )
-
     # Get the folder with the most recent MAIDs (Mobile Advertiser IDs)
     audience_blob_prefix = yield context.call_activity(
         "activity_esquireAudiencesUtils_newestAudienceBlobPrefix",

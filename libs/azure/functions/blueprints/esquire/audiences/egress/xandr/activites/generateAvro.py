@@ -2,9 +2,7 @@
 
 from azure.storage.blob import BlobClient
 from azure.durable_functions import Blueprint
-import fastavro, os, pandas as pd, uuid, fsspec, json
-
-from libs.utils.azure_storage import get_blob_sas
+import fastavro, os, pandas as pd, uuid, fsspec
 
 bp = Blueprint()
 
@@ -186,7 +184,7 @@ def activity_esquireAudienceXandr_generateAvro(ingress: dict):
         key=ingress["destination"]["access_key"],
         secret=ingress["destination"]["secret_key"],
     )
-
+    
     with fs.open(
         "s3://{}/submitted/{}.avro".format(
             ingress["destination"]["bucket"], uuid.uuid4().hex

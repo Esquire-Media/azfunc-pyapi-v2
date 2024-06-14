@@ -43,7 +43,7 @@ def activity_esquireAudienceOneview_fetchAudience(ingress: str):
             advertiser.oneView != None,
         )
     )
-
+    
     result = session.execute(query).one_or_none()
 
     if result:

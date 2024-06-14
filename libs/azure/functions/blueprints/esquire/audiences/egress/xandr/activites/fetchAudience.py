@@ -44,6 +44,7 @@ def activity_esquireAudienceXandr_fetchAudience(ingress: dict):
             advertiser.xandr != None,
         )
     )
+    
     result = session.execute(query).one_or_none()
 
     if result:

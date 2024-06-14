@@ -2,7 +2,6 @@
 
 from azure.durable_functions import Blueprint
 from libs.openapi.clients import XandrAPI
-import logging
 
 bp = Blueprint()
 

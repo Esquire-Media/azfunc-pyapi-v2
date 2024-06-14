@@ -22,13 +22,15 @@ def oneview_segment_orchestrator(
         context (DurableOrchestrationContext): The orchestration context.
     """
     # reach out to audience definition DB - get information pertaining to the xandr audience (segment)
-    audience = yield context.call_activity(
-        "activity_esquireAudienceOneview_fetchAudience",
-        {"id": context.get_input()},
-    )
-
-    # TODO: figure out how to check for and create a segment if it doesn't exist
+    try:
+        audience = yield context.call_activity(
+            "activity_esquireAudienceOneview_fetchAudience",
+            {"id": context.get_input()},
+        )
+    except:
+        return {}
     
+    # TODO: figure out how to check for and create a segment if it doesn't exist
     
     blob_names = yield context.call_activity(
         "activity_esquireAudiencesUtils_newestAudienceBlobPaths",

@@ -12,10 +12,13 @@ def xandr_segment_orchestrator(
     context: DurableOrchestrationContext,
 ):
     # reach out to audience definition DB - get information pertaining to the xandr audience (segment)
-    audience = yield context.call_activity(
-        "activity_esquireAudienceXandr_fetchAudience",
-        {"id": context.get_input()},
-    )
+    try:
+        audience = yield context.call_activity(
+            "activity_esquireAudienceXandr_fetchAudience",
+            {"id": context.get_input()},
+        )
+    except:
+        return {}
 
     newSegmentNeeded = not audience["segment"]
 
@@ -36,10 +39,13 @@ def xandr_segment_orchestrator(
                     "advertiser_id": audience["advertiser"],
                 },
                 "data": {
-                    "short_name": "{}_{}".format(
-                        "_".join(audience["tags"]),
-                        audience["id"],
-                    ),
+                    "segment": {
+                        "member_id": int(os.environ["XANDR_MEMBER_ID"]),
+                        "short_name": "{}_{}".format(
+                            "-".join(audience["tags"]),
+                            audience["id"],
+                        ),
+                    }
                 },
             },
         )
@@ -48,10 +54,10 @@ def xandr_segment_orchestrator(
             "activity_esquireAudienceXandr_putAudience",
             {
                 "audience": audience["id"],
-                "xandrAudienceId": segment["id"],
+                "xandrAudienceId": segment,
             },
         )
-        audience["segment"] = segment["id"]
+        audience["segment"] = segment
 
     blob_names = yield context.call_activity(
         "activity_esquireAudiencesUtils_newestAudienceBlobPaths",

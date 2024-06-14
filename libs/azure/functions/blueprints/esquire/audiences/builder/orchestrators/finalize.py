@@ -140,6 +140,12 @@ def orchestrator_esquireAudiences_finalize(
             for source_url in source_urls
         ]
     )
+    
+    # Count results
+    # count = yield context.call_activity(
+    #     "activity_esquireAudienceBuilder_count",
+    #     ingress
+    # )
 
     # Return the updated ingress data
     return ingress

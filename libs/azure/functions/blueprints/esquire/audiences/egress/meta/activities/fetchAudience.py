@@ -44,6 +44,7 @@ def activity_esquireAudienceMeta_fetchAudience(ingress: str):
     )
 
     result = session.execute(query).one_or_none()
+        
     if result:
         return {
             "adAccount": result.Audience.related_Advertiser.meta,

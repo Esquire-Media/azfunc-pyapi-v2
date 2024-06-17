@@ -11,11 +11,12 @@ bp = Blueprint()
 def xandr_segment_orchestrator(
     context: DurableOrchestrationContext,
 ):
+    ingress = context.get_input()
     # reach out to audience definition DB - get information pertaining to the xandr audience (segment)
     try:
         audience = yield context.call_activity(
             "activity_esquireAudienceXandr_fetchAudience",
-            {"id": context.get_input()},
+            {"id": ingress["audience"]["id"]},
         )
     except:
         return {}
@@ -62,9 +63,9 @@ def xandr_segment_orchestrator(
     blob_names = yield context.call_activity(
         "activity_esquireAudiencesUtils_newestAudienceBlobPaths",
         {
-            "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
-            "container_name": os.environ["ESQUIRE_AUDIENCE_CONTAINER_NAME"],
-            "audience_id": audience["id"],
+            "conn_str": ingress["destination"]["conn_str"],
+            "container_name": ingress["destination"]["container_name"],
+            "audience_id": ingress["audience"]["id"],
         },
     )
     yield context.task_all(
@@ -74,8 +75,8 @@ def xandr_segment_orchestrator(
                 {
                     "audience": audience,
                     "source": {
-                        "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
-                        "container_name": os.environ["ESQUIRE_AUDIENCE_CONTAINER_NAME"],
+                        "conn_str": ingress["destination"]["conn_str"],
+                        "container_name": ingress["destination"]["container_name"],
                         "blob_name": blob_name,
                     },
                     "destination": {

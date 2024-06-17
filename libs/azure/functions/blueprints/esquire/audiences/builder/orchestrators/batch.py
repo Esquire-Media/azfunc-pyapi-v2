@@ -23,11 +23,6 @@ def orchestrator_esquireAudiences_batch(
 
     Expected format for context.get_input():
     {
-        "source": {
-            "conn_str": str,
-            "container_name": str,
-            "blob_prefix": str,
-        },
         "working": {
             "conn_str": str,
             "container_name": str,
@@ -60,6 +55,12 @@ def orchestrator_esquireAudiences_batch(
             )
             for id in audience_ids
         ]
+    )
+
+    # Purge history related to this instance
+    yield context.call_sub_orchestrator(
+        "purge_instance_history",
+        {"instance_id": context.instance_id},
     )
 
     # Return the results of the batch processing

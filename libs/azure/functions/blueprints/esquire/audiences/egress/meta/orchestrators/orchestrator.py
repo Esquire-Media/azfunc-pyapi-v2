@@ -23,13 +23,13 @@ def meta_customaudience_orchestrator(
         context (DurableOrchestrationContext): The orchestration context.
     """
     batch_size = 1000  # Define the batch size for processing audience data
-    audience_id = context.get_input()  # Get the audience ID from the input
+    ingress = context.get_input()  # Get the audience ID from the input
 
     # Fetch audience definition from the database
     try:
         ids = yield context.call_activity(
             "activity_esquireAudienceMeta_fetchAudience",
-            audience_id,
+            ingress["audience"]["id"],
         )
     except:
         return {}
@@ -61,8 +61,8 @@ def meta_customaudience_orchestrator(
                 "operationId": "AdAccount.Post.Customaudiences",
                 "parameters": {
                     "AdAccount-Id": ids["adAccount"],
-                    "name": f"{'_'.join(ids['tags'])}_{audience_id}",
-                    "description": audience_id,
+                    "name": "{}_{}".format('_'.join(ids['tags']), ingress["audience"]["id"]),
+                    "description": ingress["audience"]["id"],
                     "customer_file_source": "USER_PROVIDED_ONLY",
                     "subtype": "CUSTOM",
                 },
@@ -72,7 +72,7 @@ def meta_customaudience_orchestrator(
         yield context.call_activity(
             "activity_esquireAudienceMeta_putAudience",
             {
-                "audience": audience_id,
+                "audience": ingress["audience"]["id"],
                 "metaAudienceId": metaAudience["id"],
             },
         )
@@ -123,9 +123,9 @@ def meta_customaudience_orchestrator(
     audience_blob_prefix = yield context.call_activity(
         "activity_esquireAudiencesUtils_newestAudienceBlobPrefix",
         {
-            "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
-            "container_name": os.environ["ESQUIRE_AUDIENCE_CONTAINER_NAME"],
-            "audience_id": audience_id,
+            "conn_str": ingress["destination"]["conn_str"],
+            "container_name": ingress["destination"]["container_name"],
+            "audience_id": ingress["audience"]["id"],
         },
     )
 
@@ -138,15 +138,15 @@ def meta_customaudience_orchestrator(
                 SELECT 
                     COUNT(DISTINCT deviceid) AS [count]
                 FROM OPENROWSET(
-                    BULK '{}/{}',
+                    BULK '{}/{}/*',
                     DATA_SOURCE = '{}',  
                     FORMAT = 'CSV',
                     PARSER_VERSION = '2.0',
                     HEADER_ROW = TRUE
                 ) AS [data]""".format(
-                os.environ["ESQUIRE_AUDIENCE_CONTAINER_NAME"],
+                ingress["destination"]["container_name"],
                 audience_blob_prefix,
-                os.environ["ESQUIRE_AUDIENCE_DATA_SOURCE"],
+                ingress["destination"]["data_source"],
             ),
         },
     )
@@ -184,9 +184,9 @@ def meta_customaudience_orchestrator(
                                 OFFSET {} ROWS
                                 FETCH NEXT {} ROWS ONLY
                             """.format(
-                                os.environ["ESQUIRE_AUDIENCE_CONTAINER_NAME"],
+                                ingress["destination"]["container_name"],
                                 audience_blob_prefix,
-                                os.environ["ESQUIRE_AUDIENCE_DATA_SOURCE"],
+                                ingress["destination"]["data_source"],
                                 0,
                                 batch_size,
                             ),
@@ -242,9 +242,9 @@ def meta_customaudience_orchestrator(
                                         OFFSET {} ROWS
                                         FETCH NEXT {} ROWS ONLY
                                     """.format(
-                                        os.environ["ESQUIRE_AUDIENCE_CONTAINER_NAME"],
+                                        ingress["destination"]["container_name"],
                                         audience_blob_prefix,
-                                        os.environ["ESQUIRE_AUDIENCE_DATA_SOURCE"],
+                                        ingress["destination"]["data_source"],
                                         offset,
                                         batch_size,
                                     ),

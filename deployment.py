@@ -6,6 +6,7 @@ BLUEPRINTS = {
         "libs/azure/functions/blueprints/esquire/audiences/builder/*",
         "libs/azure/functions/blueprints/esquire/audiences/egress/*",
         "libs/azure/functions/blueprints/esquire/audiences/utils/activities/*",
+        "libs/azure/functions/blueprints/microsoft/graph/*",
         "libs/azure/functions/blueprints/meta/*",
         "libs/azure/functions/blueprints/onspot/*",
         "libs/azure/functions/blueprints/purge_instance_history",

@@ -2,6 +2,8 @@
 
 from azure.durable_functions import DurableOrchestrationContext
 from azure.durable_functions import Blueprint
+from dateutil.relativedelta import relativedelta
+import os, datetime
 
 bp = Blueprint()
 
@@ -23,11 +25,6 @@ def orchestrator_esquireAudiences_builder(
 
     Expected format for context.get_input():
     {
-        "source": {
-            "conn_str": str,
-            "container_name": str,
-            "blob_prefix": str,
-        },
         "working": {
             "conn_str": str,
             "container_name": str,
@@ -40,63 +37,100 @@ def orchestrator_esquireAudiences_builder(
         },
         "audience": {
             "id": str,
+            "rebuildRequired": bool,
         },
     }
     """
 
-    # Retrieve the input data for the orchestration
-    ingress = context.get_input()
-    ingress["instance_id"] = context.instance_id
+    try:
+        # Retrieve the input data for the orchestration
+        ingress = context.get_input()
+        ingress["instance_id"] = context.instance_id
 
-    # Fetch the full details for the audience
-    ingress["audience"] = yield context.call_activity(
-        "activity_esquireAudienceBuilder_fetchAudience",
-        ingress["audience"],
-    )
-
-    # Check if the audience has a data source
-    if ingress["audience"].get("dataSource"):
-        # Generate a primary data set
-        ingress = yield context.call_sub_orchestrator(
-            "orchestrator_esquireAudiences_primaryData", ingress
+        # Fetch the full details for the audience
+        ingress["audience"] = yield context.call_activity(
+            "activity_esquireAudienceBuilder_fetchAudience",
+            ingress["audience"],
         )
 
-        # Run processing steps
-        ingress = yield context.call_sub_orchestrator(
-            "orchestrator_esquireAudiences_processingSteps", ingress
+        rebuild = ingress["audience"].get("rebuildRequired", False)
+        if not rebuild:
+            audience_blob_prefix = yield context.call_activity(
+                "activity_esquireAudiencesUtils_newestAudienceBlobPrefix",
+                {
+                    "conn_str": ingress["destination"]["conn_str"],
+                    "container_name": ingress["destination"]["container_name"],
+                    "audience_id": ingress["audience"]["id"],
+                },
+            )
+            if not audience_blob_prefix:
+                rebuild = True
+            else:
+                if context.current_utc_datetime > (
+                    datetime.datetime.fromisoformat(audience_blob_prefix.split("/")[-1])
+                    + relativedelta(
+                        **{
+                            ingress["audience"]["rebuildUnit"]: ingress["audience"][
+                                "rebuild"
+                            ]
+                        }
+                    )
+                ):
+                    rebuild = True
+
+        if rebuild:
+            # Check if the audience has a data source
+            if ingress["audience"].get("dataSource"):
+                # Generate a primary data set
+                ingress = yield context.call_sub_orchestrator(
+                    "orchestrator_esquireAudiences_primaryData", ingress
+                )
+
+                # Run processing steps
+                ingress = yield context.call_sub_orchestrator(
+                    "orchestrator_esquireAudiences_processingSteps", ingress
+                )
+
+                # Ensure Device IDs are the final data type
+                ingress = yield context.call_sub_orchestrator(
+                    "orchestrator_esquireAudiences_finalize", ingress
+                )
+
+                # Push the newly generated audiences to the DSPs that are configured
+                tasks = []
+                if ingress["audience"]["advertiser"]["meta"]:
+                    tasks.append(
+                        context.call_sub_orchestrator(
+                            "meta_customaudience_orchestrator",
+                            ingress,
+                        )
+                    )
+                if ingress["audience"]["advertiser"]["xandr"]:
+                    tasks.append(
+                        context.call_sub_orchestrator(
+                            "xandr_segment_orchestrator",
+                            ingress,
+                        )
+                    )
+
+                # Wait for all tasks to complete
+                yield context.task_all(tasks)
+
+    except Exception as e:
+        # if any errors are caught, post an error card to teams tagging Ryan and the calling user
+        yield context.call_activity(
+            "activity_microsoftGraph_postErrorCard",
+            {
+                "function_name": "esquire-location-insights",
+                "instance_id": context.instance_id,
+                "owners": ["8489ce7c-e89f-4710-9d34-1442684ce7fe"],
+                "error": f"{ingress['audience']['id']}: {type(e).__name__} : {e}"[
+                    :1000
+                ],
+                "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
+            },
         )
-
-        # Ensure Device IDs are the final data type
-        ingress = yield context.call_sub_orchestrator(
-            "orchestrator_esquireAudiences_finalize", ingress
-        )
-
-        # Push the newly generated audiences to the DSPs that are configured
-        tasks = []
-        if ingress["audience"]["advertiser"]["meta"]:
-            tasks.append(
-                context.call_sub_orchestrator(
-                    "meta_customaudience_orchestrator",
-                    ingress["audience"]["id"],
-                )
-            )
-        if ingress["audience"]["advertiser"]["oneview"]:
-            tasks.append(
-                context.call_sub_orchestrator(
-                    "oneview_segment_orchestrator",
-                    ingress["audience"]["id"],
-                )
-            )
-        if ingress["audience"]["advertiser"]["xandr"]:
-            tasks.append(
-                context.call_sub_orchestrator(
-                    "xandr_segment_orchestrator",
-                    ingress["audience"]["id"],
-                )
-            )
-
-        # Wait for all tasks to complete
-        yield context.task_all(tasks)
+        raise e
 
     # Return the final state of the ingress data
     return ingress

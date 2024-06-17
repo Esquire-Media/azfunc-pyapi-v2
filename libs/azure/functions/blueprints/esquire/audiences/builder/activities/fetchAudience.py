@@ -50,7 +50,6 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
             **ingress,
             "advertiser": {
                 "meta": result.Audience.related_Advertiser.meta,
-                "oneview": result.Audience.related_Advertiser.oneView,
                 "xandr": result.Audience.related_Advertiser.xandr,
             },
             "status": result.Audience.status,

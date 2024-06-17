@@ -1,12 +1,13 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationClient
 from azure.functions import HttpRequest
+import os
 
 bp = Blueprint()
 
 
 @bp.route(route="audiences/builder/{id}")
 @bp.durable_client_input(client_name="client")
-async def starter_esquireAudiencesBuilder(
+async def starter_esquireAudienceBuilder_http(
     req: HttpRequest,
     client: DurableOrchestrationClient,
 ):
@@ -16,11 +17,6 @@ async def starter_esquireAudiencesBuilder(
         instance_id = await client.start_new(
             orchestration_function_name="orchestrator_esquireAudiences_builder",
             client_input={
-                "source": {
-                    "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
-                    "container_name": "general",
-                    "blob_prefix": "audiences",
-                },
                 "working": {
                     "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
                     "container_name": "general",
@@ -29,9 +25,13 @@ async def starter_esquireAudiencesBuilder(
                 "destination": {
                     "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
                     "container_name": "general",
+                    "data_source": os.environ["ESQUIRE_AUDIENCE_DATA_SOURCE"],
                     "blob_prefix": "audiences",
                 },
-                "audience": {"id": id},
+                "audience": {
+                    "id": id,
+                    "rebuildRequired": bool(req.params.get("force", False))
+                },
             },
         )
 

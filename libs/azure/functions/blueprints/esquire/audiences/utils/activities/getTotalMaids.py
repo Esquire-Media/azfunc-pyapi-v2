@@ -32,7 +32,7 @@ async def activity_esquireAudiencesUtils_getTotalMaids(ingress: dict):
 
     result = []
     # get list of all blobs in the given folder
-    for blob in container_client.list_blobs(name_starts_with=ingress["path_to_blobs"]):
+    for blob in container_client.list_blobs(name_starts_with=ingress["blob_prefix"]):
         # set blob information
         blob = BlobClient.from_connection_string(
             conn_str=ingress["conn_str"],

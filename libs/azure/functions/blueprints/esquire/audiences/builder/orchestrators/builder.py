@@ -115,13 +115,19 @@ def orchestrator_esquireAudiences_builder(
 
                 # Wait for all tasks to complete
                 yield context.task_all(tasks)
+                
+        # Purge history related to this instance
+        yield context.call_sub_orchestrator(
+            "purge_instance_history",
+            {"instance_id": context.instance_id},
+        )
 
     except Exception as e:
         # if any errors are caught, post an error card to teams tagging Ryan and the calling user
         yield context.call_activity(
             "activity_microsoftGraph_postErrorCard",
             {
-                "function_name": "esquire-location-insights",
+                "function_name": "esquire-auto-audience",
                 "instance_id": context.instance_id,
                 "owners": ["8489ce7c-e89f-4710-9d34-1442684ce7fe"],
                 "error": f"{ingress['audience']['id']}: {type(e).__name__} : {e}"[

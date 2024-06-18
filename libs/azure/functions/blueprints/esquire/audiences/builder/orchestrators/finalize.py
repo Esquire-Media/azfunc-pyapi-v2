@@ -142,10 +142,18 @@ def orchestrator_esquireAudiences_finalize(
     )
     
     # Count results
-    # count = yield context.call_activity(
-    #     "activity_esquireAudienceBuilder_count",
-    #     ingress
-    # )
+    counts = yield context.task_all([
+        context.call_activity(
+            "activity_esquireAudiencesUtils_getMaidCount",
+            source_url
+        )
+        for source_url in ingress["results"]
+    ])
+    ingress["audience"]["count"] = sum(counts)
+    yield context.call_activity(
+        "activity_esquireAudiencesBuilder_putAudience",
+        ingress
+    )
 
     # Return the updated ingress data
     return ingress

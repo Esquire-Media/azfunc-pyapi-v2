@@ -78,15 +78,5 @@ def orchestrator_esquireAudiencesSteps_deviceids2addresses(
                 if callback["id"] in job_location_map:
                     source_urls.append(job_location_map[callback["id"]])
 
-    # result_urls = yield context.task_all(
-    #     [
-    #         context.call_activity(
-    #             "activity_esquireAudienceBuilder_addressCompletion",
-    #             {"source": source_url, "destination": ingress["working"]},
-    #         )
-    #         for source_url in source_urls
-    #     ]
-    # )
-
     # Return the URLs of the processed data results
     return source_urls

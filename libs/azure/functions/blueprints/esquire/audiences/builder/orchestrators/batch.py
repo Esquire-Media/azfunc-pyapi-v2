@@ -36,6 +36,11 @@ def orchestrator_esquireAudiences_batch(
     }
     """
 
+    ingress = context.get_input()
+    ingress["working"]["blob_prefix"] = "{}/{}".format(
+        context.instance_id, ingress["working"]["blob_prefix"]
+    )
+
     # Retrieve the list of audience IDs to process
     audience_ids = yield context.call_activity(
         "activity_esquireAudienceBuilder_fetchAudienceIds"
@@ -47,7 +52,7 @@ def orchestrator_esquireAudiences_batch(
             context.call_sub_orchestrator(
                 "orchestrator_esquireAudiences_builder",
                 {
-                    **context.get_input(),
+                    **ingress,
                     "audience": {
                         "id": id,
                     },

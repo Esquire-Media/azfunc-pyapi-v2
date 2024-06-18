@@ -16,8 +16,8 @@ async def starter_esquireAudiencesBuilder_schedule_batch(
         orchestration_function_name="orchestrator_esquireAudiences_batch",
         client_input={
             "working": {
-                "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
-                "container_name": "general",
+                "conn_str": "AzureWebJobsStorage",
+                "container_name": "{}-largemessages".format(os.environ["TASK_HUB_NAME"]),
                 "blob_prefix": "raw",
             },
             "destination": {

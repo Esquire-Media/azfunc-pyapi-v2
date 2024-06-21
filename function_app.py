@@ -1,11 +1,7 @@
 from azure.functions import AuthLevel, FunctionApp, DecoratorApi
 from deployment import BLUEPRINTS
 
-try:
-    from development import BLUEPRINTS as DEV_BLUEPRINTS
-except:
-    DEV_BLUEPRINTS = []
-import importlib.util, inspect, os
+import importlib.util, inspect, os, logging
 
 
 def find_blueprints(path):
@@ -65,7 +61,7 @@ def find_blueprints(path):
         spec.loader.exec_module(module)
 
         # Scan the module for Blueprint instances
-        for name, obj in inspect.getmembers(module):
+        for _, obj in inspect.getmembers(module):
             if issubclass(type(obj), DecoratorApi):
                 blueprints.append(obj)
 
@@ -76,7 +72,7 @@ def find_blueprints(path):
         process_file(path)
     else:
         # Scan the path for .py files
-        for root, dirs, files in os.walk(path):
+        for root, _, files in os.walk(path):
             for file in files:
                 if file.endswith(".py"):
                     file_path = os.path.join(root, file)
@@ -93,10 +89,6 @@ app = FunctionApp(http_auth_level=AuthLevel.ANONYMOUS)
 debug = os.environ.get("DEBUG", "false").lower() == "true"
 site_name = os.environ.get("WEBSITE_SITE_NAME", os.environ.get("FUNCTION_NAME", ""))
 
-for path in (
-    BLUEPRINTS.get(site_name, [])
-    + DEV_BLUEPRINTS
-    + (BLUEPRINTS["debug"] if debug else [])
-):
+for path in BLUEPRINTS[site_name] + (BLUEPRINTS["debug"] if debug else []):
     for bp in find_blueprints(path):
         app.register_functions(bp)

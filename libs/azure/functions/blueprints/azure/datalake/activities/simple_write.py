@@ -1,15 +1,7 @@
 # File: libs/azure/functions/blueprints/datalake/activities/simple_write.py
 
-from azure.storage.blob import (
-    BlobClient,
-    BlobSasPermissions,
-    generate_blob_sas,
-)
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
 from azure.durable_functions import Blueprint
-from urllib.parse import unquote
-import os
+from libs.utils.azure_storage import get_blob_sas, init_blob_client
 
 bp = Blueprint()
 
@@ -62,25 +54,7 @@ def datalake_simple_write(ingress: dict) -> dict:
     """
 
     # Initialize Azure Blob client using connection string from environment variables
-    blob = BlobClient.from_connection_string(
-        conn_str=os.environ[ingress["conn_str"]],
-        container_name=ingress["container_name"],
-        blob_name=ingress["blob_name"],
-    )
-
-    # Upload the header data to Azure Blob
-    blob.upload_blob(ingress["content"], overwrite=True)
+    blob = init_blob_client(**ingress).upload_blob(ingress["content"], overwrite=True)
 
     # Generate a SAS token for the stored header in Azure Blob and return the URL
-    return (
-        unquote(blob.url)
-        + "?"
-        + generate_blob_sas(
-            account_name=blob.account_name,
-            container_name=blob.container_name,
-            blob_name=blob.blob_name,
-            account_key=blob.credential.account_key,
-            permission=BlobSasPermissions(read=True),
-            expiry=datetime.utcnow() + relativedelta(days=2),
-        )
-    )
+    return get_blob_sas(blob)

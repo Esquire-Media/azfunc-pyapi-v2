@@ -1,16 +1,9 @@
 # File: libs/azure/functions/blueprints/datalake/activities/copy.py
 
-from azure.storage.blob import (
-    BlobClient,
-    BlobSasPermissions,
-    generate_blob_sas,
-    BlobBlock,
-)
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
 from azure.durable_functions import Blueprint
-from urllib.parse import unquote
-import httpx, os, uuid
+from azure.storage.blob import BlobBlock
+from libs.utils.azure_storage import get_blob_sas, init_blob_client
+import httpx, uuid
 
 bp = Blueprint()
 
@@ -83,32 +76,13 @@ def azure_datalake_copy_blob(ingress: dict) -> str:
     if isinstance(ingress["source"], str):
         source_url = ingress["source"]
     else:
-        blob = BlobClient.from_connection_string(
-            conn_str=os.environ[ingress["source"]["conn_str"]],
-            container_name=ingress["source"]["container_name"],
-            blob_name=ingress["source"]["blob_name"],
-        )
-        source_url = (
-            unquote(blob.url)
-            + "?"
-            + generate_blob_sas(
-                account_name=blob.account_name,
-                container_name=blob.container_name,
-                blob_name=blob.blob_name,
-                account_key=blob.credential.account_key,
-                permission=BlobSasPermissions(read=True),
-                expiry=datetime.utcnow() + relativedelta(days=2),
-            )
-        )
+        blob = init_blob_client(**ingress["source"])
+        source_url = get_blob_sas(blob)
 
     if isinstance(ingress["target"], str):
-        blob = BlobClient.from_blob_url(ingress["target"])
+        blob = init_blob_client(blob_url=ingress["target"])
     else:
-        blob = BlobClient.from_connection_string(
-            conn_str=os.environ[ingress["target"]["conn_str"]],
-            container_name=ingress["target"]["container_name"],
-            blob_name=ingress["target"]["blob_name"],
-        )
+        blob = init_blob_client(**ingress["target"])
 
     try:
         blob.upload_blob_from_url(
@@ -128,15 +102,4 @@ def azure_datalake_copy_blob(ingress: dict) -> str:
                 block_list.append(BlobBlock(block_id=blk_id))
             blob.commit_block_list(block_list)
 
-    return (
-        unquote(blob.url)
-        + "?"
-        + generate_blob_sas(
-            account_name=blob.account_name,
-            container_name=blob.container_name,
-            blob_name=blob.blob_name,
-            account_key=blob.credential.account_key,
-            permission=BlobSasPermissions(read=True),
-            expiry=datetime.utcnow() + relativedelta(days=2),
-        )
-    )
+    return get_blob_sas(blob)

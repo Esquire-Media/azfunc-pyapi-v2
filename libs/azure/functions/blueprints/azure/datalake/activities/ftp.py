@@ -1,10 +1,7 @@
 # File: libs/azure/functions/blueprints/datalake/activities/copy.py
 from azure.durable_functions import Blueprint
-from urllib.parse import unquote
-from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
-from dateutil.relativedelta import relativedelta
-import datetime, os, ssl
-import fsspec
+from libs.utils.azure_storage import get_blob_sas, init_blob_client
+import fsspec, ssl
 
 bp = Blueprint()
 
@@ -65,23 +62,8 @@ def activity_blob2ftp(ingress: dict) -> str:
     """
 
     if isinstance(ingress["source"], dict):
-        blob = BlobClient.from_connection_string(
-            conn_str=os.environ[ingress["source"]["conn_str"]],
-            container_name=ingress["source"]["container_name"],
-            blob_name=ingress["source"]["blob_name"],
-        )
-        ingress["source"] = (
-            unquote(blob.url)
-            + "?"
-            + generate_blob_sas(
-                account_name=blob.account_name,
-                container_name=blob.container_name,
-                blob_name=blob.blob_name,
-                account_key=blob.credential.account_key,
-                permission=BlobSasPermissions(read=True),
-                expiry=datetime.datetime.utcnow() + relativedelta(days=2),
-            )
-        )
+        blob = init_blob_client(**ingress["source"])
+        ingress["source"] = get_blob_sas(blob)
 
     # Use fsspec to handle file operations
     with fsspec.open(ingress["source"], "rb") as source_file:

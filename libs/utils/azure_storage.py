@@ -1,11 +1,12 @@
 from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
-from datetime import datetime as dt, timedelta
-import os, pandas as pd, uuid
+from urllib.parse import unquote
+import datetime, os, pandas as pd, uuid
+
 
 def init_blob_client(**kwargs) -> BlobClient:
     """
     Create a BlobClient based on the provided keyword arguments.
-    
+
     Parameters can include:
     - connection_string
     - account_url
@@ -14,41 +15,71 @@ def init_blob_client(**kwargs) -> BlobClient:
     - account_key
     - sas_token
     - blob_url
-    
+
     Returns:
     - BlobClient object
     """
-    if 'blob_url' in kwargs:
+    if "blob_url" in kwargs:
         # Initialize using the blob URL
-        return BlobClient.from_blob_url(kwargs['blob_url'])
-    
-    if 'connection_string' in kwargs:
+        return BlobClient.from_blob_url(kwargs["blob_url"])
+
+    if "connection_string" in kwargs:
         # Initialize using the connection string
         return BlobClient.from_connection_string(
-            kwargs['connection_string'],
-            kwargs['container_name'],
-            kwargs['blob_name']
+            kwargs["connection_string"], kwargs["container_name"], kwargs["blob_name"]
         )
-    
-    if 'account_url' in kwargs:
-        if 'sas_token' in kwargs:
+
+    if "conn_str" in kwargs:
+        # Initialize using the connection string
+        return BlobClient.from_connection_string(
+            os.environ.get(kwargs["conn_str"], kwargs["conn_str"]),
+            kwargs["container_name"],
+            kwargs["blob_name"],
+        )
+
+    if "account_url" in kwargs:
+        if "sas_token" in kwargs:
             # Initialize using account URL and SAS token
             return BlobClient(
-                account_url=kwargs['account_url'],
-                container_name=kwargs['container_name'],
-                blob_name=kwargs['blob_name'],
-                credential=kwargs['sas_token']
+                account_url=kwargs["account_url"],
+                container_name=kwargs["container_name"],
+                blob_name=kwargs["blob_name"],
+                credential=kwargs["sas_token"],
             )
-        if 'account_key' in kwargs:
+        if "account_key" in kwargs:
             # Initialize using account URL and account key
             return BlobClient(
-                account_url=kwargs['account_url'],
-                container_name=kwargs['container_name'],
-                blob_name=kwargs['blob_name'],
-                credential=kwargs['account_key']
+                account_url=kwargs["account_url"],
+                container_name=kwargs["container_name"],
+                blob_name=kwargs["blob_name"],
+                credential=kwargs["account_key"],
             )
-    
-    raise ValueError("Insufficient or incorrect parameters provided to initialize a BlobClient.")
+
+    raise ValueError(
+        "Insufficient or incorrect parameters provided to initialize a BlobClient."
+    )
+
+
+def get_blob_sas(
+    blob: BlobClient,
+    expiry: datetime.timedelta = datetime.timedelta(days=2),
+    prefix: str = "https://",
+) -> str:
+    """
+    Given a BlobClient object and an expiry time, return a SAS url for that blob.
+    """
+    return (
+        unquote(blob.url)
+        + "?"
+        + generate_blob_sas(
+            account_name=blob.account_name,
+            account_key=blob.credential.account_key,
+            container_name=blob.container_name,
+            blob_name=blob.blob_name,
+            permission=BlobSasPermissions(read=True),
+            expiry=datetime.datetime.now(datetime.UTC) + expiry,
+        )
+    ).replace("https://", prefix)
 
 
 def query_entities_to_list_of_dicts(
@@ -74,26 +105,6 @@ def query_entities_to_list_of_dicts(
         result.append(converted_entity)
 
     return result
-
-
-def get_blob_sas(
-    blob: BlobClient, expiry: timedelta = timedelta(days=2), prefix: str = "https://"
-) -> str:
-    """
-    Given a BlobClient object and an expiry time, return a SAS url for that blob.
-    """
-    return (
-        blob.url
-        + "?"
-        + generate_blob_sas(
-            account_name=blob.account_name,
-            account_key=blob.credential.account_key,
-            container_name=blob.container_name,
-            blob_name=blob.blob_name,
-            permission=BlobSasPermissions(read=True),
-            expiry=dt.utcnow() + timedelta(days=2),
-        )
-    ).replace("https://", prefix)
 
 
 def load_dataframe(source: str | dict | list) -> pd.DataFrame:
@@ -142,7 +153,7 @@ def load_dataframe(source: str | dict | list) -> pd.DataFrame:
             container_name=blob.container_name,
             blob_name=blob.blob_name,
             permission=BlobSasPermissions(read=True),
-            expiry=dt.utcnow() + timedelta(days=2),
+            expiry=datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=2),
         )
         _, from_type = os.path.splitext(blob.blob_name)
         if not from_type:
@@ -158,7 +169,9 @@ def load_dataframe(source: str | dict | list) -> pd.DataFrame:
 
 
 def export_dataframe(
-    df: pd.DataFrame, destination: str | dict, expiry: timedelta = timedelta(days=2)
+    df: pd.DataFrame,
+    destination: str | dict,
+    expiry: datetime.timedelta = datetime.timedelta(days=2),
 ) -> str:
     """
     Exports a DataFrame to a specified destination. The destination can be a blob URL or
@@ -173,7 +186,7 @@ def export_dataframe(
           specifying the Azure Blob storage details. The function will export the DataFrame to
           this specified blob in Azure Blob storage.
         - A list indicating multiple destinations is not directly supported in this version of the function.
-    - expiry (timedelta): Optional value specifying how long the returned URL will be valid. Default value of 2 days.
+    - expiry (datetime.timedelta): Optional value specifying how long the returned URL will be valid. Default value of 2 days.
 
     Returns:
     - str: The URL of the exported blob including the generated SAS token for read access.
@@ -226,15 +239,4 @@ def export_dataframe(
         blob.upload_blob(data, overwrite=True)
 
     # return a sas url for the exported blob
-    return (
-        blob.url
-        + "?"
-        + generate_blob_sas(
-            account_name=blob.account_name,
-            account_key=blob.credential.account_key,
-            container_name=blob.container_name,
-            blob_name=blob.blob_name,
-            permission=BlobSasPermissions(read=True),
-            expiry=dt.utcnow() + expiry,
-        )
-    )
+    return get_blob_sas(blob, expiry)

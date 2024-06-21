@@ -1,21 +1,18 @@
 # File: libs/azure/functions/blueprints/datalake/activities/concat.py
 
-from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
 from azure.durable_functions import Blueprint
-from urllib.parse import unquote
-import os
+from libs.utils.azure_storage import get_blob_sas, init_blob_client
 
 bp = Blueprint()
+
 
 @bp.activity_trigger(input_name="ingress")
 def datalake_concat_blobs(ingress: dict) -> str:
     """
     Concatenate multiple Azure blobs into a single blob.
 
-    Given a list of source blob URLs, this function fetches each blob and appends its content to a new 
-    or existing target blob in Azure Blob storage. The blobs are processed in chunks, allowing for efficient 
+    Given a list of source blob URLs, this function fetches each blob and appends its content to a new
+    or existing target blob in Azure Blob storage. The blobs are processed in chunks, allowing for efficient
     concatenation, especially for large blobs.
 
     Parameters
@@ -61,15 +58,8 @@ def datalake_concat_blobs(ingress: dict) -> str:
     - The resulting combined blob's SAS URL provides read access for two days from the time of its generation.
     """
 
-    # Extract connection string from environment variables using the provided key
-    connection_string = os.environ[ingress["conn_str"]]
-    
     # Initialize Azure Blob client for the output blob using the extracted connection string
-    output_blob = BlobClient.from_connection_string(
-        conn_str=connection_string,
-        container_name=ingress["container_name"],
-        blob_name=ingress["blob_name"],
-    )
+    output_blob = init_blob_client(**ingress)
 
     # Create a new append blob in the specified container
     # This blob will be used to store the combined data from multiple source blobs
@@ -82,33 +72,22 @@ def datalake_concat_blobs(ingress: dict) -> str:
     # Loop through each source blob URL provided in the ingress dictionary
     for copy_source_url in ingress["copy_source_urls"]:
         # Initialize a BlobClient for the source blob using its URL
-        input_blob = BlobClient.from_blob_url(copy_source_url)
-        
+        input_blob = init_blob_client(blob_url=copy_source_url)
+
         # Fetch the size of the source blob to determine how many chunks are needed
         input_size = input_blob.get_blob_properties().size
-        
+
         # Split the source blob into chunks and append each chunk to the output blob
         for i in range(0, input_size, chunk_size):
             output_blob.append_block_from_url(
                 copy_source_url=copy_source_url,
                 source_offset=i,
-                # Determine the size of the current chunk. 
+                # Determine the size of the current chunk.
                 # If it's the last chunk, it might be smaller than the defined chunk size
-                source_length=chunk_size
-                if (i + chunk_size) < input_size
-                else (input_size - i),
+                source_length=(
+                    chunk_size if (i + chunk_size) < input_size else (input_size - i)
+                ),
             )
 
     # Once all source blobs have been appended, return the name of the combined blob
-    return (
-        unquote(output_blob.url)
-        + "?"
-        + generate_blob_sas(
-            account_name=output_blob.account_name,
-            container_name=output_blob.container_name,
-            blob_name=output_blob.blob_name,
-            account_key=output_blob.credential.account_key,
-            permission=BlobSasPermissions(read=True),
-            expiry=datetime.utcnow() + relativedelta(days=2),
-        )
-    )
+    return get_blob_sas(output_blob)

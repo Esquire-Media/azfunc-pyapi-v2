@@ -1,11 +1,8 @@
 # File: libs/azure/functions/blueprints/postgres/activities/getRecordCount.py
 
-from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
 from azure.durable_functions import Blueprint
 from libs.data import from_bind
-from urllib.parse import unquote
+from libs.utils.azure_storage import get_blob_sas, init_blob_client
 import os, pandas as pd, uuid
 
 bp = Blueprint()
@@ -37,7 +34,7 @@ def activity_azurePostgres_resultToBlob(ingress: dict) -> int:
     )
 
     # Initialize Azure Blob client for the output blob using the extracted connection string
-    output_blob = BlobClient.from_connection_string(
+    output_blob = init_blob_client(
         conn_str=os.environ[ingress["destination"]["conn_str"]],
         container_name=ingress["destination"]["container_name"],
         blob_name="{}/{}.{}".format(
@@ -55,15 +52,4 @@ def activity_azurePostgres_resultToBlob(ingress: dict) -> int:
                 "Format not supported: {}".format(ingress["destination"]["format"])
             )
 
-    return (
-        unquote(output_blob.url)
-        + "?"
-        + generate_blob_sas(
-            account_name=output_blob.account_name,
-            container_name=output_blob.container_name,
-            blob_name=output_blob.blob_name,
-            account_key=output_blob.credential.account_key,
-            permission=BlobSasPermissions(read=True),
-            expiry=datetime.utcnow() + relativedelta(days=2),
-        )
-    )
+    return get_blob_sas(output_blob)

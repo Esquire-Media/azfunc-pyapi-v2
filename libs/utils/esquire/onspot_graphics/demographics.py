@@ -113,13 +113,30 @@ class Demographics:
 
         # plot age distribution
         plt.figure(figsize=(7.5, 4), facecolor="w")
-        sns.countplot(data=age_df, x=age_df.index, color="#AF0C0F", order=age_sorter)
+        g = sns.countplot(data=age_df, x=age_df.index, color="#AF0C0F", order=age_sorter)
 
         plt.ylabel("")
         plt.xlabel("Age")
         plt.title(title, fontsize=14, font=roboto_bold)
         plt.yticks([])
         plt.tight_layout()
+
+        if age_df.empty:
+            plt.ylabel("")
+            plt.xlabel("")
+            plt.yticks([])
+            plt.xticks([])
+            g.text(
+                0.5,
+                0.5,
+                'Insufficient Data',
+                bbox={'facecolor':'white','alpha':1,'edgecolor':'none','pad':1},
+                ha='center', 
+                va='center',
+                fontdict={
+                    'font':roboto_bold,
+                    'fontsize':30
+                }) 
 
         # export if specified
         if return_bytes:
@@ -152,13 +169,30 @@ class Demographics:
 
         # plot age distribution
         plt.figure(figsize=(7.5, 4), facecolor="w")
-        sns.countplot(data=inc_df, x=inc_df.index, color="#478EE2", order=inc_sorter)
+        g = sns.countplot(data=inc_df, x=inc_df.index, color="#478EE2", order=inc_sorter)
 
         plt.ylabel("")
         plt.xlabel("Income")
         plt.title(title, fontsize=14, font=roboto_bold)
         plt.yticks([])
         plt.tight_layout()
+
+        if inc_df.empty:
+            plt.ylabel("")
+            plt.xlabel("")
+            plt.yticks([])
+            plt.xticks([])
+            g.text(
+                0.5,
+                0.5,
+                'Insufficient Data',
+                bbox={'facecolor':'white','alpha':1,'edgecolor':'none','pad':1},
+                ha='center', 
+                va='center',
+                fontdict={
+                    'font':roboto_bold,
+                    'fontsize':30
+                }) 
 
         # export if specified
         if return_bytes:
@@ -415,6 +449,9 @@ def donut_graph(groups, colors, names, title, export_path, return_bytes=False):
         export_path : str
             If set, the graph will be exported as a PNG image file to the specified location.
     """
+    if all(np.isnan(val) for val in groups):
+        return null_donut(groups, colors, names, title, export_path, return_bytes)
+
     fig = plt.figure(figsize=(4, 4), facecolor="w")
     graph = plt.pie(groups, startangle=90)
 
@@ -480,6 +517,72 @@ def donut_graph(groups, colors, names, title, export_path, return_bytes=False):
         font=roboto_bold,
         horizontalalignment="left",
         color=colors[1],
+    )
+
+    # export if specified
+    if return_bytes:
+        buffer = BytesIO()
+        plt.savefig(buffer)
+        plt.close()
+        buffer.seek(0)
+        return buffer
+    if export_path != None:
+        plt.savefig(fname=export_path)
+        plt.close()
+    else:
+        plt.show()
+
+
+def null_donut(groups, colors, names, title, export_path, return_bytes=False):
+    """
+    Utility function for creating a donut graph based on a list of categories and their corresponding values.
+
+    Parameters:
+        groups : list
+            A list of numerical values corresponding to the donut graph percentages.
+        colors : list
+            A list of colors to map onto the group values.
+        names : list
+            A list of names to map onto the group values.
+        title : str
+            Graph title.
+        export_path : str
+            If set, the graph will be exported as a PNG image file to the specified location.
+    """
+
+    groups = [0,1]
+    print(groups)
+    fig = plt.figure(figsize=(4, 4), facecolor="w")
+    graph = plt.pie(groups, startangle=90)
+
+    for i in range(len(colors)):
+        graph[0][i].set_color('grey')
+
+    my_circle = plt.Circle((0, 0), 0.9, color="white")
+
+    p = plt.gcf()
+    p.gca().add_artist(my_circle)
+
+    # percentage 1
+    plt.text(
+        0,
+        -0.3,
+        "Insufficient\nData",
+        fontsize=25,
+        font=roboto_black,
+        horizontalalignment="center",
+        color='k',
+    )
+
+    # main title
+    plt.text(
+        0,
+        1.1,
+        title,
+        fontsize=40 - 4 * np.sqrt(len(title)),
+        font=roboto_bold,
+        horizontalalignment="center",
+        color="black",
     )
 
     # export if specified

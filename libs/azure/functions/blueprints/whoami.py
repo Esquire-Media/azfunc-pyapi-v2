@@ -39,5 +39,5 @@ async def who_am_i(req: HttpRequest):
                 for k, v in req.headers.items()
                 if k.startswith("x-ms-client-principal-")
             }
-        ).decode()
+        )
     )

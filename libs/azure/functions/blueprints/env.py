@@ -8,4 +8,4 @@ bp = Blueprint()
 
 @bp.route(route="env", methods=["POST"])
 async def env(req: HttpRequest):
-    return HttpResponse(json.dumps({k: v for k, v in os.environ.items()}).decode())
+    return HttpResponse(json.dumps({k: v for k, v in os.environ.items()}))

@@ -59,6 +59,6 @@ async def oneview_endpoint_starter(
                 "instance_id": instanceId,
                 "statusQueryGetUri": f"{url.scheme}://{url.netloc}{url.path}/{instanceId}",
             }
-        ).decode(),
+        ),
         headers={"Content-Type": "application/json"},
     )

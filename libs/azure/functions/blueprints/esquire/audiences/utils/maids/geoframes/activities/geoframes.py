@@ -93,7 +93,7 @@ def activity_esquireAudiencesMaidsGeoframes_geoframes(ingress: dict):
                 blob_name=ingress["destination"]["blob_name"],
             )
         blob.upload_blob(
-            data=json.dumps(feature_collection).decode(),
+            data=json.dumps(feature_collection),
             overwrite=True,
         )
 

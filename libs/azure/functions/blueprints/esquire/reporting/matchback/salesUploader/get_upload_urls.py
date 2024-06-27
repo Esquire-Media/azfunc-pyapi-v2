@@ -97,7 +97,7 @@ async def http_salesUploader_getUploadUrls(
                 "statusQueryGetUri": response_uris["statusQueryGetUri"],
                 "sendEventPostUri": response_uris["sendEventPostUri"].replace("{eventName}", "salesUploaded"),
             }
-        ).decode(),
+        ),
         headers={"Content-Type": "application/json"},
         status_code=200,
     )

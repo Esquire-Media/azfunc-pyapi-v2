@@ -78,7 +78,7 @@ async def http_salesUploader_readClientConfig(
         cached_data = {}
 
     return HttpResponse(
-        json.dumps(cached_data, indent=2).decode(),
+        json.dumps(cached_data),
         status_code=200
     )
 

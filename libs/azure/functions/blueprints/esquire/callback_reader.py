@@ -20,7 +20,7 @@ async def starter_callbackReader(req: HttpRequest):
             blob_name=f"{instance_id}/headers.json"
         )
         blob_client.upload_blob(
-            json.dumps(headers, indent=1)
+            json.dumps(headers)
         )
 
     # export body to blob

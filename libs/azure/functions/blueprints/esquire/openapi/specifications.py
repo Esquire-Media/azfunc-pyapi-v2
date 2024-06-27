@@ -23,7 +23,7 @@ async def documentation_yaml(req: HttpRequest):
 async def documentation_json(req: HttpRequest):
     if req.route_params.get("spec") in specifications.keys():
         return HttpResponse(
-            json.dumps(specifications[req.route_params["spec"]]()).decode(),
+            json.dumps(specifications[req.route_params["spec"]]()),
             headers={"Content-Type": "application/json"},
         )
     return HttpResponse(status_code=404)

@@ -43,7 +43,7 @@ async def starter_campaignProposal_getAssets(req: HttpRequest, client: DurableOr
         assets_dict[asset_type] = df['RowKey'].unique().tolist()
 
     return HttpResponse(
-        json.dumps(assets_dict, indent=2).decode(),
+        json.dumps(assets_dict),
         status_code=200
     )
 

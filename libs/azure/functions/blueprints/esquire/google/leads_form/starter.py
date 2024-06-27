@@ -50,7 +50,7 @@ async def starter_googleLeadsForm(req: HttpRequest, client: DurableOrchestration
         request=req, instance_id=instance_id
     )
     return HttpResponse(
-        body=json.dumps({}).decode(),
+        body=json.dumps({}),
         headers={"Content-Type": "application/json"},
         status_code=200,
     )

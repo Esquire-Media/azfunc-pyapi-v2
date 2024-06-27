@@ -27,7 +27,7 @@ def activity_locationInsights_createObservationsRequest(settings: dict):
         container_name=settings["runtime_container"]["container_name"],
         blob_name=settings["runtime_container"]["location_blob"],
     )
-    locations = pd.read_csv(get_blob_sas(blob_client=blob_client))
+    locations = pd.read_csv(get_blob_sas(blob=blob_client))
     loc = locations.iloc[0]
 
     # build a feature collection with the fields required for Onspot observations request

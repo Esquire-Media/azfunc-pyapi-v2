@@ -16,7 +16,7 @@ def activity_locationInsights_generateCallback(settings: dict):
     <br><br>The following download link(s) will expire in 14 days:"""
     for output_blob_name in settings["output_blob_names"]:
         url_pptx = get_blob_sas(
-            blob_client=BlobClient.from_connection_string(
+            blob=BlobClient.from_connection_string(
                 container_name=settings["runtime_container"]['container_name'],
                 conn_str=os.environ[settings["runtime_container"]["conn_str"]], 
                 blob_name=output_blob_name,

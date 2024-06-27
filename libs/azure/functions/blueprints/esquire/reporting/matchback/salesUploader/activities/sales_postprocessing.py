@@ -42,7 +42,7 @@ def activity_salesUploader_salesPostProcessing(ingress: dict):
         blob_name=f"{ingress['instance_id']}/02_preprocessed",
     )
     ingress_df = pd.read_csv(
-        get_blob_sas(blob_client=ingress_client, expiry=timedelta(minutes=10))
+        get_blob_sas(blob=ingress_client, expiry=timedelta(minutes=10))
     )
 
     # merge Smarty-validated data back onto the ingress dataset

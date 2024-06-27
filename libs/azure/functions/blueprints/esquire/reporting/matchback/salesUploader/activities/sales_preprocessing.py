@@ -47,7 +47,7 @@ def activity_salesUploader_salesPreProcessing(ingress: dict):
         blob_name=f"{ingress['instance_id']}/01_ingress",
     )
     df = pd.read_csv(
-        get_blob_sas(blob_client=ingress_client, expiry=timedelta(minutes=10)), dtype=str
+        get_blob_sas(blob=ingress_client, expiry=timedelta(minutes=10)), dtype=str
     )
     df = df.dropna(axis=1, how='all') # drop null columns
     df = df.dropna(axis=0, how='all') # drop null rows

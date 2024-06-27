@@ -13,7 +13,7 @@ def activity_campaignProposal_generateCallback(settings: dict):
 
     # get a 14-day download URL for each file attachment
     url_pptx = get_blob_sas(
-        blob_client=BlobClient.from_connection_string(
+        blob=BlobClient.from_connection_string(
             conn_str=os.environ[settings["runtime_container"]["conn_str"]], 
             container_name=settings["runtime_container"]['container_name'],
             blob_name=f"{settings['instance_id']}/CampaignProposal-{settings['name']}.pptx"
@@ -21,7 +21,7 @@ def activity_campaignProposal_generateCallback(settings: dict):
         expiry=timedelta(days=14)
     )
     url_comps = get_blob_sas(
-        blob_client=BlobClient.from_connection_string(
+        blob=BlobClient.from_connection_string(
             conn_str=os.environ[settings["runtime_container"]["conn_str"]], 
             container_name=settings["runtime_container"]['container_name'],
             blob_name=f"{settings['instance_id']}/Competitors-{settings['name']}.xlsx"

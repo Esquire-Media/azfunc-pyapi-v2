@@ -25,7 +25,7 @@ async def starter_locationInsights(req: HttpRequest, client: DurableOrchestratio
     logger = logging.getLogger("locationInsights.logger")
 
     # load the request payload as a Pydantic object
-    payload = HttpRequest.pydantize_body(req, LocationInsightsPayload).model_dump()
+    payload = LocationInsightsPayload.model_validate_json(req.get_body()).model_dump()
 
     # validate the MS bearer token to ensure the user is authorized to make requests
     try:

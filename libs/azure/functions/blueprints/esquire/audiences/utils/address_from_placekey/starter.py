@@ -33,7 +33,7 @@ async def starter_addresses_fromPlacekey(
     """
 
     # load the request payload as a Pydantic object
-    payload = HttpRequest.pydantize_body(req, PlacekeyPayload).model_dump()
+    payload = PlacekeyPayload.model_validate_json(req.get_body()).model_dump()
 
     instance_id = await client.start_new(
         orchestration_function_name="orchestrator_addresses_fromPlacekey",
@@ -70,7 +70,7 @@ async def starter_addressCSV_fromPlacekey(
     """
 
     # load the request payload as a Pydantic object
-    payload = HttpRequest.pydantize_body(req, PlacekeyPayload).model_dump()
+    payload = PlacekeyPayload.model_validate_json(req.get_body()).model_dump()
 
     instance_id = await client.start_new(
         orchestration_function_name="orchestrator_addressCSV_fromPlacekey",

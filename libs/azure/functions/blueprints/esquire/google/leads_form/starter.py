@@ -22,7 +22,7 @@ async def starter_googleLeadsForm(req: HttpRequest, client: DurableOrchestration
     instance_id = str(uuid.uuid4())
 
     # load the request payload as a Pydantic object
-    payload = HttpRequest.pydantize_body(req, GoogleLeadsFormPayload).model_dump()
+    payload = GoogleLeadsFormPayload.model_validate_json(req.get_body()).model_dump()
 
     # Start a new instance of the orchestrator function
     instance_id = await client.start_new(

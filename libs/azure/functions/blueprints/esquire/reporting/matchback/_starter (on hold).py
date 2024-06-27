@@ -23,7 +23,7 @@
 #     logger = logging.getLogger("matchback.logger")
 
 #     # load the request payload as a Pydantic object
-#     payload = HttpRequest.pydantize_body(req, MatchbackPayload).model_dump()
+#     payload = MatchbackPayload.model_validate_json(req.get_body()).model_dump()
 
 #     logging.warning(payload)
 

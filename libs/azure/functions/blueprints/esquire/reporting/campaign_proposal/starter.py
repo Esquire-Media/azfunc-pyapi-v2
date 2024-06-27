@@ -24,7 +24,7 @@ async def starter_campaignProposal(req: HttpRequest, client: DurableOrchestratio
     logger = logging.getLogger("campaignProposal.logger")
 
     # load the request payload as a Pydantic object
-    payload = HttpRequest.pydantize_body(req, CampaignProposalPayload).model_dump()
+    payload = CampaignProposalPayload.model_validate_json(req.get_body()).model_dump()
 
     # validate the MS bearer token to ensure the user is authorized to make requests
     try:

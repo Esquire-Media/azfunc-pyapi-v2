@@ -44,7 +44,7 @@ async def http_salesUploader_readClientConfig(
         return HttpResponse(status_code=401, body=f"TokenValidationError: {e}")
     
     # ingest the payload from the external event as a Pydantic object
-    payload = HttpRequest.pydantize_body(req, ClientConfigPayload).model_dump()
+    payload = ClientConfigPayload.model_validate_json(req.get_body()).model_dump()
 
     # set storage connection variables
     conn_str = (

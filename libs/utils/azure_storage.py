@@ -77,7 +77,7 @@ def get_blob_sas(
             container_name=blob.container_name,
             blob_name=blob.blob_name,
             permission=BlobSasPermissions(read=True),
-            expiry=datetime.datetime.now(datetime.UTC) + expiry,
+            expiry=datetime.datetime.utcnow() + expiry,
         )
     ).replace("https://", prefix)
 
@@ -153,7 +153,7 @@ def load_dataframe(source: str | dict | list) -> pd.DataFrame:
             container_name=blob.container_name,
             blob_name=blob.blob_name,
             permission=BlobSasPermissions(read=True),
-            expiry=datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=2),
+            expiry=datetime.datetime.utcnow() + datetime.timedelta(days=2),
         )
         _, from_type = os.path.splitext(blob.blob_name)
         if not from_type:

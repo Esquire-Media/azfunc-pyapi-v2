@@ -3,7 +3,7 @@
 from azure.durable_functions import Blueprint
 from libs.data import from_bind
 from sqlalchemy import select
-from sqlalchemy.orm import Session, lazyload
+from sqlalchemy.orm import Session
 
 bp = Blueprint()
 
@@ -31,10 +31,7 @@ def activity_esquireAudienceMeta_fetchAudience(ingress: str):
     session: Session = provider.connect()
     query = (
         select(audience)
-        .options(
-            lazyload(audience.related_Advertiser),
-            lazyload(audience.collection_AudienceTag),
-        )
+        .join(advertiser)
         .where(
             audience.id == ingress,  # esq audience
             audience.status == True,
@@ -44,8 +41,8 @@ def activity_esquireAudienceMeta_fetchAudience(ingress: str):
     )
 
     result = session.execute(query).one_or_none()
-        
-    if result:
+
+    if len(result):
         return {
             "adAccount": result.Audience.related_Advertiser.meta,
             "audience": result.Audience.meta,

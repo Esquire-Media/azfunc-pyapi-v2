@@ -4,7 +4,7 @@ from datetime import timedelta
 from azure.durable_functions import Blueprint
 from libs.data import from_bind
 from sqlalchemy import select
-from sqlalchemy.orm import Session, lazyload
+from sqlalchemy.orm import Session
 
 bp = Blueprint()
 
@@ -17,7 +17,7 @@ def activity_esquireAudienceXandr_fetchAudience(ingress: dict):
     This activity retrieves the audience metadata, including related advertiser information and audience tags, from the database.
 
     Parameters:
-    ingress (dict): 
+    ingress (dict):
         id (str): The ID of the audience to fetch.
 
     Returns:
@@ -33,10 +33,7 @@ def activity_esquireAudienceXandr_fetchAudience(ingress: dict):
     session: Session = provider.connect()
     query = (
         select(audience)
-        .options(
-            lazyload(audience.related_Advertiser),
-            lazyload(audience.collection_AudienceTag),
-        )
+        .join(advertiser)
         .where(
             audience.id == ingress["id"],  # esq audience
             audience.status == True,
@@ -44,13 +41,13 @@ def activity_esquireAudienceXandr_fetchAudience(ingress: dict):
             advertiser.xandr != None,
         )
     )
-    
+
     result = session.execute(query).one_or_none()
 
-    if result:
+    if len(result):
         return {
             **ingress,
-            "advertiser": result.Audience.related_Advertiser.xandr, 
+            "advertiser": result.Audience.related_Advertiser.xandr,
             "segment": result.Audience.xandr,
             "tags": [
                 related_tag.related_Tag.title
@@ -58,7 +55,12 @@ def activity_esquireAudienceXandr_fetchAudience(ingress: dict):
                     result.Audience.collection_AudienceTag, key=lambda x: x.order
                 )
             ],
-            "expiration": timedelta(**{result.Audience.rebuildUnit: result.Audience.rebuild}).total_seconds() // 60
+            "expiration": timedelta(
+                **{result.Audience.rebuildUnit: result.Audience.rebuild}
+            ).total_seconds()
+            // 60,
         }
-        
-    raise Exception(f"There were no Xandr Advertiser results for the given ESQ audience ({ingress}).")
+
+    raise Exception(
+        f"There were no Xandr Advertiser results for the given ESQ audience ({ingress})."
+    )

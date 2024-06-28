@@ -1,4 +1,3 @@
-import logging
 import os
 import fsspec
 from libs.utils.s3 import s3_path_to_azure_path
@@ -18,7 +17,6 @@ def activity_moversSync_copyFile(settings: dict):
     # Copy the file from S3 to Azure blob storage
     s3_path = f"s3://esquire-movers/{settings['filepath']}"
     azure_path = f"az://{settings['runtime_container']['container_name']}/{s3_path_to_azure_path(settings['filepath'])}"
-    logging.warning(azure_path)
 
     # Open S3 file-like object and an Azure file-like object using fsspec
     s3_fs = fsspec.filesystem(

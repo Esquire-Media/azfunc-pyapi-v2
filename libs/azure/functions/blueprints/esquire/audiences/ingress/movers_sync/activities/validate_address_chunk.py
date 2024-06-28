@@ -42,9 +42,9 @@ def activity_moversSync_validateAddressChunk(settings: dict):
         Path of the uploaded blob in Azure Storage.
     """
 
-    logging.warning(
-        f"activity_moversSync_validateAddressChunk | {settings['chunk']['blob_name']} | {settings['chunk']['offset']},{settings['chunk']['limit']}"
-    )
+    # logging.warning(
+    #     f"activity_moversSync_validateAddressChunk | {settings['chunk']['blob_name']} | {settings['chunk']['offset']},{settings['chunk']['limit']}"
+    # )
 
     # connect to Azure synapse cluster
     session: Session = from_bind("audiences").connect()

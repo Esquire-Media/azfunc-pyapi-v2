@@ -46,6 +46,11 @@ def orchestrator_esquireAudiences_builder(
         # Retrieve the input data for the orchestration
         ingress = context.get_input()
         ingress["instance_id"] = context.instance_id
+        
+        # Prepend the instance id to the working path for easy cleanup
+        ingress["working"]["blob_prefix"] = "{}/{}".format(
+            context.instance_id, ingress["working"]["blob_prefix"]
+        )
 
         # Fetch the full details for the audience
         ingress["audience"] = yield context.call_activity(
@@ -115,12 +120,13 @@ def orchestrator_esquireAudiences_builder(
 
                 # Wait for all tasks to complete
                 yield context.task_all(tasks)
-                
-        # Purge history related to this instance
-        yield context.call_sub_orchestrator(
-            "purge_instance_history",
-            {"instance_id": context.instance_id},
-        )
+
+        if not ingress.get("batch"):
+            # Purge history related to this instance
+            yield context.call_sub_orchestrator(
+                "purge_instance_history",
+                {"instance_id": context.instance_id},
+            )
 
     except Exception as e:
         # if any errors are caught, post an error card to teams tagging Ryan and the calling user

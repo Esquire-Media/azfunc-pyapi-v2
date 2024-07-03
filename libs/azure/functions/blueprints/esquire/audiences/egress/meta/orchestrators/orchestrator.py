@@ -1,8 +1,8 @@
 # File path: libs/azure/functions/blueprints/esquire/audiences/meta/orchestrator.py
 
+from datetime import timedelta
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
-from libs.data import from_bind
-import os, uuid, random, pandas as pd, orjson as json
+import hashlib, uuid, logging
 
 # Initialize a Blueprint object to define and manage functions
 bp = Blueprint()
@@ -22,105 +22,84 @@ def meta_customaudience_orchestrator(
     Args:
         context (DurableOrchestrationContext): The orchestration context.
     """
-    batch_size = 1000  # Define the batch size for processing audience data
+    batch_size = 5000  # Define the batch size for processing audience data
     ingress = context.get_input()  # Get the audience ID from the input
 
     # Fetch audience definition from the database
     try:
-        ids = yield context.call_activity(
+        audience = yield context.call_activity(
             "activity_esquireAudienceMeta_fetchAudience",
             ingress["audience"]["id"],
+        )
+        ingress["audience"].update(audience)
+        ingress["audience"]["name"] = (
+            " - ".join(ingress["audience"]["tags"])
+            if len(ingress["audience"]["tags"])
+            else ingress["audience"]["id"]
         )
     except:
         return {}
 
-    # Determine if a new Meta audience needs to be created
-    newAudienceNeeded = not ids["audience"]
-
-    if not newAudienceNeeded:
-        # Check the status of the existing Meta audience
-        metaAudience = yield context.call_sub_orchestrator(
-            "meta_orchestrator_request",
-            {
-                "operationId": "CustomAudience.Get",
-                "parameters": {
-                    "CustomAudience-Id": ids["audience"],
-                    "fields": ["operation_status"],
+    # Get or create the custom audience on Meta
+    custom_audience = yield context.call_activity(
+        "activity_esquireAudienceMeta_customAudience_get",
+        ingress,
+    )
+    if custom_audience.get("error", False):
+        # Handle specific error codes by creating a new audience if not found
+        if (
+            custom_audience["error"]["code"] == 100
+            and custom_audience["error"]["error_code"] == 33
+        ):
+            custom_audience = yield context.call_activity(
+                "activity_esquireAudienceMeta_customAudience_create",
+                ingress,
+            )
+            # Store the new audience ID in the database
+            yield context.call_activity(
+                "activity_esquireAudienceMeta_putAudience",
+                {
+                    "audience": ingress["audience"]["id"],
+                    "metaAudienceId": custom_audience["id"],
                 },
-            },
-        )
-        # If there is an error, a new audience is needed
-        newAudienceNeeded = bool(metaAudience.get("error", False))
-
-    if newAudienceNeeded:
-        # Create a new Meta audience
-        context.set_custom_status("Creating new Meta Audience.")
-        metaAudience = yield context.call_sub_orchestrator(
-            "meta_orchestrator_request",
-            {
-                "operationId": "AdAccount.Post.Customaudiences",
-                "parameters": {
-                    "AdAccount-Id": ids["adAccount"],
-                    "name": "{}_{}".format('_'.join(ids['tags']), ingress["audience"]["id"]),
-                    "description": ingress["audience"]["id"],
-                    "customer_file_source": "USER_PROVIDED_ONLY",
-                    "subtype": "CUSTOM",
-                },
-            },
-        )
-        # Update the database with the new audience ID
-        yield context.call_activity(
-            "activity_esquireAudienceMeta_putAudience",
-            {
-                "audience": ingress["audience"]["id"],
-                "metaAudienceId": metaAudience["id"],
-            },
+            )
+    # Update the audience name and description if they differ
+    if (
+        custom_audience["name"] != ingress["audience"]["name"]
+        or custom_audience["description"] != ingress["audience"]["id"]
+    ):
+        custom_audience = yield context.call_activity(
+            "activity_esquireAudienceMeta_customAudience_update",
+            ingress,
         )
 
-    if metaAudience.get("operation_status", False):
+    if custom_audience.get("operation_status", False):
         # Handle the status of the audience
-        match metaAudience["operation_status"]["code"]:
+        match custom_audience["operation_status"]["code"]:
             case 300 | 414:  # Update in progress
                 # Close out a stuck session if any
-                sessions = yield context.call_sub_orchestrator(
-                    "meta_orchestrator_request",
-                    {
-                        "operationId": "CustomAudience.Get.Sessions",
-                        "parameters": {"CustomAudience-Id": ids["audience"]},
-                    },
+                sessions = yield context.call_activity(
+                    "activity_esquireAudienceMeta_customAudienceSessions_get",
+                    ingress,
                 )
                 for s in sessions:
                     if s["stage"] in ["uploading"]:
-                        yield context.call_sub_orchestrator(
-                            "meta_orchestrator_request",
+                        yield context.call_activity(
+                            "activity_esquireAudienceMeta_customAudienceSession_forceEnd",
                             {
-                                "operationId": "CustomAudience.Post.Usersreplace",
-                                "payload": json.dumps(
-                                    {
-                                        "schema": "MOBILE_ADVERTISER_ID",
-                                        "data_source": {
-                                            "type": "THIRD_PARTY_IMPORTED",
-                                            "sub_type": "MOBILE_ADVERTISER_IDS",
-                                        },
-                                        "is_raw": True,
-                                        "data": [str(uuid.uuid4())],
-                                    }
-                                ).decode(),
-                                "session": json.dumps(
-                                    {
-                                        "session_id": s["session_id"],
-                                        "estimated_num_total": int(s["num_received"])
-                                        + 1,
-                                        "batch_seq": int(s["num_received"])
-                                        // batch_size
-                                        + 1,
-                                        "last_batch_flag": True,
-                                    }
-                                ).decode(),
+                                **ingress,
+                                "batch": {
+                                    "session_id": s["session_id"],
+                                    "total": int(s["num_received"]) + 1,
+                                    "sequence": int(s["num_received"]) // batch_size
+                                    + 1,
+                                },
                             },
                         )
+    ingress["audience"]["audience"] = custom_audience["id"]
+
     # Get the folder with the most recent MAIDs (Mobile Advertiser IDs)
-    audience_blob_prefix = yield context.call_activity(
+    ingress["destination"]["blob_prefix"] = yield context.call_activity(
         "activity_esquireAudiencesUtils_newestAudienceBlobPrefix",
         {
             "conn_str": ingress["destination"]["conn_str"],
@@ -145,126 +124,59 @@ def meta_customaudience_orchestrator(
                     HEADER_ROW = TRUE
                 ) AS [data]""".format(
                 ingress["destination"]["container_name"],
-                audience_blob_prefix,
+                ingress["destination"]["blob_prefix"],
                 ingress["destination"]["data_source"],
             ),
         },
     )
-    count = response[0]["count"]
 
     # Add users to the Meta audience
-    context.set_custom_status("Adding users to Meta Audience.")
-    sessionStarter = yield context.call_sub_orchestrator(
-        "meta_orchestrator_request",
-        {
-            "operationId": "CustomAudience.Post.Usersreplace",
-            "parameters": {
-                "CustomAudience-Id": metaAudience["id"],
-                "payload": json.dumps(
-                    {
-                        "schema": "MOBILE_ADVERTISER_ID",
-                        "data_source": {
-                            "type": "THIRD_PARTY_IMPORTED",
-                            "sub_type": "MOBILE_ADVERTISER_IDS",
-                        },
-                        "is_raw": True,
-                        "data": pd.read_sql(
-                            """
-                                SELECT DISTINCT deviceid
-                                FROM OPENROWSET(
-                                    BULK '{}/{}',
-                                    DATA_SOURCE = '{}',  
-                                    FORMAT = 'CSV',
-                                    PARSER_VERSION = '2.0',
-                                    HEADER_ROW = TRUE
-                                ) WITH (
-                                    deviceid UNIQUEIDENTIFIER
-                                ) AS [data]
-                                ORDER BY deviceid
-                                OFFSET {} ROWS
-                                FETCH NEXT {} ROWS ONLY
-                            """.format(
-                                ingress["destination"]["container_name"],
-                                audience_blob_prefix,
-                                ingress["destination"]["data_source"],
-                                0,
-                                batch_size,
-                            ),
-                            from_bind("audiences").connect().connection(),
-                        )["deviceid"]
-                        .apply(lambda x: str(x))
-                        .to_list(),
-                    }
-                ).decode("utf-8"),
-                "session": json.dumps(
-                    {
-                        "session_id": random.randint(0, 2**32 - 1),
-                        "estimated_num_total": count,
-                        "batch_seq": 1,
-                        "last_batch_flag": count < batch_size,
-                    }
-                ).decode("utf-8"),
-            },
-        },
-    )
-    sessionActions = [sessionStarter]
-
-    # Handle batching if count exceeds batch_size
-    if count > batch_size:
-        for batch_seq, offset in enumerate(range(batch_size, count, batch_size), 2):
-            sessionAction = yield context.call_sub_orchestrator(
-                "meta_orchestrator_request",
+    session = {}
+    for sequence, offset in enumerate(range(0, response[0]["count"], batch_size)):
+        while True:
+            context.set_custom_status("Adding users to Meta Audience.")
+            session = yield context.call_activity(
+                "activity_esquireAudienceMeta_customAudience_replaceUsers",
                 {
-                    "operationId": "CustomAudience.Post.Usersreplace",
-                    "parameters": {
-                        "CustomAudience-Id": metaAudience["id"],
-                        "payload": json.dumps(
-                            {
-                                "schema": "MOBILE_ADVERTISER_ID",
-                                "data_source": {
-                                    "type": "THIRD_PARTY_IMPORTED",
-                                    "sub_type": "MOBILE_ADVERTISER_IDS",
-                                },
-                                "is_raw": True,
-                                "data": pd.read_sql(
-                                    """
-                                        SELECT DISTINCT deviceid
-                                        FROM OPENROWSET(
-                                            BULK '{}/{}',
-                                            DATA_SOURCE = '{}',  
-                                            FORMAT = 'CSV',
-                                            PARSER_VERSION = '2.0',
-                                            HEADER_ROW = TRUE
-                                        ) WITH (
-                                            deviceid UNIQUEIDENTIFIER
-                                        ) AS [data]
-                                        ORDER BY deviceid
-                                        OFFSET {} ROWS
-                                        FETCH NEXT {} ROWS ONLY
-                                    """.format(
-                                        ingress["destination"]["container_name"],
-                                        audience_blob_prefix,
-                                        ingress["destination"]["data_source"],
-                                        offset,
-                                        batch_size,
-                                    ),
-                                    from_bind("audiences").connect().connection(),
-                                )["deviceid"]
-                                .apply(lambda x: str(x))
-                                .to_list(),
-                            }
-                        ).decode("utf-8"),
-                        "session": json.dumps(
-                            {
-                                "session_id": sessionStarter["session_id"],
-                                "estimated_num_total": count,
-                                "batch_seq": batch_seq,
-                                "last_batch_flag": count < offset + batch_size,
-                            }
-                        ).decode("utf-8"),
+                    **ingress,
+                    "sql": {
+                        "bind": "audiences",
+                        "query": """
+                            SELECT DISTINCT deviceid
+                            FROM OPENROWSET(
+                                BULK '{}/{}',
+                                DATA_SOURCE = '{}',  
+                                FORMAT = 'CSV',
+                                PARSER_VERSION = '2.0',
+                                HEADER_ROW = TRUE
+                            ) WITH (
+                                deviceid UNIQUEIDENTIFIER
+                            ) AS [data]
+                        """,
+                    },
+                    "batch": {
+                        "session": session,
+                        "sequence": sequence,
+                        "size": batch_size,
+                        "total": response[0]["count"],
                     },
                 },
             )
-            sessionActions.append(sessionAction)
+            if session.get("error", False):
+                # Handle specific error codes by waiting and retrying if the audience is being updated
+                if (
+                    session["error"]["code"] == 2650
+                    and session["error"]["error_subcode"] == 1870145
+                ):
+                    context.set_custom_status(
+                        "Waiting for the audience availability to become 'Ready' and try again."
+                    )
+                    yield context.create_timer(
+                        context.current_utc_datetime + timedelta(minutes=5)
+                    )
+                    continue
+                else:
+                    raise Exception(session["error"])
+            break
 
-    return sessionActions  # Return the list of session actions to be executed
+    return session  # Return the last session's results

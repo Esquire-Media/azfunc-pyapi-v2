@@ -3,6 +3,9 @@ from deployment import BLUEPRINTS
 
 import importlib.util, inspect, os, logging
 
+logger = logging.getLogger("azure")
+logger.setLevel(logging.WARNING)
+
 
 def find_blueprints(path):
     """

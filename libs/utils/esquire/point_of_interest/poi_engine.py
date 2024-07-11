@@ -287,7 +287,7 @@ class TaxonomyEngine:
 
         # load taxonomy json from file
         with open('libs/utils/esquire/point_of_interest/integrated_category_taxonomy.json', encoding='utf-8') as infile:
-            taxonomy_js = json.load(infile)
+            taxonomy_js = json.loads(infile.read())
 
         # convert to Pandas dataframe and apply formatting
         self.taxonomy = pd.DataFrame(taxonomy_js).T.reset_index()

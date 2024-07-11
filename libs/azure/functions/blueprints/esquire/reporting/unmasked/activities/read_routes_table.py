@@ -34,7 +34,7 @@ def activity_pixelPush_readRoutesTable(ingress: dict):
         conn_str=os.environ['AzureWebJobsStorage'],
         table_name="pixelRoutes"
     )
-    entities = pixel_routes.query_entities("")
+    entities = pixel_routes.query_entities("enabled eq true")
     result = [*entities]
 
     return result

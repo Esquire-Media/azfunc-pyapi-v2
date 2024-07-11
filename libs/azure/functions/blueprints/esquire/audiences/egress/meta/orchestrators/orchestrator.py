@@ -162,8 +162,8 @@ def meta_customaudience_orchestrator(
             if session.get("error", False):
                 # Handle specific error codes by waiting and retrying if the audience is being updated
                 if (
-                    session["error"]["code"] == 2650
-                    and session["error"]["error_subcode"] == 1870145
+                    session["error"].get("code") == 2650
+                    and session["error"].get("error_subcode") == 1870145
                 ):
                     context.set_custom_status(
                         "Waiting for the audience availability to become 'Ready' and try again."

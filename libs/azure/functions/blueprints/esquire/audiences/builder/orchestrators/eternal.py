@@ -2,7 +2,7 @@
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 from croniter import croniter
-import datetime, orjson as json, logging
+import datetime, orjson as json
 
 bp = Blueprint()
 
@@ -10,27 +10,38 @@ bp = Blueprint()
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_esquire_audience(context: DurableOrchestrationContext):
     """
-    Orchestrator function to schedule and run audience builds based on a cron expression.
+    Orchestrates the audience building and uploading process based on a cron schedule.
 
-    - Fetches the audience details.
-    - Determines the next run time based on the cron schedule.
-    - Triggers the audience build sub-orchestrator if it's time to run.
-    - Pushes the most recently generated audiences to the DSPs.
-    - Sets a timer for the next scheduled run and continues as new.
+    This function is triggered by the Azure Durable Functions framework and handles the following steps:
+    1. Fetches the audience details using the audience ID from the context instance ID.
+    2. Determines the last run time by retrieving the most recent audience blob prefix.
+    3. Calculates the next scheduled run time based on the provided cron expression.
+    4. Checks if it is time to rebuild the audience based on the current UTC time and audience status.
+    5. If it's time to rebuild or a force rebuild is requested:
+       a. Calls the sub-orchestrator to build the audience.
+       b. Calls the sub-orchestrator to upload the generated audience data to the configured DSPs.
+    6. Schedules the next run based on the cron expression.
+    7. Sets up a timer to wait for the next scheduled run or an external event to restart.
+    8. Handles the completion of either the timer or the external event, and continues as new with updated settings.
+    9. Purges the history of sub-instances related to this orchestrator instance.
 
-    Parameters:
-    context (DurableOrchestrationContext): The context for the orchestrator function.
+    Args:
+        context (DurableOrchestrationContext): The context for the orchestration, providing access
+                                               to orchestration features and data.
+
+    Returns:
+        str: An empty string indicating the completion of the orchestration.
     """
-    # Define the configuration for working and destination connections
+    # Retrieve the initial configuration for working and destination connections
     ingress = context.get_input()
 
-    # Fetch the full details for the audience
+    # Fetch the full details for the audience using its ID (from context instance ID)
     ingress["audience"] = yield context.call_activity(
         "activity_esquireAudienceBuilder_fetchAudience",
         {"id": context.instance_id},
     )
 
-    # Fetch the last run time from the most recent audience blob prefix
+    # Fetch the last run time by getting the most recent audience blob prefix from storage
     audience_blob_prefix = yield context.call_activity(
         "activity_esquireAudiencesUtils_newestAudienceBlobPrefix",
         {
@@ -45,49 +56,54 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
         else datetime.datetime.min
     )
 
-    # Calculate the next run time based on the cron expression
+    # Calculate the next scheduled run time based on the cron expression and last run time
     next_run = croniter(ingress["audience"]["rebuildSchedule"], last_run_time).get_next(
         datetime.datetime
     )
 
-    # Check if it's time to run the audience build
+    # Check if the current time is past the next scheduled run time and if the audience status is active,
+    # or if a force rebuild has been requested
     if (
         context.current_utc_datetime >= next_run and ingress["audience"]["status"]
     ) or ingress["forceRebuild"]:
-        # Generate the audience data
+        # Generate the audience data by calling the audience builder orchestrator
         build = yield context.call_sub_orchestrator(
             "orchestrator_esquireAudiences_builder", ingress
         )
-        # Push the most recently generated audiences to the DSPs that are configured
+        # Upload the newly generated audience data to the configured DSPs
         yield context.call_sub_orchestrator(
             "orchestrator_esquireAudiences_uploader",
             build,
         )
 
-    # Set a timer for the next scheduled run
+    # Calculate the next timer for the subsequent scheduled run
     next_timer: datetime.datetime = croniter(
         ingress["audience"]["rebuildSchedule"], context.current_utc_datetime
     ).get_next(datetime.datetime)
     context.set_custom_status("Next run: {}".format(next_timer.isoformat()))
 
-    # Wait for either the timer or an external event
+    # Create tasks to wait for the next scheduled time or an external event to restart
     timer_task = context.create_timer(next_timer)
     external_event_task = context.wait_for_external_event("restart")
 
     # Wait for the first of the tasks to complete
     winner = yield context.task_any([timer_task, external_event_task])
     if winner == external_event_task:
+        # If the external event is received, cancel the timer and get the settings from the event
         timer_task.cancel()
         settings = json.loads(winner.result)
     else:
+        # If the timer completes first, use the current settings
         settings: dict = context.get_input()
         settings.pop("forceRebuild")
 
-    ## Purge sub-instances history
+    # Purge the history of sub-instances related to this orchestrator
     yield context.call_sub_orchestrator(
         "purge_instance_history", {"instance_id": context.instance_id, "self": False}
     )
 
+    # Restart the orchestrator
     if not context.is_replaying:
         context.continue_as_new(settings)
+
     return ""

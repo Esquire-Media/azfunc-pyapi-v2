@@ -62,8 +62,7 @@ def orchestrator_esquireAudiences_processingSteps(
             "xandr": str
         },
         "status": str,
-        "rebuild": str,
-        "rebuildUnit": str,
+        "rebuildSchedule": str,
         "TTL_Length": str,
         "TTL_Unit": str,
         "results": [str]

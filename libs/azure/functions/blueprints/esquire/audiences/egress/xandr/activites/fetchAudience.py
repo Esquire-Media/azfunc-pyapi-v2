@@ -1,7 +1,7 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/egress/xandr/activities/fetchAudience.py
 
-from datetime import timedelta
 from azure.durable_functions import Blueprint
+from dateutil.relativedelta import relativedelta
 from libs.data import from_bind
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -55,10 +55,9 @@ def activity_esquireAudienceXandr_fetchAudience(ingress: dict):
                     result.Audience.collection_AudienceTag, key=lambda x: x.order
                 )
             ],
-            "expiration": timedelta(
-                **{result.Audience.rebuildUnit: result.Audience.rebuild}
-            ).total_seconds()
-            // 60,
+            "expiration": relativedelta(
+                **{result.Audience.TTL_Unit: result.Audience.TTL_Length}
+            ).minutes,
         }
 
     raise Exception(

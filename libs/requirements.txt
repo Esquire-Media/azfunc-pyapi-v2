@@ -51,11 +51,12 @@ timezonefinder
 timezonefinder[pytz]
 
 ## formatting
-pyarrow
+croniter
 fastparquet
 fastavro
-orjson # fast (de)serialization
 geojson
+orjson # fast (de)serialization
+pyarrow
 sql-formatter
 ## temporary necessities
 smartystreets-python-sdk

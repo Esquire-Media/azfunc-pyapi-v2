@@ -53,8 +53,7 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
                 "xandr": result.Audience.related_Advertiser.xandr,
             },
             "status": result.Audience.status,
-            "rebuild": result.Audience.rebuild,
-            "rebuildUnit": result.Audience.rebuildUnit,
+            "rebuildSchedule": result.Audience.rebuildSchedule,
             "TTL_Length": result.Audience.TTL_Length,
             "TTL_Unit": result.Audience.TTL_Unit,
             "dataSource": {

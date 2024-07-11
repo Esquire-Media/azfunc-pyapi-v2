@@ -39,7 +39,7 @@ def meta_customaudience_orchestrator(
         )
     except:
         return {}
-    
+
     # Get or create the custom audience on Meta
     if not ingress["audience"]["audience"]:
         custom_audience = yield context.call_activity(
@@ -59,7 +59,7 @@ def meta_customaudience_orchestrator(
             "activity_esquireAudienceMeta_customAudience_get",
             ingress,
         )
-        
+
     # Update the audience name and description if they differ
     if (
         custom_audience["name"] != ingress["audience"]["name"]
@@ -161,9 +161,9 @@ def meta_customaudience_orchestrator(
             )
             if session.get("error", False):
                 # Handle specific error codes by waiting and retrying if the audience is being updated
-                if (
-                    session["error"].get("code") == 2650
-                    and session["error"].get("error_subcode") == 1870145
+                if session["error"].get("code") == 2650 and (
+                    session["error"].get("error_subcode") == 1870145
+                    or session["error"].get("error_subcode") == 1870158
                 ):
                     context.set_custom_status(
                         "Waiting for the audience availability to become 'Ready' and try again."

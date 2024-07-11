@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from jwt.algorithms import RSAAlgorithm
-from typing import Any
+from typing import Any, Iterable
 import httpx, jwt
 
 
@@ -89,7 +89,7 @@ class ValidateWellKnown(ValidateGeneric):
         HTTP client used for making requests. Defaults to httpx.Client.
     """
 
-    def __init__(self, openid_config_url, audience=None, http_client=httpx.Client):
+    def __init__(self, openid_config_url, audience=str | Iterable[str] | None, http_client=httpx.Client):
         self.audience = audience
         self.http_client = http_client()
         self.openid_config = self.http_client.get(url=openid_config_url).json()

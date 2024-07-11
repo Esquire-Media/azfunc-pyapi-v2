@@ -1,3 +1,4 @@
+from typing import Iterable
 from . import ValidateWellKnown
 
 
@@ -9,7 +10,7 @@ class ValidateMicrosoft(ValidateWellKnown):
     """
 
     def __init__(
-        self, tenant_id: str, client_id: str, authority: str = "login.microsoftonline.com", version: str = None
+        self, tenant_id: str, client_id: str | Iterable[str] | None, authority: str = "login.microsoftonline.com", version: str = None
     ):
         """
         Initialize the Microsoft-specific JWT validator.
@@ -25,6 +26,9 @@ class ValidateMicrosoft(ValidateWellKnown):
         version : str, optional
             The version of the Microsoft identity platform API. Defaults to 'v2.0'.
         """
+        if type(client_id) == str:
+            client_id = client_id.split(",")
+            
         super().__init__(
             openid_config_url="https://{}/{}{}/.well-known/openid-configuration".format(
                 authority,

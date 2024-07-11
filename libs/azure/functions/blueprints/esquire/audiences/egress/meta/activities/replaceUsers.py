@@ -37,63 +37,49 @@ def activity_esquireAudienceMeta_customAudience_replaceUsers(ingress: dict):
     Returns:
         None
     """
-    session = {
-        "session_id": ingress["batch"]["session"].get(
-            "session_id", random.randint(0, 2**32 - 1)
-        ),
-        "estimated_num_total": ingress["batch"]["total"]
-        * 2,  # Times two because of duplication
-        "batch_seq": ingress["batch"]["sequence"] + 1,
-        "last_batch_flag": (
-            ingress["batch"]["sequence"]
-            == math.ceil(ingress["batch"]["total"] // (ingress["batch"]["size"]))
-        ),
-    }
-    logging.warning((ingress["batch"]["session"], session))
     try:
         return (
             CustomAudience(
                 fbid=ingress["audience"]["audience"],
                 api=initialize_facebook_api(ingress),
             )
-            .create_users_replace(
-                params={
-                    "payload": {
-                        "schema": CustomAudience.Schema.mobile_advertiser_id,
-                        "data": [
-                            duplicates
-                            for device_id in pd.read_sql(
-                                """
-                                {}
-                                ORDER BY deviceid
-                                OFFSET {} ROWS
-                                FETCH NEXT {} ROWS ONLY
-                            """.format(
-                                    ingress["sql"]["query"].format(
-                                        ingress["destination"]["container_name"],
-                                        ingress["destination"]["blob_prefix"],
-                                        ingress["destination"]["data_source"],
-                                    ),
-                                    ingress["batch"]["sequence"]
-                                    * ingress["batch"]["size"],
-                                    ingress["batch"]["size"],
-                                ),
-                                from_bind(ingress["sql"]["bind"])
-                                .connect()
-                                .connection(),
-                            )["deviceid"]
-                            .apply(lambda x: str(x))
-                            .to_list()
-                            for duplicates in (
-                                device_id.upper(),  # IDFA
-                                device_id.lower(),  # AAID
-                            )
-                        ],
-                    },
-                    "session": session,
+            .add_users(
+                schema=CustomAudience.Schema.mobile_advertiser_id,
+                is_raw=True,
+                users=pd.read_sql(
+                    """
+                        {}
+                        ORDER BY deviceid
+                        OFFSET {} ROWS
+                        FETCH NEXT {} ROWS ONLY
+                    """.format(
+                        ingress["sql"]["query"].format(
+                            ingress["destination"]["container_name"],
+                            ingress["destination"]["blob_prefix"],
+                            ingress["destination"]["data_source"],
+                        ),
+                        ingress["batch"]["sequence"] * ingress["batch"]["size"],
+                        ingress["batch"]["size"],
+                    ),
+                    from_bind(ingress["sql"]["bind"]).connect().connection(),
+                )["deviceid"]
+                .apply(lambda x: str(x).lower())
+                .to_list(),
+                session={
+                    "session_id": ingress["batch"]["session"].get(
+                        "session_id", random.randint(0, 2**32 - 1)
+                    ),
+                    "estimated_num_total": ingress["batch"]["total"],
+                    "batch_seq": ingress["batch"]["sequence"] + 1,
+                    "last_batch_flag": (
+                        ingress["batch"]["sequence"]
+                        == math.ceil(
+                            ingress["batch"]["total"] // (ingress["batch"]["size"])
+                        )
+                    ),
                 },
             )
-            .export_all_data()
+            .json()
         )
     except FacebookRequestError as e:
         return e.body()

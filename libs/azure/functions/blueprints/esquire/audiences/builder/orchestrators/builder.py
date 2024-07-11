@@ -100,27 +100,28 @@ def orchestrator_esquireAudiences_builder(
                 ingress = yield context.call_sub_orchestrator(
                     "orchestrator_esquireAudiences_finalize", ingress
                 )
+        
+        # Push the most recently generated audiences to the DSPs that are configured
+        tasks = []
+        if ingress["audience"]["advertiser"]["meta"]:
+            tasks.append(
+                context.call_sub_orchestrator(
+                    "meta_customaudience_orchestrator",
+                    ingress,
+                )
+            )
+        if ingress["audience"]["advertiser"]["xandr"]:
+            tasks.append(
+                context.call_sub_orchestrator(
+                    "xandr_segment_orchestrator",
+                    ingress,
+                )
+            )
 
-                # Push the newly generated audiences to the DSPs that are configured
-                tasks = []
-                if ingress["audience"]["advertiser"]["meta"]:
-                    tasks.append(
-                        context.call_sub_orchestrator(
-                            "meta_customaudience_orchestrator",
-                            ingress,
-                        )
-                    )
-                if ingress["audience"]["advertiser"]["xandr"]:
-                    tasks.append(
-                        context.call_sub_orchestrator(
-                            "xandr_segment_orchestrator",
-                            ingress,
-                        )
-                    )
-
-                # Wait for all tasks to complete
-                yield context.task_all(tasks)
-
+        # Wait for all tasks to complete
+        yield context.task_all(tasks)
+        
+        # Self Clean-up
         if not ingress.get("batch"):
             # Purge history related to this instance
             yield context.call_sub_orchestrator(

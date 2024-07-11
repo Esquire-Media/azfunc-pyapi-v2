@@ -22,7 +22,7 @@ def meta_customaudience_orchestrator(
     Args:
         context (DurableOrchestrationContext): The orchestration context.
     """
-    batch_size = 5000  # Define the batch size for processing audience data
+    batch_size = 10000  # Define the batch size for processing audience data
     ingress = context.get_input()  # Get the audience ID from the input
 
     # Fetch audience definition from the database
@@ -39,30 +39,27 @@ def meta_customaudience_orchestrator(
         )
     except:
         return {}
-
+    
     # Get or create the custom audience on Meta
-    custom_audience = yield context.call_activity(
-        "activity_esquireAudienceMeta_customAudience_get",
-        ingress,
-    )
-    if custom_audience.get("error", False):
-        # Handle specific error codes by creating a new audience if not found
-        if (
-            custom_audience["error"]["code"] == 100
-            and custom_audience["error"]["error_code"] == 33
-        ):
-            custom_audience = yield context.call_activity(
-                "activity_esquireAudienceMeta_customAudience_create",
-                ingress,
-            )
-            # Store the new audience ID in the database
-            yield context.call_activity(
-                "activity_esquireAudienceMeta_putAudience",
-                {
-                    "audience": ingress["audience"]["id"],
-                    "metaAudienceId": custom_audience["id"],
-                },
-            )
+    if not ingress["audience"]["audience"]:
+        custom_audience = yield context.call_activity(
+            "activity_esquireAudienceMeta_customAudience_create",
+            ingress,
+        )
+        # Store the new audience ID in the database
+        yield context.call_activity(
+            "activity_esquireAudienceMeta_putAudience",
+            {
+                "audience": ingress["audience"]["id"],
+                "metaAudienceId": custom_audience["id"],
+            },
+        )
+    else:
+        custom_audience = yield context.call_activity(
+            "activity_esquireAudienceMeta_customAudience_get",
+            ingress,
+        )
+        
     # Update the audience name and description if they differ
     if (
         custom_audience["name"] != ingress["audience"]["name"]
@@ -150,7 +147,7 @@ def meta_customaudience_orchestrator(
                                 PARSER_VERSION = '2.0',
                                 HEADER_ROW = TRUE
                             ) WITH (
-                                deviceid UNIQUEIDENTIFIER
+                                deviceid VARCHAR(36)
                             ) AS [data]
                         """,
                     },

@@ -93,8 +93,10 @@ def activity_esquireAudienceBuilder_finalize(ingress: dict):
             )
         )
         .rename(columns={column: "deviceid"})
+        .assign(deviceid=lambda df: df["deviceid"].str.lower())  # Convert to lower case
         .drop_duplicates(keep="first")
-        .pipe(lambda df: df[df["deviceid"].str.len() == 36])  # Only UUIDs
+        .pipe(lambda df: df[(df["deviceid"].str.len() == 36) & # UUIDs Only
+                            (df["deviceid"].str.lower() != "00000000-0000-0000-0000-000000000000")]) # Ignore anonymous UUID
         .to_csv(index=False),
         overwrite=True,
     )

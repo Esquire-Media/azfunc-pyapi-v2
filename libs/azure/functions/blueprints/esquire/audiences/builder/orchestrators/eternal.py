@@ -11,19 +11,18 @@ bp = Blueprint()
 def orchestrator_esquire_audience(context: DurableOrchestrationContext):
     """
     Orchestrates the audience building and uploading process based on a cron schedule.
-
-    This function is triggered by the Azure Durable Functions framework and handles the following steps:
-    1. Fetches the audience details using the audience ID from the context instance ID.
-    2. Determines the last run time by retrieving the most recent audience blob prefix.
-    3. Calculates the next scheduled run time based on the provided cron expression.
-    4. Checks if it is time to rebuild the audience based on the current UTC time and audience status.
-    5. If it's time to rebuild or a force rebuild is requested:
-       a. Calls the sub-orchestrator to build the audience.
-       b. Calls the sub-orchestrator to upload the generated audience data to the configured DSPs.
-    6. Schedules the next run based on the cron expression.
-    7. Sets up a timer to wait for the next scheduled run or an external event to restart.
-    8. Handles the completion of either the timer or the external event, and continues as new with updated settings.
-    9. Purges the history of sub-instances related to this orchestrator instance.
+    
+    - Fetches the audience details using the audience ID from the context instance ID.
+    - Determines the last run time by retrieving the most recent audience blob prefix.
+    - Calculates the next scheduled run time based on the provided cron expression.
+    - Checks if it is time to rebuild the audience based on the current UTC time and audience status.
+    - If it's time to rebuild or a force rebuild is requested:
+        - Calls the sub-orchestrator to build the audience.
+        - Calls the sub-orchestrator to upload the generated audience data to the configured DSPs.
+    - Schedules the next run based on the cron expression.
+    - Sets up a timer to wait for the next scheduled run or an external event to restart.
+    - Handles the completion of either the timer or the external event, and continues as new with updated settings.
+    - Purges the history of sub-instances related to this orchestrator instance.
 
     Args:
         context (DurableOrchestrationContext): The context for the orchestration, providing access

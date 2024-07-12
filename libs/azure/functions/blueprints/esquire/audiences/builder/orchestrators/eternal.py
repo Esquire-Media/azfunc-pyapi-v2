@@ -2,7 +2,7 @@
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 from croniter import croniter
-import datetime, orjson as json, pytz
+import datetime, orjson as json, os, pytz
 
 bp = Blueprint()
 
@@ -76,15 +76,26 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
     if (
         context.current_utc_datetime >= next_run and ingress["audience"]["status"]
     ) or ingress.get("forceRebuild"):
-        # Generate the audience data by calling the audience builder orchestrator
-        build = yield context.call_sub_orchestrator(
-            "orchestrator_esquireAudiences_builder", ingress
-        )
-        # Upload the newly generated audience data to the configured DSPs
-        yield context.call_sub_orchestrator(
-            "orchestrator_esquireAudiences_uploader",
-            build,
-        )
+        try:
+            # Generate the audience data by calling the audience builder orchestrator
+            build = yield context.call_sub_orchestrator(
+                "orchestrator_esquireAudiences_builder", ingress
+            )
+            # Upload the newly generated audience data to the configured DSPs
+            yield context.call_sub_orchestrator(
+                "orchestrator_esquireAudiences_uploader",
+                build,
+            )
+        except Exception as e:
+            # if any errors are caught, post an error card to teams tagging Ryan
+            yield context.call_activity(
+                "activity_microsoftGraph_postErrorCard",
+                {
+                    "instance_id": context.instance_id,
+                    "error": f"{type(e).__name__} : {e}"[:1000],
+                },
+            )
+            raise e
 
     # Calculate the next timer for the subsequent scheduled run
     next_timer: datetime.datetime = croniter(

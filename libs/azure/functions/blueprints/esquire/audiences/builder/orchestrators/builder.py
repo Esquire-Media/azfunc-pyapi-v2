@@ -76,14 +76,22 @@ def orchestrator_esquireAudiences_builder(
         ingress = yield context.call_sub_orchestrator(
             "orchestrator_esquireAudiences_primaryData", ingress
         )
+        if not ingress["results"] or not len(ingress["results"]):
+            raise Exception("No results from primary data query.")
+        
         # Run processing steps
         ingress = yield context.call_sub_orchestrator(
             "orchestrator_esquireAudiences_processingSteps", ingress
         )
+        if not ingress["results"] or not len(ingress["results"]):
+            raise Exception("No results after processing steps completed.")
+        
         # Ensure Device IDs are the final data type
         ingress = yield context.call_sub_orchestrator(
             "orchestrator_esquireAudiences_finalize", ingress
         )
+        if not ingress["results"] or not len(ingress["results"]):
+            raise Exception("No final results.")
     else:
         raise Exception("Primary data source is not set.")
 

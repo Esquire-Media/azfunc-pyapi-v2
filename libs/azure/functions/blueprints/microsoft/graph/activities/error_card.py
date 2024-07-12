@@ -5,10 +5,11 @@ from adaptive_cards.containers import Container, ContainerTypes, ColumnSet, Colu
 from azure.durable_functions import Blueprint
 from libs.utils.graph import MicrosoftGraph
 from libs.azure.key_vault import KeyVaultClient
-import httpx, orjson as json
+import httpx, orjson as json, os
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()
+
 
 # Define an activity function that logs a message
 @bp.activity_trigger(input_name="ingress")
@@ -16,7 +17,7 @@ def activity_microsoftGraph_postErrorCard(ingress: dict):
     """
     Posts an adaptive card containing error log information and pinging the project owner(s).
     Note that the project function must be granted Key Vault Secret User access to the graph-service Key Vault.
-    
+
     Params:
 
     function_name   : Name of the Azure function.
@@ -31,18 +32,25 @@ def activity_microsoftGraph_postErrorCard(ingress: dict):
     client_id = client.get_secret("client-id").value
     client_secret = client.get_secret("client-secret").value
     tenant_id = client.get_secret("tenant-id").value
-    graph = MicrosoftGraph(client_id=client_id, client_credential=client_secret, authority=f"https://login.microsoftonline.com/{tenant_id}",)
+    graph = MicrosoftGraph(
+        client_id=client_id,
+        client_credential=client_secret,
+        authority=f"https://login.microsoftonline.com/{tenant_id}",
+    )
 
     # use graph to get display names and emails from the passed owner IDs
     owners = []
-    for owner in ingress['owners']:
+    for owner in ingress.get(
+        "owners", os.environ.get("EXCEPTIONS_OWNERS", "").split(",")
+    ):
         owner_info = graph.query(f"users/{owner}")
-        owners.append({
-            "mail":owner_info["mail"],
-            "displayName":owner_info["displayName"]
-        })
+        owners.append(
+            {"mail": owner_info["mail"], "displayName": owner_info["displayName"]}
+        )
     # dedupe the list of dicts to avoid @ mentioning the same user twice
-    owners = [dict(tupleized) for tupleized in set(tuple(item.items()) for item in owners)] 
+    owners = [
+        dict(tupleized) for tupleized in set(tuple(item.items()) for item in owners)
+    ]
 
     # initialize the object that will contain all card elements
     containers: list[ContainerTypes] = []
@@ -64,11 +72,21 @@ def activity_microsoftGraph_postErrorCard(ingress: dict):
                         ),
                         Column(
                             items=[
-                                TextBlock(text=ingress["function_name"]),
+                                TextBlock(
+                                    text=ingress.get(
+                                        "function_name",
+                                        os.getenv(
+                                            "WEBSITE_SITE_NAME", "local-development"
+                                        ),
+                                    )
+                                ),
                                 TextBlock(text=ingress["instance_id"]),
                                 TextBlock(
                                     text=" ".join(
-                                        [f"<at>{owner['displayName']}</at>" for owner in owners]
+                                        [
+                                            f"<at>{owner['displayName']}</at>"
+                                            for owner in owners
+                                        ]
                                     )
                                 ),
                             ],
@@ -104,7 +122,8 @@ def activity_microsoftGraph_postErrorCard(ingress: dict):
 
     # key exports as "schema", but it needs to be "$schema"
     content = {
-        "$" + k if k == "schema" else k: v for k, v in json.loads(card.to_json()).items()
+        "$" + k if k == "schema" else k: v
+        for k, v in json.loads(card.to_json()).items()
     }
     # add entities for owner mentions
     content["msteams"] = {
@@ -119,17 +138,26 @@ def activity_microsoftGraph_postErrorCard(ingress: dict):
     }
 
     # send card to the specified webhook
-    return httpx.Client(timeout=None).request(
-        method="POST",
-        url=ingress["webhook"],
-        json={
-            "type": "message",
-            "attachments": [
-                {
-                    "contentType": "application/vnd.microsoft.card.adaptive",
-                    "contentUrl": None,
-                    "content": content,
-                }
-            ],
-        },
-    ).status_code
+    return (
+        httpx.Client(timeout=None)
+        .request(
+            method="POST",
+            url=ingress.get(
+                "webhook",
+                os.environ.get(
+                    "EXCEPTIONS_WEBHOOK", os.environ.get("EXCEPTIONS_WEBHOOK_DEVOPS")
+                ),
+            ),
+            json={
+                "type": "message",
+                "attachments": [
+                    {
+                        "contentType": "application/vnd.microsoft.card.adaptive",
+                        "contentUrl": None,
+                        "content": content,
+                    }
+                ],
+            },
+        )
+        .status_code
+    )

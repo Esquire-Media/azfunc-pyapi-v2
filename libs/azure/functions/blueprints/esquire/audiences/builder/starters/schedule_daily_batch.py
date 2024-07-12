@@ -10,7 +10,7 @@ bp = Blueprint()
 
 @bp.timer_trigger(arg_name="timer", schedule="0 0 0 * * *")
 @bp.durable_client_input(client_name="client")
-async def starter_esquireAudiencesBuilder_schedule_batch(
+async def starter_timer_esquire_audiences(
     timer: TimerRequest,
     client: DurableOrchestrationClient,
 ):

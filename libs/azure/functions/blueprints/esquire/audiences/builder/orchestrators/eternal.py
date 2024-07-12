@@ -2,7 +2,7 @@
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 from croniter import croniter
-import datetime, orjson as json
+import datetime, orjson as json, pytz
 
 bp = Blueprint()
 
@@ -11,7 +11,7 @@ bp = Blueprint()
 def orchestrator_esquire_audience(context: DurableOrchestrationContext):
     """
     Orchestrates the audience building and uploading process based on a cron schedule.
-    
+
     - Fetches the audience details using the audience ID from the context instance ID.
     - Determines the last run time by retrieving the most recent audience blob prefix.
     - Calculates the next scheduled run time based on the provided cron expression.
@@ -55,16 +55,27 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
         else datetime.datetime.min
     )
 
+    # Ensure last_run_time is timezone-aware
+    if last_run_time.tzinfo is None:
+        last_run_time = last_run_time.replace(tzinfo=pytz.UTC)
+
     # Calculate the next scheduled run time based on the cron expression and last run time
-    next_run = croniter(ingress["audience"]["rebuildSchedule"], last_run_time).get_next(
-        datetime.datetime
+    next_run = (
+        croniter(ingress["audience"]["rebuildSchedule"], last_run_time)
+        .get_next(datetime.datetime)
+        .replace(tzinfo=pytz.UTC)
     )
+
+    # Ensure context.current_utc_datetime is timezone-aware
+    current_utc_datetime = context.current_utc_datetime
+    if current_utc_datetime.tzinfo is None:
+        current_utc_datetime = current_utc_datetime.replace(tzinfo=pytz.UTC)
 
     # Check if the current time is past the next scheduled run time and if the audience status is active,
     # or if a force rebuild has been requested
     if (
         context.current_utc_datetime >= next_run and ingress["audience"]["status"]
-    ) or ingress["forceRebuild"]:
+    ) or ingress.get("forceRebuild"):
         # Generate the audience data by calling the audience builder orchestrator
         build = yield context.call_sub_orchestrator(
             "orchestrator_esquireAudiences_builder", ingress
@@ -94,7 +105,7 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
     else:
         # If the timer completes first, use the current settings
         settings: dict = context.get_input()
-        settings.pop("forceRebuild")
+        settings.pop("forceRebuild", None)
 
     # Purge the history of sub-instances related to this orchestrator
     yield context.call_sub_orchestrator(

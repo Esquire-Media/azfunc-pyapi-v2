@@ -1,13 +1,9 @@
-from azure.durable_functions import (
-    Blueprint,
-    DurableOrchestrationClient,
-    OrchestrationRuntimeStatus,
-)
+from azure.durable_functions import Blueprint, DurableOrchestrationClient
 from azure.functions import TimerRequest
 from libs.data import from_bind
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-import os
+import asyncio, os
 
 bp = Blueprint()
 
@@ -29,7 +25,7 @@ async def starter_esquireAudiencesBuilder_schedule_batch(
             "container_name": "general",
             "data_source": os.environ["ESQUIRE_AUDIENCE_DATA_SOURCE"],
             "blob_prefix": "audiences",
-        }
+        },
     }
 
     provider = from_bind("keystone")
@@ -38,11 +34,14 @@ async def starter_esquireAudiencesBuilder_schedule_batch(
     query = select(audience.id).where(audience.status == True)
     results = session.execute(query).all()
 
-    async for row in results:
-        status = await client.get_status(row.id)
-        if not status.runtime_status:
-            await client.start_new(
-                orchestration_function_name="orchestrator_esquire_audience",
-                client_input=settings,
-                instance_id=row.id,
-            )
+    await asyncio.gather(*(starter(client, row.id, settings) for row in results))
+
+
+async def starter(client: DurableOrchestrationClient, instance_id: str, settings: dict):
+    status = await client.get_status(instance_id)
+    if not status.runtime_status:
+        await client.start_new(
+            orchestration_function_name="orchestrator_esquire_audience",
+            client_input=settings,
+            instance_id=instance_id,
+        )

@@ -52,9 +52,10 @@ async def starter_http_esquire_audience(
     status.custom_status
     match req.method:
         case "POST":
-            if status.runtime_status == OrchestrationRuntimeStatus.Running and str(
-                status.custom_status
-            ).startswith("Next run:"):
+            if (
+                status.runtime_status == OrchestrationRuntimeStatus.Running
+                and '"next_run"' in str(status.custom_status)
+            ):
                 await client.raise_event(
                     instance_id,
                     "restart",

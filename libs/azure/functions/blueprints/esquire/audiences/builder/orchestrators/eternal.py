@@ -2,7 +2,7 @@
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 from croniter import croniter
-import datetime, orjson as json, os, pytz
+import datetime, orjson as json, pytz
 
 bp = Blueprint()
 
@@ -97,14 +97,26 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
             )
             raise e
 
-    # Calculate the next timer for the subsequent scheduled run
-    next_timer: datetime.datetime = croniter(
-        ingress["audience"]["rebuildSchedule"], context.current_utc_datetime
-    ).get_next(datetime.datetime)
-    context.set_custom_status("Next run: {}".format(next_timer.isoformat()))
+    # Calculate the next timer for the next scheduled run
+    context.set_custom_status(
+        json.dumps(
+            {
+                "next_run": croniter(
+                    ingress["audience"]["rebuildSchedule"],
+                    current_utc_datetime,
+                )
+                .get_next(datetime.datetime)
+                .isoformat(),
+                "schedule": ingress["audience"]["rebuildSchedule"],
+            }
+        )
+    )
 
-    # Create tasks to wait for the next scheduled time or an external event to restart
-    timer_task = context.create_timer(next_timer)
+    # Schedule a trigger to rerun the orchestrator (>6 days)
+    timer_task = context.create_timer(
+        croniter("0 0 * * *", current_utc_datetime).get_next(datetime.datetime)
+    )
+    # Create an optional external event to manually restart
     external_event_task = context.wait_for_external_event("restart")
 
     # Wait for the first of the tasks to complete

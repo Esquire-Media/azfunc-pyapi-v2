@@ -52,9 +52,8 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
     last_run_time = (
         datetime.datetime.fromisoformat(audience_blob_prefix.split("/")[-1])
         if audience_blob_prefix
-        else datetime.datetime.min
+        else datetime.datetime(year=1970, month=1, day=1)
     )
-
     # Ensure last_run_time is timezone-aware
     if last_run_time.tzinfo is None:
         last_run_time = last_run_time.replace(tzinfo=pytz.UTC)
@@ -79,7 +78,8 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
         try:
             # Generate the audience data by calling the audience builder orchestrator
             build = yield context.call_sub_orchestrator(
-                "orchestrator_esquireAudiences_builder", ingress
+                "orchestrator_esquireAudiences_builder",
+                ingress,
             )
             # Upload the newly generated audience data to the configured DSPs
             yield context.call_sub_orchestrator(
@@ -95,26 +95,28 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
                     "error": f"{type(e).__name__} : {e}"[:1000],
                 },
             )
-            raise e
 
     # Calculate the next timer for the next scheduled run
     context.set_custom_status(
-        json.dumps(
-            {
-                "next_run": croniter(
-                    ingress["audience"]["rebuildSchedule"],
-                    current_utc_datetime,
-                )
-                .get_next(datetime.datetime)
-                .isoformat(),
-                "schedule": ingress["audience"]["rebuildSchedule"],
-            }
-        )
+        {
+            "next_run": croniter(
+                ingress["audience"]["rebuildSchedule"],
+                context.current_utc_datetime,
+            )
+            .get_next(datetime.datetime)
+            .isoformat(),
+            "schedule": ingress["audience"]["rebuildSchedule"],
+        }
+    )
+
+    # Purge the history of sub-instances related to this orchestrator
+    yield context.call_sub_orchestrator(
+        "purge_instance_history", {"instance_id": context.instance_id, "self": False}
     )
 
     # Schedule a trigger to rerun the orchestrator (>6 days)
     timer_task = context.create_timer(
-        croniter("0 0 * * *", current_utc_datetime).get_next(datetime.datetime)
+        croniter("0 0 * * *", context.current_utc_datetime).get_next(datetime.datetime)
     )
     # Create an optional external event to manually restart
     external_event_task = context.wait_for_external_event("restart")
@@ -130,13 +132,6 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
         settings: dict = context.get_input()
         settings.pop("forceRebuild", None)
 
-    # Purge the history of sub-instances related to this orchestrator
-    yield context.call_sub_orchestrator(
-        "purge_instance_history", {"instance_id": context.instance_id, "self": False}
-    )
-
     # Restart the orchestrator
-    if not context.is_replaying:
-        context.continue_as_new(settings)
-
+    context.continue_as_new(settings)
     return ""

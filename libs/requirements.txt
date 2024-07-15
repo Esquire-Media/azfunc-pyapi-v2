@@ -15,6 +15,7 @@ pymssql==2.3.0
 pyodbc==5.1.0
 psycopg2-binary==2.9.9
 sqlalchemy==2.0.30
+gql
 ## data handling
 marshmallow==3.21.3
 marshmallow-geojson==0.5.0

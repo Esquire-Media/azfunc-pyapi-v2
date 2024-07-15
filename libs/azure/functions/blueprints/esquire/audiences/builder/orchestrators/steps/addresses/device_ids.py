@@ -1,8 +1,7 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/steps/addresses/device_ids.py
 
-from azure.durable_functions import DurableOrchestrationContext
-from azure.durable_functions import Blueprint
-import uuid
+from azure.durable_functions import Blueprint, DurableOrchestrationContext
+import uuid, logging
 
 bp = Blueprint()
 
@@ -40,13 +39,7 @@ def orchestrator_esquireAudiencesSteps_addresses2deviceids(
         }
     }
     """
-
     ingress = context.get_input()
-    destination = (
-        ingress["working"]
-        if ingress.get("custom_coding", {}).get("filter", False)
-        else ingress["destination"]
-    )
 
     # Convert addresses to device IDs
     onspot = yield context.task_all(
@@ -54,7 +47,7 @@ def orchestrator_esquireAudiencesSteps_addresses2deviceids(
             context.call_sub_orchestrator(
                 "onspot_orchestrator",
                 {
-                    **destination,
+                    **ingress["working"],
                     "endpoint": "/save/addresses/all/devices",
                     "request": {
                         "hash": False,
@@ -92,7 +85,18 @@ def orchestrator_esquireAudiencesSteps_addresses2deviceids(
                 if callback["id"] in job_location_map:
                     source_urls.append(job_location_map[callback["id"]])
 
-    if not ingress.get("custom_coding"):
+    if not ingress.get("custom_coding", {}).get("filter", False):
+        source_urls = yield context.task_all([
+            context.call_activity(
+                "activity_esquireAudienceBuilder_formatDeviceIds",
+                {
+                    "source": url,
+                    "destination": ingress["destination"]
+                }
+            )
+            for url in source_urls
+            if "debug.csv" not in url
+        ])
         return source_urls
 
     # Further process the results if custom coding is specified

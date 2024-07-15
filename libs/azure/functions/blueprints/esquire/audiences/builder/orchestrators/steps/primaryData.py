@@ -1,10 +1,11 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/primaryData.py
 
-from azure.durable_functions import DurableOrchestrationContext
-from azure.durable_functions import Blueprint
+from azure.durable_functions import Blueprint, DurableOrchestrationContext
+from azure.storage.blob import BlobServiceClient
 from libs.azure.functions.blueprints.esquire.audiences.builder.config import (
     MAPPING_DATASOURCE,
 )
+import os
 
 bp = Blueprint()
 
@@ -60,6 +61,12 @@ def orchestrator_esquireAudiences_primaryData(
         # Generate a primary data set based on the data source type
         match MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]]["dbType"]:
             case "synapse":
+                blob_storage = BlobServiceClient.from_connection_string(
+                    os.environ.get(
+                        ingress["working"]["conn_str"],
+                        ingress["working"]["conn_str"],
+                    )
+                )
                 ingress["results"] = yield context.call_activity(
                     "synapse_activity_cetas",
                     {
@@ -68,18 +75,24 @@ def orchestrator_esquireAudiences_primaryData(
                         "destination": {
                             "conn_str": ingress["working"]["conn_str"],
                             "container_name": ingress["working"]["container_name"],
-                            "blob_prefix": "{}/{}/{}/-1".format(
+                            "blob_prefix": "{}/-1".format(
                                 ingress["working"]["blob_prefix"],
-                                ingress["instance_id"],
-                                ingress["audience"]["id"],
                             ),
-                            "handle": "sa_esqdevdurablefunctions",  # will need to change at some point
-                            "format": "CSV",
+                            "handle": ingress["working"].get(
+                                "data_source",
+                                "sa_{}".format(blob_storage.account_name),
+                            ),
+                            "format": (
+                                "CSV_HEADER"
+                                if ingress["audience"]["dataSource"]["dataType"]
+                                == "addresses"
+                                else "CSV"
+                            ),
                         },
-                        "query": """
-                    SELECT * FROM {}{}
-                    WHERE {}
-                """.format(
+                        "query": "SELECT {} FROM {}{} WHERE {}".format(
+                            MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
+                                "table"
+                            ].get("select", "*"),
                             (
                                 "[{}].".format(
                                     MAPPING_DATASOURCE[
@@ -98,6 +111,7 @@ def orchestrator_esquireAudiences_primaryData(
                             + "]",
                             ingress["audience"]["dataFilter"],
                         ),
+                        "return_urls": True,
                     },
                 )
             case "postgres":
@@ -131,10 +145,8 @@ def orchestrator_esquireAudiences_primaryData(
                         "destination": {
                             "conn_str": ingress["working"]["conn_str"],
                             "container_name": ingress["working"]["container_name"],
-                            "blob_prefix": "{}/{}/{}/-1".format(
-                                ingress["working"]["blob_prefix"],
-                                ingress["instance_id"],
-                                ingress["audience"]["id"],
+                            "blob_prefix": "{}/-1".format(
+                                ingress["working"]["blob_prefix"]
                             ),
                             "format": "CSV",
                         },

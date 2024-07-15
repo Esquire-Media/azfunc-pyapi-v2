@@ -99,10 +99,8 @@ def orchestrator_esquireAudiences_finalize(
     egress = {
         "working": {
             **ingress["working"],
-            "blob_prefix": "{}/{}/{}/{}".format(
+            "blob_prefix": "{}/{}".format(
                 ingress["working"]["blob_prefix"],
-                ingress["instance_id"],
-                ingress["audience"]["id"],
                 steps,
             ),
         },

@@ -69,6 +69,7 @@ MAPPING_DATASOURCE = {
         "table": {
             "schema": "dbo",
             "name": "movers",
+            "select": "address, city, state, zipcode as zipCode, plus4Code"
         },
     },
     # Esquire audiences

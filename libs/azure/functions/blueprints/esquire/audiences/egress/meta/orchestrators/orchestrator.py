@@ -2,7 +2,6 @@
 
 from datetime import timedelta
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
-import hashlib, uuid, logging
 
 # Initialize a Blueprint object to define and manage functions
 bp = Blueprint()

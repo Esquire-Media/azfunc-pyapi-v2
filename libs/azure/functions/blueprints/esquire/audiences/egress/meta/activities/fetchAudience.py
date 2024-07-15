@@ -42,7 +42,7 @@ def activity_esquireAudienceMeta_fetchAudience(ingress: str):
 
     result = session.execute(query).one_or_none()
 
-    if len(result):
+    if result and len(result):
         return {
             "adAccount": result.Audience.related_Advertiser.meta,
             "audience": result.Audience.meta,

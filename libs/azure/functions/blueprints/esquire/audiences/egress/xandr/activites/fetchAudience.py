@@ -44,7 +44,7 @@ def activity_esquireAudienceXandr_fetchAudience(ingress: dict):
 
     result = session.execute(query).one_or_none()
 
-    if len(result):
+    if result and len(result):
         return {
             **ingress,
             "advertiser": result.Audience.related_Advertiser.xandr,

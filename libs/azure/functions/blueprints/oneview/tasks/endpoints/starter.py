@@ -1,9 +1,8 @@
 # File: libs/azure/functions/blueprints/oneview/tasks/endpoints/starter.py
 
-from libs.azure.functions.blueprints.oneview.tasks.helpers import request_initializer
-from azure.durable_functions import DurableOrchestrationClient
-from azure.durable_functions import Blueprint
+from azure.durable_functions import Blueprint, DurableOrchestrationClient
 from azure.functions import HttpRequest, HttpResponse
+from libs.azure.functions.blueprints.oneview.tasks.helpers import request_initializer
 from urllib.parse import urlparse
 import orjson as json, os
 

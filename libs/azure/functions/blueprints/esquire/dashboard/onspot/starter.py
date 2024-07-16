@@ -1,8 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/onspot/starter.py
 
-from azure.durable_functions import DurableOrchestrationClient
+from azure.durable_functions import Blueprint, DurableOrchestrationClient
 from azure.functions import TimerRequest
-from azure.durable_functions import Blueprint
 import logging
 
 # Create a Blueprint instance

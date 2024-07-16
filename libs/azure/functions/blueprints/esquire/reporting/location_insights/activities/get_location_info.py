@@ -1,10 +1,9 @@
-import os
 from azure.durable_functions import Blueprint
+from azure.storage.blob import BlobClient
 from libs.data import from_bind
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import text
-import pandas as pd
-from azure.storage.blob import BlobClient
+import os, pandas as pd
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()
@@ -13,7 +12,7 @@ bp = Blueprint()
 # Define an activity function
 @bp.activity_trigger(input_name="settings")
 def activity_locationInsights_getLocationInfo(settings: dict):
-    
+
     # connect to Locations table using a SQLAlchemy ORM session
     provider = from_bind("legacy")
     session: Session = provider.connect()
@@ -63,7 +62,9 @@ def activity_locationInsights_getLocationInfo(settings: dict):
 
     # return the cleaned addresses as a list of component dictionaries, each with an index attribute
     if len(locations) == 0:
-        raise Exception(f"Location with ESQ_ID '{settings['locationID']}' was not found in dbo.Locations")
+        raise Exception(
+            f"Location with ESQ_ID '{settings['locationID']}' was not found in dbo.Locations"
+        )
     blob_client: BlobClient = BlobClient.from_connection_string(
         conn_str=os.environ[settings["runtime_container"]["conn_str"]],
         container_name=settings["runtime_container"]["container_name"],

@@ -30,6 +30,7 @@ async def rapidoc_swaggish(req: HttpRequest):
         headers={"Content-Type": "text/html; charset=utf-8"},
     )
 
+
 @bp.route(route="docs/rapidoc/{spec}", methods=["GET"])
 async def rapidoc(req: HttpRequest):
     return HttpResponse(

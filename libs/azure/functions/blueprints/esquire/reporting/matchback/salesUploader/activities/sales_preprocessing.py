@@ -1,7 +1,6 @@
+from azure.durable_functions import Blueprint
 from azure.storage.blob import BlobClient
 from datetime import timedelta
-from azure.durable_functions import Blueprint
-import pandas as pd, os, logging
 from uuid import uuid4
 from libs.utils.azure_storage import get_blob_sas
 from libs.utils.text import (
@@ -9,9 +8,10 @@ from libs.utils.text import (
     format_sales,
     format_date,
 )
-
+import logging, pandas as pd, os
 
 bp: Blueprint = Blueprint()
+
 
 @bp.activity_trigger(input_name="ingress")
 def activity_salesUploader_salesPreProcessing(ingress: dict):
@@ -19,10 +19,10 @@ def activity_salesUploader_salesPreProcessing(ingress: dict):
     Processes sales data by performing cleaning and standardization steps before running Smarty validation.
 
     Overview:
-    This function takes sales data from an ingress blob, cleans and formats it by removing null rows and columns, adding a unique transaction ID, 
-        and standardizing certain fields such as zip codes, addresses, and sales amounts. 
-    It also handles date standardization and fills missing date values if specified. 
-    Non-standardizable columns are separated into an appendix and uploaded to a specified blob container. 
+    This function takes sales data from an ingress blob, cleans and formats it by removing null rows and columns, adding a unique transaction ID,
+        and standardizing certain fields such as zip codes, addresses, and sales amounts.
+    It also handles date standardization and fills missing date values if specified.
+    Non-standardizable columns are separated into an appendix and uploaded to a specified blob container.
     Finally, the processed data is uploaded to an egress blob for further processing.
 
     Parameters:
@@ -49,23 +49,41 @@ def activity_salesUploader_salesPreProcessing(ingress: dict):
     df = pd.read_csv(
         get_blob_sas(blob=ingress_client, expiry=timedelta(minutes=10)), dtype=str
     )
-    df = df.dropna(axis=1, how='all') # drop null columns
-    df = df.dropna(axis=0, how='all') # drop null rows
-    df.insert(loc=0, column='transactionId', value=[str(uuid4()) for _ in range(len(df.index))]) # set a unique ID for each transaction
-    df['matchbackName'] = ingress['settings']['matchback_name']
+    df = df.dropna(axis=1, how="all")  # drop null columns
+    df = df.dropna(axis=0, how="all")  # drop null rows
+    df.insert(
+        loc=0,
+        column="transactionId",
+        value=[str(uuid4()) for _ in range(len(df.index))],
+    )  # set a unique ID for each transaction
+    df["matchbackName"] = ingress["settings"]["matchback_name"]
 
     # slice to only include standardizable columns, and rename to the standard column nameset
-    standardizable = df[[col for col in df.columns if col in ingress["columns"].values() or col in ['transactionId']]]
-    standardizable = standardizable.rename(columns={v: k for k, v in ingress["columns"].items()})
+    standardizable = df[
+        [
+            col
+            for col in df.columns
+            if col in ingress["columns"].values() or col in ["transactionId"]
+        ]
+    ]
+    standardizable = standardizable.rename(
+        columns={v: k for k, v in ingress["columns"].items()}
+    )
 
     # non-standardizable columns will be stored as a data appendix, with transactionId as a shared index
-    appendix = df[[col for col in df.columns if col not in ingress["columns"].values() or col in ['transactionId']]]
-    appendix = appendix.melt(id_vars=['transactionId'])
+    appendix = df[
+        [
+            col
+            for col in df.columns
+            if col not in ingress["columns"].values() or col in ["transactionId"]
+        ]
+    ]
+    appendix = appendix.melt(id_vars=["transactionId"])
 
     # upload the appendix data to its final destination (no more processing is required on it)
     with BlobClient.from_connection_string(
-        conn_str=os.environ[ingress['uploads_container']['conn_str']],
-        container_name=ingress['uploads_container']["container_name"],
+        conn_str=os.environ[ingress["uploads_container"]["conn_str"]],
+        container_name=ingress["uploads_container"]["container_name"],
         blob_name=f"{ingress['settings']['group_id']}/{ingress['timestamp']}.appendix",
     ) as appendix_client:
         appendix_client.upload_blob(appendix.to_parquet())
@@ -84,9 +102,9 @@ def activity_salesUploader_salesPreProcessing(ingress: dict):
 
     # uppercase the text columns to prevent case matching issues later
     standardizable["address"] = standardizable["address"].str.upper()
-    if 'city' in standardizable.columns:
+    if "city" in standardizable.columns:
         standardizable["city"] = standardizable["city"].str.upper()
-    if 'state' in standardizable.columns:
+    if "state" in standardizable.columns:
         standardizable["state"] = standardizable["state"].str.upper()
 
     # validate the sales column, or create one if it doesn't exist yet
@@ -97,14 +115,14 @@ def activity_salesUploader_salesPreProcessing(ingress: dict):
 
     # connect to the output blob and upload the processed data
     egress = {
-        "conn_str":ingress['runtime_container']['conn_str'],
-        "container_name":ingress['runtime_container']["container_name"],
-        "blob_name":f"{ingress['instance_id']}/02_preprocessed"
+        "conn_str": ingress["runtime_container"]["conn_str"],
+        "container_name": ingress["runtime_container"]["container_name"],
+        "blob_name": f"{ingress['instance_id']}/02_preprocessed",
     }
     egress_client = BlobClient.from_connection_string(
         conn_str=os.environ[egress["conn_str"]],
         container_name=egress["container_name"],
-        blob_name=egress['blob_name'],
+        blob_name=egress["blob_name"],
     )
     egress_client.upload_blob(standardizable.to_csv(index=False))
 

@@ -1,11 +1,9 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/maids/addresses/orchestrators/footprint.py
 
-from azure.durable_functions import Blueprint
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-import pandas as pd
-import uuid
+from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+import pandas as pd, uuid
 
 bp = Blueprint()
 

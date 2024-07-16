@@ -1,9 +1,7 @@
-import os
-import fsspec
-from libs.utils.s3 import s3_path_to_azure_path
 from azure.durable_functions import Blueprint
 from libs.azure.key_vault import KeyVaultClient
-import shutil
+from libs.utils.s3 import s3_path_to_azure_path
+import fsspec, os, shutil
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()

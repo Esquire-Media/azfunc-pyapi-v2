@@ -1,7 +1,4 @@
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-from azure.durable_functions import Blueprint
-import logging
-from libs.utils.azure_storage import load_dataframe
+from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 
 bp = Blueprint()
 
@@ -10,7 +7,7 @@ bp = Blueprint()
 
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_pixelPush_majikrtoFormatting(context: DurableOrchestrationContext):
-    
+
     ingress = context.get_input()
     retry = RetryOptions(15000, 1)
 
@@ -19,7 +16,7 @@ def orchestrator_pixelPush_majikrtoFormatting(context: DurableOrchestrationConte
         "activity_smarty_validateAddresses",
         retry,
         {
-            "source": ingress['source'],
+            "source": ingress["source"],
             "column_mapping": {
                 "street": "personal_address",
                 "city": "personal_city",
@@ -56,7 +53,7 @@ def orchestrator_pixelPush_majikrtoFormatting(context: DurableOrchestrationConte
             "store_locations_source": {
                 "conn_str": "AzureWebJobsStorage",
                 "container_name": "pixel-push",
-                "blob_name": f"majikrto/store_locations.csv"
+                "blob_name": f"majikrto/store_locations.csv",
             },
             "destination": {
                 **ingress["runtime_container"],

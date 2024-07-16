@@ -1,11 +1,10 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/daily_audience_generation/activities/read_cache.py
 
 from azure.durable_functions import Blueprint
-import os
-from typing import List
-from sqlalchemy.orm import Session
 from libs.data import from_bind
-import pandas as pd
+from sqlalchemy.orm import Session
+from typing import List
+import pandas as pd, os
 
 bp: Blueprint = Blueprint()
 
@@ -31,7 +30,7 @@ def activity_rooftopPolys_readCache(addresses: List[str]):
         .filter(rooftop.Query.in_(addresses))
         .order_by(rooftop.Query, rooftop.LastUpdated.desc())
     )
-    
+
     if not df.empty:
         df.drop_duplicates(subset="Query", keep="first", inplace=True)
         return df[["Query", "Boundary"]].to_dict()

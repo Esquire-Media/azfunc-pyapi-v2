@@ -1,6 +1,6 @@
 # File: libs/azure/functions/blueprints/orchestrators/tasks.py
 
-from azure.durable_functions import DurableOrchestrationContext
+from azure.durable_functions import Blueprint, DurableOrchestrationContext
 from libs.azure.functions.blueprints.oneview.tasks.helpers import (
     calculate_missing_campaigns,
     calculate_missing_flights,
@@ -8,7 +8,6 @@ from libs.azure.functions.blueprints.oneview.tasks.helpers import (
     process_state as OrchestartorStateOperation,
 )
 from libs.azure.functions.blueprints.oneview.tasks.schemas import RequestSchema
-from azure.durable_functions import Blueprint
 
 bp = Blueprint()
 

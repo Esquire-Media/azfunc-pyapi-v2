@@ -1,12 +1,11 @@
 # File: libs/azure/functions/blueprints/schedules/report.py
 
-from azure.durable_functions import DurableOrchestrationClient
+from azure.durable_functions import Blueprint, DurableOrchestrationClient
 from azure.functions import TimerRequest
 from libs.azure.functions.blueprints.oneview.tasks.helpers import (
     TABLE_CLIENTS,
     request_initializer,
 )
-from azure.durable_functions import Blueprint
 from libs.openapi.clients.gravity_forms import GravityFormsAPI
 
 bp = Blueprint()

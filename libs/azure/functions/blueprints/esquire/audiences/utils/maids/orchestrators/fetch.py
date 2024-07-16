@@ -1,10 +1,9 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/maids/orchestrators/fetch.py
 
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
+from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
-from azure.durable_functions import Blueprint
 from libs.azure.functions.blueprints.esquire.audiences.utils.maids.config import (
     maids_name,
     validated_addresses_name,

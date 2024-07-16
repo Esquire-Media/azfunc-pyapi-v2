@@ -1,9 +1,9 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/maids/addresses/activities/new_movers.py
 
+from azure.durable_functions import Blueprint
 from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from azure.durable_functions import Blueprint
 from typing import AnyStr, Dict, Union
 import pandas as pd, os
 

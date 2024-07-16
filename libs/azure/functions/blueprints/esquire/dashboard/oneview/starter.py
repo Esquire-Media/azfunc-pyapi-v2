@@ -1,8 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/oneview/starter.py
 
-from azure.durable_functions import DurableOrchestrationClient
+from azure.durable_functions import Blueprint, DurableOrchestrationClient
 from azure.functions import TimerRequest
-from azure.durable_functions import Blueprint
 import os
 
 # Create a Blueprint instance

@@ -1,9 +1,9 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/mover_sync/activities/get_missing_chunks.py
 
 from azure.data.tables import TableClient
+from azure.durable_functions import Blueprint
 from azure.storage.blob import ContainerClient
 from datetime import datetime as dt, timedelta
-from azure.durable_functions import Blueprint
 import os, pandas as pd, re
 
 # Create a Blueprint instance for defining Azure Functions

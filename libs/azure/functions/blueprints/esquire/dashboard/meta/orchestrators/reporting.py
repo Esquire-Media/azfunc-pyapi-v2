@@ -1,8 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/meta/orchestrators/reporting.py
 
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
+from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 from datetime import timedelta
-from azure.durable_functions import Blueprint
 from libs.azure.functions.blueprints.esquire.dashboard.meta.config import PARAMETERS
 
 bp = Blueprint()
@@ -65,10 +64,11 @@ def esquire_dashboard_meta_orchestrator_reporting(
             context.set_custom_status(f"On try #{tries}")
             if tries > 3:
                 raise Exception("Insight report generation failed.")
-            yield context.create_timer(context.current_utc_datetime + timedelta(minutes=5))
+            yield context.create_timer(
+                context.current_utc_datetime + timedelta(minutes=5)
+            )
             continue
-        
-        
+
         context.set_custom_status(
             "Polling status for report run {}".format(report_run["report_run_id"])
         )
@@ -95,7 +95,9 @@ def esquire_dashboard_meta_orchestrator_reporting(
                     context.set_custom_status(status)
                     break
                 case _:
-                    yield context.create_timer(context.current_utc_datetime + timedelta(minutes=1))
+                    yield context.create_timer(
+                        context.current_utc_datetime + timedelta(minutes=1)
+                    )
 
         if status["async_status"] == "Job Completed":
             break
@@ -104,7 +106,9 @@ def esquire_dashboard_meta_orchestrator_reporting(
             context.set_custom_status(f"On try #{tries}")
             if tries > 3:
                 raise Exception("Insight report generation failed.")
-            yield context.create_timer(context.current_utc_datetime + timedelta(minutes=1))
+            yield context.create_timer(
+                context.current_utc_datetime + timedelta(minutes=1)
+            )
 
     # Download the generated report
     context.set_custom_status(

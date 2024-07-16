@@ -1,7 +1,6 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/onspot/orchestrator.py
 
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-from azure.durable_functions import Blueprint
+from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 import os
 
 bp = Blueprint()

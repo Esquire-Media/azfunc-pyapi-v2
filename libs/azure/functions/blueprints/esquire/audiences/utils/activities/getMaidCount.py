@@ -1,16 +1,10 @@
 #  file path:libs/azure/functions/blueprints/esquire/audiences/utils/activities/getTotalMaids.py
 
+from azure.durable_functions import Blueprint
 from azure.storage.blob import (
     BlobClient,
-    ContainerClient,
     DelimitedTextDialect,
-    BlobSasPermissions,
-    generate_blob_sas,
 )
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
-from azure.durable_functions import Blueprint
-import os
 
 bp: Blueprint = Blueprint()
 

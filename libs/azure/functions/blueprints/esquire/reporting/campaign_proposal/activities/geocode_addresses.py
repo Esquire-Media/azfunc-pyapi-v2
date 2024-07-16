@@ -1,8 +1,7 @@
-import os
 from azure.durable_functions import Blueprint
-import pandas as pd
+from azure.storage.blob import ContainerClient
 from libs.utils.smarty import bulk_validate
-from azure.storage.blob import BlobServiceClient, ContainerClient
+import os, pandas as pd
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()

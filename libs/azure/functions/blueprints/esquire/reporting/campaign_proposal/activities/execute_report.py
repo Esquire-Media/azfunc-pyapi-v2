@@ -1,13 +1,12 @@
 from azure.durable_functions import Blueprint
 from azure.storage.blob import ContainerClient
-import pandas as pd
-import os
-from io import BytesIO
-from pptx import Presentation
 from datetime import date
+from io import BytesIO
 from libs.utils.text import pad_text
 from libs.utils.pptx import replace_text, add_custom_image
 from libs.utils.azure_storage import get_blob_sas
+from pptx import Presentation
+import pandas as pd, os
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()

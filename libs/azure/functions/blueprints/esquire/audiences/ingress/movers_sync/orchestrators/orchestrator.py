@@ -1,12 +1,10 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/mover_sync/orchestrators/orchestrator.py
 
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-from azure.durable_functions import Blueprint
-from libs.azure.functions.blueprints.esquire.audiences.movers_sync.cetas import (
+from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
+from libs.azure.functions.blueprints.esquire.audiences.ingress.movers_sync.cetas import (
     create_cetas_query,
 )
-import uuid
-import os
+import os, uuid
 
 bp = Blueprint()
 
@@ -125,7 +123,7 @@ def orchestrator_moversSync_root(context: DurableOrchestrationContext):
             {
                 "function_name": "esquire-movers-sync",
                 "instance_id": context.instance_id,
-                "owners":["8489ce7c-e89f-4710-9d34-1442684ce7fe"],
+                "owners": ["8489ce7c-e89f-4710-9d34-1442684ce7fe"],
                 "error": f"{type(e).__name__} : {e}"[:1000],
                 "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
             },

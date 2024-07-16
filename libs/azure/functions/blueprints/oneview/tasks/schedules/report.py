@@ -1,12 +1,11 @@
 # File: libs/azure/functions/blueprints/schedules/report.py
 
-from libs.azure.functions.blueprints.oneview.tasks.helpers import TABLE_CLIENTS
+from azure.durable_functions import Blueprint
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from azure.durable_functions import Blueprint
+from libs.azure.functions.blueprints.oneview.tasks.helpers import TABLE_CLIENTS
 from libs.data import from_bind
-import logging
-import pandas as pd
+import logging, pandas as pd
 
 bp = Blueprint()
 

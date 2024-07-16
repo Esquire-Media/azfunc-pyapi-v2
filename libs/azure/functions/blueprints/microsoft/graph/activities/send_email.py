@@ -1,12 +1,10 @@
-import msal
-import httpx
-import os
 from azure.durable_functions import Blueprint
-import logging
 from libs.azure.key_vault import KeyVaultClient
+import httpx, msal, os
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()
+
 
 # Define an activity function that logs a message
 @bp.activity_trigger(input_name="ingress")
@@ -22,18 +20,23 @@ def activity_microsoftGraph_sendEmail(ingress: dict):
     """
 
     # use environmental variables if all exist
-    if all([os.environ.get("MSGRAPH_CLIENT_ID"), os.environ.get("MSGRAPH_CLIENT_SECRET"), os.environ.get("MSGRAPH_TENANT_ID"),]):
+    if all(
+        [
+            os.environ.get("MSGRAPH_CLIENT_ID"),
+            os.environ.get("MSGRAPH_CLIENT_SECRET"),
+            os.environ.get("MSGRAPH_TENANT_ID"),
+        ]
+    ):
         client_id = os.environ.get("MSGRAPH_CLIENT_ID")
         client_secret = os.environ.get("MSGRAPH_CLIENT_SECRET")
         tenant_id = os.environ.get("MSGRAPH_TENANT_ID")
-        
+
     # if no env are set, connect to the keyvault to load auth variables instead
     else:
         client = KeyVaultClient("graph-service")
         client_id = client.get_secret("client-id").value
         client_secret = client.get_secret("client-secret").value
         tenant_id = client.get_secret("tenant-id").value
-
 
     # Generate an access token using MS authentication
     # Set up the Microsoft Authentication Library (MSAL) application

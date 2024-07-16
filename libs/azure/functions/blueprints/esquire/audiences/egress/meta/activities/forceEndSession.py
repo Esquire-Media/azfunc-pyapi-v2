@@ -1,10 +1,10 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/meta/activities/forceEndSession.py
 
+from azure.durable_functions import Blueprint
+from facebook_business.adobjects.customaudience import CustomAudience
 from libs.azure.functions.blueprints.esquire.audiences.egress.meta.utils import (
     initialize_facebook_api,
 )
-from azure.durable_functions import Blueprint
-from facebook_business.adobjects.customaudience import CustomAudience
 import uuid
 
 bp = Blueprint()

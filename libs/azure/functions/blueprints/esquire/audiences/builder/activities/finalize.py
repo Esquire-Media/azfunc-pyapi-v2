@@ -1,5 +1,6 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/activities/finalize.py
 
+from azure.durable_functions import Blueprint
 from azure.storage.blob import (
     BlobClient,
     BlobSasPermissions,
@@ -8,11 +9,8 @@ from azure.storage.blob import (
 )
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from azure.durable_functions import Blueprint
 from urllib.parse import unquote
-import io
-import os
-import pandas as pd
+import io, os, pandas as pd
 
 bp = Blueprint()
 

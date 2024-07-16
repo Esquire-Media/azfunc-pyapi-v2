@@ -1,12 +1,11 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/meta/activities/getCustomAudienceSession.py
 
+from azure.durable_functions import Blueprint
+from facebook_business.adobjects.customaudience import CustomAudience
+from facebook_business.adobjects.customaudiencesession import CustomAudienceSession
 from libs.azure.functions.blueprints.esquire.audiences.egress.meta.utils import (
     initialize_facebook_api,
 )
-from azure.durable_functions import Blueprint
-from facebook_business.api import Cursor
-from facebook_business.adobjects.customaudience import CustomAudience
-from facebook_business.adobjects.customaudiencesession import CustomAudienceSession
 
 bp = Blueprint()
 

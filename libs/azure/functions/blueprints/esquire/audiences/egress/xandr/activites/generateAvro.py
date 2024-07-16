@@ -1,7 +1,7 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/egress/xandr/activities/generateAvro.py
 
-from azure.storage.blob import BlobClient
 from azure.durable_functions import Blueprint
+from azure.storage.blob import BlobClient
 import fastavro, os, pandas as pd, uuid, fsspec
 
 bp = Blueprint()

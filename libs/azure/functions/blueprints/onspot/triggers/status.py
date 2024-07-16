@@ -1,8 +1,7 @@
 # File: libs/azure/functions/blueprints/onspot/triggers/status.py
 
-from azure.functions import AuthLevel
 from azure.durable_functions import Blueprint
-from azure.functions import HttpRequest, HttpResponse
+from azure.functions import AuthLevel, HttpRequest, HttpResponse
 from libs.openapi.clients import OnSpotAPI
 
 bp = Blueprint()

@@ -1,8 +1,8 @@
-from azure.functions import TimerRequest
-from azure.durable_functions import Blueprint
-import os
 from azure.data.tables import TableServiceClient
+from azure.durable_functions import Blueprint
+from azure.functions import TimerRequest
 from azure.storage.blob import ContainerClient
+import os
 
 bp = Blueprint()
 

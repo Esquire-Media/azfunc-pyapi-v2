@@ -1,5 +1,6 @@
 #  file path:libs/azure/functions/blueprints/esquire/audiences/utils/activities/getTotalMaids.py
 
+from azure.durable_functions import Blueprint
 from azure.storage.blob import (
     BlobClient,
     ContainerClient,
@@ -9,7 +10,6 @@ from azure.storage.blob import (
 )
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from azure.durable_functions import Blueprint
 import os
 
 bp: Blueprint = Blueprint()
@@ -27,7 +27,7 @@ async def activity_esquireAudiencesUtils_getTotalMaids(ingress: dict):
 
     container_client = ContainerClient.from_connection_string(
         conn_str=os.environ.get(ingress["conn_str"], ingress["conn_str"]),
-        container_name=ingress["container_name"]
+        container_name=ingress["container_name"],
     )
 
     result = []

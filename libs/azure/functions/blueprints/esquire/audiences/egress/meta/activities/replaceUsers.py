@@ -1,13 +1,13 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/meta/activities/replaceUsers.py
 
-from libs.azure.functions.blueprints.esquire.audiences.egress.meta.utils import (
-    initialize_facebook_api,
-)
 from azure.durable_functions import Blueprint
 from facebook_business.exceptions import FacebookRequestError
 from facebook_business.adobjects.customaudience import CustomAudience
+from libs.azure.functions.blueprints.esquire.audiences.egress.meta.utils import (
+    initialize_facebook_api,
+)
 from libs.data import from_bind
-import math, pandas as pd, random, logging
+import math, pandas as pd, random
 
 bp = Blueprint()
 

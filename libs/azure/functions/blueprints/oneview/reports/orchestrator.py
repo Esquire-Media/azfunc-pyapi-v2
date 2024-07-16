@@ -1,8 +1,7 @@
 # File: libs/azure/functions/blueprints/oneview/reports/orchestrator.py
 
-from azure.durable_functions import DurableOrchestrationContext
+from azure.durable_functions import Blueprint, DurableOrchestrationContext
 from datetime import datetime, timedelta
-from azure.durable_functions import Blueprint
 
 bp = Blueprint()
 

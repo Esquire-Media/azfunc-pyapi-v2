@@ -1,7 +1,6 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/mover_sync/orchestrators/orchestrator_validate_addresses.py
 
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-from azure.durable_functions import Blueprint
+from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 
 bp = Blueprint()
 

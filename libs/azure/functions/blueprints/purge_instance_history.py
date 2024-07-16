@@ -1,12 +1,12 @@
 # File: libs/azure/functions/blueprints/purge_instance_history.py
 
 from azure.durable_functions import (
+    Blueprint,
     DurableOrchestrationClient,
     DurableOrchestrationContext,
 )
 from azure.functions import TimerRequest
 from azure.data.tables import TableClient
-from azure.durable_functions import Blueprint
 from libs.azure.functions.suborchestrators import get_sub_orchestrator_ids
 import os
 

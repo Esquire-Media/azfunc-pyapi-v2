@@ -1,8 +1,7 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/steps/polygons/device_ids.py
 
-from azure.durable_functions import DurableOrchestrationContext
+from azure.durable_functions import Blueprint, DurableOrchestrationContext
 from azure.storage.blob import BlobClient
-from azure.durable_functions import Blueprint
 import uuid, orjson as json
 
 bp = Blueprint()

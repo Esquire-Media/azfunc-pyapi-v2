@@ -1,12 +1,14 @@
 # File: libs/azure/functions/blueprints/oneview/tasks/endpoints/leasing/next.py
 
 from azure.durable_functions import (
+    Blueprint,
     DurableOrchestrationClient,
     OrchestrationRuntimeStatus,
 )
 from azure.durable_functions.models.DurableOrchestrationStatus import (
     DurableOrchestrationStatus,
 )
+from azure.functions import HttpRequest, HttpResponse
 from libs.azure.functions.blueprints.oneview.tasks.schemas import (
     RequestSchema,
     StatusSchema,
@@ -16,8 +18,6 @@ from libs.azure.functions.blueprints.oneview.tasks.helpers import (
     process_state as OrchestartorStateOperation,
 )
 from datetime import datetime
-from azure.durable_functions import Blueprint
-from azure.functions import HttpRequest, HttpResponse
 
 bp = Blueprint()
 
@@ -88,7 +88,6 @@ async def oneview_endpoint_lease_next(
                 schema.dumps(status),
                 headers={"Content-Type": "application/json"},
             )
-
 
     # If no suitable instance was found, return 404 error
     return HttpResponse(

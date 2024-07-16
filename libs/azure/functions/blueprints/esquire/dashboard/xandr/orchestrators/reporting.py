@@ -1,8 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/xandr/orchestrators/reporting.py
 
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
+from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 from datetime import timedelta
-from azure.durable_functions import Blueprint
 from libs.azure.functions.blueprints.esquire.dashboard.xandr.config import CETAS
 import os
 

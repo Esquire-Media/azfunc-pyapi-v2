@@ -4,7 +4,6 @@ from azure.durable_functions import Blueprint
 from libs.data import from_bind
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import text
-import logging
 
 bp = Blueprint()
 

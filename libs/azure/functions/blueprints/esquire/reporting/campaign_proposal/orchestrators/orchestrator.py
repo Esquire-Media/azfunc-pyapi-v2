@@ -1,8 +1,5 @@
-from azure.durable_functions import Blueprint
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-import os
-import logging
-import traceback
+from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
+import logging, os
 
 bp = Blueprint()
 
@@ -25,13 +22,13 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
         egress = {
             **settings,
             "instance_id": context.instance_id,
-            "resources_container":{ # container for prebuilt assets
-                "conn_str":conn_str,
-                "container_name":"campaign-proposal-resources"
+            "resources_container": {  # container for prebuilt assets
+                "conn_str": conn_str,
+                "container_name": "campaign-proposal-resources",
             },
-            "runtime_container":{ # container for files generated during runtime, including the final report(s)
-                "conn_str":conn_str,
-                "container_name":"campaign-proposal"
+            "runtime_container": {  # container for files generated during runtime, including the final report(s)
+                "conn_str": conn_str,
+                "container_name": "campaign-proposal",
             },
         }
 
@@ -82,7 +79,7 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
                 "content_type": "HTML",
             },
         )
-        
+
     except Exception as e:
         # if any errors are caught, post an error card to teams tagging Ryan and the calling user
         yield context.call_activity(
@@ -90,7 +87,7 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
             {
                 "function_name": "esquire-campaign-proposal",
                 "instance_id": context.instance_id,
-                "owners":["8489ce7c-e89f-4710-9d34-1442684ce7fe", egress['user']],
+                "owners": ["8489ce7c-e89f-4710-9d34-1442684ce7fe", egress["user"]],
                 "error": f"{type(e).__name__} : {e}"[:1000],
                 "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
             },

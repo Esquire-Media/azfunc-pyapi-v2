@@ -1,7 +1,7 @@
 #  file path:libs/azure/functions/blueprints/esquire/audiences/utils/activities/newestAudienceBlobPrefix.py
 
-from azure.storage.blob import ContainerClient
 from azure.durable_functions import Blueprint
+from azure.storage.blob import ContainerClient
 import os
 
 bp: Blueprint = Blueprint()

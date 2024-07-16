@@ -1,8 +1,7 @@
 from azure.durable_functions import Blueprint
 from azure.functions import HttpRequest, HttpResponse
 from libs.openapi.clients import specifications
-import orjson as json
-import yaml
+import orjson as json, yaml
 
 # Create a Blueprint instance
 bp = Blueprint()
@@ -16,7 +15,6 @@ async def documentation_yaml(req: HttpRequest):
             headers={"Content-Type": "text/vnd.yaml"},
         )
     return HttpResponse(status_code=404)
-
 
 
 @bp.route(route="docs/json/{spec}", methods=["GET"])

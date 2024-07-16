@@ -1,13 +1,12 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/onspot/orchestrator.py
 
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
+from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from libs.azure.functions.blueprints.esquire.dashboard.onspot.helpers import (
     cetas_query_unique_deviceids,
     cetas_query_sisense,
 )
-from azure.durable_functions import Blueprint
 import os
 
 bp = Blueprint()

@@ -1,7 +1,6 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/maids/addresses/orchestrators/standard.py
 
-from azure.durable_functions import Blueprint
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
+from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 import uuid
 
 bp = Blueprint()

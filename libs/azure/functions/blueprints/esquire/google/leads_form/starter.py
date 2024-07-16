@@ -1,11 +1,10 @@
-from azure.durable_functions import Blueprint
-from azure.functions import HttpRequest, HttpResponse
-from azure.durable_functions import DurableOrchestrationClient
+from azure.durable_functions import Blueprint, DurableOrchestrationClient
+from azure.functions import AuthLevel, HttpRequest, HttpResponse
 from libs.utils.logging import AzureTableHandler
 from libs.utils.dicts import flatten
 from pydantic import BaseModel, validator
 from typing import Optional, Any
-import azure.functions as func, orjson as json, uuid, logging
+import orjson as json, uuid, logging
 
 bp = Blueprint()
 
@@ -15,7 +14,7 @@ __logger = logging.getLogger("googleLeadsForm.logger")
 if __handler not in __logger.handlers:
     __logger.addHandler(__handler)
 
-@bp.route(route="esquire/google/leads_form/starter", methods=["POST"], auth_level=func.AuthLevel.FUNCTION)
+@bp.route(route="esquire/google/leads_form/starter", methods=["POST"], auth_level=AuthLevel.FUNCTION)
 @bp.durable_client_input(client_name="client")
 async def starter_googleLeadsForm(req: HttpRequest, client: DurableOrchestrationClient):
     logger = logging.getLogger("googleLeadsForm.logger")

@@ -1,6 +1,6 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/processingSteps.py
 
-from azure.durable_functions import DurableOrchestrationContext
+from azure.durable_functions import Blueprint, DurableOrchestrationContext
 from azure.durable_functions import Blueprint
 import orjson as json
 

@@ -1,11 +1,10 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/onspot/activities/locations.py
 
-from azure.storage.blob import BlobClient
 from azure.durable_functions import Blueprint
+from azure.storage.blob import BlobClient
 from libs.data import from_bind
 from libs.data.structured.sqlalchemy import SQLAlchemyStructuredProvider
-import os
-import pandas as pd
+import os, pandas as pd
 
 bp = Blueprint()
 

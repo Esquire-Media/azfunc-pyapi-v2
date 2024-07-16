@@ -1,10 +1,9 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/mover_sync/starter.py
 
-from azure.durable_functions import DurableOrchestrationClient
-from azure.durable_functions import Blueprint
+from azure.durable_functions import Blueprint, DurableOrchestrationClient
 from azure.functions import TimerRequest
 from libs.utils.logging import AzureTableHandler
-import orjson as json, logging
+import logging
 
 bp = Blueprint()
 

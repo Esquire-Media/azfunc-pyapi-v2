@@ -1,9 +1,6 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/uploader.py
 
-from azure.durable_functions import DurableOrchestrationContext
-from azure.durable_functions import Blueprint
-from dateutil.relativedelta import relativedelta
-import os, datetime
+from azure.durable_functions import Blueprint, DurableOrchestrationContext
 
 bp = Blueprint()
 
@@ -42,7 +39,7 @@ def orchestrator_esquireAudiences_uploader(
 
     # Retrieve the input data for the orchestration
     ingress = context.get_input()
-    
+
     # Push the most recently generated audiences to the DSPs that are configured
     tasks = []
     if ingress["audience"]["advertiser"]["meta"]:

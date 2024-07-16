@@ -85,13 +85,21 @@ def meta_activity_request(ingress: dict) -> dict:
     return {
         "headers": headers,
         "data": (
-            (data if isinstance(data, dict) or isinstance(data, list) else json.loads(data.json()))
+            (
+                data
+                if isinstance(data, dict) or isinstance(data, list)
+                else json.loads(data.json())
+            )
             if ingress.get("return", True)
             else url
         ),
-        "after": getattr(getattr(response, "root", response), "paging", {})
-        .get("cursors", {})
-        .get("after", None)
-        if getattr(getattr(response, "root", response), "paging", {}).get("next", None)
-        else None,
+        "after": (
+            getattr(getattr(response, "root", response), "paging", {})
+            .get("cursors", {})
+            .get("after", None)
+            if getattr(getattr(response, "root", response), "paging", {}).get(
+                "next", None
+            )
+            else None
+        ),
     }

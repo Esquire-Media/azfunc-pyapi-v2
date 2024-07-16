@@ -1,9 +1,9 @@
 # File: libs/azure/functions/blueprints/smarty/activities/validate_addresses.py
 
 from azure.durable_functions import Blueprint
+from libs.utils.azure_storage import load_dataframe, export_dataframe
 from libs.utils.smarty import bulk_validate, detect_column_names
 import pandas as pd
-from libs.utils.azure_storage import load_dataframe, export_dataframe
 
 
 bp: Blueprint = Blueprint()

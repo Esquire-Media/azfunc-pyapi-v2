@@ -1,5 +1,6 @@
 # File: libs/azure/functions/blueprints/esquire/onspot/activities/merge_devices.py
 
+from azure.durable_functions import Blueprint
 from azure.storage.blob import (
     BlobClient,
     BlobSasPermissions,
@@ -10,7 +11,6 @@ from azure.storage.blob import (
 )
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from azure.durable_functions import Blueprint
 import os, logging
 
 bp: Blueprint = Blueprint()
@@ -73,11 +73,15 @@ def activity_onSpot_mergeDevices(ingress: dict):
                     source_offset=header_size + 1 if header else None,
                 )
 
-    return destination_blob_client.url + "?" + generate_blob_sas(
-        account_name=destination_blob_client.account_name,
-        account_key=destination_blob_client.credential.account_key,
-        container_name=destination_blob_client.container_name,
-        blob_name=destination_blob_client.blob_name,
-        permission=BlobSasPermissions(read=True),
-        expiry=datetime.utcnow() + relativedelta(days=2),
+    return (
+        destination_blob_client.url
+        + "?"
+        + generate_blob_sas(
+            account_name=destination_blob_client.account_name,
+            account_key=destination_blob_client.credential.account_key,
+            container_name=destination_blob_client.container_name,
+            blob_name=destination_blob_client.blob_name,
+            permission=BlobSasPermissions(read=True),
+            expiry=datetime.utcnow() + relativedelta(days=2),
+        )
     )

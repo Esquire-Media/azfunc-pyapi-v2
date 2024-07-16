@@ -1,11 +1,10 @@
-from azure.durable_functions import Blueprint
+from azure.durable_functions import Blueprint, DurableOrchestrationClient
 from azure.functions import HttpRequest
-from azure.durable_functions import DurableOrchestrationClient
-import logging
-from pydantic import BaseModel, conlist
 from libs.utils.logging import AzureTableHandler
 from libs.utils.pydantic.address import AddressComponents2
 from datetime import timedelta
+from pydantic import BaseModel, conlist
+import logging
 
 bp = Blueprint()
 
@@ -20,7 +19,9 @@ if __handler not in __logger.handlers:
 
 @bp.route(route="esquire/placekeys/fromAddress", methods=["POST"])
 @bp.durable_client_input(client_name="client")
-async def starter_placekeys_fromAddress(req: HttpRequest, client: DurableOrchestrationClient):
+async def starter_placekeys_fromAddress(
+    req: HttpRequest, client: DurableOrchestrationClient
+):
     """
     Endpoint for passing a list of address data objects and returning a list of placekeys.
     """
@@ -28,10 +29,11 @@ async def starter_placekeys_fromAddress(req: HttpRequest, client: DurableOrchest
 
     instance_id = await client.start_new(
         orchestration_function_name="orchestrator_placekey_fromAddress",
-        client_input=payload
+        client_input=payload,
     )
 
     return client.create_check_status_response(req, instance_id)
+
 
 class AddressPayload(BaseModel):
     addresses: conlist(AddressComponents2, min_length=1)

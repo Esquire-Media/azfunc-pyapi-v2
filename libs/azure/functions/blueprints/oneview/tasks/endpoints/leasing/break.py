@@ -1,6 +1,7 @@
 # File: libs/azure/functions/blueprints/oneview/tasks/endpoints/leasing/break.py
 
-from azure.durable_functions import DurableOrchestrationClient
+from azure.durable_functions import Blueprint, DurableOrchestrationClient
+from azure.functions import HttpRequest, HttpResponse
 from datetime import datetime
 from libs.azure.functions.blueprints.oneview.tasks.helpers import (
     state as OrchestratorState,
@@ -9,8 +10,6 @@ from libs.azure.functions.blueprints.oneview.tasks.helpers import (
 from libs.azure.functions.blueprints.oneview.tasks.schemas import (
     RequestSchema,
 )
-from azure.durable_functions import Blueprint
-from azure.functions import HttpRequest, HttpResponse
 
 bp = Blueprint()
 

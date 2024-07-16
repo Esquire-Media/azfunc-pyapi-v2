@@ -1,8 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/maids/deviceids/orchestrators/todevids.py
 
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
+from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 from azure.storage.blob import BlobClient
-from azure.durable_functions import Blueprint
 import orjson as json
 
 bp = Blueprint()

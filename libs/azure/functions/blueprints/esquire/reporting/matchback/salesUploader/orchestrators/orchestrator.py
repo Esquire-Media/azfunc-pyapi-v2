@@ -1,11 +1,9 @@
-from azure.durable_functions import Blueprint
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-import os
+from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 from azure.data.tables import TableClient
-import logging
-from pydantic import BaseModel
 from libs.utils.pydantic.time import Date
+from pydantic import BaseModel
 from typing import Optional
+import logging, os
 
 bp = Blueprint()
 
@@ -80,10 +78,7 @@ def orchestrator_salesUploader(context: DurableOrchestrationContext):
     merged_blob = yield context.call_activity_with_retry(
         "activity_salesUploader_salesPostProcessing",
         retry,
-        {
-            **egress,
-            "processed_blob_url":validated_sas
-        },
+        {**egress, "processed_blob_url": validated_sas},
     )
 
     # cache the client config info to an Azure data table
@@ -96,8 +91,8 @@ def orchestrator_salesUploader(context: DurableOrchestrationContext):
             "PartitionKey": salesUploadedPayload["settings"]["group_id"],
             "RowKey": context.instance_id,
             **salesUploadedPayload["columns"],
-            "date_first":merged_blob["date_first"],
-            "date_last":merged_blob["date_last"]
+            "date_first": merged_blob["date_first"],
+            "date_last": merged_blob["date_last"],
         }
     )
 

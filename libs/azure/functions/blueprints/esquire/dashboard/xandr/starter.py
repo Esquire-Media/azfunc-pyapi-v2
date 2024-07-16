@@ -1,8 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/xandr/starter.py
 
-from azure.durable_functions import DurableOrchestrationClient
+from azure.durable_functions import Blueprint, DurableOrchestrationClient
 from azure.functions import TimerRequest
-from azure.durable_functions import Blueprint
 from libs.openapi.clients.xandr import XandrAPI
 import os
 

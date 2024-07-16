@@ -1,13 +1,14 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/maids/addresses/activities/new_movers.py
 
+from azure.durable_functions import Blueprint
 from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from azure.durable_functions import Blueprint
 from typing import AnyStr, Dict, Union
 import pandas as pd, os
 
 bp = Blueprint()
+
 
 # activity to fill in the geo data for each audience object
 @bp.activity_trigger(input_name="ingress")
@@ -94,7 +95,7 @@ def get_addresses(source: Union[AnyStr, Dict]):
     DataFrame
         The addresses data as a pandas DataFrame.
     """
-    
+
     if isinstance(source, str):
         blob = BlobClient.from_blob_url(source)
     elif isinstance(source, dict):

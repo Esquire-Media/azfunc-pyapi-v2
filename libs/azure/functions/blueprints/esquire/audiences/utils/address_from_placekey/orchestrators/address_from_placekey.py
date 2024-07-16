@@ -1,11 +1,9 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/mover_sync/orchestrators/orchestrator.py
 
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-from azure.durable_functions import Blueprint
-from pydantic import BaseModel, conlist
+from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 from libs.utils.pydantic.address import Placekey
-import logging
-import os
+from pydantic import BaseModel, conlist
+import logging, os
 
 bp = Blueprint()
 batch_size = int(os.environ.get("ADDRESS_FROM_PLACEKEY_BATCH_SIZE", 100000))

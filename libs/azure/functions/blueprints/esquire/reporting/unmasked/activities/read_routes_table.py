@@ -1,8 +1,6 @@
-from azure.durable_functions import Blueprint
 from azure.data.tables import TableClient
-import pandas as pd
+from azure.durable_functions import Blueprint
 import os
-import logging
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()

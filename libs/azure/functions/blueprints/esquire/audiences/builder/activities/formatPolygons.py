@@ -1,5 +1,6 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/activities/formatPolygons.py
 
+from azure.durable_functions import Blueprint
 from azure.storage.blob import (
     BlobClient,
     BlobSasPermissions,
@@ -7,7 +8,6 @@ from azure.storage.blob import (
 )
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from azure.durable_functions import Blueprint
 from urllib.parse import unquote
 import os, pandas as pd, orjson as json
 

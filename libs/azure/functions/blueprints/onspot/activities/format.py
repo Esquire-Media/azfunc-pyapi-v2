@@ -1,6 +1,6 @@
 # File: libs/azure/functions/blueprints/onspot/activities/format.py
 
-from azure.durable_functions import DurableOrchestrationClient
+from azure.durable_functions import Blueprint, DurableOrchestrationClient
 from azure.storage.blob import (
     ContainerClient,
     ContainerSasPermissions,
@@ -8,7 +8,6 @@ from azure.storage.blob import (
 )
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from azure.durable_functions import Blueprint
 import uuid, os
 
 bp = Blueprint()

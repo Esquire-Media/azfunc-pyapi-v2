@@ -1,7 +1,5 @@
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-from azure.durable_functions import Blueprint
-import logging
-import os
+from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
+import logging, os
 
 bp = Blueprint()
 

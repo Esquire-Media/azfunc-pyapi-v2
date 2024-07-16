@@ -1,11 +1,8 @@
 # File: libs/azure/functions/blueprints/oneview/tasks/activities/validate_creative.py
 
-from azure.durable_functions import DurableOrchestrationClient, EntityId
+from azure.durable_functions import Blueprint, DurableOrchestrationClient, EntityId
 from libs.azure.functions.blueprints.oneview.tasks.schemas import RequestSchema
-from azure.durable_functions import Blueprint
-import isobmff
-import fsspec
-import hashlib
+import fsspec, hashlib, isobmff
 
 
 bp = Blueprint()

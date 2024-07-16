@@ -1,8 +1,8 @@
 from azure.durable_functions import Blueprint
-from azure.functions import HttpRequest
+from azure.functions import HttpRequest, HttpResponse
 from azure.storage.blob import BlobClient
 from io import StringIO
-import orjson as json, uuid, os, azure.functions as func, pandas as pd
+import orjson as json, uuid, os, pandas as pd
 
 bp = Blueprint()
 
@@ -46,7 +46,7 @@ async def starter_callbackReader(req: HttpRequest):
             req.get_body()
         )
 
-    return func.HttpResponse(
+    return HttpResponse(
         "Success",
         status_code=200
     )

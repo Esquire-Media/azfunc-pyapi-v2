@@ -1,8 +1,6 @@
-from azure.durable_functions import DurableOrchestrationContext, RetryOptions
-from azure.durable_functions import Blueprint
+from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 from libs.utils.azure_storage import load_dataframe
 from urllib.parse import urlparse, parse_qs
-import uuid
 
 bp = Blueprint()
 
@@ -93,15 +91,17 @@ def orchestrator_pixelPush_job(context: DurableOrchestrationContext):
                             "target": {
                                 **ingress["runtime_container"],
                                 "container_name": "pixel-push",
-                                "blob_name": "processed/{}.csv".format(context.instance_id)
-                            }
-                        }
+                                "blob_name": "processed/{}.csv".format(
+                                    context.instance_id
+                                ),
+                            },
+                        },
                     )
                 case "csv":
                     output_mime = "text/csv"
                 case "json":
                     output_mime = "application/json"
-                    
+
             yield context.call_activity_with_retry(
                 "activity_httpx",
                 retry,
@@ -123,7 +123,8 @@ def orchestrator_pixelPush_job(context: DurableOrchestrationContext):
                 {
                     "source": blob_url,
                     "target": "{}{}.csv".format(
-                        ingress["webhook_url"], context.current_utc_datetime.date().isoformat()
+                        ingress["webhook_url"],
+                        context.current_utc_datetime.date().isoformat(),
                     ),
                 },
             )
@@ -137,7 +138,7 @@ def orchestrator_pixelPush_job(context: DurableOrchestrationContext):
                     "target": {
                         "api": url.username,
                         "server": url.hostname,
-                        "list_id": url.path
+                        "list_id": url.path,
                     },
                 },
             )
@@ -178,7 +179,8 @@ def get_events_query(account: str) -> str:
     AND CAST(activity_date AS DATE) = date_add('day', -1, current_date);
     """
 
-def format_data(url:str, format:str):
+
+def format_data(url: str, format: str):
     match format.lower():
         case "csv":
             return load_dataframe(url).to_csv(index=False)
@@ -186,4 +188,3 @@ def format_data(url:str, format:str):
             return load_dataframe(url).to_json(index=False, orient="records")
         case "url":
             return url
-            

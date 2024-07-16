@@ -3,7 +3,6 @@
 from azure.durable_functions import Blueprint
 from libs.openapi.clients.oneview import OneView
 
-
 bp = Blueprint()
 
 

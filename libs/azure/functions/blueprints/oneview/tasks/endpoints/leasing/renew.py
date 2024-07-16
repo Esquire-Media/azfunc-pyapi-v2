@@ -1,9 +1,10 @@
 # File: libs/azure/functions/blueprints/oneview/tasks/endpoints/leasing/renew.py
 
-from azure.durable_functions import DurableOrchestrationClient
+from azure.durable_functions import Blueprint, DurableOrchestrationClient
 from azure.durable_functions.models.DurableOrchestrationStatus import (
     DurableOrchestrationStatus,
 )
+from azure.functions import HttpRequest, HttpResponse
 from datetime import datetime
 from libs.azure.functions.blueprints.oneview.tasks.helpers import (
     state as OrchestratorState,
@@ -13,8 +14,6 @@ from libs.azure.functions.blueprints.oneview.tasks.schemas import (
     RequestSchema,
     StatusSchema,
 )
-from azure.durable_functions import Blueprint
-from azure.functions import HttpRequest, HttpResponse
 
 bp = Blueprint()
 

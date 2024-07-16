@@ -1,10 +1,8 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/meta/starter.py
 
-from azure.durable_functions import DurableOrchestrationClient
+from azure.durable_functions import Blueprint, DurableOrchestrationClient
 from azure.functions import TimerRequest
-from azure.durable_functions import Blueprint
 
-# Create a Blueprint instance
 bp = Blueprint()
 
 

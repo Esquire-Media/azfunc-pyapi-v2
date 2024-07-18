@@ -69,7 +69,12 @@ MAPPING_DATASOURCE = {
         "table": {
             "schema": "dbo",
             "name": "movers",
-            "select": "address, city, state, zipcode as zipCode, plus4Code"
+        },
+        "query": {
+            "select": "address, city, state, zipcode as zipCode, plus4Code",
+            "filter": lambda length, unit: " AND CONVERT(DATE, [date], 126) >= DATEADD({}, {}, GETDATE())".format(
+                unit[0], 0 - length
+            ),
         },
     },
     # Esquire audiences

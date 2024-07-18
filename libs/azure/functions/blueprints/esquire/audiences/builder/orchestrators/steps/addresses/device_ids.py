@@ -1,7 +1,7 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/steps/addresses/device_ids.py
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
-import uuid, logging
+import uuid
 
 bp = Blueprint()
 

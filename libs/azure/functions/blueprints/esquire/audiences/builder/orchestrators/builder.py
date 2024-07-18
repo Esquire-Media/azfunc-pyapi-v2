@@ -77,6 +77,7 @@ def orchestrator_esquireAudiences_builder(
         )
         if not ingress["results"] or not len(ingress["results"]):
             raise Exception("No results from primary data query.")
+        query = ingress.get("query")
         
         # Run processing steps
         ingress = yield context.call_sub_orchestrator(
@@ -91,6 +92,8 @@ def orchestrator_esquireAudiences_builder(
         )
         if not ingress["results"] or not len(ingress["results"]):
             raise Exception("No final results.")
+        
+        ingress["query"] = query
     else:
         raise Exception("Primary data source is not set.")
 

@@ -5,7 +5,7 @@ from azure.storage.blob import BlobServiceClient
 from libs.azure.functions.blueprints.esquire.audiences.builder.config import (
     MAPPING_DATASOURCE,
 )
-import os
+import os, logging
 
 bp = Blueprint()
 
@@ -67,6 +67,35 @@ def orchestrator_esquireAudiences_primaryData(
                         ingress["working"]["conn_str"],
                     )
                 )
+                ingress["query"] = "SELECT {} FROM {}{} WHERE {}".format(
+                    MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
+                        "query"
+                    ].get("select", "*"),
+                    (
+                        "[{}].".format(
+                            MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
+                                "table"
+                            ]["schema"]
+                        )
+                        if MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
+                            "table"
+                        ].get("schema", None)
+                        else ""
+                    ),
+                    "["
+                    + MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
+                        "table"
+                    ]["name"]
+                    + "]",
+                    ingress["audience"]["dataFilter"],
+                )
+                if filter_fn := MAPPING_DATASOURCE[
+                    ingress["audience"]["dataSource"]["id"]
+                ]["query"].get("filter"):
+                    ingress["query"] += filter_fn(
+                        ingress["audience"]["TTL_Length"],
+                        ingress["audience"]["TTL_Unit"],
+                    )
                 ingress["results"] = yield context.call_activity(
                     "synapse_activity_cetas",
                     {
@@ -89,32 +118,30 @@ def orchestrator_esquireAudiences_primaryData(
                                 else "CSV"
                             ),
                         },
-                        "query": "SELECT {} FROM {}{} WHERE {}".format(
-                            MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
-                                "table"
-                            ].get("select", "*"),
-                            (
-                                "[{}].".format(
-                                    MAPPING_DATASOURCE[
-                                        ingress["audience"]["dataSource"]["id"]
-                                    ]["table"]["schema"]
-                                )
-                                if MAPPING_DATASOURCE[
-                                    ingress["audience"]["dataSource"]["id"]
-                                ]["table"].get("schema", None)
-                                else ""
-                            ),
-                            "["
-                            + MAPPING_DATASOURCE[
-                                ingress["audience"]["dataSource"]["id"]
-                            ]["table"]["name"]
-                            + "]",
-                            ingress["audience"]["dataFilter"],
-                        ),
+                        "query": ingress["query"],
                         "return_urls": True,
                     },
                 )
             case "postgres":
+                ingress["query"] = "SELECT * FROM {}{} WHERE {}".format(
+                    (
+                        '"{}".'.format(
+                            MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
+                                "table"
+                            ]["schema"]
+                        )
+                        if MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
+                            "table"
+                        ].get("schema", None)
+                        else ""
+                    ),
+                    '"'
+                    + MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
+                        "table"
+                    ]["name"]
+                    + '"',
+                    ingress["audience"]["dataFilter"],
+                )
                 ingress["results"] = yield context.call_sub_orchestrator(
                     "orchestrator_azurePostgres_queryToBlob",
                     {
@@ -122,25 +149,7 @@ def orchestrator_esquireAudiences_primaryData(
                             "bind": MAPPING_DATASOURCE[
                                 ingress["audience"]["dataSource"]["id"]
                             ]["bind"],
-                            "query": "SELECT * FROM {}{} WHERE {}".format(
-                                (
-                                    '"{}".'.format(
-                                        MAPPING_DATASOURCE[
-                                            ingress["audience"]["dataSource"]["id"]
-                                        ]["table"]["schema"]
-                                    )
-                                    if MAPPING_DATASOURCE[
-                                        ingress["audience"]["dataSource"]["id"]
-                                    ]["table"].get("schema", None)
-                                    else ""
-                                ),
-                                '"'
-                                + MAPPING_DATASOURCE[
-                                    ingress["audience"]["dataSource"]["id"]
-                                ]["table"]["name"]
-                                + '"',
-                                ingress["audience"]["dataFilter"],
-                            ),
+                            "query": ingress["query"],
                         },
                         "destination": {
                             "conn_str": ingress["working"]["conn_str"],

@@ -105,7 +105,7 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
             )
             .get_next(datetime.datetime)
             .isoformat(),
-            "schedule": ingress["audience"]["rebuildSchedule"],
+            "context": ingress
         }
     )
 

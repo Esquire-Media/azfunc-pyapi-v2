@@ -53,11 +53,30 @@ def activity_esquireAudienceXandr_fetchAudience(ingress: str):
                     result.Audience.collection_AudienceTag, key=lambda x: x.order
                 )
             ],
-            "expiration": relativedelta(
-                **{result.Audience.TTL_Unit: result.Audience.TTL_Length}
-            ).minutes,
+            "expiration": get_minutes_from_relativedelta(
+                relativedelta(**{result.Audience.TTL_Unit: result.Audience.TTL_Length})
+            ),
         }
 
     raise Exception(
         f"There were no Xandr Advertiser results for the given ESQ audience ({ingress})."
     )
+
+
+def get_minutes_from_relativedelta(delta: relativedelta):
+    # Conversion factors
+    minutes_in_year = 365 * 24 * 60
+    minutes_in_month = 30 * 24 * 60  # Assuming 30 days in a month for simplicity
+    minutes_in_day = 24 * 60
+    minutes_in_hour = 60
+
+    # Calculate total minutes
+    total_minutes = (
+        delta.years * minutes_in_year
+        + delta.months * minutes_in_month
+        + delta.days * minutes_in_day
+        + delta.hours * minutes_in_hour
+        + delta.minutes
+    )
+
+    return total_minutes

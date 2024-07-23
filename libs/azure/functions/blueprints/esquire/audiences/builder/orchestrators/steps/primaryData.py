@@ -5,7 +5,7 @@ from azure.storage.blob import BlobServiceClient
 from libs.azure.functions.blueprints.esquire.audiences.builder.config import (
     MAPPING_DATASOURCE,
 )
-import os, logging
+import os
 
 bp = Blueprint()
 

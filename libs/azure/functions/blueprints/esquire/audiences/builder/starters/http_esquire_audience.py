@@ -4,7 +4,7 @@ from azure.durable_functions import (
     OrchestrationRuntimeStatus,
 )
 from azure.functions import HttpRequest, HttpResponse
-import os, logging
+import os
 
 bp = Blueprint()
 
@@ -30,7 +30,7 @@ async def starter_http_esquire_audience(
     """
     audiences = []
     try:
-        audience += req.get_json()
+        audience = req.get_json()
     except:
         pass
     if id := req.route_params.get("id"):

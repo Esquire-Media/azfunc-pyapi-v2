@@ -116,12 +116,12 @@ SCHEMA = {
                             "doc": "Segment ID. Alternatively, pair of code and member_id can be used.",
                             "default": 0,
                         },
-                        {
-                            "name": "code",
-                            "type": "string",
-                            "doc": "Segment code. Requires segment.member_id.",
-                            "default": "",
-                        },
+                        # {
+                        #     "name": "code",
+                        #     "type": "string",
+                        #     "doc": "Segment code. Requires segment.member_id.",
+                        #     "default": "",
+                        # },
                         {
                             "name": "member_id",
                             "type": "int",
@@ -140,12 +140,12 @@ SCHEMA = {
                             "doc": "Defines when segment becomes 'live'. Timestamp in seconds from epoch. 0 enables segment immediately",
                             "default": 0,
                         },
-                        {
-                            "name": "value",
-                            "type": "int",
-                            "doc": "User provided value associated with the segment.",
-                            "default": 0,
-                        },
+                        # {
+                        #     "name": "value",
+                        #     "type": "int",
+                        #     "doc": "User provided value associated with the segment.",
+                        #     "default": 0,
+                        # },
                     ],
                 },
             },
@@ -172,6 +172,7 @@ def activity_esquireAudienceXandr_generateAvro(ingress: dict):
     #         "blob_prefix": f"{context.instance_id}/",
     #     },
     # }
+    logging.warning(ingress["audience"]["expiration"])
 
     if isinstance(ingress["source"], str):
         source_blob = BlobClient.from_blob_url(ingress["source"])
@@ -182,7 +183,6 @@ def activity_esquireAudienceXandr_generateAvro(ingress: dict):
             blob_name=ingress["source"]["blob_name"],
         )
     df = pd.read_csv(source_blob.download_blob())
-    logging.warning(df)
 
     fs = fsspec.filesystem(
         "s3",

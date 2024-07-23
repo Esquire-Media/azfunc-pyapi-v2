@@ -2,7 +2,7 @@
 
 from azure.durable_functions import Blueprint
 from azure.storage.blob import BlobClient
-import fastavro, os, pandas as pd, uuid, fsspec
+import fastavro, os, pandas as pd, uuid, fsspec, logging
 
 bp = Blueprint()
 
@@ -16,59 +16,63 @@ SCHEMA = {
             "name": "uid",
             "doc": "User ID. Can be one of anid, ifa, xfa, external_id, device_id type.",
             "type": [
-                {"name": "anid", "type": "long", "doc": "Xandr user ID."},
-                {
-                    "name": "ifa",
-                    "type": "record",
-                    "doc": "Identifier for Advertising record by iabtechlab.com",
-                    "fields": [
-                        {"name": "id", "type": "string", "doc": "IFA in UUID format."},
-                        {"name": "type", "type": "string", "doc": "IFA type."},
-                    ],
-                },
-                {
-                    "name": "xfa",
-                    "type": "record",
-                    "doc": "Xandr synthetic ID record.",
-                    "fields": [
-                        {
-                            "name": "device_model_id",
-                            "type": "int",
-                            "doc": "Device atlas device model.",
-                            "default": 0,
-                        },
-                        {
-                            "name": "device_make_id",
-                            "type": "int",
-                            "doc": "Device atlas device make.",
-                            "default": 0,
-                        },
-                        {
-                            "name": "ip",
-                            "type": "string",
-                            "default": "",
-                            "doc": "Residential IP address.",
-                        },
-                    ],
-                },
-                {
-                    "name": "external_id",
-                    "type": "record",
-                    "doc": "External ID record.",
-                    "fields": [
-                        {
-                            "name": "id",
-                            "type": "string",
-                            "doc": "External ID provided by member.",
-                        },
-                        {
-                            "name": "member_id",
-                            "type": "int",
-                            "doc": "Owner member ID.",
-                            "default": 0,
-                        },
-                    ],
-                },
+                # {
+                #     "name": "anid",
+                #     "type": "long",
+                #     "doc": "Xandr user ID.",
+                # },
+                # {
+                #     "name": "ifa",
+                #     "type": "record",
+                #     "doc": "Identifier for Advertising record by iabtechlab.com",
+                #     "fields": [
+                #         {"name": "id", "type": "string", "doc": "IFA in UUID format."},
+                #         {"name": "type", "type": "string", "doc": "IFA type."},
+                #     ],
+                # },
+                # {
+                #     "name": "xfa",
+                #     "type": "record",
+                #     "doc": "Xandr synthetic ID record.",
+                #     "fields": [
+                #         {
+                #             "name": "device_model_id",
+                #             "type": "int",
+                #             "doc": "Device atlas device model.",
+                #             "default": 0,
+                #         },
+                #         {
+                #             "name": "device_make_id",
+                #             "type": "int",
+                #             "doc": "Device atlas device make.",
+                #             "default": 0,
+                #         },
+                #         {
+                #             "name": "ip",
+                #             "type": "string",
+                #             "default": "",
+                #             "doc": "Residential IP address.",
+                #         },
+                #     ],
+                # },
+                # {
+                #     "name": "external_id",
+                #     "type": "record",
+                #     "doc": "External ID record.",
+                #     "fields": [
+                #         {
+                #             "name": "id",
+                #             "type": "string",
+                #             "doc": "External ID provided by member.",
+                #         },
+                #         {
+                #             "name": "member_id",
+                #             "type": "int",
+                #             "doc": "Owner member ID.",
+                #             "default": 0,
+                #         },
+                #     ],
+                # },
                 {
                     "name": "device_id",
                     "type": "record",
@@ -178,13 +182,14 @@ def activity_esquireAudienceXandr_generateAvro(ingress: dict):
             blob_name=ingress["source"]["blob_name"],
         )
     df = pd.read_csv(source_blob.download_blob())
+    logging.warning(df)
 
     fs = fsspec.filesystem(
         "s3",
         key=ingress["destination"]["access_key"],
         secret=ingress["destination"]["secret_key"],
     )
-    
+
     with fs.open(
         "s3://{}/submitted/{}.avro".format(
             ingress["destination"]["bucket"], uuid.uuid4().hex
@@ -203,11 +208,9 @@ def activity_esquireAudienceXandr_generateAvro(ingress: dict):
                     "segments": [
                         {
                             "id": int(ingress["audience"]["segment"]),
-                            "code": "",
                             "member_id": int(os.environ["XANDR_MEMBER_ID"]),
                             "expiration": ingress["audience"]["expiration"],
                             "timestamp": 0,
-                            "value": 0,
                         }
                     ],
                 }

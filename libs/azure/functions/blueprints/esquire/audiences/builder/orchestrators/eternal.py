@@ -76,12 +76,14 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
         context.current_utc_datetime >= next_run and ingress["audience"]["status"]
     ) or ingress.get("forceRebuild"):
         try:
+            context.set_custom_status({"state": "Building audience..."})
             # Generate the audience data by calling the audience builder orchestrator
             build = yield context.call_sub_orchestrator(
                 "orchestrator_esquireAudiences_builder",
                 ingress,
             )
             # Upload the newly generated audience data to the configured DSPs
+            context.set_custom_status({"state": "Uploading audience..."})
             yield context.call_sub_orchestrator(
                 "orchestrator_esquireAudiences_uploader",
                 build,
@@ -107,11 +109,6 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
             .isoformat(),
             "context": ingress
         }
-    )
-
-    # Purge the history of sub-instances related to this orchestrator
-    yield context.call_sub_orchestrator(
-        "purge_instance_history", {"instance_id": context.instance_id, "self": False}
     )
 
     # Schedule a trigger to rerun the orchestrator (>6 days)

@@ -10,15 +10,14 @@ bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def activity_esquireAudienceXandr_fetchAudience(ingress: dict):
+def activity_esquireAudienceXandr_fetchAudience(ingress: str):
     """
     Fetches audience metadata from the database using the given audience ID.
 
     This activity retrieves the audience metadata, including related advertiser information and audience tags, from the database.
 
     Parameters:
-    ingress (dict):
-        id (str): The ID of the audience to fetch.
+    ingress (str): The ID of the audience to fetch.
 
     Returns:
     dict: A dictionary containing the ad account metadata, audience metadata, and tags.
@@ -35,7 +34,7 @@ def activity_esquireAudienceXandr_fetchAudience(ingress: dict):
         select(audience)
         .join(advertiser)
         .where(
-            audience.id == ingress["id"],  # esq audience
+            audience.id == ingress,  # esq audience
             audience.status == True,
             audience.xandr != None,
             advertiser.xandr != None,
@@ -46,7 +45,6 @@ def activity_esquireAudienceXandr_fetchAudience(ingress: dict):
 
     if result and len(result):
         return {
-            **ingress,
             "advertiser": result.Audience.related_Advertiser.xandr,
             "segment": result.Audience.xandr,
             "tags": [

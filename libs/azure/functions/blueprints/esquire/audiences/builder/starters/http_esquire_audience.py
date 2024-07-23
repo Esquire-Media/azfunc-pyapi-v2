@@ -9,7 +9,7 @@ import os, logging
 bp = Blueprint()
 
 
-@bp.route(route="audiences/{id}")
+@bp.route(route="audiences/{id?}")
 @bp.durable_client_input(client_name="client")
 async def starter_http_esquire_audience(
     req: HttpRequest,
@@ -28,8 +28,15 @@ async def starter_http_esquire_audience(
     Returns:
     HttpResponse: The HTTP response indicating the status of the operation.
     """
-    instance_id = req.route_params.get("id")
-    if not instance_id:
+    audiences = []
+    try:
+        audience += req.get_json()
+    except:
+        pass
+    if id := req.route_params.get("id"):
+        audiences.append(id)
+
+    if not len(audiences):
         return HttpResponse(status_code=400)
 
     settings = {
@@ -47,29 +54,34 @@ async def starter_http_esquire_audience(
         "forceRebuild": True if req.params.get("force", False) else False,
     }
 
-    # Check the status of the orchestrator instance
-    status = await client.get_status(instance_id, True)
-    status.custom_status
-    match req.method:
-        case "POST":
-            if (
-                status.runtime_status == OrchestrationRuntimeStatus.Running
-                and '"next_run"' in str(status.custom_status)
-            ):
-                await client.raise_event(
-                    instance_id,
-                    "restart",
-                    settings,
-                )
-            else:
-                if status.runtime_status:
-                    await client.terminate(instance_id, "Non-deterministic")
-                    await client.purge_instance_history(instance_id)
-                await client.start_new(
-                    orchestration_function_name="orchestrator_esquire_audience",
-                    client_input=settings,
-                    instance_id=instance_id,
-                )
+    for audience in audiences:
+        # Check the status of the orchestrator instance
+        status = await client.get_status(audience, True)
+        status.custom_status
+        match req.method:
+            case "POST":
+                if (
+                    status.runtime_status == OrchestrationRuntimeStatus.Running
+                    and '"next_run"' in str(status.custom_status)
+                ):
+                    await client.raise_event(
+                        audience,
+                        "restart",
+                        settings,
+                    )
+                else:
+                    if status.runtime_status:
+                        await client.purge_instance_history(audience)
+                    await client.start_new(
+                        orchestration_function_name="orchestrator_esquire_audience",
+                        client_input=settings,
+                        instance_id=audience,
+                    )
 
     # Create and return a status response
-    return client.create_check_status_response(req, instance_id)
+    if len(audiences) == 1:
+        return client.create_check_status_response(req, audiences[0])
+    else:
+        return [
+            client.get_client_response_links(req, audience) for audience in audiences
+        ]

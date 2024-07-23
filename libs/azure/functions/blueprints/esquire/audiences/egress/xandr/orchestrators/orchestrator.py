@@ -11,21 +11,28 @@ def xandr_segment_orchestrator(
     context: DurableOrchestrationContext,
 ):
     ingress = context.get_input()
-    # reach out to audience definition DB - get information pertaining to the xandr audience (segment)
+    
+    # Fetch audience definition from the database
     try:
         audience = yield context.call_activity(
             "activity_esquireAudienceXandr_fetchAudience",
-            {"id": ingress["audience"]["id"]},
+            ingress["audience"]["id"],
+        )
+        ingress["audience"].update(audience)
+        ingress["audience"]["name"] = (
+            " - ".join(ingress["audience"]["tags"])
+            if len(ingress["audience"]["tags"])
+            else ingress["audience"]["id"]
         )
     except:
         return {}
 
-    newSegmentNeeded = not audience["segment"]
+    newSegmentNeeded = not ingress["audience"]["segment"]
 
     if not newSegmentNeeded:
         # orchestrator that will get the information for the segment associated with the ESQ audience ID
         state = yield context.call_activity(
-            "activity_esquireAudienceXandr_getSegment", audience["segment"]
+            "activity_esquireAudienceXandr_getSegment", ingress["audience"]["segment"]
         )
         newSegmentNeeded = not bool(state)
 
@@ -36,15 +43,12 @@ def xandr_segment_orchestrator(
             "activity_esquireAudienceXandr_createSegment",
             {
                 "parameters": {
-                    "advertiser_id": audience["advertiser"],
+                    "advertiser_id": ingress["audience"]["advertiser"],
                 },
                 "data": {
                     "segment": {
                         "member_id": int(os.environ["XANDR_MEMBER_ID"]),
-                        "short_name": "{}_{}".format(
-                            "-".join(audience["tags"]),
-                            audience["id"],
-                        ),
+                        "short_name": ingress["audience"]["name"],
                     }
                 },
             },
@@ -53,11 +57,11 @@ def xandr_segment_orchestrator(
         yield context.call_activity(
             "activity_esquireAudienceXandr_putAudience",
             {
-                "audience": audience["id"],
+                "audience": ingress["audience"]["id"],
                 "xandrAudienceId": segment,
             },
         )
-        audience["segment"] = segment
+        ingress["audience"]["segment"] = segment
 
     blob_names = yield context.call_activity(
         "activity_esquireAudiencesUtils_newestAudienceBlobPaths",
@@ -90,4 +94,4 @@ def xandr_segment_orchestrator(
         ]
     )
 
-    return {}
+    return ingress

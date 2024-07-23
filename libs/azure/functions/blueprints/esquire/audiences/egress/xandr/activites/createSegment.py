@@ -16,4 +16,4 @@ def activity_esquireAudienceXandr_createSegment(ingress: dict):
         if data.response.segment.id:
             return data.response.segment.id
     
-    return ""
+    raise Exception(data)

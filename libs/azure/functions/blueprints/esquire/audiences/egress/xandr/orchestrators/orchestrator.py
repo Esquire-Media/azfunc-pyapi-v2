@@ -76,7 +76,7 @@ def xandr_segment_orchestrator(
             context.call_activity(
                 "activity_esquireAudienceXandr_generateAvro",
                 {
-                    "audience": audience,
+                    "audience": ingress["audience"],
                     "source": {
                         "conn_str": ingress["destination"]["conn_str"],
                         "container_name": ingress["destination"]["container_name"],

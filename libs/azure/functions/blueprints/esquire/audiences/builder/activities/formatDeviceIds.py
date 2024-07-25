@@ -31,10 +31,13 @@ def activity_esquireAudienceBuilder_formatDeviceIds(ingress: dict):
     output_blob.stage_block(
         block_id=(block_header := str(uuid.uuid4())), data=StringIO("deviceid\n")
     )
-    output_blob.stage_block_from_url(
-        block_id=(block_data := str(uuid.uuid4())), source_url=ingress["source"]
-    )
-    output_blob.commit_block_list([block_header, block_data])
+    try:
+        output_blob.stage_block_from_url(
+            block_id=(block_data := str(uuid.uuid4())), source_url=ingress["source"]
+        )
+        output_blob.commit_block_list([block_header, block_data])
+    except:
+        output_blob.commit_block_list([block_header])
 
     # Generate a SAS token for the destination blob with read permissions
     sas_token = generate_blob_sas(

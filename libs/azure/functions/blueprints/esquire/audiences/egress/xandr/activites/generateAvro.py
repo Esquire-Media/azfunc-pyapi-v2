@@ -172,7 +172,7 @@ def activity_esquireAudienceXandr_generateAvro(ingress: dict):
     #         "blob_prefix": f"{context.instance_id}/",
     #     },
     # }
-    logging.warning(ingress["audience"]["expiration"])
+    logging.warning(ingress["audience"]["segment"])
 
     if isinstance(ingress["source"], str):
         source_blob = BlobClient.from_blob_url(ingress["source"])
@@ -209,7 +209,7 @@ def activity_esquireAudienceXandr_generateAvro(ingress: dict):
                         {
                             "id": int(ingress["audience"]["segment"]),
                             "member_id": int(os.environ["XANDR_MEMBER_ID"]),
-                            "expiration": ingress["audience"]["expiration"],
+                            "expiration": int(ingress["audience"]["expiration"]),
                             "timestamp": 0,
                         }
                     ],

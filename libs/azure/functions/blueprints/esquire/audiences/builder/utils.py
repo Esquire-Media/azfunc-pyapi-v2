@@ -43,6 +43,15 @@ def jsonlogic_to_sql(json_logic):
             if "and" in logic:
                 conditions = [parse_logic(sub_logic) for sub_logic in logic["and"]]
                 return " AND ".join(f"({condition})" for condition in conditions)
+            
+            if "or" in logic:
+                conditions = [parse_logic(sub_logic) for sub_logic in logic["or"]]
+                return " OR ".join(f"({condition})" for condition in conditions)
+
+            elif ">" in logic:
+                left = parse_logic(logic[">"][0])
+                right = parse_logic(logic[">"][1])
+                return f"{left} > {right}"
 
             elif ">=" in logic:
                 left = parse_logic(logic[">="][0])
@@ -53,6 +62,16 @@ def jsonlogic_to_sql(json_logic):
                 left = parse_logic(logic["=="][0])
                 right = parse_logic(logic["=="][1])
                 return f"{left} = {right}"
+
+            elif "<" in logic:
+                left = parse_logic(logic["<"][0])
+                right = parse_logic(logic["<"][1])
+                return f"{left} > {right}"
+
+            elif "<=" in logic:
+                left = parse_logic(logic["<="][0])
+                right = parse_logic(logic["<="][1])
+                return f"{left} >= {right}"
 
             elif "in" in logic:
                 var = parse_logic(logic["in"][0])

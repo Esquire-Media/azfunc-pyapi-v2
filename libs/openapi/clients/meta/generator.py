@@ -34,7 +34,7 @@ async def read_files_from_github_async(
     -----
     This function uses asynchronous HTTP requests to retrieve file data.
     """
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(timeout=30.0)) as client:
         api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{folder_path}"
 
         response = await client.get(api_url)
@@ -151,8 +151,8 @@ def generate_openapi(json_files: Dict[str, Any] = None) -> Dict[str, Any]:
     # Initialize base structure of OpenAPI specification
     openapi_spec = {
         "openapi": "3.1.0",
-        "info": {"title": "Facebook Business API", "version": "18.0"},
-        "servers": [{"url": "https://graph.facebook.com/v18.0"}],
+        "info": {"title": "Facebook Business API", "version": "20.0"},
+        "servers": [{"url": "https://graph.facebook.com/v20.0"}],
         "components": {
             "headers": {
                 "X-Business-Use-Case-Usage": {

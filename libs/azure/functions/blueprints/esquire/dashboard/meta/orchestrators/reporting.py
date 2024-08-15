@@ -3,7 +3,7 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 from datetime import timedelta
 from libs.azure.functions.blueprints.esquire.dashboard.meta.config import PARAMETERS
-
+import logging
 bp = Blueprint()
 
 
@@ -63,6 +63,7 @@ def esquire_dashboard_meta_orchestrator_reporting(
             tries += 1
             context.set_custom_status(f"On try #{tries}")
             if tries > 3:
+                logging.error(report_run)
                 raise Exception("Insight report generation failed.")
             yield context.create_timer(
                 context.current_utc_datetime + timedelta(minutes=5)

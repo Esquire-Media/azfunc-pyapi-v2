@@ -2,7 +2,7 @@
 
 from azure.durable_functions import Blueprint
 from azure.storage.blob import BlobClient
-import fastavro, os, pandas as pd, uuid, fsspec, logging
+import fastavro, os, pandas as pd, uuid, fsspec
 
 bp = Blueprint()
 
@@ -172,7 +172,6 @@ def activity_esquireAudienceXandr_generateAvro(ingress: dict):
     #         "blob_prefix": f"{context.instance_id}/",
     #     },
     # }
-    logging.warning(ingress["audience"]["segment"])
 
     if isinstance(ingress["source"], str):
         source_blob = BlobClient.from_blob_url(ingress["source"])

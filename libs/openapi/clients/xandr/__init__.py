@@ -1,3 +1,4 @@
+import time
 from aiopenapi3 import OpenAPI, ResponseDecodingError
 from aiopenapi3.plugin import Message
 from io import BytesIO
@@ -16,7 +17,7 @@ class XandrReportFormatter(Message):
 
 
 class XandrAPI:
-    api_key = None
+    _token_cache = {}
 
     def __new__(
         cls,
@@ -38,10 +39,8 @@ class XandrAPI:
             plugins=[XandrReportFormatter()],
             use_operation_tags=False,
         )
-        if cls.api_key and not api_key:
-            api_key = cls.api_key
-        if not api_key and username and password:
-            api_key = cls.api_key = cls.get_token(username, password)
+        if not api_key and (username and password):
+            api_key = cls.get_token(username, password)
         api.authenticate(
             token=api_key,
         )
@@ -55,8 +54,9 @@ class XandrAPI:
     def session_async(cls, *args, **kwargs) -> httpx.AsyncClient:
         return httpx.AsyncClient(*args, timeout=None, **kwargs)
 
-    @staticmethod
+    @classmethod
     def get_token(
+        cls,
         username: str = os.environ.get(
             "XANDR_USERNAME", os.environ.get("APPNEXUS_USERNAME")
         ),
@@ -64,6 +64,14 @@ class XandrAPI:
             "XANDR_PASSWORD", os.environ.get("APPNEXUS_PASSWORD")
         ),
     ):
+        cache_entry = cls._token_cache.get(username)
+        current_time = time.time()
+        if cache_entry:
+            token, timestamp = cache_entry
+            # Invalidate token if older than 120 minutes (7200 seconds)
+            if current_time - timestamp < 7200:
+                return token
+
         api = OpenAPI(
             url=f"https://api.appnexus.com",
             document=XandrAPI.get_spec(),
@@ -73,6 +81,7 @@ class XandrAPI:
         _, data, _ = auth.request(
             {"auth": {"password": password, "username": username}}
         )
+        cls._token_cache[username] = (data.response.token, current_time)
         return data.response.token
 
     def get_spec():

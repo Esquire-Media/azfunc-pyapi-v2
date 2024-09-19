@@ -11,14 +11,14 @@ bp = Blueprint()
 
 @bp.activity_trigger(input_name="ingress")
 async def esquire_dashboard_onspot_activity_locations(ingress: dict):
-    provider: SQLAlchemyStructuredProvider = from_bind("universal")
-    tables = provider.models["dbo"]
+    provider: SQLAlchemyStructuredProvider = from_bind("keystone")
+    tables = provider.models["public"]
     session = provider.connect()
 
     df = pd.DataFrame(
         session.query(
-            tables["Locations"].ID.label("location_id"),
-            tables["Locations"].ESQ_ID.label("esq_id"),
+            tables["TargetingGeoFrame"].id.label("location_id"),
+            tables["TargetingGeoFrame"].ESQID.label("esq_id"),
         )
     )
 

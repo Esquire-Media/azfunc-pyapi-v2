@@ -9,14 +9,16 @@ if not from_bind("onspot"):
         url=os.environ["DATABIND_SQL_ONSPOT"],
         schemas=["dbo"],
 )
-
-if not from_bind("universal"):
+    
+if not from_bind("keystone"):
     register_binding(
-        "universal",
+        "keystone",
         "Structured",
         "sql",
-        url=os.environ["DATABIND_SQL_UNIVERSAL"],
-        schemas=["dbo"],
+        url=os.environ["DATABIND_SQL_KEYSTONE"],
+        schemas=["public"],
+        pool_size=1000,
+        max_overflow=100,
     )
 
 if not from_bind("salesforce"):

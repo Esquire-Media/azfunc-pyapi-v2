@@ -14,7 +14,6 @@ BLUEPRINTS = {
     ],
     "esquire-autopolygon": [
         "libs/azure/functions/blueprints/esquire/rooftop_polys/*",
-        "libs/azure/functions/blueprints/purge_instance_history",
     ],
     "esquire-campaign-proposal": [
         "libs/azure/functions/blueprints/keep_alive",

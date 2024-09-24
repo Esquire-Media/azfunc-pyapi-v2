@@ -1,11 +1,11 @@
 from libs.data import register_binding, from_bind
 import os
 
-if not from_bind("universal"):
+if not from_bind("postgres"):
     register_binding(
-        "universal",
+        "postgres",
         "Structured",
         "sql",
-        url=os.environ["DATABIND_SQL_UNIVERSAL"],
-        schemas=["dbo"],
+        url=os.environ["DATABIND_SQL_POSTGRES"],
+        schemas=["public"],
     )

@@ -31,16 +31,6 @@ if not from_bind("audiences"):
         pool_size=1000,
         max_overflow=100,
     )
-if not from_bind("universal"):
-    register_binding(
-        "universal",
-        "Structured",
-        "sql",
-        url=os.environ["DATABIND_SQL_UNIVERSAL"],
-        schemas=["dbo"],
-        pool_size=1000,
-        max_overflow=100,
-    )
 if not from_bind("foursquare"):
     register_binding(
         "foursquare",

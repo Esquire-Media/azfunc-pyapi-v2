@@ -2,9 +2,10 @@
 
 from azure.durable_functions import Blueprint
 from datetime import datetime as dt
-from libs.data import from_bind
-from sqlalchemy.orm import Session
+from shapely.geometry import shape
+from sqlalchemy import create_engine
 from typing import List
+import os
 
 bp: Blueprint = Blueprint()
 
@@ -12,22 +13,29 @@ bp: Blueprint = Blueprint()
 # activity to validate the addresses
 @bp.activity_trigger(input_name="polys")
 def activity_rooftopPolys_writeCache(polys: List[dict]):
-    # set the provider
-    provider = from_bind("universal")
-    rooftop = provider.models["dbo"]["GoogleRooftopCache"]
-    session: Session = provider.connect()
+    pg_engine = create_engine(os.environ["DATABIND_SQL_POSTGRES"])
 
-    session.add_all(
-        [
-            rooftop(
-                Query=p["query"],
-                Boundary=p["geojson"],
-                LastUpdated=dt.utcnow(),
-            )
-            for p in polys
-        ]
-    )
+    # Define the upsert query (for WKB insertion)
+    upsert_query = """
+    INSERT INTO public.google_rooftop_cache (query, boundary, last_updated) 
+    VALUES (%s, ST_GeomFromText(%s), %s)
+    ON CONFLICT (query) 
+    DO UPDATE SET
+    boundary = EXCLUDED.boundary,
+    last_updated = EXCLUDED.last_updated;
+    """
 
-    session.commit()
+    # Establish a connection to PostgreSQL
+    conn = pg_engine.raw_connection()
+    cursor = conn.cursor()
+
+    # Loop through the DataFrame and decode + re-encode WKB
+    for p in polys:
+        cursor.execute(upsert_query, (p["query"], shape(p["geojson"]).wkt, dt.utcnow()))
+
+    # Commit the transaction and close the connection
+    conn.commit()
+    cursor.close()
+    conn.close()
 
     return {}

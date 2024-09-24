@@ -1,7 +1,6 @@
 from azure.keyvault.secrets import SecretClient
 from .credentials import GetCredential
 
-
 def KeyVaultClient(vault_name):
     """
     Access the Azure Key Vault to load needed secret tokens.

@@ -1,17 +1,18 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationClient
+from azure.functions import HttpRequest, AuthLevel
 from fuzzywuzzy import fuzz
 from libs.utils.smarty import bulk_validate
-import pandas as pd
+import pandas as pd, io
 
 bp: Blueprint = Blueprint()
 
 
 # Define an HTTP-triggered function that starts a new orchestration
-@bp.route(route="test/esquire/rooftop_polys")
+@bp.route(route="esquire/rooftop_polys", auth_level=AuthLevel.FUNCTION)
 @bp.durable_client_input(client_name="client")
-async def rooftopPoly_test(req: HttpRequest, client: DurableOrchestrationClient):
-    blob_url = "https://esqdevdurablefunctions.blob.core.windows.net/general/a0H6e00000bNazEEAS_test.csv?sv=2021-10-04&st=2023-11-15T21%3A41%3A33Z&se=2024-11-16T21%3A41%3A00Z&sr=b&sp=r&sig=ZMq%2Fn7IfAp9Z%2FOzOBvf3nHacmqv%2BSqOYUOJvU1w3Eqw%3D"
-    for chunk in pd.read_csv(blob_url, chunksize=20, encoding_errors="ignore"):
+async def starter_rooftopPoly(req: HttpRequest, client: DurableOrchestrationClient):
+    addresses = []
+    for chunk in pd.read_csv(io.BytesIO(req.get_body()), chunksize=1000, encoding_errors="ignore"):
         if isinstance((mapped_chunk := detect_column_names(chunk)), pd.DataFrame):
             if isinstance(
                 (
@@ -35,13 +36,13 @@ async def rooftopPoly_test(req: HttpRequest, client: DurableOrchestrationClient)
                 ),
                 pd.Series,
             ):
-                df = valid_chunk
+                addresses += valid_chunk.to_list()
         break
 
     # Start a new instance of the orchestrator function
     instance_id = await client.start_new(
         orchestration_function_name="orchestrator_rooftopPolys",
-        client_input=df.to_list(),
+        client_input=addresses,
     )
 
     # Return a response that includes the status query URLs

@@ -10,10 +10,9 @@ import googlemaps, logging, numpy as np, os, pandas as pd
 
 bp: Blueprint = Blueprint()
 
-chunk_size = int(os.environ["chunk_size"])
+# chunk_size = int(os.environ["chunk_size"])
 max_sql_parameters = 1000
 # maximum number of parameters that MS SQL can parse is ~2100
-
 
 # activity to validate the addresses
 @bp.activity_trigger(input_name="queries")

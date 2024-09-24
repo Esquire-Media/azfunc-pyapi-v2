@@ -12,6 +12,10 @@ BLUEPRINTS = {
         "libs/azure/functions/blueprints/purge_instance_history",
         "libs/azure/functions/blueprints/s3/*",
     ],
+    "esquire-autopolygon": [
+        "libs/azure/functions/blueprints/esquire/rooftop_polys/*",
+        "libs/azure/functions/blueprints/purge_instance_history",
+    ],
     "esquire-campaign-proposal": [
         "libs/azure/functions/blueprints/keep_alive",
         "libs/azure/functions/blueprints/azure/datalake/*",
@@ -29,11 +33,10 @@ BLUEPRINTS = {
         "libs/azure/functions/blueprints/purge_instance_history",
     ],
     "esquire-dashboard-data": [
-        "libs/azure/functions/blueprints/aws/athena/*",
         "libs/azure/functions/blueprints/azure/datalake/*",
         "libs/azure/functions/blueprints/esquire/dashboard/onspot/*",
-        "libs/azure/functions/blueprints/esquire/dashboard/unmasked/*",
         "libs/azure/functions/blueprints/keep_alive",
+        "libs/azure/functions/blueprints/meta/endpoints/creative_preview",
         "libs/azure/functions/blueprints/onspot/*",
         "libs/azure/functions/blueprints/purge_instance_history",
         "libs/azure/functions/blueprints/azure/synapse/*",

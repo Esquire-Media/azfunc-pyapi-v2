@@ -36,7 +36,7 @@ def esquire_dashboard_unmasked_orchestrator(context: DurableOrchestrationContext
                 "query": f'SELECT * FROM resolutions.{table}',
                 "destination": {
                     **ingress["runtime_container"],
-                    "blob_name": f"unmasked/{table}.csv",
+                    "blob_name": f"datalake/unmasked/{table}.csv",
                 },
             },
         )

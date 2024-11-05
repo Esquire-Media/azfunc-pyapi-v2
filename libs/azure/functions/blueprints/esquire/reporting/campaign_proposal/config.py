@@ -11,7 +11,18 @@ if not from_bind("audiences"):
         pool_size=1000,
         max_overflow=100
 )
-
+    
+if not from_bind("keystone"):
+    register_binding(
+        "keystone",
+        "Structured",
+        "sql",
+        url=os.environ["DATABIND_SQL_KEYSTONE"],
+        schemas=["public"],
+        pool_size=1000,
+        max_overflow=100,
+    )
+    
 if not from_bind("legacy"):
     register_binding(
         "legacy",

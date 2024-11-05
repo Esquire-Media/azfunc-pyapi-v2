@@ -118,7 +118,8 @@ def meta_customaudience_orchestrator(
                     FORMAT = 'CSV',
                     PARSER_VERSION = '2.0',
                     HEADER_ROW = TRUE
-                ) AS [data]""".format(
+                ) AS [data]
+                WHERE LEN(deviceid) = 36""".format(
                 ingress["destination"]["container_name"],
                 ingress["destination"]["blob_prefix"],
                 ingress["destination"]["data_source"],
@@ -146,8 +147,9 @@ def meta_customaudience_orchestrator(
                                 PARSER_VERSION = '2.0',
                                 HEADER_ROW = TRUE
                             ) WITH (
-                                deviceid VARCHAR(36)
+                                deviceid VARCHAR(80)
                             ) AS [data]
+                            WHERE LEN(deviceid) = 36
                         """,
                     },
                     "batch": {

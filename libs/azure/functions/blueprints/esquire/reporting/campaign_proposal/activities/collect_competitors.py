@@ -45,8 +45,12 @@ def activity_campaignProposal_collectCompetitors(settings: dict):
         20,
     ]:  # expand radius until at least 20 competitors are found, or radius reaches 20 miles
         points = [
-            (addr["latitude"], addr["longitude"]) for i, addr in addresses.iterrows()
+            (addr["latitude"], addr["longitude"]) 
+            for i, addr in addresses.iterrows()
+            if addr.get("latitude") and addr.get("longitude")
         ]
+        if len(points) == 0:
+            break
         # pull search area as a combined polygon
         comps = engine.load_from_points(
             points=points,

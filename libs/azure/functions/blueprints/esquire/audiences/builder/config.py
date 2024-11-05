@@ -61,7 +61,7 @@ MAPPING_DATASOURCE = {
             "name": "movers",
         },
         "query": {
-            "select": "address, city, state, zipcode as zipCode, plus4Code",
+            "select": "address, city, state, zipcode as zipCode",
             "filter": lambda length, unit: " AND CONVERT(DATE, [date], 126) >= DATEADD({}, {}, GETDATE())".format(
                 unit[0], 0 - length
             ),

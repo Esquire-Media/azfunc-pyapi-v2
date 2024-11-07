@@ -217,10 +217,12 @@ class POIEngine:
                 # Get the closest ESQ IDs
                 closest_esq_ids = esq_exists.iloc[indices.flatten()]['id'].values
                 
-                # Add the closest ESQ IDs within 15 meters and distances to results
-                if distances_meters <= 15:
-                    results['esq_id'] = closest_esq_ids
-                    results['distance_to_esq'] = distances_meters
+                # Add the closest ESQ IDs meters and distances to results
+                results['esq_id'] = closest_esq_ids
+                results['distance_to_esq'] = distances_meters
+                
+                # Assign 'null' to 'esq_id' if distance is greater than 15 meters
+                results.loc[results['distance_to_esq'] > 15, 'esq_id'] = 'null'
 
                 # Clean up temporary columns
                 results.drop(columns=['lat_rad', 'lon_rad'], inplace=True)

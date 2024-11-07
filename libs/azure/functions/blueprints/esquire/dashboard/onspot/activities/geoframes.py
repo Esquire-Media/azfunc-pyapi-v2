@@ -4,7 +4,6 @@ from azure.durable_functions import Blueprint
 from libs.data import from_bind
 from libs.data.structured.sqlalchemy import SQLAlchemyStructuredProvider
 from sqlalchemy import or_
-import geojson
 
 bp = Blueprint()
 
@@ -18,7 +17,7 @@ async def esquire_dashboard_onspot_activity_geoframes(ingress: dict):
     return [
         (
             row.id,
-            geojson.loads(row.polygon)["features"][0],
+            row.polygon["features"][0],
         )
         for row in session.query(
             tables["TargetingGeoFrame"].id,

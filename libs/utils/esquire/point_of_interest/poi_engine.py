@@ -38,8 +38,6 @@ class POIEngine:
         session_poi: Session = self.provider_poi.connect()
         session_esq: Session = self.provider_esq.connect()
         poi = self.provider_poi.models["dbo"]["poi"]
-        locations = self.provider_esq.models["esquire"]["locations"]
-        geoframes = self.provider_esq.models["esquire"]["geoframes"]
 
         # find H3 hexes which intersect with the query area
         hexes = hex_intersections(polygon_wkt, resolution=5)
@@ -174,33 +172,66 @@ class POIEngine:
 
         # check for existing ESQ locations among the FSQ results
         if len(results):
-            esq_exists = pd.DataFrame(
-                session_esq.query(
-                    geoframes.esq_id,
-                    locations.foursquare.label('fsq_id')            
-                )
-                .filter(
-                    locations.id == geoframes.location_id,
-                    locations.foursquare.in_(
-                        results['fsq_id']
-                    )
-                )
-                .all()
+            esq_exists = pd.read_sql(
+                """
+                    SELECT
+                        id,
+                        ST_Centroid(ST_Collect(ST_GeomFromGeoJSON(feature->'geometry'))) AS centroid
+                    FROM 
+                        public."TargetingGeoFrame",
+                        jsonb_array_elements(polygon->'features') AS feature
+                    GROUP BY
+                        id
+                """,
+                session_esq
             )
             if len(esq_exists):
-                # merge existing locations with the new pull of FSQ competitors
-                results = pd.merge(
-                    results,
-                    esq_exists,
-                    on='fsq_id',
-                    how='outer'
+                # Parse centroid_wkt to get latitude and longitude
+                esq_exists['geometry'] = esq_exists['centroid_wkt'].apply(wkt_loads)
+                esq_exists['esq_longitude'] = esq_exists['geometry'].apply(lambda geom: geom.x)
+                esq_exists['esq_latitude'] = esq_exists['geometry'].apply(lambda geom: geom.y)
+                esq_exists.drop(columns=['geometry', 'centroid_wkt'], inplace=True)
+                
+                # Convert lat/lon to radians
+                results['lat_rad'] = np.deg2rad(results['latitude'])
+                results['lon_rad'] = np.deg2rad(results['longitude'])
+                esq_exists['esq_lat_rad'] = np.deg2rad(esq_exists['esq_latitude'])
+                esq_exists['esq_lon_rad'] = np.deg2rad(esq_exists['esq_longitude'])
+
+                # Build BallTree with ESQ centroids
+                esq_tree = BallTree(
+                    np.vstack((esq_exists['esq_lat_rad'], esq_exists['esq_lon_rad'])).T, 
+                    metric='haversine'
                 )
-            
+
+                # Query nearest neighbor for each result
+                distances, indices = esq_tree.query(
+                    np.vstack((results['lat_rad'], results['lon_rad'])).T, 
+                    k=1
+                )
+
+                # Convert distance from radians to meters
+                earth_radius = 6371000  # meters
+                distances_meters = distances.flatten() * earth_radius
+
+                # Get the closest ESQ IDs
+                closest_esq_ids = esq_exists.iloc[indices.flatten()]['id'].values
+                
+                # Add the closest ESQ IDs within 15 meters and distances to results
+                if distances_meters <= 15:
+                    results['esq_id'] = closest_esq_ids
+                    results['distance_to_esq'] = distances_meters
+
+                # Clean up temporary columns
+                results.drop(columns=['lat_rad', 'lon_rad'], inplace=True)
+                esq_exists.drop(columns=['esq_lat_rad', 'esq_lon_rad'], inplace=True)
+                
             # enforce esq_id column and populate null values
             if 'esq_id' in results.columns:
                 results['esq_id'] = results['esq_id'].fillna('null')
             else:
                 results['esq_id'] = 'null'
+        
 
         results = results.dropna(subset=['fsq_id'])
         return results

@@ -37,7 +37,8 @@ def activity_campaignProposal_collectCompetitors(settings: dict):
 
     # find nearby competitors in the passed categor(ies)
     engine = POIEngine(
-        provider_poi=from_bind("foursquare"), provider_esq=from_bind("legacy")
+        provider_poi=from_bind("foursquare"), 
+        provider_esq=from_bind("keystone")
     )
     for r in [
         10,

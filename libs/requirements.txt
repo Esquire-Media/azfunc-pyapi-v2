@@ -15,7 +15,6 @@ pymssql==2.3.0
 pyodbc==5.1.0
 psycopg2-binary==2.9.9
 sqlalchemy==2.0.30
-gql
 ## data handling
 marshmallow==3.21.3
 marshmallow-geojson==0.5.0
@@ -35,7 +34,7 @@ fuzzywuzzy
 googlemaps==4.10.0
 werkzeug
 ## security
-itsdangerous
+# itsdangerous
 requests-auth-aws-sigv4
 ## notification
 adaptive-cards-py @ git+https://github.com/dennis6p/adaptive-cards-py.git

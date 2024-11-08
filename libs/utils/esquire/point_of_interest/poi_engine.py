@@ -183,7 +183,7 @@ class POIEngine:
                     GROUP BY
                         id
                 """,
-                session_esq
+                session_esq.connection()
             )
             if len(esq_exists):
                 # Parse centroid_wkt to get latitude and longitude

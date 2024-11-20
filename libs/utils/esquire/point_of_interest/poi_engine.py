@@ -176,7 +176,7 @@ class POIEngine:
                 """
                     SELECT
                         id,
-                        ST_Centroid(ST_Collect(ST_GeomFromGeoJSON(feature->'geometry'))) AS centroid
+                        ST_AsText(ST_Centroid(ST_Collect(ST_GeomFromGeoJSON(feature->'geometry')))) AS centroid_wkt
                     FROM 
                         public."TargetingGeoFrame",
                         jsonb_array_elements(polygon->'features') AS feature

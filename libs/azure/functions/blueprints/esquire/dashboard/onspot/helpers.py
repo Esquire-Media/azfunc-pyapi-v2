@@ -21,10 +21,7 @@ def cetas_query_sisense(instance_id):
     return f"""
         SELECT DISTINCT
             [O].[location_id],
-            [O].[esq_id],
             [O].[deviceid] AS [did],
-            [O].[date],
-            [O].[hour],
             [O].[timestamp],
             [O].[latitude],
             [O].[longitude],
@@ -32,10 +29,7 @@ def cetas_query_sisense(instance_id):
         FROM (
             SELECT
                 [location_id],
-                [observations].[esq_id],
                 [deviceid],
-                CAST([start] AS DATE) AS [date],
-                DATEPART(HOUR, [start]) AS [hour],
                 DATEADD(
                     HOUR,
                     DATEPART(HOUR,[start]),
@@ -45,15 +39,11 @@ def cetas_query_sisense(instance_id):
                 AVG([longitude]) AS [longitude]
             FROM (
                 SELECT 
-                    CONCAT(
-                        LEFT(data.filepath(1),2), 
-                        '~', 
-                        RIGHT(data.filepath(1),LEN(data.filepath(1))-2)
-                    ) AS [esq_id],
+                    data.filepath(1) AS [location_id],
                     [deviceid],
                     [lat] AS [latitude],
                     [lng] AS [longitude],
-                    CAST(DATEADD(second, [timestamp]/1000, {{d '1970-01-01'}}) AS DATETIME) AS [start]
+                    CAST(DATEADD(second, [timestamp]/1000, '1970-01-01') AS DATETIME) AS [start]
                 FROM OPENROWSET(
                     BULK 'dashboard/raw/{instance_id}/observations/*',
                     DATA_SOURCE = 'sa_esquireonspot',
@@ -67,20 +57,8 @@ def cetas_query_sisense(instance_id):
                     [lng] DECIMAL(11,6)
                 ) AS [data]
             ) [observations]
-            JOIN (
-                SELECT *
-                FROM OPENROWSET(
-                    BULK 'dashboard/raw/{instance_id}/locations.csv',
-                    DATA_SOURCE = 'sa_esquireonspot',
-                    FORMAT = 'CSV',
-                    PARSER_VERSION = '2.0',
-                    HEADER_ROW = TRUE
-                ) AS [data]
-            ) [locations]
-                ON [locations].[esq_id] = [observations].[esq_id]
             GROUP BY 
                 [location_id],
-                [observations].[esq_id],
                 [deviceid],
                 CAST([start] AS DATE),
                 DATEPART(HOUR, [start])

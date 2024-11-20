@@ -19,16 +19,16 @@ def esquire_dashboard_onspot_orchestrator(context: DurableOrchestrationContext):
     container = "dashboard"
 
     try:
-        yield context.call_activity_with_retry(
-            "esquire_dashboard_onspot_activity_locations",
-            retry,
-            {
-                "instance_id": context.instance_id,
-                "conn_str": conn_str,
-                "container": container,
-                "outputPath": f"raw/{context.instance_id}/locations.csv",
-            },
-        )
+        # yield context.call_activity_with_retry(
+        #     "esquire_dashboard_onspot_activity_locations",
+        #     retry,
+        #     {
+        #         "instance_id": context.instance_id,
+        #         "conn_str": conn_str,
+        #         "container": container,
+        #         "outputPath": f"raw/{context.instance_id}/locations.csv",
+        #     },
+        # )
 
         geoframes = yield context.call_activity_with_retry(
             "esquire_dashboard_onspot_activity_geoframes",

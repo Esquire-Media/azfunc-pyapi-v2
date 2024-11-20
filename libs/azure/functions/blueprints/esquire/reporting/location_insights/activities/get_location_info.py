@@ -14,52 +14,81 @@ bp = Blueprint()
 def activity_locationInsights_getLocationInfo(settings: dict):
 
     # connect to Locations table using a SQLAlchemy ORM session
-    provider = from_bind("legacy")
+    provider = from_bind("keystone")
     session: Session = provider.connect()
-    locations = provider.models["dbo"]["Locations"]
 
     # query for location info which matches the passed ESQ_ID(s)
-    locations = pd.DataFrame(
-        session.query(
-            locations.ID,
-            locations.ESQ_ID,
-            locations.Owner,
-            text(
-                """
-                dbo.getStreetAddress(
-                    [Street.Number]
-                    ,[Street.Predirection]
-                    ,[Street.Name]
-                    ,[Street.Suffix]
-                    ,[Street.Postdirection]
-                    ,[Unit.Number]
-                    ,[Unit.Type]
-                ) AS [Address]
-            """
-            ),
-            locations.City,
-            locations.State,
-            locations.Zip,
-            text("dbo.geo2json([Geomask]) AS [Geometry]"),
-            text("[LatLong].Lat AS [Latitude]"),
-            text("[LatLong].Long AS [Longitude]"),
-        )
-        .filter(locations.ESQ_ID == settings["locationID"])
-        .all(),
-        columns=[
-            "ID",
-            "ESQ_ID",
-            "Owner",
-            "Address",
-            "City",
-            "State",
-            "Zip",
-            "Geometry",
-            "Latitude",
-            "Longitude",
-        ],
+    # locations = pd.DataFrame(
+    #     session.query(
+    #         locations.ID,
+    #         locations.ESQ_ID,
+    #         locations.Owner,
+    #         text(
+    #             """
+    #             dbo.getStreetAddress(
+    #                 [Street.Number]
+    #                 ,[Street.Predirection]
+    #                 ,[Street.Name]
+    #                 ,[Street.Suffix]
+    #                 ,[Street.Postdirection]
+    #                 ,[Unit.Number]
+    #                 ,[Unit.Type]
+    #             ) AS [Address]
+    #         """
+    #         ),
+    #         locations.City,
+    #         locations.State,
+    #         locations.Zip,
+    #         text("dbo.geo2json([Geomask]) AS [Geometry]"),
+    #         text("[LatLong].Lat AS [Latitude]"),
+    #         text("[LatLong].Long AS [Longitude]"),
+    #     )
+    #     .filter(locations.ESQ_ID == settings["locationID"])
+    #     .all(),
+    #     columns=[
+    #         "ID",
+    #         "ESQ_ID",
+    #         "Owner",
+    #         "Address",
+    #         "City",
+    #         "State",
+    #         "Zip",
+    #         "Geometry",
+    #         "Latitude",
+    #         "Longitude",
+    #     ],
+    # )
+    locations = pd.read_sql(
+        """
+            WITH centroids AS (
+                SELECT
+                    id,
+                    ST_Centroid(ST_Collect(ST_GeomFromGeoJSON(feature->'geometry'))) AS centroid
+                FROM 
+                    public."TargetingGeoFrame",
+                    jsonb_array_elements(polygon->'features') AS feature
+                GROUP BY
+                    id
+            )
+            SELECT
+                G.id AS "ID",
+                G."ESQID" AS "ESQ_ID",
+                G.title AS "Owner",
+                G.street AS "Address",
+                G.city AS "City",
+                G.state AS "State",
+                G."zipCode" AS "Zip",
+                G.polygon AS "Geometry",
+                ST_Y(C.centroid) AS "Latitude",
+                ST_X(C.centroid) AS "Longitude"
+            FROM public."TargetingGeoFrame" AS G
+            JOIN centroids AS C
+                ON C.id = G.id
+            WHERE
+                G."ESQID"
+        """,
+        session.connection()
     )
-
     # return the cleaned addresses as a list of component dictionaries, each with an index attribute
     if len(locations) == 0:
         raise Exception(

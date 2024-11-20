@@ -12,15 +12,6 @@ if not from_bind("keystone"):
         max_overflow=100,
     )
     
-if not from_bind("legacy"):
-    register_binding(
-        "legacy",
-        "Structured",
-        "sql",
-        url=os.environ["DATABIND_SQL_UNIVERSAL"],
-        schemas=["dbo"],
-)
-    
 if not from_bind("synapse-general"):
     register_binding(
         "synapse-general",

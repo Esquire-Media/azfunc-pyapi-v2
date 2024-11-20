@@ -2,8 +2,7 @@ from azure.durable_functions import Blueprint
 from azure.storage.blob import BlobClient
 from libs.data import from_bind
 from sqlalchemy.orm import Session
-from sqlalchemy.sql import text
-import os, pandas as pd
+import os, pandas as pd, orjson
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()
@@ -18,48 +17,8 @@ def activity_locationInsights_getLocationInfo(settings: dict):
     session: Session = provider.connect()
 
     # query for location info which matches the passed ESQ_ID(s)
-    # locations = pd.DataFrame(
-    #     session.query(
-    #         locations.ID,
-    #         locations.ESQ_ID,
-    #         locations.Owner,
-    #         text(
-    #             """
-    #             dbo.getStreetAddress(
-    #                 [Street.Number]
-    #                 ,[Street.Predirection]
-    #                 ,[Street.Name]
-    #                 ,[Street.Suffix]
-    #                 ,[Street.Postdirection]
-    #                 ,[Unit.Number]
-    #                 ,[Unit.Type]
-    #             ) AS [Address]
-    #         """
-    #         ),
-    #         locations.City,
-    #         locations.State,
-    #         locations.Zip,
-    #         text("dbo.geo2json([Geomask]) AS [Geometry]"),
-    #         text("[LatLong].Lat AS [Latitude]"),
-    #         text("[LatLong].Long AS [Longitude]"),
-    #     )
-    #     .filter(locations.ESQ_ID == settings["locationID"])
-    #     .all(),
-    #     columns=[
-    #         "ID",
-    #         "ESQ_ID",
-    #         "Owner",
-    #         "Address",
-    #         "City",
-    #         "State",
-    #         "Zip",
-    #         "Geometry",
-    #         "Latitude",
-    #         "Longitude",
-    #     ],
-    # )
     locations = pd.read_sql(
-        """
+        f"""
             WITH centroids AS (
                 SELECT
                     id,
@@ -78,17 +37,19 @@ def activity_locationInsights_getLocationInfo(settings: dict):
                 G.city AS "City",
                 G.state AS "State",
                 G."zipCode" AS "Zip",
-                G.polygon AS "Geometry",
+                G.polygon->'features'->0->'geometry' AS "Geometry",
                 ST_Y(C.centroid) AS "Latitude",
                 ST_X(C.centroid) AS "Longitude"
             FROM public."TargetingGeoFrame" AS G
             JOIN centroids AS C
                 ON C.id = G.id
             WHERE
-                G."ESQID"
+                G."ESQID" = '{settings["locationID"]}'
         """,
         session.connection()
     )
+    locations['Geometry'] = locations['Geometry'].apply(lambda x: orjson.dumps(x).decode('utf-8'))
+    
     # return the cleaned addresses as a list of component dictionaries, each with an index attribute
     if len(locations) == 0:
         raise Exception(

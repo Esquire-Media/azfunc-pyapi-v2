@@ -1,14 +1,14 @@
-import os
 import numpy as np
 import pandas as pd
 from azure.storage.blob.aio import ContainerClient
 from io import BytesIO
-import asyncio
+import asyncio, os
 
-
-async def get_all_neighbors_async(address_df, N, same_side_only=True, limit=-1):
+async def get_all_neighbors(
+    address_df: pd.DataFrame, N: int, same_side_only: bool = True, limit: int = -1
+):
     """
-    Main function to get address neighbors by batching by the CSZ for quicker reading and using async calls.
+    Main function to get address neighbors by batching by the CSZ for quicker reading.
 
     Parameters
     ----------
@@ -26,69 +26,52 @@ async def get_all_neighbors_async(address_df, N, same_side_only=True, limit=-1):
     pandas.DataFrame
         All neighbors of the input addresses.
     """
-    tasks = [
-        process_city_group(city, state, zip_code, part_df, N, same_side_only)
-        for (city, state, zip_code), part_df in address_df.groupby(["city", "state", "zip_code"])
-        ]
+    async def process_group(city, state, zip_code, part_df):
+        city = city.replace(" ", "_")
+        try:
+            estated_data = await load_estated_data_partitioned_blob(
+                f"estated_partition_testing/state={state}/zip_code={zip_code}/city={city}/"
+            )
+        except Exception as e:
+            return None
 
-    # Run tasks
-    results_list = await asyncio.gather(*tasks)
+        group_results = []
+        for street_name, street_addresses in part_df.groupby("street_name"):
+            street_data = estated_data[
+                estated_data["street_name"] == str(street_name).upper()
+            ]
+            if street_data.empty:
+                continue
 
-    # return things if there are any, optionally heading
-    final_result = pd.concat(results_list, ignore_index=True) if results_list else pd.DataFrame()
-    return final_result.head(limit) if limit > 0 else final_result
-
-async def process_city_group(city, state, zip_code, part_df, N, same_side_only):
-    """
-    Process a group of addresses for a specific city, state, and zip code 
-    to find neighboring addresses.
-
-    Parameters
-    ----------
-    city : str
-        The name of the city to process.
-    state : str
-        The state associated with the city.
-    zip_code : str
-        The zip code for the region being processed.
-    part_df : pandas.DataFrame
-        The subset of the address DataFrame corresponding to this group.
-        Must contain columns: "street_name", "street_number".
-    N : int
-        Number of neighbors to find in each direction (if possible).
-    same_side_only : bool
-        If True, find neighbors only on the same side of the street (even/odd logic).
-
-    Returns
-    -------
-    pandas.DataFrame
-        A DataFrame containing the neighboring addresses for the input group.
-        Returns an empty DataFrame if no neighbors are found or if data loading fails.
-
-    """
-    city = city.replace(" ", "_")
-    try:
-        estated_data = await load_estated_data_partitioned_blob_async(
-            f"estated_partition_testing/state={state}/zip_code={zip_code}/city={city}/"
-        )
-    except Exception:
-        return pd.DataFrame()
-
-    results = []
-    for street_name, street_addresses in part_df.groupby("street_name"):
-        if estated_data.empty:
-            continue
-        street_data = estated_data[
-            estated_data["street_name"] == str(street_name).upper()
-        ]
-        if not street_data.empty:
             neighbors = find_neighbors_for_street(
                 street_data, street_addresses, N, same_side_only
             )
             if not neighbors.empty:
-                results.append(neighbors)
+                group_results.append(neighbors)
 
-    return pd.concat(results, ignore_index=True) if results else pd.DataFrame()
+        if group_results:
+            return pd.concat(group_results, ignore_index=True)
+        else:
+            return None
+
+    # Group data by city, state, and zip_code to batch operations
+    tasks = (
+        process_group(city, state, zip_code, part_df)
+        for (city, state, zip_code), part_df in address_df.groupby(["city", "state", "zip_code"])
+    )
+
+    # Using asyncio.as_completed to reduce memory consumption while processing results
+    results_list = []
+    for coro in asyncio.as_completed(tasks):
+        result = await coro
+        if result is not None:
+            results_list.append(result)
+    
+    # Concatenate results
+    if results_list:
+        return pd.concat(results_list, ignore_index=True).head(limit) if limit > 0 else pd.concat(results_list, ignore_index=True)
+    else:
+        return pd.DataFrame()
 
 def find_neighbors_for_street(
     data: pd.DataFrame, addresses: pd.DataFrame, N: int, same_side_only: bool
@@ -119,7 +102,7 @@ def find_neighbors_for_street(
     )
     increment = 2 if same_side_only else 1
 
-    addresses = addresses.dropna(subset=["street_number"]).copy()
+    addresses = addresses.dropna(subset=["street_number"])
     addresses["base_street_num"] = pd.to_numeric(
         addresses["street_number"], errors="coerce"
     )
@@ -152,71 +135,59 @@ def find_neighbors_for_street(
     neighbors = result.merge(data, left_on="neighbor_index", right_index=True)
 
     if same_side_only:
-        base_evenness = addresses["base_street_num"] % 2
-        evenness_map = dict(zip(addresses.index, base_evenness))
+        evenness_map = addresses["base_street_num"] % 2
         neighbors["base_evenness"] = neighbors["base_address_id"].map(evenness_map)
         neighbors = neighbors[
             neighbors["street_number"] % 2 == neighbors["base_evenness"]
         ]
 
     return neighbors.drop(
-        columns=["base_evenness", "base_address_id", "neighbor_index"]
+        columns=["base_evenness", "base_address_id", "neighbor_index"], errors="ignore"
     ).reset_index(drop=True)
 
-async def load_parquet_from_blob_async(blob_dir_path):
+
+async def load_parquet_from_blob(container_client: ContainerClient, blob_dir_path):
     """
-    Load parquet files asynchronously from Azure Blob Storage directory.
+    Load parquet files from an Azure Blob Storage directory.
 
     Parameters
     ----------
     blob_dir_path : str
-        The directory path in Azure Blob Storage.
+        The directory path in the Azure Blob Storage container.
 
     Returns
     -------
     pandas.DataFrame
-        Concatenated DataFrame of all parquet files.
+        The concatenated DataFrame of all parquet files in the given directory.
     """
-    async with ContainerClient.from_connection_string(
-        os.environ["DATALAKE_CONN_STR"], container_name="general"
-    ) as container_client:
-        # Use async for to iterate blobs
-        blobs = []
-        async for blob in container_client.list_blobs(name_starts_with=blob_dir_path):
-            blobs.append(blob)
+    blobs = (b async for b in container_client.list_blobs(name_starts_with=blob_dir_path))
+    
+    async def load_blob(blob):
+        if blob.size == 0:
+            return None
+        blob_client = container_client.get_blob_client(blob)
+        df = pd.read_parquet(
+            BytesIO(await (await blob_client.download_blob()).readall()),
+            columns=["street_number", "street_name", "city", "state", "zip_code"],
+        )
+        await blob_client.close()
+        return df.dropna(subset=["street_number", "street_name"], how="any") if not df.empty else None
 
-        if not blobs:
-            return pd.DataFrame()
+    # Using generator to load blobs to avoid keeping all in memory at once
+    dataframes = [await load_blob(blob) async for blob in blobs]
+    non_empty_dataframes = [df for df in dataframes if df is not None]
 
-        async def load_blob(blob):
-            if blob.size == 0:
-                return pd.DataFrame()
+    await container_client.close()
 
-            blob_client = container_client.get_blob_client(blob)
-            blob_stream = await blob_client.download_blob()
-            return pd.read_parquet(
-                BytesIO(await blob_stream.readall()),
-                columns=["street_number", "street_name", "city", "state", "zip_code"]
-                )
-
-        tasks = [load_blob(blob) for blob in blobs]
-        dataframes = await asyncio.gather(*tasks)
-
-        non_empty_dataframes = [df for df in dataframes if not df.empty]
-        if non_empty_dataframes:
-            final_df = (
-                pd.concat(non_empty_dataframes, ignore_index=True)
-                .drop_duplicates()
-                .dropna(subset=["street_number"])
-            )
-            return final_df
-        else:
-            return pd.DataFrame()
+    if non_empty_dataframes:
+        return pd.concat(non_empty_dataframes, ignore_index=True)
+    else:
+        return pd.DataFrame()
 
 
-async def load_estated_data_partitioned_blob_async(table_path):
+async def load_estated_data_partitioned_blob(table_path):
     """
-    Async version of loading estated data from a given blob storage path.
+    Read in estated data for a given path, ensuring that the street number is an integer.
 
     Parameters
     ----------
@@ -227,21 +198,13 @@ async def load_estated_data_partitioned_blob_async(table_path):
     -------
     pandas.DataFrame
         The formatted estated data.
-    """
-    try:
-        blob_df = await load_parquet_from_blob_async(table_path)
-    except Exception as e:
-        return pd.DataFrame()
-
-    if blob_df.empty:
-        return pd.DataFrame()
-
-    # Process DataFrame
-    blob_df = blob_df.dropna(subset=["street_number", "street_name"], how="any")
-
+    """    
+    container_client = ContainerClient.from_connection_string(
+        os.environ["DATALAKE_CONN_STR"], container_name="general"
+    )
+    blob_df = (await load_parquet_from_blob(container_client, table_path)).drop_duplicates()
     blob_df["street_number"] = pd.to_numeric(
         blob_df["street_number"], errors="coerce"
     ).astype("Int64")
     blob_df["street_name"] = blob_df["street_name"].astype("str")
-
     return blob_df

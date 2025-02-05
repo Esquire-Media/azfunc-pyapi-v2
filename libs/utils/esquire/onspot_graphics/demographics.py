@@ -395,9 +395,7 @@ def get_income_group(x):
         return "75-100k"
     elif (
         x["household_income $100000 - $149999"] > 0
-        or x["household_income $150000 - $159999"] > 0
-        or x["household_income $160000 - $164999"] > 0
-        or x["household_income $165000 - $199999"] > 0
+        or x["household_income $150000 - $199999"] > 0
         or x["household_income $200000 - $249999"] > 0
         or x["household_income $250000+"] > 0
     ):

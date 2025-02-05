@@ -2,11 +2,12 @@
 azure-data-tables==12.5.0
 azure-functions==1.19.0
 azure-functions-durable==1.2.9 # Blueprints Required
-azure-identity==1.16.1
-azure-keyvault-secrets==4.8.0
-azure-storage-blob==12.20.0
-azure-storage-file-datalake==12.15.0
-azure-storage-queue==12.10.0
+azure-identity
+azure-keyvault-secrets
+azure-storage-blob
+azure-storage-file-datalake
+azure-storage-queue
+azurefunctions-extensions-bindings-blob
 
 # required
 ## database connectors

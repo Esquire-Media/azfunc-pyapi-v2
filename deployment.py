@@ -61,6 +61,9 @@ BLUEPRINTS = {
     #     "libs/azure/functions/blueprints/purge_instance_history",
     #     "libs/azure/functions/blueprints/microsoft/graph/*",
     # ],
+    "esquire-redshift-sync": [
+        "libs/azure/functions/blueprints/aws/redshift_sync",
+    ],
     "esquire-sales-uploader": [
         "libs/azure/functions/blueprints/keep_alive",
         "libs/azure/functions/blueprints/esquire/reporting/matchback/salesUploader/*",

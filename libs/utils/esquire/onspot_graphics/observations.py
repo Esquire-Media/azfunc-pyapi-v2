@@ -27,8 +27,9 @@ class Observations:
         """
         
         # determine the timezone where this location exists
-        local_timezone = get_local_timezone(latitude=data['lat'].median(), longitude=data['lng'].median())
-        data['Datetime'] = data['timestamp'].apply(lambda x: dt.fromtimestamp(x/1000, tz=local_timezone))
+        # local_timezone = get_local_timezone(latitude=data['lat'].median(), longitude=data['lng'].median())
+        # data['Datetime'] = data['timestamp'].apply(lambda x: dt.fromtimestamp(x/1000, tz=local_timezone))
+        data["Datetime"] = pd.to_datetime(data["Date"] + " " + data["Time"], format="ISO8601", dayfirst=False)
         
         # get date and time from the timestamp
         data['Date'] = data['Datetime'].apply(lambda x: x.date())

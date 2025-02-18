@@ -98,24 +98,24 @@ def execute_graphics_replacements(template:Presentation, settings:dict, containe
     radii = settings['moverRadii']
     
     # GRAPHICS REPLACEMENTS
-    movers_slide = template.slides[2]
-    competitors_slide = template.slides[3]
-    display_social_slide = template.slides[8]
-    ott_slide = template.slides[9]
+    movers_slide = template.slides[9]
+    competitors_slide = template.slides[10]
+    display_social_slide = template.slides[4]
+    ott_slide = template.slides[5]
 
     # mover maps
     blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_map_{radii[0]}mi.png")
-    add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), movers_slide, movers_slide.shapes[36])
+    add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), movers_slide, movers_slide.shapes[30])
 
     blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_map_{radii[1]}mi.png")
-    add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), movers_slide, movers_slide.shapes[37])
+    add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), movers_slide, movers_slide.shapes[31])
 
     blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_map_{radii[2]}mi.png")
-    add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), movers_slide, movers_slide.shapes[35])
+    add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), movers_slide, movers_slide.shapes[29])
 
     # competitors map
     blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/competitors.png")
-    add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), competitors_slide, competitors_slide.shapes[23])
+    add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), competitors_slide, competitors_slide.shapes[19])
 
     # CREATIVE SET REPLACEMENTS
     creativeSet = settings['creativeSet']
@@ -146,7 +146,7 @@ def execute_graphics_replacements(template:Presentation, settings:dict, containe
     add_custom_image(
         file=BytesIO(blob_client.download_blob().content_as_bytes()),
         slide=display_social_slide,
-        placeholder=display_social_slide.shapes[17],
+        placeholder=display_social_slide.shapes[16],
     )
 
     # display 300x600
@@ -154,7 +154,7 @@ def execute_graphics_replacements(template:Presentation, settings:dict, containe
     add_custom_image(
         file=BytesIO(blob_client.download_blob().content_as_bytes()),
         slide=display_social_slide,
-        placeholder=display_social_slide.shapes[18],
+        placeholder=display_social_slide.shapes[17],
     )
 
     # display 728x90
@@ -162,7 +162,7 @@ def execute_graphics_replacements(template:Presentation, settings:dict, containe
     add_custom_image(
         file=BytesIO(blob_client.download_blob().content_as_bytes()),
         slide=display_social_slide,
-        placeholder=display_social_slide.shapes[16],
+        placeholder=display_social_slide.shapes[15],
     )
 
     # social feed 1
@@ -170,7 +170,7 @@ def execute_graphics_replacements(template:Presentation, settings:dict, containe
     add_custom_image(
         file=BytesIO(blob_client.download_blob().content_as_bytes()),
         slide=display_social_slide,
-        placeholder=display_social_slide.shapes[19],
+        placeholder=display_social_slide.shapes[18],
     )
 
     # social feed 2
@@ -178,7 +178,7 @@ def execute_graphics_replacements(template:Presentation, settings:dict, containe
     add_custom_image(
         file=BytesIO(blob_client.download_blob().content_as_bytes()),
         slide=display_social_slide,
-        placeholder=display_social_slide.shapes[20],
+        placeholder=display_social_slide.shapes[19],
     )
 
     # social feed 3  
@@ -186,7 +186,7 @@ def execute_graphics_replacements(template:Presentation, settings:dict, containe
     add_custom_image(
         file=BytesIO(blob_client.download_blob().content_as_bytes()),
         slide=display_social_slide,
-        placeholder=display_social_slide.shapes[21],
+        placeholder=display_social_slide.shapes[20],
     )  
     
     # social reel 1
@@ -194,7 +194,7 @@ def execute_graphics_replacements(template:Presentation, settings:dict, containe
     add_custom_image(
         file=BytesIO(blob_client.download_blob().content_as_bytes()),
         slide=display_social_slide,
-        placeholder=display_social_slide.shapes[23],
+        placeholder=display_social_slide.shapes[22],
     )
 
     # social reel 2
@@ -202,7 +202,7 @@ def execute_graphics_replacements(template:Presentation, settings:dict, containe
     add_custom_image(
         file=BytesIO(blob_client.download_blob().content_as_bytes()),
         slide=display_social_slide,
-        placeholder=display_social_slide.shapes[22],
+        placeholder=display_social_slide.shapes[21],
     )
 
     # ott banner 1

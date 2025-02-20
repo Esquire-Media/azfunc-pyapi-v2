@@ -220,3 +220,53 @@ def execute_graphics_replacements(template:Presentation, settings:dict, containe
         slide=ott_slide,
         placeholder=ott_slide.shapes[4],
     )
+
+def remove_excess_optional_slides(prs: Presentation, settings:dict):
+    """
+    Removes slides from a PowerPoint presentation based on settings
+
+    Parameters:
+    prs (Presentation): The PowerPoint presentation object.
+    settings: dict of the input json body. 
+        should contains a key of 'optional_slides'
+        E.G.: {
+            'optional_slides':[
+                'next_steps',
+                'new_mover'
+            ]
+        }
+
+    Returns:
+    Presentation: The modified PowerPoint presentation.
+    """
+
+    # the indices of the slides that are optional (0-indexed)
+    # any of these keys that are in the settings optional_slides are retained
+    optional_slide_ids = {
+        'new_mover': 9,
+        'in_market_shopper':10,
+        'pricing':11,
+        'next_steps':12
+    }
+
+    # null handling
+    keep_slides = set(settings['optional_slides']) if 'optional_slides' in settings.keys() else []
+
+    # Sort in reverse to avoid shifting issues
+    removal_indices = sorted(
+        [idx for key, idx in optional_slide_ids.items() if key not in keep_slides],
+        reverse=True
+    )
+
+    prs = remove_slides_by_index(prs, removal_indices)
+
+    return prs
+
+def remove_slides_by_index(prs, removal_indices):
+    # remove the slides via xml relationships
+    for i in removal_indices: 
+        rId = prs.slides._sldIdLst[i].rId
+        prs.part.drop_rel(rId)
+        del prs.slides._sldIdLst[i]
+
+    return prs

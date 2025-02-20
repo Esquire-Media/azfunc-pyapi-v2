@@ -129,8 +129,8 @@ def execute_graphics_replacements(
     """
     traffic_slide = template.slides[1]
     demos_slide = template.slides[2]
-    heatmap_slide = template.slides[3]
-    creative_slide = template.slides[4]
+    # heatmap_slide = template.slides[3]
+    # creative_slide = template.slides[4]
 
     # __TRAFFIC SLIDE__
     # foot traffic line graph
@@ -215,48 +215,48 @@ def execute_graphics_replacements(
         placeholder=demos_slide.shapes[26],
     )
 
-    # --HEATMAP SLIDE--
-    # heatmap scatter plot
-    add_custom_image(
-        file=obs.heatmap_graph(return_bytes=True),
-        slide=heatmap_slide,
-        placeholder=heatmap_slide.shapes[11],
-    )
-    # promotional ad image
-    blob_client = resources_client.get_blob_client(
-        blob=f"promotions/{settings['promotionSet']}/Ad.png"
-    )
-    add_custom_image(
-        file=BytesIO(blob_client.download_blob().content_as_bytes()),
-        slide=heatmap_slide,
-        placeholder=heatmap_slide.shapes[12],
-    )
-    # promotional ad hyperlink
-    blob_client = resources_client.get_blob_client(
-        blob=f"promotions/{settings['promotionSet']}/Ad Link.txt"
-    )
-    ad = heatmap_slide.shapes[-1]
-    ad.click_action.hyperlink.address = blob_client.download_blob().content_as_text()
+    # # --HEATMAP SLIDE--
+    # # heatmap scatter plot
+    # add_custom_image(
+    #     file=obs.heatmap_graph(return_bytes=True),
+    #     slide=heatmap_slide,
+    #     placeholder=heatmap_slide.shapes[11],
+    # )
+    # # promotional ad image
+    # blob_client = resources_client.get_blob_client(
+    #     blob=f"promotions/{settings['promotionSet']}/Ad.png"
+    # )
+    # add_custom_image(
+    #     file=BytesIO(blob_client.download_blob().content_as_bytes()),
+    #     slide=heatmap_slide,
+    #     placeholder=heatmap_slide.shapes[12],
+    # )
+    # # promotional ad hyperlink
+    # blob_client = resources_client.get_blob_client(
+    #     blob=f"promotions/{settings['promotionSet']}/Ad Link.txt"
+    # )
+    # ad = heatmap_slide.shapes[-1]
+    # ad.click_action.hyperlink.address = blob_client.download_blob().content_as_text()
 
-    # --CREATIVE SLIDE--
-    # placeholder indexes for each of the 3 creative images
-    creative_placeholders = {0: 18, 1: 19, 2: 20}
-    for i, blob_name in enumerate(
-        [
-            blob.name
-            for blob in resources_client.list_blobs(
-                f"creatives/{settings['creativeSet']}/"
-            )
-        ][:3]
-    ):
-        # creative images
-        blob_client = resources_client.get_blob_client(blob=blob_name)
-        if blob_client.exists():
-            add_custom_image(
-                file=BytesIO(blob_client.download_blob().content_as_bytes()),
-                slide=creative_slide,
-                placeholder=creative_slide.shapes[creative_placeholders[i]],
-            )
+    # # --CREATIVE SLIDE--
+    # # placeholder indexes for each of the 3 creative images
+    # creative_placeholders = {0: 18, 1: 19, 2: 20}
+    # for i, blob_name in enumerate(
+    #     [
+    #         blob.name
+    #         for blob in resources_client.list_blobs(
+    #             f"creatives/{settings['creativeSet']}/"
+    #         )
+    #     ][:3]
+    # ):
+    #     # creative images
+    #     blob_client = resources_client.get_blob_client(blob=blob_name)
+    #     if blob_client.exists():
+    #         add_custom_image(
+    #             file=BytesIO(blob_client.download_blob().content_as_bytes()),
+    #             slide=creative_slide,
+    #             placeholder=creative_slide.shapes[creative_placeholders[i]],
+    #         )
 
 
 def execute_text_replacements(obs: Observations, info: dict, template: Presentation):

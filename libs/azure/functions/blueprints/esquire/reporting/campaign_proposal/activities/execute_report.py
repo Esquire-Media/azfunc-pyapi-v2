@@ -26,17 +26,19 @@ def activity_campaignProposal_executeReport(settings: dict):
     blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/addresses.csv")
     addresses = pd.read_csv(get_blob_sas(blob_client))
 
-    # import mover totals (NOTE: as a single Pandas row, not a Dataframe)
-    blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_totals.csv")
-    mover_totals = pd.read_csv(get_blob_sas(blob_client)).iloc[0]
-    
-    # import mover counts
-    blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_counts.csv")
-    mover_counts = pd.read_csv(get_blob_sas(blob_client))
+    if 'new_mover' in settings['optional_slides']:
+        # import mover totals (NOTE: as a single Pandas row, not a Dataframe)
+        blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_totals.csv")
+        mover_totals = pd.read_csv(get_blob_sas(blob_client)).iloc[0]
+        
+        # import mover counts
+        blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_counts.csv")
+        mover_counts = pd.read_csv(get_blob_sas(blob_client))
 
-    # import competitor list
-    blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/competitors.csv")
-    competitors = pd.read_csv(get_blob_sas(blob_client))
+    if 'in_market_shopper' in settings['optional_slides']:
+        # import competitor list
+        blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/competitors.csv")
+        competitors = pd.read_csv(get_blob_sas(blob_client))
 
     # populate presentation with generated text and graphics
     execute_text_replacements(template=template, settings=settings, mover_counts=mover_counts, mover_totals=mover_totals, addresses=addresses, competitors=competitors)
@@ -56,35 +58,48 @@ def activity_campaignProposal_executeReport(settings: dict):
 
 def execute_text_replacements(template:Presentation, settings:dict, mover_counts:pd.DataFrame, mover_totals:pd.DataFrame, addresses:pd.DataFrame, competitors:pd.DataFrame):
     
-    # TEXT FORMATTIING
-    # mover headers, data, and a totals row
-    radii = settings['moverRadii']
-    max_num_length = len(str("{:,}".format(mover_totals[f'movers_{radii[2]}mi'])))
-    mover_headers = f"{pad_text('Address',26)}\t{radii[0]} Mile\t{radii[1]} Mile\t{radii[2]} Mile"
-    mover_lines = []
-    for i, row in mover_counts.iterrows():
-        # by-location counts
-        mover_lines.append(
-            f"""{pad_text(row['address'],26)}\t{pad_text(row[f'movers_{radii[0]}mi'],max_num_length)}\t{pad_text(row[f'movers_{radii[1]}mi'],max_num_length)}\t{pad_text(row[f'movers_{radii[2]}mi'],max_num_length)}"""
-        )
-    # unique mover counts for entire audience
-    mover_totals_line = f"{pad_text('Total Adjusted for Overlap',26)}\t{pad_text(mover_totals[f'movers_{radii[0]}mi'],max_num_length)}\t{pad_text(mover_totals[f'movers_{radii[1]}mi'],max_num_length)}\t{pad_text(mover_totals[f'movers_{radii[2]}mi'],max_num_length)}"
-
-    # TEXT REPLACEMENTS
+    # initialize the replacement set with placeholders for the optional ones
     replacements = {
-        "{{request name}}":settings['name'],
-        "{{month}}":date.today().strftime('%B'),
-        "{{year}}":date.today().year,
-        "{{count locations}}":len(addresses),
-        "{{mover headers}}":mover_headers,
-        "{{mover counts}}":"\n".join(mover_lines),
-        "{{mover totals}}":mover_totals_line,
-        "{{competitor list}}":'\n'.join(competitors['chain_name'].value_counts().index.tolist()[:35]),
-        "{{owned list}}":'\n'.join(addresses['address'].unique()),
-        "{{r1}}":radii[0],
-        "{{r2}}":radii[1],
-        "{{r3}}":radii[2]
+        replacements["{{request name}}"]    : settings['name'],
+        replacements["{{month}}"]           : date.today().strftime('%B'),
+        replacements["{{year}}"]            : date.today().year,
+        replacements["{{count locations}}"] : len(addresses),
+        replacements["{{owned list}}"]      : '\n'.join(addresses['address'].unique()),
+        replacements["{{mover headers}}"]   : "",
+        replacements["{{mover counts}}"]    : "",
+        replacements["{{mover totals}}"]    : "",
+        replacements["{{r1}}"]              : "",
+        replacements["{{r2}}"]              : "",
+        replacements["{{r3}}"]              : "",
+        replacements["{{competitor list}}"] : ""
     }
+
+    if 'new_mover' in settings['optional_slides']:
+        # TEXT FORMATTIING
+        # mover headers, data, and a totals row
+        radii = settings['moverRadii']
+        max_num_length = len(str("{:,}".format(mover_totals[f'movers_{radii[2]}mi'])))
+        mover_headers = f"{pad_text('Address',26)}\t{radii[0]} Mile\t{radii[1]} Mile\t{radii[2]} Mile"
+        mover_lines = []
+        for i, row in mover_counts.iterrows():
+            # by-location counts
+            mover_lines.append(
+                f"""{pad_text(row['address'],26)}\t{pad_text(row[f'movers_{radii[0]}mi'],max_num_length)}\t{pad_text(row[f'movers_{radii[1]}mi'],max_num_length)}\t{pad_text(row[f'movers_{radii[2]}mi'],max_num_length)}"""
+            )
+        # unique mover counts for entire audience
+        mover_totals_line = f"{pad_text('Total Adjusted for Overlap',26)}\t{pad_text(mover_totals[f'movers_{radii[0]}mi'],max_num_length)}\t{pad_text(mover_totals[f'movers_{radii[1]}mi'],max_num_length)}\t{pad_text(mover_totals[f'movers_{radii[2]}mi'],max_num_length)}"
+
+        # TEXT REPLACEMENTS
+        replacements["{{mover headers}}"]   = mover_headers
+        replacements["{{mover counts}}"]    = "\n".join(mover_lines)
+        replacements["{{mover totals}}"]    = mover_totals_line
+        replacements["{{r1}}"]              = radii[0]
+        replacements["{{r2}}"]              = radii[1]
+        replacements["{{r3}}"]              = radii[2]
+    
+    if 'in_market_shopper' in settings['optional_slides']:
+        replacements["{{competitor list}}"] = '\n'.join(competitors['chain_name'].value_counts().index.tolist()[:35])
+    
     # replace text in slides with generated stats and bullet points
     slides = [slide for slide in template.slides]
     shapes = []
@@ -95,27 +110,29 @@ def execute_text_replacements(template:Presentation, settings:dict, mover_counts
 
 def execute_graphics_replacements(template:Presentation, settings:dict, container_client:ContainerClient, resources_client:ContainerClient):
     
-    radii = settings['moverRadii']
-    
     # GRAPHICS REPLACEMENTS
     movers_slide = template.slides[9]
     competitors_slide = template.slides[10]
     display_social_slide = template.slides[4]
     ott_slide = template.slides[5]
 
-    # mover maps
-    blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_map_{radii[0]}mi.png")
-    add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), movers_slide, movers_slide.shapes[30])
+    if 'new_mover' in settings['optional_slides']:
+        radii = settings['moverRadii']
 
-    blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_map_{radii[1]}mi.png")
-    add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), movers_slide, movers_slide.shapes[31])
+        # mover maps
+        blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_map_{radii[0]}mi.png")
+        add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), movers_slide, movers_slide.shapes[30])
 
-    blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_map_{radii[2]}mi.png")
-    add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), movers_slide, movers_slide.shapes[29])
+        blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_map_{radii[1]}mi.png")
+        add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), movers_slide, movers_slide.shapes[31])
 
-    # competitors map
-    blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/competitors.png")
-    add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), competitors_slide, competitors_slide.shapes[19])
+        blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_map_{radii[2]}mi.png")
+        add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), movers_slide, movers_slide.shapes[29])
+
+    if 'in_market_shopper' in settings['optional_slides']:
+        # competitors map
+        blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/competitors.png")
+        add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), competitors_slide, competitors_slide.shapes[19])
 
     # CREATIVE SET REPLACEMENTS
     creativeSet = settings['creativeSet']
@@ -220,6 +237,7 @@ def execute_graphics_replacements(template:Presentation, settings:dict, containe
         slide=ott_slide,
         placeholder=ott_slide.shapes[4],
     )
+
 
 def remove_excess_optional_slides(prs: Presentation, settings:dict):
     """

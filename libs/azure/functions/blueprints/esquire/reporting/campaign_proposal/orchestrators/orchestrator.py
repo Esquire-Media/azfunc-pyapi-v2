@@ -39,19 +39,21 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
             egress,
         )
 
-        # call activity to collect mover counts for each individual location as well as a deduped total
-        yield context.call_activity_with_retry(
-            "activity_campaignProposal_collectMovers",
-            retry,
-            egress,
-        )
+        if 'new_mover' in settings['optional_slides']:
+            # call activity to collect mover counts for each individual location as well as a deduped total
+            yield context.call_activity_with_retry(
+                "activity_campaignProposal_collectMovers",
+                retry,
+                egress,
+            )
 
-        # call activity to collect nearby competitors to each location
-        yield context.call_activity_with_retry(
-            "activity_campaignProposal_collectCompetitors",
-            retry,
-            egress,
-        )
+        if 'in_market_shopper' in settings['optional_slides']:
+            # call activity to collect nearby competitors to each location
+            yield context.call_activity_with_retry(
+                "activity_campaignProposal_collectCompetitors",
+                retry,
+                egress,
+            )
 
         # call activity to populate the PPTX report template and upload it as bytes to Azure storage
         yield context.call_activity_with_retry(

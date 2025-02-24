@@ -129,7 +129,7 @@ def activity_locationInsights_buildReport(settings: dict):
 
     # upload bytes to blob storage
     filename = (
-        re.sub(r"[^A-Za-z0-9 ]+", "", f"{info['Owner']} {info['Full Address']}")
+        re.sub(r"[^A-Za-z0-9 ]+", "", f"{settings['name']} {settings['batch_id']}")
         .replace(" ", "_")
         .replace("__", "_")
     )

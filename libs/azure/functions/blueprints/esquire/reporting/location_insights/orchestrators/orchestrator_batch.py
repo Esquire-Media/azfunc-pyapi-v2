@@ -1,5 +1,6 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 import logging, os
+import uuid
 
 bp = Blueprint()
 
@@ -48,6 +49,7 @@ def orchestrator_locationInsights_batch(context: DurableOrchestrationContext):
                     input_={
                         **{k:v for k,v in egress.items() if k!='locationIDs'},
                         "locationIDs":batch,
+                        "batch_id": uuid.uuid4()
                     },
                 )
                 for batch in location_batches

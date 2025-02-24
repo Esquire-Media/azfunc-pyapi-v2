@@ -28,77 +28,99 @@ def activity_locationInsights_buildReport(settings: dict):
         container_name=settings["resources_container"]["container_name"],
     )
 
-    # load location info from blob
-    location = pd.read_csv(
-        get_blob_sas(
-            BlobClient.from_connection_string(
-                conn_str=os.environ[settings["runtime_container"]["conn_str"]],
-                container_name=settings["runtime_container"]["container_name"],
-                blob_name=settings["runtime_container"]["location_blob"],
+    template = Presentation(BytesIO(
+        resources_container.download_blob(
+            blob=f"templates/{settings['template']}.pptx"
+        ).content_as_bytes()
+    ))
+    base_slide_count = len(template.slides)
+    
+    for location in settings["locations_data"]:
+        # load location info from blob
+        locationID = location["locationID"]
+
+        # Load location info
+        location_data = pd.read_csv(get_blob_sas(BlobClient.from_connection_string(
+            conn_str=os.environ[settings["runtime_container"]["conn_str"]],
+            container_name=settings["runtime_container"]["container_name"],
+            blob_name=location["location_blob"],
+        )))
+        info = location_data.iloc[0].copy()
+        info["Full Address"] = (
+            f"{info['Address']}, {info['City']}, {info['State']} {info['Zip']}"
+        )
+
+        # load observations data from blob
+        observations_data = pd.read_csv(
+            get_blob_sas(
+                BlobClient.from_connection_string(
+                    conn_str=os.environ[settings["runtime_container"]["conn_str"]],
+                    container_name=settings["runtime_container"]["container_name"],
+                    blob_name=[
+                        *ContainerClient.from_connection_string(
+                            conn_str=os.environ[settings["runtime_container"]["conn_str"]],
+                            container_name=settings["runtime_container"]["container_name"],
+                        ).list_blobs(
+                            name_starts_with=f"{location['observations_blob']}/"
+                        )
+                    ][0]["name"],
+                )
             )
         )
-    )
-    info = location.iloc[0].copy()
-    info["Full Address"] = (
-        f"{info['Address']}, {info['City']}, {info['State']} {info['Zip']}"
-    )
+        observations = Observations(observations_data)
 
-    # load observations data from blob
-    observations_data = pd.read_csv(
-        get_blob_sas(
-            BlobClient.from_connection_string(
-                conn_str=os.environ[settings["runtime_container"]["conn_str"]],
-                container_name=settings["runtime_container"]["container_name"],
-                blob_name=[
-                    *ContainerClient.from_connection_string(
-                        conn_str=os.environ[settings["runtime_container"]["conn_str"]],
-                        container_name=settings["runtime_container"]["container_name"],
-                    ).list_blobs(
-                        name_starts_with=f"{settings['runtime_container']['observations_blob']}/"
-                    )
-                ][0]["name"],
+        # load demographics data from blob
+        demographics_data = pd.read_csv(
+            get_blob_sas(
+                BlobClient.from_connection_string(
+                    conn_str=os.environ[settings["runtime_container"]["conn_str"]],
+                    container_name=settings["runtime_container"]["container_name"],
+                    blob_name=[
+                        *ContainerClient.from_connection_string(
+                            conn_str=os.environ[settings["runtime_container"]["conn_str"]],
+                            container_name=settings["runtime_container"]["container_name"],
+                        ).list_blobs(
+                            name_starts_with=f"{location['demographics_blob']}/"
+                        )
+                    ][0]["name"],
+                )
             )
         )
-    )
-    observations = Observations(observations_data)
+        demographics = Demographics(demographics_data)
 
-    # load demographics data from blob
-    demographics_data = pd.read_csv(
-        get_blob_sas(
-            BlobClient.from_connection_string(
-                conn_str=os.environ[settings["runtime_container"]["conn_str"]],
-                container_name=settings["runtime_container"]["container_name"],
-                blob_name=[
-                    *ContainerClient.from_connection_string(
-                        conn_str=os.environ[settings["runtime_container"]["conn_str"]],
-                        container_name=settings["runtime_container"]["container_name"],
-                    ).list_blobs(
-                        name_starts_with=f"{settings['runtime_container']['demographics_blob']}/"
-                    )
-                ][0]["name"],
+    # # load template presentation
+    # template = Presentation(
+    #     BytesIO(
+    #         resources_container.download_blob(
+    #             blob=f"templates/{settings['template']}.pptx"
+    #         ).content_as_bytes()
+    #     )
+    # )
+
+    # Duplicate slides for this location and track new slide indices
+        new_slide_indices = []
+        for idx in range(base_slide_count):
+            new_slide = template.slides.add_slide(template.slides[idx])
+            new_slide_indices.append(len(template.slides) - 1)  # Track new slide index
+
+        # Perform replacements only on the newly created slides
+        new_slides = [template.slides[idx] for idx in new_slide_indices]
+        execute_text_replacements(
+            obs=observations, 
+            info=info, 
+            template=template, 
+            slides=new_slides
             )
-        )
-    )
-    demographics = Demographics(demographics_data)
-
-    # load template presentation
-    template = Presentation(
-        BytesIO(
-            resources_container.download_blob(
-                blob=f"templates/{settings['template']}.pptx"
-            ).content_as_bytes()
-        )
-    )
-
-    # populate presentation with generated text and graphics
-    execute_text_replacements(obs=observations, info=info, template=template)
-    execute_graphics_replacements(
-        obs=observations,
-        demos=demographics,
-        template=template,
-        resources_client=resources_container,
-        settings=settings,
-    )
+        execute_graphics_replacements(
+            obs=observations, 
+            demos=demographics, 
+            template=template, 
+            resources_client=resources_container, 
+            settings=settings, slides=new_slides
+            )
+    
+    # remove the blank template slides
+    template = remove_slides_by_index(template, [0,1,2])
 
     # use a file-like object to export pptx as bytes
     output_io = BytesIO()
@@ -123,12 +145,13 @@ def execute_graphics_replacements(
     template: Presentation,
     resources_client: ContainerClient,
     settings: dict,
+    slides
 ):
     """
     Create and export the device observations graphics.
     """
-    traffic_slide = template.slides[1]
-    demos_slide = template.slides[2]
+    traffic_slide = slides[1]
+    demos_slide = slides[2]
     # heatmap_slide = template.slides[3]
     # creative_slide = template.slides[4]
 
@@ -259,7 +282,7 @@ def execute_graphics_replacements(
     #         )
 
 
-def execute_text_replacements(obs: Observations, info: dict, template: Presentation):
+def execute_text_replacements(obs: Observations, info: dict, template: Presentation, slides):
     """
     Calls functions which update all generated text in the template pptx.
     """
@@ -287,7 +310,6 @@ def execute_text_replacements(obs: Observations, info: dict, template: Presentat
         "{{bullet4}}": obs.bullet_budget(),
     }
     # replace text in slides with generated stats and bullet points
-    slides = [slide for slide in template.slides]
     shapes = []
     for slide in slides:
         for shape in slide.shapes:
@@ -295,3 +317,12 @@ def execute_text_replacements(obs: Observations, info: dict, template: Presentat
     replace_text(replaces, shapes)
 
     return True
+
+def remove_slides_by_index(prs, removal_indices):
+    # Sort indices in reverse order to avoid shifting issues
+    for i in sorted(removal_indices, reverse=True):
+        rId = prs.slides._sldIdLst[i].rId
+        prs.part.drop_rel(rId)
+        del prs.slides._sldIdLst[i]
+
+    return prs

@@ -34,6 +34,12 @@ def orchestrator_locationInsights_batch(context: DurableOrchestrationContext):
             }
         }
 
+        batch_size = 10
+        location_batches = [
+            settings["locationIDs"][i : i + batch_size]
+            for i in range(0, len(settings["locationIDs"]), batch_size)
+        ]
+
         # parallelize the processing for each report in the batch, so each is assigned its own suborchestrator
         output_blob_names = yield context.task_all(
             [
@@ -41,10 +47,10 @@ def orchestrator_locationInsights_batch(context: DurableOrchestrationContext):
                     name="orchestrator_locationInsights_report",
                     input_={
                         **{k:v for k,v in egress.items() if k!='locationIDs'},
-                        "locationID":locationID,
+                        "locationIDs":batch,
                     },
                 )
-                for locationID in settings['locationIDs']
+                for batch in location_batches
             ]
         )
 

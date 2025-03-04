@@ -282,17 +282,28 @@ def execute_graphics_replacements(
 
 def replace_text_in_slides(slides, location_info, observations, demographics):
     """Replace placeholders with real data only in the duplicated slides."""
+    # bullet points and text data
+    latest_week = observations.get_latest_week()
+    best_week = observations.get_best_week()
+    worst_week = observations.get_worst_week()
+    
     replacements = {
         "{{title}}": location_info["Owner"].upper(),
-        "{{subtitle}}": f"{location_info['Address']}, {location_info['City']}, {location_info['State']} {location_info['Zip']}",
-        "{{trend_score}}": str(observations["trend_score"]),
-        "{{stability_score}}": str(observations["stability_score"]),
-        "{{recent_score}}": str(observations["recent_score"]),
-        "{{gender_ratio}}": f"{demographics['gender_ratio'] * 100:.1f}%",
-        "{{avg_income}}": f"${demographics['avg_income']:,.0f}",
-        "{{year}}": "2024",
-        "{{bullet1}}": str(observations["bullet1"]),
-        "{{bullet2}}": str(observations["bullet2"])
+        "{{subtitle}}": location_info["Full Address"],
+        "{{year}}": latest_week["Year"],
+        "{{latest week}}": latest_week["Week"],
+        "{{latest performance}}": latest_week["Performance"],
+        "{{latest range}}": latest_week["Range"],
+        "{{best week}}": best_week["Week"],
+        "{{best performance}}": best_week["Performance"],
+        "{{best range}}": best_week["Range"],
+        "{{worst week}}": worst_week["Week"],
+        "{{worst performance}}": worst_week["Performance"],
+        "{{worst range}}": worst_week["Range"],
+        "{{bullet1}}": observations.bullet_current_performance(),
+        "{{bullet2}}": observations.bullet_continuous_growth(),
+        "{{bullet3}}": observations.bullet_six_weeks(),
+        "{{bullet4}}": observations.bullet_budget(),
     }
     from libs.utils.pptx import add_custom_image, replace_text
     # replace text in slides with generated stats and bullet points

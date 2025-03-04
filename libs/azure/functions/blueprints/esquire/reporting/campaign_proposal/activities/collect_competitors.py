@@ -19,7 +19,7 @@ bp = Blueprint()
 @bp.activity_trigger(input_name="settings")
 def activity_campaignProposal_collectCompetitors(settings: dict):
 
-    if ('in_market_shopper' in settings.get('optional_slides', [])) or ('optional_slides' not in settings.keys()):
+    if 'in_market_shopper' not in settings.get('optional_slides', []):
         return {}
 
     # import cleaned addresses from previous step

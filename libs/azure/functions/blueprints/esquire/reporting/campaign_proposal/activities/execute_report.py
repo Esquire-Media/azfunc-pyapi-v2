@@ -49,6 +49,9 @@ def activity_campaignProposal_executeReport(settings: dict):
     execute_text_replacements(template=template, settings=settings, mover_counts=mover_counts, mover_totals=mover_totals, addresses=addresses, competitors=competitors)
     execute_graphics_replacements(template=template, settings=settings, container_client=container_client, resources_client=resources_client)
 
+    # remove the extraneous slides
+    template = remove_excess_optional_slides(template, settings)
+
     # FORMATTED PPTX UPLOAD
     # use a file-like object to export pptx as bytes
     output_io = BytesIO()

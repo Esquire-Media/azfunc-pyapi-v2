@@ -158,13 +158,13 @@ def execute_graphics_replacements(
     add_custom_image(
         file=obs.foot_traffic_graph(return_bytes=True),
         slide=traffic_slide,
-        placeholder=traffic_slide.shapes[4],
+        placeholder=traffic_slide.shapes[5],
     )
     # time distribution graph
     add_custom_image(
         file=obs.time_distribution_graph(return_bytes=True),
         slide=traffic_slide,
-        placeholder=traffic_slide.shapes[33],
+        placeholder=traffic_slide.shapes[31],
     )
     # trend score slider
     add_custom_image(
@@ -173,7 +173,7 @@ def execute_graphics_replacements(
             labels=["", "Decreasing", "", "Neutral", "", "Increasing", ""],
         ).export(return_bytes=True),
         slide=traffic_slide,
-        placeholder=traffic_slide.shapes[31],
+        placeholder=traffic_slide.shapes[28],
     )
     # stability score slider
     add_custom_image(
@@ -182,7 +182,7 @@ def execute_graphics_replacements(
             labels=["", "Volatile", "", "Moderate", "", "Consistent", ""],
         ).export(return_bytes=True),
         slide=traffic_slide,
-        placeholder=traffic_slide.shapes[30],
+        placeholder=traffic_slide.shapes[27],
     )
     # recent performance slider
     add_custom_image(
@@ -191,7 +191,7 @@ def execute_graphics_replacements(
             labels=["", "Below Average", "", "Average", "", "Above Average", ""],
         ).export(return_bytes=True),
         slide=traffic_slide,
-        placeholder=traffic_slide.shapes[32],
+        placeholder=traffic_slide.shapes[29],
     )
     # remove slider placeholders (important to do this last and in decreasing order to not mess up other shape indexes)
     traffic_slide.shapes.element.remove(traffic_slide.shapes[32].element)
@@ -203,37 +203,37 @@ def execute_graphics_replacements(
     add_custom_image(
         file=demos.gender_graph(return_bytes=True),
         slide=demos_slide,
-        placeholder=demos_slide.shapes[29],
+        placeholder=demos_slide.shapes[4],
     )
     # marital status pie graph
     add_custom_image(
         file=demos.marriage_graph(return_bytes=True),
         slide=demos_slide,
-        placeholder=demos_slide.shapes[28],
+        placeholder=demos_slide.shapes[8],
     )
     # dwelling type pie graph
     add_custom_image(
         file=demos.dwelling_graph(return_bytes=True),
         slide=demos_slide,
-        placeholder=demos_slide.shapes[27],
+        placeholder=demos_slide.shapes[9],
     )
     # presence of children pie graph
     add_custom_image(
         file=demos.children_graph(return_bytes=True),
         slide=demos_slide,
-        placeholder=demos_slide.shapes[4],
+        placeholder=demos_slide.shapes[7],
     )
     # age bar graph
     add_custom_image(
         file=demos.age_graph(return_bytes=True),
         slide=demos_slide,
-        placeholder=demos_slide.shapes[5],
+        placeholder=demos_slide.shapes[6],
     )
     # income bar graph
     add_custom_image(
         file=demos.income_graph(return_bytes=True),
         slide=demos_slide,
-        placeholder=demos_slide.shapes[26],
+        placeholder=demos_slide.shapes[5],
     )
 
     # # --HEATMAP SLIDE--

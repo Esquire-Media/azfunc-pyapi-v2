@@ -27,6 +27,7 @@ def activity_campaignProposal_executeReport(settings: dict):
     addresses = pd.read_csv(get_blob_sas(blob_client))
 
     # if we have optional_slides being put in, then make sure we're not doing extra work
+    mover_counts = pd.DataFrame()
     if ('new_mover' in settings.get('optional_slides', [])) or ('optional_slides' not in settings.keys()):
         # import mover totals (NOTE: as a single Pandas row, not a Dataframe)
         blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_totals.csv")
@@ -36,6 +37,7 @@ def activity_campaignProposal_executeReport(settings: dict):
         blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_counts.csv")
         mover_counts = pd.read_csv(get_blob_sas(blob_client))
 
+    competitors = pd.DataFrame()
     if ('in_market_shopper' in settings.get('optional_slides', [])) or ('optional_slides' not in settings.keys()):
         # import competitor list
         blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/competitors.csv")

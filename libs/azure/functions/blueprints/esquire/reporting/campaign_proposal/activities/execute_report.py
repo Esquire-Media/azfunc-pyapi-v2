@@ -62,18 +62,18 @@ def execute_text_replacements(template:Presentation, settings:dict, mover_counts
     
     # initialize the replacement set with placeholders for the optional ones
     replacements = {
-        replacements["{{request name}}"]    : settings['name'],
-        replacements["{{month}}"]           : date.today().strftime('%B'),
-        replacements["{{year}}"]            : date.today().year,
-        replacements["{{count locations}}"] : len(addresses),
-        replacements["{{owned list}}"]      : '\n'.join(addresses['address'].unique()),
-        replacements["{{mover headers}}"]   : "",
-        replacements["{{mover counts}}"]    : "",
-        replacements["{{mover totals}}"]    : "",
-        replacements["{{r1}}"]              : "",
-        replacements["{{r2}}"]              : "",
-        replacements["{{r3}}"]              : "",
-        replacements["{{competitor list}}"] : ""
+        "{{request name}}"    : settings['name'],
+        "{{month}}"           : date.today().strftime('%B'),
+        "{{year}}"            : date.today().year,
+        "{{count locations}}" : len(addresses),
+        "{{owned list}}"      : '\n'.join(addresses['address'].unique()),
+        "{{mover headers}}"   : "",
+        "{{mover counts}}"    : "",
+        "{{mover totals}}"    : "",
+        "{{r1}}"              : "",
+        "{{r2}}"              : "",
+        "{{r3}}"              : "",
+        "{{competitor list}}" : ""
     }
 
     if ('new_mover' in settings.get('optional_slides', [])) or ('optional_slides' not in settings.keys()):

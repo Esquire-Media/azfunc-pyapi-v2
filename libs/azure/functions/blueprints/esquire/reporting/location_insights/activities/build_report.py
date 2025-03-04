@@ -8,6 +8,7 @@ from libs.utils.esquire.onspot_graphics.observations import Observations
 from libs.utils.esquire.onspot_graphics.slider import SliderGraph
 from pptx import Presentation
 import os, pandas as pd, re
+from libs.utils.pptx_helpers import duplicate_slide
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()
@@ -98,25 +99,22 @@ def activity_locationInsights_buildReport(settings: dict):
     # )
 
     # Duplicate slides for this location and track new slide indices
-        new_slide_indices = []
+        # Track newly created slides and get their indices correctly
+        new_slides = []
         for idx in range(base_slide_count):
-            new_slide = template.slides.add_slide(template.slides[idx])
-            new_slide_indices.append(len(template.slides) - 1)  # Track new slide index
+            new_slide = duplicate_slide(template, idx)
+            new_slides.append(template.slides[-1])  # Always get the last slide (newly added)
 
-        # Perform replacements only on the newly created slides
-        new_slides = [template.slides[idx] for idx in new_slide_indices]
-        execute_text_replacements(
-            obs=observations, 
-            info=info, 
-            template=template, 
-            slides=new_slides
-            )
+        # Ensure replacements happen only in duplicated slides
+        replace_text_in_slides(slides=new_slides, location_info=info, observations=observations, demographics=demographics)
+
         execute_graphics_replacements(
             obs=observations, 
             demos=demographics, 
             template=template, 
             resources_client=resources_container, 
-            settings=settings, slides=new_slides
+            settings=settings, 
+            slides=new_slides
             )
     
     # remove the blank template slides
@@ -282,41 +280,27 @@ def execute_graphics_replacements(
     #         )
 
 
-def execute_text_replacements(obs: Observations, info: dict, template: Presentation, slides):
-    """
-    Calls functions which update all generated text in the template pptx.
-    """
-    # bullet points and text data
-    latest_week = obs.get_latest_week()
-    best_week = obs.get_best_week()
-    worst_week = obs.get_worst_week()
-
-    replaces = {
-        "{{title}}": info["Owner"].upper(),
-        "{{subtitle}}": info["Full Address"],
-        "{{year}}": latest_week["Year"],
-        "{{latest week}}": latest_week["Week"],
-        "{{latest performance}}": latest_week["Performance"],
-        "{{latest range}}": latest_week["Range"],
-        "{{best week}}": best_week["Week"],
-        "{{best performance}}": best_week["Performance"],
-        "{{best range}}": best_week["Range"],
-        "{{worst week}}": worst_week["Week"],
-        "{{worst performance}}": worst_week["Performance"],
-        "{{worst range}}": worst_week["Range"],
-        "{{bullet1}}": obs.bullet_current_performance(),
-        "{{bullet2}}": obs.bullet_continuous_growth(),
-        "{{bullet3}}": obs.bullet_six_weeks(),
-        "{{bullet4}}": obs.bullet_budget(),
+def replace_text_in_slides(slides, location_info, observations, demographics):
+    """Replace placeholders with real data only in the duplicated slides."""
+    replacements = {
+        "{{title}}": location_info["Owner"].upper(),
+        "{{subtitle}}": f"{location_info['Address']}, {location_info['City']}, {location_info['State']} {location_info['Zip']}",
+        "{{trend_score}}": str(observations["trend_score"]),
+        "{{stability_score}}": str(observations["stability_score"]),
+        "{{recent_score}}": str(observations["recent_score"]),
+        "{{gender_ratio}}": f"{demographics['gender_ratio'] * 100:.1f}%",
+        "{{avg_income}}": f"${demographics['avg_income']:,.0f}",
+        "{{year}}": "2024",
+        "{{bullet1}}": str(observations["bullet1"]),
+        "{{bullet2}}": str(observations["bullet2"])
     }
+    from libs.utils.pptx import add_custom_image, replace_text
     # replace text in slides with generated stats and bullet points
     shapes = []
     for slide in slides:
         for shape in slide.shapes:
             shapes.append(shape)
-    replace_text(replaces, shapes)
-
-    return True
+    replace_text(replacements, shapes)
 
 def remove_slides_by_index(prs, removal_indices):
     # Sort indices in reverse order to avoid shifting issues

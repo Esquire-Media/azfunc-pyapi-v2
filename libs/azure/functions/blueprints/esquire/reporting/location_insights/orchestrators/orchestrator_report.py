@@ -2,6 +2,7 @@ from azure.durable_functions import Blueprint
 from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 import os
 import logging
+import uuid
 import orjson as json
 from azure.storage.blob import BlobClient
 from libs.azure.functions.blueprints.esquire.reporting.location_insights.helpers import (
@@ -37,7 +38,7 @@ def orchestrator_locationInsights_report(context: DurableOrchestrationContext):
             },
         )
 
-        # call activity to build the Onspot observations payload
+        # call activity to build the Onspot observactions payload
         observations_request = yield context.call_activity_with_retry(
             "activity_locationInsights_createObservationsRequest",
             retry,
@@ -49,6 +50,7 @@ def orchestrator_locationInsights_report(context: DurableOrchestrationContext):
         # send a request to Onspot to get device observations for this location
         # returned data will be stored in CSV format inside the `observations` folder
         egress["runtime_container"]["observations_blob"] = f"{egress['batch_instance_id']}/{context.instance_id}/{locationID}/observations"
+
         onspot_job = yield context.call_sub_orchestrator(
             "onspot_orchestrator",
             {
@@ -95,7 +97,7 @@ def orchestrator_locationInsights_report(context: DurableOrchestrationContext):
                 "return_urls": True,
             },
         )
-
+        print('getting demos')
         # send a request for demographics data based on the unique devices which were partitioned out by Synapse
         egress["runtime_container"]["demographics_blob"] = f"{egress['batch_instance_id']}/{context.instance_id}/{locationID}/demographics"
         yield context.call_sub_orchestrator(
@@ -125,14 +127,14 @@ def orchestrator_locationInsights_report(context: DurableOrchestrationContext):
             },
             instance_id=f"{context.instance_id}:demos",
         )
-
-    # Store collected data for this location
-    location_data_list.append({
-        "locationID": locationID,
-        "location_blob": egress["runtime_container"]["location_blob"],
-        "observations_blob": egress["runtime_container"]["observations_blob"],
-        "demographics_blob": egress["runtime_container"]["demographics_blob"],
-    })
+        print("appending data")
+        # Store collected data for this location
+        location_data_list.append({
+            "locationID": locationID,
+            "location_blob": egress["runtime_container"]["location_blob"],
+            "observations_blob": egress["runtime_container"]["observations_blob"],
+            "demographics_blob": egress["runtime_container"]["demographics_blob"],
+        })
 
     # call activity to build the Onspot observations payload
     egress["runtime_container"]["output_blob"] = f"{egress['batch_instance_id']}/{context.instance_id}/output"
@@ -141,7 +143,7 @@ def orchestrator_locationInsights_report(context: DurableOrchestrationContext):
         retry,
         {
             **egress, 
-            "locations_data": location_data_list
+            "locations_data": location_data_list,
         },
     )
 

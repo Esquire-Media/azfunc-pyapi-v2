@@ -26,7 +26,8 @@ def activity_campaignProposal_executeReport(settings: dict):
     blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/addresses.csv")
     addresses = pd.read_csv(get_blob_sas(blob_client))
 
-    if 'new_mover' in settings['optional_slides']:
+    # if we have optional_slides being put in, then make sure we're not doing extra work
+    if ('new_mover' in settings.get('optional_slides', [])) or ('optional_slides' not in settings.keys()):
         # import mover totals (NOTE: as a single Pandas row, not a Dataframe)
         blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_totals.csv")
         mover_totals = pd.read_csv(get_blob_sas(blob_client)).iloc[0]
@@ -35,10 +36,11 @@ def activity_campaignProposal_executeReport(settings: dict):
         blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_counts.csv")
         mover_counts = pd.read_csv(get_blob_sas(blob_client))
 
-    if 'in_market_shopper' in settings['optional_slides']:
+    if ('in_market_shopper' in settings.get('optional_slides', [])) or ('optional_slides' not in settings.keys()):
         # import competitor list
         blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/competitors.csv")
         competitors = pd.read_csv(get_blob_sas(blob_client))
+
 
     # populate presentation with generated text and graphics
     execute_text_replacements(template=template, settings=settings, mover_counts=mover_counts, mover_totals=mover_totals, addresses=addresses, competitors=competitors)
@@ -74,7 +76,7 @@ def execute_text_replacements(template:Presentation, settings:dict, mover_counts
         replacements["{{competitor list}}"] : ""
     }
 
-    if 'new_mover' in settings['optional_slides']:
+    if ('new_mover' in settings.get('optional_slides', [])) or ('optional_slides' not in settings.keys()):
         # TEXT FORMATTIING
         # mover headers, data, and a totals row
         radii = settings['moverRadii']
@@ -97,7 +99,7 @@ def execute_text_replacements(template:Presentation, settings:dict, mover_counts
         replacements["{{r2}}"]              = radii[1]
         replacements["{{r3}}"]              = radii[2]
     
-    if 'in_market_shopper' in settings['optional_slides']:
+    if ('in_market_shopper' in settings.get('optional_slides', [])) or ('optional_slides' not in settings.keys()):
         replacements["{{competitor list}}"] = '\n'.join(competitors['chain_name'].value_counts().index.tolist()[:35])
     
     # replace text in slides with generated stats and bullet points
@@ -116,7 +118,7 @@ def execute_graphics_replacements(template:Presentation, settings:dict, containe
     display_social_slide = template.slides[4]
     ott_slide = template.slides[5]
 
-    if 'new_mover' in settings['optional_slides']:
+    if ('new_mover' in settings.get('optional_slides', [])) or ('optional_slides' not in settings.keys()):
         radii = settings['moverRadii']
 
         # mover maps
@@ -129,7 +131,7 @@ def execute_graphics_replacements(template:Presentation, settings:dict, containe
         blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_map_{radii[2]}mi.png")
         add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), movers_slide, movers_slide.shapes[29])
 
-    if 'in_market_shopper' in settings['optional_slides']:
+    if ('in_market_shopper' in settings.get('optional_slides', [])) or ('optional_slides' not in settings.keys()):
         # competitors map
         blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/competitors.png")
         add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), competitors_slide, competitors_slide.shapes[19])
@@ -268,7 +270,7 @@ def remove_excess_optional_slides(prs: Presentation, settings:dict):
     }
 
     # null handling
-    keep_slides = set(settings['optional_slides']) if 'optional_slides' in settings.keys() else []
+    keep_slides = set(settings.get('optional_slides', []))
 
     # Sort in reverse to avoid shifting issues
     removal_indices = sorted(

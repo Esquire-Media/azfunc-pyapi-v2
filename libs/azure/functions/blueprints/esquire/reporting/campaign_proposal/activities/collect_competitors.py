@@ -19,6 +19,9 @@ bp = Blueprint()
 @bp.activity_trigger(input_name="settings")
 def activity_campaignProposal_collectCompetitors(settings: dict):
 
+    if ('in_market_shopper' in settings.get('optional_slides', [])) or ('optional_slides' not in settings.keys()):
+        return {}
+
     # import cleaned addresses from previous step
     container_client: ContainerClient = ContainerClient.from_connection_string(
         conn_str=os.environ[settings["runtime_container"]["conn_str"]],

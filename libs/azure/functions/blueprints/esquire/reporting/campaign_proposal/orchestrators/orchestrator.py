@@ -10,6 +10,10 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
         # load payload information from orchestration context
         settings = context.get_input()
 
+        # make sure we've got it initialized before the frontend is updated
+        if 'optional_slides' not in settings.keys():
+            settings['optional_slides'] = []
+
         # if a campaign proposal conn string is set, use that. Otherwise use AzureWebJobsStorage
         conn_str = (
             "CAMPAIGN_PROPOSAL_CONN_STR"
@@ -39,21 +43,21 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
             egress,
         )
 
-        if ('new_mover' in settings.get('optional_slides', [])) or ('optional_slides' not in settings.keys()):
-            # call activity to collect mover counts for each individual location as well as a deduped total
-            yield context.call_activity_with_retry(
-                "activity_campaignProposal_collectMovers",
-                retry,
-                egress,
-            )
+        
+        # call activity to collect mover counts for each individual location as well as a deduped total
+        yield context.call_activity_with_retry(
+            "activity_campaignProposal_collectMovers",
+            retry,
+            egress,
+        )
 
-        if ('in_market_shopper' in settings.get('optional_slides', [])) or ('optional_slides' not in settings.keys()):
-            # call activity to collect nearby competitors to each location
-            yield context.call_activity_with_retry(
-                "activity_campaignProposal_collectCompetitors",
-                retry,
-                egress,
-            )
+        
+        # call activity to collect nearby competitors to each location
+        yield context.call_activity_with_retry(
+            "activity_campaignProposal_collectCompetitors",
+            retry,
+            egress,
+        )
 
         # call activity to populate the PPTX report template and upload it as bytes to Azure storage
         yield context.call_activity_with_retry(

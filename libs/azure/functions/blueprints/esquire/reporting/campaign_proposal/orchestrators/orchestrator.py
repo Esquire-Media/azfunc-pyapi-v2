@@ -10,10 +10,6 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
         # load payload information from orchestration context
         settings = context.get_input()
 
-        # make sure we've got it initialized before the frontend is updated
-        if 'optional_slides' not in settings.keys():
-            settings['optional_slides'] = ['new_mover', 'in_market_shopper', 'pricing', 'next_steps']
-
         # if a campaign proposal conn string is set, use that. Otherwise use AzureWebJobsStorage
         conn_str = (
             "CAMPAIGN_PROPOSAL_CONN_STR"

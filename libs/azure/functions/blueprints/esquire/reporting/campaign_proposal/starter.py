@@ -102,3 +102,4 @@ class CampaignProposalPayload(BaseModel):
     addresses: conlist(Union[AddressComponents, AddressGeocoded], min_length=1)
     creativeSet: Optional[str] = "Default"
     moverRadii: Optional[conlist(int, min_length=3, max_length=3)] = [5,10,15]
+    optional_slides: Optional[conlist(str, min_length=0)] = ['new_mover', 'in_market_shopper', 'pricing', 'next_steps']

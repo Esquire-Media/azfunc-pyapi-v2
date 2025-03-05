@@ -1,6 +1,5 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 import logging, os
-import uuid
 
 bp = Blueprint()
 
@@ -36,17 +35,9 @@ def orchestrator_locationInsights_batch(context: DurableOrchestrationContext):
         }
 
         batch_size = 10
-        location_batches = [
-            settings["locationIDs"][i : i + batch_size]
-            for i in range(0, len(settings["locationIDs"]), batch_size)
-        ]
-        print('Sending Batches')
-        print(f"Location Batches: {location_batches}")
+        sorted_location_ids = sorted(settings["locationIDs"])  # Ensure consistent ordering
+        location_batches = [sorted_location_ids[i : i + batch_size] for i in range(0, len(sorted_location_ids), batch_size)]
 
-        if not context.is_replaying:
-            print(f"Executing {len(location_batches)} sub-orchestrators.")
-
-        print(f"Before calling task_all: {len(location_batches)} batches")
         # parallelize the processing for each report in the batch, so each is assigned its own suborchestrator
         output_blob_names = yield context.task_all(
             [
@@ -55,13 +46,12 @@ def orchestrator_locationInsights_batch(context: DurableOrchestrationContext):
                     input_={
                         **{k:v for k,v in egress.items() if k!='locationIDs'},
                         "locationIDs":batch,
-                        "batch_id" : str(uuid.uuid4())
+                        "batch_id" : context.instance_id
                     },
                 )
                 for batch in location_batches
             ]
         )
-        print("After calling task_all")
 
         # generate email callback message body
         message_body = yield context.call_activity_with_retry(

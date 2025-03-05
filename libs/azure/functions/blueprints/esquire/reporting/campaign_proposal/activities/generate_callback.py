@@ -33,7 +33,7 @@ def activity_campaignProposal_generateCallback(settings: dict):
     content = f"""Your Campaign Proposal report for <u>{settings['name']}</u> is done processing and ready for download. 
     <br><br>The following download link(s) will expire in 14 days:"""
     content += f"""<br><a href="{url_pptx}">Campaign Proposal-{settings['name']}.pptx</a>"""
-    if "in_market_shopper" in settings.get("optional_slides", []):
+    if "in_market_shopper" in settings.get("optionalSlides", []):
         content += f"""<br><a href="{url_comps}">Competitors-{settings['name']}.xlsx</a>"""
 
     return content

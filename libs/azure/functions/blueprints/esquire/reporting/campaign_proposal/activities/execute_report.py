@@ -26,10 +26,10 @@ def activity_campaignProposal_executeReport(settings: dict):
     blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/addresses.csv")
     addresses = pd.read_csv(get_blob_sas(blob_client))
 
-    # if we have optional_slides being put in, then make sure we're not doing extra work
+    # if we have optionalSlides being put in, then make sure we're not doing extra work
     mover_counts = pd.DataFrame()
     mover_totals = pd.DataFrame()
-    if ('new_mover' in settings.get('optional_slides', [])) or ('optional_slides' not in settings.keys()):
+    if ('new_mover' in settings.get('optionalSlides', [])) or ('optionalSlides' not in settings.keys()):
         # import mover totals (NOTE: as a single Pandas row, not a Dataframe)
         blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_totals.csv")
         mover_totals = pd.read_csv(get_blob_sas(blob_client)).iloc[0]
@@ -39,7 +39,7 @@ def activity_campaignProposal_executeReport(settings: dict):
         mover_counts = pd.read_csv(get_blob_sas(blob_client))
 
     competitors = pd.DataFrame()
-    if ('in_market_shopper' in settings.get('optional_slides', [])) or ('optional_slides' not in settings.keys()):
+    if ('in_market_shopper' in settings.get('optionalSlides', [])) or ('optionalSlides' not in settings.keys()):
         # import competitor list
         blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/competitors.csv")
         competitors = pd.read_csv(get_blob_sas(blob_client))
@@ -50,7 +50,7 @@ def activity_campaignProposal_executeReport(settings: dict):
     execute_graphics_replacements(template=template, settings=settings, container_client=container_client, resources_client=resources_client)
 
     # remove the extraneous slides
-    template = remove_excess_optional_slides(template, settings)
+    template = remove_excess_optionalSlides(template, settings)
 
     # FORMATTED PPTX UPLOAD
     # use a file-like object to export pptx as bytes
@@ -82,7 +82,7 @@ def execute_text_replacements(template:Presentation, settings:dict, mover_counts
         "{{competitor list}}" : ""
     }
 
-    if ('new_mover' in settings.get('optional_slides', [])) or ('optional_slides' not in settings.keys()):
+    if ('new_mover' in settings.get('optionalSlides', [])) or ('optionalSlides' not in settings.keys()):
         # TEXT FORMATTIING
         # mover headers, data, and a totals row
         radii = settings['moverRadii']
@@ -105,7 +105,7 @@ def execute_text_replacements(template:Presentation, settings:dict, mover_counts
         replacements["{{r2}}"]              = radii[1]
         replacements["{{r3}}"]              = radii[2]
     
-    if ('in_market_shopper' in settings.get('optional_slides', [])) or ('optional_slides' not in settings.keys()):
+    if ('in_market_shopper' in settings.get('optionalSlides', [])) or ('optionalSlides' not in settings.keys()):
         replacements["{{competitor list}}"] = '\n'.join(competitors['chain_name'].value_counts().index.tolist()[:35])
     
     # replace text in slides with generated stats and bullet points
@@ -124,7 +124,7 @@ def execute_graphics_replacements(template:Presentation, settings:dict, containe
     display_social_slide = template.slides[4]
     ott_slide = template.slides[5]
 
-    if ('new_mover' in settings.get('optional_slides', [])) or ('optional_slides' not in settings.keys()):
+    if ('new_mover' in settings.get('optionalSlides', [])) or ('optionalSlides' not in settings.keys()):
         radii = settings['moverRadii']
 
         # mover maps
@@ -137,7 +137,7 @@ def execute_graphics_replacements(template:Presentation, settings:dict, containe
         blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/mover_map_{radii[2]}mi.png")
         add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), movers_slide, movers_slide.shapes[29])
 
-    if ('in_market_shopper' in settings.get('optional_slides', [])) or ('optional_slides' not in settings.keys()):
+    if ('in_market_shopper' in settings.get('optionalSlides', [])) or ('optionalSlides' not in settings.keys()):
         # competitors map
         blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/competitors.png")
         add_custom_image(BytesIO(blob_client.download_blob().content_as_bytes()), competitors_slide, competitors_slide.shapes[19])
@@ -247,16 +247,16 @@ def execute_graphics_replacements(template:Presentation, settings:dict, containe
     )
 
 
-def remove_excess_optional_slides(prs: Presentation, settings:dict):
+def remove_excess_optionalSlides(prs: Presentation, settings:dict):
     """
     Removes slides from a PowerPoint presentation based on settings
 
     Parameters:
     prs (Presentation): The PowerPoint presentation object.
     settings: dict of the input json body. 
-        should contains a key of 'optional_slides'
+        should contains a key of 'optionalSlides'
         E.G.: {
-            'optional_slides':[
+            'optionalSlides':[
                 'next_steps',
                 'new_mover'
             ]
@@ -267,7 +267,7 @@ def remove_excess_optional_slides(prs: Presentation, settings:dict):
     """
 
     # the indices of the slides that are optional (0-indexed)
-    # any of these keys that are in the settings optional_slides are retained
+    # any of these keys that are in the settings optionalSlides are retained
     optional_slide_ids = {
         'new_mover': 9,
         'in_market_shopper':10,
@@ -276,7 +276,7 @@ def remove_excess_optional_slides(prs: Presentation, settings:dict):
     }
 
     # null handling
-    keep_slides = set(settings.get('optional_slides', []))
+    keep_slides = set(settings.get('optionalSlides', []))
 
     # Sort in reverse to avoid shifting issues
     removal_indices = sorted(

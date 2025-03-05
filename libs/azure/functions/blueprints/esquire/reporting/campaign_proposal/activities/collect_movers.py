@@ -16,7 +16,7 @@ bp = Blueprint()
 @bp.activity_trigger(input_name="settings")
 def activity_campaignProposal_collectMovers(settings: dict):
     
-    if 'new_mover' not in settings.get('optional_slides', []):
+    if 'new_mover' not in settings.get('optionalSlides', []):
         return {}
     
     # import cleaned addresses from previous step

@@ -542,7 +542,7 @@ def get_week(date):
     """
     week = dt.strftime(date, '%W')
     if week == '00':
-        week = '52'
+        week = '53'
     return week
 
 def get_date_by_week_offset(date, offset):

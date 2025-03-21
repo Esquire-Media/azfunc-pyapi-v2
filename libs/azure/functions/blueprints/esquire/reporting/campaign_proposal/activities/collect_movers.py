@@ -16,6 +16,9 @@ bp = Blueprint()
 @bp.activity_trigger(input_name="settings")
 def activity_campaignProposal_collectMovers(settings: dict):
     
+    if 'new_mover' not in settings.get('optionalSlides', []):
+        return {}
+    
     # import cleaned addresses from previous step
     container_client: ContainerClient = ContainerClient.from_connection_string(conn_str=os.environ[settings["runtime_container"]['conn_str']], container_name=settings["runtime_container"]["container_name"])
     in_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/addresses.csv")

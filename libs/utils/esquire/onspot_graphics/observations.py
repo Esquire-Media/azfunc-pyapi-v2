@@ -123,12 +123,25 @@ class Observations:
         fig = plt.figure(figsize=(7.5,3))
         ax = plt.subplot(111)
 
+        # Ensure Week -> RefDate mapping
+        week_to_date_map = dict(zip(self.obs['Week'], self.obs['RefDate']))
+
         # invisible plot to get x-axis with week numbers
         g = sns.lineplot(data=self.obs, x='Week', y='traffic_pct', visible=False)
         ax.axhline(y=0, xmin=0, xmax=1, color='gray', linestyle='--')
         ax.set_xlabel('Week')
         ax.set_ylabel('')
         ax.xaxis.set_major_locator(MultipleLocator(1)) # ensure every week number is shown
+
+        # Adjust x-axis ticks
+        ax.xaxis.set_major_locator(MultipleLocator(1))  # Weekly interval
+        ax.set_xticklabels(
+            [""] + [week_to_date_map.get(w, "").strftime('%b %d') for w in self.obs['Week'].unique()], #handle the off-by-one difference
+            rotation=45, 
+            ha='right', 
+            rotation_mode='anchor', 
+            fontsize=9
+            )
 
         # invvisible plot for 1st-of-month ticks on upper x-axis
         ax2 = ax.twiny()
@@ -529,7 +542,7 @@ def get_week(date):
     """
     week = dt.strftime(date, '%W')
     if week == '00':
-        week = '52'
+        week = '53'
     return week
 
 def get_date_by_week_offset(date, offset):

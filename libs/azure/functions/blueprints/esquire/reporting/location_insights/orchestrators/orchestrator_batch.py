@@ -34,6 +34,10 @@ def orchestrator_locationInsights_batch(context: DurableOrchestrationContext):
             }
         }
 
+        batch_size = 1
+        sorted_location_ids = sorted(settings["locationIDs"])  # Ensure consistent ordering
+        location_batches = [sorted_location_ids[i : i + batch_size] for i in range(0, len(sorted_location_ids), batch_size)]
+
         # parallelize the processing for each report in the batch, so each is assigned its own suborchestrator
         output_blob_names = yield context.task_all(
             [
@@ -41,10 +45,11 @@ def orchestrator_locationInsights_batch(context: DurableOrchestrationContext):
                     name="orchestrator_locationInsights_report",
                     input_={
                         **{k:v for k,v in egress.items() if k!='locationIDs'},
-                        "locationID":locationID,
+                        "locationIDs":batch,
+                        "batch_id" : context.instance_id
                     },
                 )
-                for locationID in settings['locationIDs']
+                for batch in location_batches
             ]
         )
 
@@ -73,17 +78,17 @@ def orchestrator_locationInsights_batch(context: DurableOrchestrationContext):
 
     except Exception as e:
         # if any errors are caught, post an error card to teams tagging Ryan and the calling user
-        yield context.call_activity(
-            "activity_microsoftGraph_postErrorCard",
-            {
-                "function_name": "esquire-location-insights",
-                "instance_id": context.instance_id,
-                "owners":["8489ce7c-e89f-4710-9d34-1442684ce7fe", egress['user']],
-                "error": f"{type(e).__name__} : {e}"[:1000],
-                "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
-            },
-        )
-        logging.warning("Error card sent")
+        # yield context.call_activity(
+        #     "activity_microsoftGraph_postErrorCard",
+        #     {
+        #         "function_name": "esquire-location-insights",
+        #         "instance_id": context.instance_id,
+        #         "owners":[egress['user']],
+        #         "error": f"{type(e).__name__} : {e}"[:1000],
+        #         "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
+        #     },
+        # )
+        # logging.warning("Error card sent")
         raise e
     
     # Purge history related to this instance

@@ -39,6 +39,7 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
             egress,
         )
 
+        
         # call activity to collect mover counts for each individual location as well as a deduped total
         yield context.call_activity_with_retry(
             "activity_campaignProposal_collectMovers",
@@ -46,6 +47,7 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
             egress,
         )
 
+        
         # call activity to collect nearby competitors to each location
         yield context.call_activity_with_retry(
             "activity_campaignProposal_collectCompetitors",
@@ -87,7 +89,7 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
             {
                 "function_name": "esquire-campaign-proposal",
                 "instance_id": context.instance_id,
-                "owners": ["8489ce7c-e89f-4710-9d34-1442684ce7fe", egress["user"]],
+                "owners": [egress["user"]],
                 "error": f"{type(e).__name__} : {e}"[:1000],
                 "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
             },

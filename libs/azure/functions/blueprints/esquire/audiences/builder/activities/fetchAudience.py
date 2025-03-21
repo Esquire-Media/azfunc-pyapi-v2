@@ -31,7 +31,7 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
     Exception: If no results are found for the given audience ID.
     """
     provider = from_bind("keystone")
-    audience = provider.models["public"]["Audience"]
+    audience = provider.models["keystone"]["Audience"]
 
     session: Session = provider.connect()
     query = (

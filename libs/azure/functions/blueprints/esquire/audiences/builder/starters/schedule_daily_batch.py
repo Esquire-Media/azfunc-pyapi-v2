@@ -29,7 +29,7 @@ async def starter_timer_esquire_audiences(
     }
 
     provider = from_bind("keystone")
-    audience = provider.models["public"]["Audience"]
+    audience = provider.models["keystone"]["Audience"]
     session: Session = provider.connect()
     query = select(audience.id).where(audience.status == True)
     results = session.execute(query).all()

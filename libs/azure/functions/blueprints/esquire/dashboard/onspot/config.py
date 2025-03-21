@@ -16,7 +16,7 @@ if not from_bind("keystone"):
         "Structured",
         "sql",
         url=os.environ["DATABIND_SQL_KEYSTONE"],
-        schemas=["public"],
+        schemas=["keystone"],
         pool_size=1000,
         max_overflow=100,
     )

@@ -28,7 +28,7 @@ def activity_esquireAudienceXandr_putAudience(ingress: dict):
     Exception: If an error occurs during the database operation.
     """
     provider = from_bind("keystone")
-    audience = provider.models["public"]["Audience"]
+    audience = provider.models["keystone"]["Audience"]
 
     session: Session = provider.connect()
     

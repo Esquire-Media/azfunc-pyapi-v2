@@ -11,7 +11,7 @@ bp = Blueprint()
 @bp.activity_trigger(input_name="ingress")
 async def esquire_dashboard_onspot_activity_geoframes(ingress: dict):
     provider: SQLAlchemyStructuredProvider = from_bind("keystone")
-    tables = provider.models["public"]
+    tables = provider.models["keystone"]
     session = provider.connect()
 
     markets = (

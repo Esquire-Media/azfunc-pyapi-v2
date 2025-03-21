@@ -14,6 +14,33 @@ async def esquire_dashboard_onspot_activity_geoframes(ingress: dict):
     tables = provider.models["public"]
     session = provider.connect()
 
+    markets = (
+        (
+            session.query(tables["_Market_owned"].B.label("id"))
+            .select_from(tables["Market"])
+            .join(
+                tables["_Market_owned"],
+                tables["_Market_owned"].A == tables["Market"].id,
+            )
+            .filter(
+                tables["Market"].status == True,
+            )
+        )
+        .union(
+            session.query(tables["_Market_competitors"].B.label("id"))
+            .select_from(tables["Market"])
+            .join(
+                tables["_Market_competitors"],
+                tables["_Market_competitors"].A == tables["Market"].id,
+            )
+            .filter(
+                tables["Market"].status == True,
+            )
+        )
+        .distinct()
+        .subquery()
+    )
+
     return [
         (
             row.id,
@@ -23,26 +50,6 @@ async def esquire_dashboard_onspot_activity_geoframes(ingress: dict):
             tables["TargetingGeoFrame"].id,
             tables["TargetingGeoFrame"].polygon,
         )
-        .select_from(tables["Market"])
-        .join(
-            tables["_Market_competitors"],
-            tables["_Market_competitors"].A
-            == tables["Market"].id,
-        )
-        .join(
-            tables["_Market_owned"],
-            tables["_Market_owned"].A
-            == tables["Market"].id,
-        )
-        .join(
-            tables["TargetingGeoFrame"],
-            or_(
-                tables["TargetingGeoFrame"].id == tables["_Market_competitors"].B,
-                tables["TargetingGeoFrame"].id == tables["_Market_owned"].B,
-            )
-        )
-        .filter(
-            tables["Market"].status == True,
-        )
-        .distinct()
+        .join(markets, markets.c.id == tables["TargetingGeoFrame"].id)
+        .all()
     ]

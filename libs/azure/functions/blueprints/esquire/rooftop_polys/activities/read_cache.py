@@ -15,12 +15,12 @@ max_sql_parameters = 1000
 # activity to validate the addresses
 @bp.activity_trigger(input_name="addresses")
 def activity_rooftopPolys_readCache(addresses: List[str]):
-    pg_engine = create_engine(os.environ["DATABIND_SQL_POSTGRES"])
+    pg_engine = create_engine(os.environ["DATABIND_SQL_KEYSTONE"])
     read_query = f"""
         SELECT
             query
             ,boundary 
-        FROM public.google_rooftop_cache
+        FROM utils.google_rooftop_cache
         WHERE query IN ({",".join(map(lambda a: f"'{a}'", addresses))})
     """
     df = pd.read_sql(read_query, pg_engine)

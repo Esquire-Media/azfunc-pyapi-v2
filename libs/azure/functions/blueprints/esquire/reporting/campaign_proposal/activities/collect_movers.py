@@ -44,9 +44,9 @@ def activity_campaignProposal_collectMovers(settings: dict):
     # on the first run-through, we grab all the unique zipcodes and map each addr/radius with its associated zipcodes 
     for i, addr in addresses.iterrows():
         # print(addr['address'])
-        addr_dict = {
-            **addr
-        }
+        # addr_dict = {
+        #     **addr
+        # }
 
         # mapping between each addr/radius pair and the zipcodes within it
         mapping_dict = {

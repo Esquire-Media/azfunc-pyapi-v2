@@ -39,10 +39,7 @@ def activity_campaignProposal_collectCompetitors(settings: dict):
     mapbox_token = mapbox_key_vault.get_secret("mapbox-token").value
 
     # find nearby competitors in the passed categor(ies)
-    engine = POIEngine(
-        provider_poi=from_bind("foursquare"), 
-        provider_esq=from_bind("keystone")
-    )
+    engine = POIEngine(from_bind("keystone"))
     for r in [
         10,
         15,
@@ -109,7 +106,7 @@ def activity_campaignProposal_collectCompetitors(settings: dict):
     ]
     distances["esq_id"] = distances["esq_id"].replace("null", "")
     # filter to unique competitors across all queries
-    unique_comps = distances.drop_duplicates("fsq_id", keep="first")
+    # unique_comps = distances.drop_duplicates("fsq_id", keep="first")
 
     # EXPORT COMPETITORS LIST (for function use)
     out_client = container_client.get_blob_client(

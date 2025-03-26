@@ -1,213 +1,161 @@
 from haversine import haversine, Unit
-from libs.utils.geometry import (
-    latlon_buffer,
-    points_in_poly_numpy,
-    points_in_multipoly_numpy,
-)
+from libs.utils.geometry import latlon_buffer
 from libs.utils.h3 import hex_intersections
-from libs.utils.python import literal_eval_list
 from shapely.ops import unary_union
 from shapely.wkt import loads as wkt_loads
 from sklearn.neighbors import BallTree
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
 import orjson as json, pandas as pd, numpy as np
 
-class POIEngine:
-    def __init__(self, provider_poi, provider_esq):
-        self.provider_poi = provider_poi
-        self.provider_esq = provider_esq
 
-    def load_from_polygon(
-        self,
-        polygon_wkt: str,
-        categories: list = None
-    ):
+class POIEngine:
+    def __init__(self, provider):
+        self.provider = provider
+
+    def load_from_polygon(self, polygon_wkt: str, categories: list = None):
         """
         Given a query polygon, return all POI data within that polygon.
         Uses an indexed search method to pull data in hexes that fully or partially intersect the query polygon.
 
         Params:
-        polgon_wkt  : Polygon data as a WKT str.
-        categories  : A list of integers representing FSQ category IDs.
+        polygon_wkt  : Polygon data as a WKT str.
+        categories   : A list of integers representing FSQ category IDs.
 
         Returns:
-        results     : Pandas DataFrame of POI data within the given polygon.
+        poi_data     : Pandas DataFrame of POI data (with associated category lists) within the given polygon.
         """
         # connect to the Synapse tables necessary to pull POI data and cross-reference with ESQ locations
-        session_poi: Session = self.provider_poi.connect()
-        session_esq: Session = self.provider_esq.connect()
-        poi = self.provider_poi.models["dbo"]["poi"]
+        session: Session = self.provider.connect()
 
         # find H3 hexes which intersect with the query area
         hexes = hex_intersections(polygon_wkt, resolution=5)
-
-        # generate a list of indexes by their overlap type with the query polygon
-        partial_indexes = hexes[hexes["intersection"] == "partial"]["id"].unique()
-        full_indexes = hexes[hexes["intersection"] == "full"]["id"].unique()
-
-        filters = []
-
-        # get category filter criteria if passed
-        if categories != None:
+        h3_indexes = list(
+            set(
+                list(hexes[hexes["intersection"] == "full"]["id"].unique())
+                + list(hexes[hexes["intersection"] == "partial"]["id"].unique())
+            )
+        )
+        category_children = None
+        if categories is not None:
             tax = TaxonomyEngine()
-            # create a list of categories and any children they have
             category_children = []
             for category in categories:
-                [category_children.append(int(cat)) for cat in tax.get_category_children(str(category))]
-            # dedupe categories
+                category_children += [
+                    int(cat) for cat in tax.get_category_children(str(category))
+                ]
             category_children = list(set(category_children))
+        results = pd.read_sql(
+            f"""
+                SELECT *
+                FROM poi.foursquare AS fsq
+                JOIN poi.foursquare_poi_categories as cat
+                    ON fsq.id = cat.poi_id
+                WHERE
+                    cat.category_id IN ({",".join([str(id) for id in category_children])}) AND
+                    h3_index IN ('{"','".join(h3_indexes)}') AND
+                    ST_Within(
+                        ST_SetSRID(ST_MakePoint(fsq.longitude, fsq.latitude), 4326),
+                        ST_SetSRID(ST_GeomFromText('{polygon_wkt}'), 4326)
+                    )
+            """,
+            session.connection(),
+        )
+        if results.empty:
+            return results
 
-            # filter the query by category ID(s), if categories were passed
-            filters.append(
-                or_(*[poi.fsq_category_ids.like(f"%{category_id}%") for category_id in category_children])
-            )
-           
+        # Load category data for each POI
+        poi_ids = results["id"].tolist()
+        # Build a comma-separated list of POI IDs (assuming they are numeric)
+        poi_ids_str = "','".join(str(pid) for pid in poi_ids)
+        cat_query = f"""
+            SELECT fp.poi_id,
+                fc.category_id AS fsq_category_id,
+                fc.category_label AS fsq_category_label
+            FROM poi.foursquare_poi_categories fp
+            JOIN poi.foursquare_categories fc 
+                ON fp.category_id = fc.category_id
+            WHERE fp.poi_id IN ('{poi_ids_str}')
+        """
+        cat_df = pd.read_sql(cat_query, session.connection())
 
-        # pull POI data from the fully-intersecting hexes
-        if len(full_indexes):
-            full_index_filters = filters + [poi.h3_index.in_(full_indexes)]
-            full_index_data = pd.DataFrame(
-                session_poi.query(
-                    poi.fsq_id,
-                    poi.name,
-                    poi.latitude,
-                    poi.longitude,
-                    poi.address,
-                    poi.address_extended,
-                    poi.city,
-                    poi.dma,
-                    poi.state,
-                    poi.zipcode,
-                    poi.country,
-                    poi.neighborhood,
-                    poi.po_box,
-                    poi.date_created,
-                    poi.date_refreshed,
-                    poi.fsq_category_ids,
-                    poi.fsq_category_labels,
-                    poi.fsq_chain_id,
-                    poi.fsq_chain_name,
-                    poi.parent_id,
-                    poi.census_block_id,
-                    poi.popularity,
-                    poi.venue_reality_bucket,
-                    poi.provenance_rating,
-                    poi.date_closed,
-                    poi.closed_bucket,
-                    poi.h3_index,
+        if not cat_df.empty:
+            # Group by POI and aggregate the category IDs and labels into lists
+            agg_cat = (
+                cat_df.groupby("poi_id")
+                .agg(
+                    {
+                        "fsq_category_id": lambda x: list(x),
+                        "fsq_category_label": lambda x: list(x),
+                    }
                 )
-                .filter(
-                    *full_index_filters,
-                )
-                .all()
+                .reset_index()
             )
+            results = results.merge(
+                agg_cat, left_on="id", right_on="poi_id", how="left"
+            ).drop(columns=["category_id", "poi_id_x", "poi_id_y"])
         else:
-            full_index_data = pd.DataFrame()
+            # In case no category data is found, create empty lists
+            results["fsq_category_id"] = [[] for _ in range(len(results))]
+            results["fsq_category_label"] = [[] for _ in range(len(results))]
 
-        if len(partial_indexes):
-            partial_index_filters = filters + [poi.h3_index.in_(partial_indexes)]
-            partial_index_data = pd.DataFrame(
-                session_poi.query(
-                    poi.fsq_id,
-                    poi.name,
-                    poi.latitude,
-                    poi.longitude,
-                    poi.address,
-                    poi.address_extended,
-                    poi.city,
-                    poi.dma,
-                    poi.state,
-                    poi.zipcode,
-                    poi.country,
-                    poi.neighborhood,
-                    poi.po_box,
-                    poi.date_created,
-                    poi.date_refreshed,
-                    poi.fsq_category_ids,
-                    poi.fsq_category_labels,
-                    poi.fsq_chain_id,
-                    poi.fsq_chain_name,
-                    poi.parent_id,
-                    poi.census_block_id,
-                    poi.popularity,
-                    poi.venue_reality_bucket,
-                    poi.provenance_rating,
-                    poi.date_closed,
-                    poi.closed_bucket,
-                    poi.h3_index,
-                ).filter(
-                    *partial_index_filters,
-                )
-                .all()
-            )
-        else:
-            partial_index_data = pd.DataFrame()
-
-        # do point in polygon checks for the partially-intersecting hexes
-        if wkt_loads(polygon_wkt).geom_type == 'Polygon':
-            partial_index_data.loc[:, 'in_polygon'] = points_in_poly_numpy(
-                partial_index_data['longitude'].values, 
-                partial_index_data['latitude'].values, 
-                np.array(wkt_loads(polygon_wkt).exterior.coords)
-            )
-        elif wkt_loads(polygon_wkt).geom_type == 'MultiPolygon':
-            partial_index_data.loc[:, 'in_polygon'] = points_in_multipoly_numpy(
-                partial_index_data['longitude'].values, 
-                partial_index_data['latitude'].values, 
-                wkt_loads(polygon_wkt)
-            )
-        else:
-            raise Exception(f"geom_type '{wkt_loads(polygon_wkt).geom_type}' is not supported")
-        
-        # concat the validated partial-intersection data with the full-intersection data
-        results = pd.concat([
-            partial_index_data[partial_index_data['in_polygon']].drop(columns=['in_polygon']),
-            full_index_data
-        ])
-
-        # format results
-        results['fsq_category_ids'] = results['fsq_category_ids'].apply(lambda x: literal_eval_list(x))
-        results['fsq_category_labels'] = results['fsq_category_labels'].apply(lambda x: literal_eval_list(x))
+        # Rename the aggregated columns to match previous naming conventions
+        results.rename(
+            columns={
+                "id": "fsq_id",
+                "fsq_category_id": "fsq_category_ids",
+                "fsq_category_label": "fsq_category_labels",
+            },
+            inplace=True,
+        )
 
         # check for existing ESQ locations among the FSQ results
         if len(results):
             esq_exists = pd.read_sql(
-                """
+                f"""
                     SELECT
                         id,
                         ST_AsText(ST_Centroid(ST_Collect(ST_GeomFromGeoJSON(feature->'geometry')))) AS centroid_wkt
                     FROM 
                         keystone."TargetingGeoFrame",
                         jsonb_array_elements(polygon->'features') AS feature
+                    WHERE 
+                        source = '' AND
+		                ST_Within(
+                            ST_Centroid(ST_GeomFromGeoJSON(feature->'geometry')), 
+                            ST_SetSRID(ST_GeomFromText('{polygon_wkt}'), 4326)
+                        )
                     GROUP BY
                         id
                 """,
-                session_esq.connection()
+                session.connection(),
             )
+
             if len(esq_exists):
                 # Parse centroid_wkt to get latitude and longitude
-                esq_exists['geometry'] = esq_exists['centroid_wkt'].apply(wkt_loads)
-                esq_exists['esq_longitude'] = esq_exists['geometry'].apply(lambda geom: geom.x)
-                esq_exists['esq_latitude'] = esq_exists['geometry'].apply(lambda geom: geom.y)
-                esq_exists.drop(columns=['geometry', 'centroid_wkt'], inplace=True)
-                
+                esq_exists["geometry"] = esq_exists["centroid_wkt"].apply(wkt_loads)
+                esq_exists["esq_longitude"] = esq_exists["geometry"].apply(
+                    lambda geom: geom.x
+                )
+                esq_exists["esq_latitude"] = esq_exists["geometry"].apply(
+                    lambda geom: geom.y
+                )
+                esq_exists.drop(columns=["geometry", "centroid_wkt"], inplace=True)
+
                 # Convert lat/lon to radians
-                results['lat_rad'] = np.deg2rad(results['latitude'])
-                results['lon_rad'] = np.deg2rad(results['longitude'])
-                esq_exists['esq_lat_rad'] = np.deg2rad(esq_exists['esq_latitude'])
-                esq_exists['esq_lon_rad'] = np.deg2rad(esq_exists['esq_longitude'])
+                results["lat_rad"] = np.deg2rad(results["latitude"])
+                results["lon_rad"] = np.deg2rad(results["longitude"])
+                esq_exists["esq_lat_rad"] = np.deg2rad(esq_exists["esq_latitude"])
+                esq_exists["esq_lon_rad"] = np.deg2rad(esq_exists["esq_longitude"])
 
                 # Build BallTree with ESQ centroids
                 esq_tree = BallTree(
-                    np.vstack((esq_exists['esq_lat_rad'], esq_exists['esq_lon_rad'])).T, 
-                    metric='haversine'
+                    np.vstack((esq_exists["esq_lat_rad"], esq_exists["esq_lon_rad"])).T,
+                    metric="haversine",
                 )
 
                 # Query nearest neighbor for each result
                 distances, indices = esq_tree.query(
-                    np.vstack((results['lat_rad'], results['lon_rad'])).T, 
-                    k=1
+                    np.vstack((results["lat_rad"], results["lon_rad"])).T, k=1
                 )
 
                 # Convert distance from radians to meters
@@ -215,27 +163,24 @@ class POIEngine:
                 distances_meters = distances.flatten() * earth_radius
 
                 # Get the closest ESQ IDs
-                closest_esq_ids = esq_exists.iloc[indices.flatten()]['id'].values
-                
+                closest_esq_ids = esq_exists.iloc[indices.flatten()]["id"].values
+
                 # Add the closest ESQ IDs meters and distances to results
-                results['esq_id'] = closest_esq_ids
-                results['distance_to_esq'] = distances_meters
-                
+                results["esq_id"] = closest_esq_ids
+                results["distance_to_esq"] = distances_meters
+
                 # Assign 'null' to 'esq_id' if distance is greater than 15 meters
-                results.loc[results['distance_to_esq'] > 15, 'esq_id'] = 'null'
+                results.loc[results["distance_to_esq"] > 15, "esq_id"] = None
 
                 # Clean up temporary columns
-                results.drop(columns=['lat_rad', 'lon_rad'], inplace=True)
-                esq_exists.drop(columns=['esq_lat_rad', 'esq_lon_rad'], inplace=True)
-                
-            # enforce esq_id column and populate null values
-            if 'esq_id' in results.columns:
-                results['esq_id'] = results['esq_id'].fillna('null')
-            else:
-                results['esq_id'] = 'null'
-        
+                results.drop(columns=["lat_rad", "lon_rad"], inplace=True)
+                esq_exists.drop(columns=["esq_lat_rad", "esq_lon_rad"], inplace=True)
 
-        results = results.dropna(subset=['fsq_id'])
+            # enforce esq_id column and populate null values
+            if not "esq_id" in results.columns:
+                results["esq_id"] = None
+
+        results = results.dropna(subset=["fsq_id"])
         return results
 
     def load_from_point(
@@ -261,12 +206,12 @@ class POIEngine:
         """
 
         # build a circle to represent the point-radius search area
-        circle = latlon_buffer(latitude=latitude, longitude=longitude, radius=radius, cap_style=1)
+        circle = latlon_buffer(
+            latitude=latitude, longitude=longitude, radius=radius, cap_style=1
+        )
 
         # load results as polygon using the point-radius circle
-        results = self.load_from_polygon(
-            polygon_wkt=circle.wkt, categories=categories
-        )
+        results = self.load_from_polygon(polygon_wkt=circle.wkt, categories=categories)
 
         # calculate distance from centerpoint (for point/polygon queries only)
         results["distance_miles"] = results.apply(
@@ -281,10 +226,10 @@ class POIEngine:
             axis=1,
         )
         return results
-    
+
     def load_from_points(
         self,
-        points: list[float,float],
+        points: list[float, float],
         radius: list[float],
         categories: list = None,
     ):
@@ -301,34 +246,43 @@ class POIEngine:
         Returns:
         results     : Pandas DataFrame of POI data within the given query area.
         """
-        
+
         # find the unary union of each search area to avoid double-searching areas of overlap
-        circle_list = [latlon_buffer(latitude=point[0], longitude=point[1], radius=radius, cap_style=1) for point in points]
+        circle_list = [
+            latlon_buffer(
+                latitude=point[0], longitude=point[1], radius=radius, cap_style=1
+            )
+            for point in points
+        ]
         polygon_wkt = unary_union(circle_list).wkt
 
         # query as a polygon using the unary union of each point/radius area
-        return self.load_from_polygon(
-            polygon_wkt=polygon_wkt,
-            categories=categories
-        )
+        return self.load_from_polygon(polygon_wkt=polygon_wkt, categories=categories)
+
 
 class TaxonomyEngine:
     """
     Engine for parsing FSQ category IDs and unraveling the nested relationships within the category taxonomy.
     """
+
     def __init__(self):
 
         # load taxonomy json from file
-        with open('libs/utils/esquire/point_of_interest/integrated_category_taxonomy.json', encoding='utf-8') as infile:
+        with open(
+            "libs/utils/esquire/point_of_interest/integrated_category_taxonomy.json",
+            encoding="utf-8",
+        ) as infile:
             taxonomy_js = json.loads(infile.read())
 
         # convert to Pandas dataframe and apply formatting
         self.taxonomy = pd.DataFrame(taxonomy_js).T.reset_index()
-        self.taxonomy['name'] = self.taxonomy['full_label'].apply(lambda x: x[-1])
-        self.taxonomy['parent'] = self.taxonomy['parents'].apply(lambda x: x[0] if len(x) else None)
-        self.taxonomy = self.taxonomy.drop(columns=['parents','full_label'])
+        self.taxonomy["name"] = self.taxonomy["full_label"].apply(lambda x: x[-1])
+        self.taxonomy["parent"] = self.taxonomy["parents"].apply(
+            lambda x: x[0] if len(x) else None
+        )
+        self.taxonomy = self.taxonomy.drop(columns=["parents", "full_label"])
 
-    def get_category_children(self, category_id:str) -> list:
+    def get_category_children(self, category_id: str) -> list:
         """
         Given a category id, return that id and all of its children ids using recursion.
 
@@ -340,37 +294,51 @@ class TaxonomyEngine:
         """
 
         # search children of the current category
-        children_df = self.taxonomy[self.taxonomy['parent']==category_id]
+        children_df = self.taxonomy[self.taxonomy["parent"] == category_id]
 
         # recursively iterate and store the child rows
         children_list = []
         if len(children_df):
-            for idx in children_df['index']:
+            for idx in children_df["index"]:
                 info = self.get_category_children(category_id=idx)
                 [children_list.append(d) for d in info]
 
         # return list of values
         return [
-            category_id,    # the current category
-            *children_list  # all children of the current category
+            category_id,  # the current category
+            *children_list,  # all children of the current category
         ]
-    
+
+
 def recreate_POI_form(sources, query_pool, radius=10):
     """
-    Given a set of source addresses and a pool of targets, find the distance between each source/target pair, provided the pair is within one radius distance.   
+    Given a set of source addresses and a pool of targets, find the distance between each source/target pair, provided the pair is within one radius distance.
     """
     # conversion factor to miles
     r_m = 3958.8
 
     # setup a BallTree and query for a max of X miles
-    tree = BallTree(np.deg2rad(query_pool[['latitude', 'longitude']].values), metric='haversine')
-    indices, distances = tree.query_radius(np.deg2rad(sources[['latitude', 'longitude']].values), r=radius/r_m, return_distance=True)
+    tree = BallTree(
+        np.deg2rad(query_pool[["latitude", "longitude"]].values), metric="haversine"
+    )
+    indices, distances = tree.query_radius(
+        np.deg2rad(sources[["latitude", "longitude"]].values),
+        r=radius / r_m,
+        return_distance=True,
+    )
 
     # a little bit arcane, but it takes the indices and distances, brings them together, and tacks on info for which source they came from
-    res = pd.concat([pd.concat([pd.DataFrame(index_list), pd.DataFrame(distances[ii])*r_m], axis=1).assign(close_to=sources.iloc[ii]['address']) for ii, index_list in enumerate(indices)]).reset_index(drop=True)
-    res.columns = ['POI_index', 'distance_miles', 'source']
+    res = pd.concat(
+        [
+            pd.concat(
+                [pd.DataFrame(index_list), pd.DataFrame(distances[ii]) * r_m], axis=1
+            ).assign(close_to=sources.iloc[ii]["address"])
+            for ii, index_list in enumerate(indices)
+        ]
+    ).reset_index(drop=True)
+    res.columns = ["POI_index", "distance_miles", "source"]
 
     # use the indices to merge back onto the main POI data
-    final = query_pool.merge(res, how='right', left_index=True, right_on='POI_index')
+    final = query_pool.merge(res, how="right", left_index=True, right_on="POI_index")
 
-    return final.sort_values('distance_miles', ascending=True)
+    return final.sort_values("distance_miles", ascending=True)

@@ -33,14 +33,3 @@ if not from_bind("legacy"):
         pool_size=1000,
         max_overflow=100
 )
-    
-if not from_bind("foursquare"):
-    register_binding(
-        "foursquare",
-        "Structured",
-        "sql",
-        url=os.environ["DATABIND_SQL_FOURSQUARE"],
-        schemas=["dbo"],
-        pool_size=1000,
-        max_overflow=100
-)

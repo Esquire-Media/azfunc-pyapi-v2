@@ -35,78 +35,50 @@ class POIEngine:
                 + list(hexes[hexes["intersection"] == "partial"]["id"].unique())
             )
         )
-        category_children = None
+        h3_clause = f"h3_index IN ('{'',''.join(h3_indexes)}')"
+
+        # Build the base query that applies the H3 and spatial filters
+        query = f"""
+            SELECT *
+            FROM poi.foursquare AS fsq
+            WHERE 
+                {h3_clause}
+                AND ST_Within(
+                    fsq.point,
+                    ST_SetSRID(ST_GeomFromText('{polygon_wkt}'), 4326)
+                )
+        """
         if categories is not None:
-            tax = TaxonomyEngine()
-            category_children = []
-            for category in categories:
-                category_children += [
-                    int(cat) for cat in tax.get_category_children(str(category))
-                ]
-            category_children = list(set(category_children))
-        results = pd.read_sql(
-            f"""
+            # Assuming 'categories' is a list of string ids, join them for the SQL IN clause.
+            cat_ids = ",".join(categories)
+            query = f"""
+                WITH RECURSIVE cat_tree AS (
+                    SELECT id
+                    FROM poi.foursquare_category
+                    WHERE id IN ({cat_ids})
+                    UNION ALL
+                    SELECT child.id
+                    FROM poi.foursquare_category child
+                    JOIN cat_tree d 
+                        ON child.parent_id = d.id
+                )
                 SELECT *
                 FROM poi.foursquare AS fsq
-                JOIN poi.foursquare_poi_categories as cat
+                JOIN poi.foursquare_poi_categories AS cat
                     ON fsq.id = cat.poi_id
-                WHERE
-                    cat.category_id IN ({",".join([str(id) for id in category_children])}) AND
-                    h3_index IN ('{"','".join(h3_indexes)}') AND
-                    ST_Within(
-                        ST_SetSRID(ST_MakePoint(fsq.longitude, fsq.latitude), 4326),
+                WHERE 
+                    {h3_clause}
+                    AND cat.category_id IN (SELECT id FROM cat_tree)
+                    AND ST_Within(
+                        fsq.point,
                         ST_SetSRID(ST_GeomFromText('{polygon_wkt}'), 4326)
                     )
-            """,
-            session.connection(),
-        )
+            """
+
+        results = pd.read_sql(query, session.connection()).rename(columns={"id": "fsq_id"})
+
         if results.empty:
             return results
-
-        # Load category data for each POI
-        poi_ids = results["id"].tolist()
-        # Build a comma-separated list of POI IDs (assuming they are numeric)
-        poi_ids_str = "','".join(str(pid) for pid in poi_ids)
-        cat_query = f"""
-            SELECT fp.poi_id,
-                fc.category_id AS fsq_category_id,
-                fc.category_label AS fsq_category_label
-            FROM poi.foursquare_poi_categories fp
-            JOIN poi.foursquare_categories fc 
-                ON fp.category_id = fc.category_id
-            WHERE fp.poi_id IN ('{poi_ids_str}')
-        """
-        cat_df = pd.read_sql(cat_query, session.connection())
-
-        if not cat_df.empty:
-            # Group by POI and aggregate the category IDs and labels into lists
-            agg_cat = (
-                cat_df.groupby("poi_id")
-                .agg(
-                    {
-                        "fsq_category_id": lambda x: list(x),
-                        "fsq_category_label": lambda x: list(x),
-                    }
-                )
-                .reset_index()
-            )
-            results = results.merge(
-                agg_cat, left_on="id", right_on="poi_id", how="left"
-            ).drop(columns=["category_id", "poi_id_x", "poi_id_y"])
-        else:
-            # In case no category data is found, create empty lists
-            results["fsq_category_id"] = [[] for _ in range(len(results))]
-            results["fsq_category_label"] = [[] for _ in range(len(results))]
-
-        # Rename the aggregated columns to match previous naming conventions
-        results.rename(
-            columns={
-                "id": "fsq_id",
-                "fsq_category_id": "fsq_category_ids",
-                "fsq_category_label": "fsq_category_labels",
-            },
-            inplace=True,
-        )
 
         # check for existing ESQ locations among the FSQ results
         if len(results):

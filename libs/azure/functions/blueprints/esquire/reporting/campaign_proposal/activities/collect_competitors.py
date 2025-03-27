@@ -89,6 +89,7 @@ def activity_campaignProposal_collectCompetitors(settings: dict):
         ),
         axis=1,
     )
+    comps.dropna(subset=["address"], inplace=True)
     # calculate distances between each source/comp pair, up to a specified radius
     distances = recreate_POI_form(sources=addresses, query_pool=comps, radius=r)
     distances = distances[

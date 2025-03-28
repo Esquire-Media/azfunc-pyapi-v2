@@ -81,14 +81,14 @@ def activity_campaignProposal_collectCompetitors(settings: dict):
     )
     comps = comps[comps["reality_score"] >= 6]
     # use chain name where applicable, and slice the returned columns
-    comps["chain_name"] = comps.apply(
-        lambda x: (
-            ast.literal_eval(x["fsq_chain_name"])[0]
-            if x["fsq_chain_name"] is not None
-            else x["name"]
-        ),
-        axis=1,
-    )
+    # comps["chain_name"] = comps.apply(
+    #     lambda x: (
+    #         ast.literal_eval(x["fsq_chain_name"])[0]
+    #         if x["fsq_chain_name"] is not None
+    #         else x["name"]
+    #     ),
+    #     axis=1,
+    # )
     comps.dropna(subset=["address"], inplace=True)
     # calculate distances between each source/comp pair, up to a specified radius
     distances = recreate_POI_form(sources=addresses, query_pool=comps, radius=r)

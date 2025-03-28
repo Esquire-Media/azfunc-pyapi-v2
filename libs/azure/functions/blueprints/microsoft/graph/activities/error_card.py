@@ -59,7 +59,7 @@ def activity_microsoftGraph_postErrorCard(ingress: dict):
     containers.append(
         Container(
             items=[
-                TextBlock(text="Summary", size=types.FontSize.MEDIUM, weight="Bolder"),
+                TextBlock(text="Summary", size=types.FontSize.MEDIUM, weight="bolder"),
                 ColumnSet(
                     columns=[
                         Column(
@@ -105,7 +105,7 @@ def activity_microsoftGraph_postErrorCard(ingress: dict):
     containers.append(
         Container(
             items=[
-                TextBlock(text="Details", size=types.FontSize.MEDIUM, weight="Bolder"),
+                TextBlock(text="Details", size=types.FontSize.MEDIUM, weight="bolder"),
                 TextBlock(
                     text=ingress["error"],
                     size=types.FontSize.SMALL,

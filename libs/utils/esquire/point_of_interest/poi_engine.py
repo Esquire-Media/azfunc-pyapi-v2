@@ -35,12 +35,18 @@ class POIEngine:
                 + list(hexes[hexes["intersection"] == "partial"]["id"].unique())
             )
         )
-        h3_clause = f"h3_index IN ('{'',''.join(h3_indexes)}')"
+        h3_clause = f"h3_index IN ('{"','".join(h3_indexes)}')"
 
         # Build the base query that applies the H3 and spatial filters
         query = f"""
-            SELECT *
+            SELECT
+                fsq.*,
+                chain.chain_name
             FROM poi.foursquare AS fsq
+            JOIN poi.foursquare_poi_chains AS cha
+                ON fsq.id = cha.poi_id
+            JOIN poi.foursquare_chains AS chain
+                ON cha.chain_id = chain.chain_id
             WHERE 
                 {h3_clause}
                 AND ST_Within(
@@ -50,7 +56,7 @@ class POIEngine:
         """
         if categories is not None:
             # Assuming 'categories' is a list of string ids, join them for the SQL IN clause.
-            cat_ids = ",".join(categories)
+            cat_ids = ",".join([str(id) for id in categories])
             query = f"""
                 WITH RECURSIVE cat_tree AS (
                     SELECT id
@@ -62,15 +68,21 @@ class POIEngine:
                     JOIN cat_tree d 
                         ON child.parent_id = d.id
                 )
-                SELECT *
+                SELECT 
+                    fsq.*,
+                    chain.chain_name
                 FROM poi.foursquare AS fsq
                 JOIN poi.foursquare_poi_categories AS cat
                     ON fsq.id = cat.poi_id
+                JOIN poi.foursquare_poi_chains AS cha
+                    ON fsq.id = cha.poi_id
+                JOIN poi.foursquare_chains AS chain
+                    ON cha.chain_id = chain.chain_id
                 WHERE 
                     {h3_clause}
                     AND cat.category_id IN (SELECT id FROM cat_tree)
                     AND ST_Within(
-                        fsq.point,
+                        fsq.point::geometry(point),
                         ST_SetSRID(ST_GeomFromText('{polygon_wkt}'), 4326)
                     )
             """

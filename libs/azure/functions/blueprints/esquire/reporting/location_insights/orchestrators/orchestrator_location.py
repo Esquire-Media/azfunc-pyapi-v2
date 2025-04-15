@@ -44,7 +44,7 @@ def orchestrator_locationInsights_location(context: DurableOrchestrationContext)
 
     # send a request to Onspot to get device observations for this location
     # returned data will be stored in CSV format inside the `observations` folder
-    egress["runtime_container"]["observations_blob"] = f"{egress['batch_instance_id']}/{context.instance_id}/{locationID}/observations"
+    egress["runtime_container"]["observations_blob"] = f"{egress['batch_instance_id']}/{egress['pull_id']}/{locationID}/observations"
 
     onspot_job = yield context.call_sub_orchestrator(
         "onspot_orchestrator",

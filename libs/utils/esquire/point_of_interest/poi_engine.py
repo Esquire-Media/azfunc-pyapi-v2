@@ -35,20 +35,20 @@ class POIEngine:
                 + list(hexes[hexes["intersection"] == "partial"]["id"].unique())
             )
         )
-        h3_clause = f"h3_index IN ('{"','".join(h3_indexes)}')"
 
         # Build the base query that applies the H3 and spatial filters
+        h3_ids = "','".join(h3_indexes)
         query = f"""
             SELECT
                 fsq.*,
-                chain.chain_name
+	            COALESCE(chain.chain_name, fsq.name) AS chain_name
             FROM poi.foursquare AS fsq
-            JOIN poi.foursquare_poi_chains AS cha
+            LEFT JOIN poi.foursquare_poi_chains AS cha
                 ON fsq.id = cha.poi_id
-            JOIN poi.foursquare_chains AS chain
+            LEFT JOIN poi.foursquare_chains AS chain
                 ON cha.chain_id = chain.chain_id
             WHERE 
-                {h3_clause}
+                h3_index IN ('{h3_ids}')
                 AND ST_Within(
                     fsq.point,
                     ST_SetSRID(ST_GeomFromText('{polygon_wkt}'), 4326)
@@ -70,16 +70,16 @@ class POIEngine:
                 )
                 SELECT 
                     fsq.*,
-                    chain.chain_name
+	                COALESCE(chain.chain_name, fsq.name) AS chain_name
                 FROM poi.foursquare AS fsq
                 JOIN poi.foursquare_poi_categories AS cat
                     ON fsq.id = cat.poi_id
-                JOIN poi.foursquare_poi_chains AS cha
+                LEFT JOIN poi.foursquare_poi_chains AS cha
                     ON fsq.id = cha.poi_id
-                JOIN poi.foursquare_chains AS chain
+                LEFT JOIN poi.foursquare_chains AS chain
                     ON cha.chain_id = chain.chain_id
                 WHERE 
-                    {h3_clause}
+                    h3_index IN ('{h3_ids}')
                     AND cat.category_id IN (SELECT id FROM cat_tree)
                     AND ST_Within(
                         fsq.point::geometry(point),

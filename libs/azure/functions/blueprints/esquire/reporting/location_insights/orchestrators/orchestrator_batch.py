@@ -34,7 +34,7 @@ def orchestrator_locationInsights_batch(context: DurableOrchestrationContext):
             }
         }
 
-        batch_size = 1
+        batch_size = 5
         sorted_location_ids = sorted(settings["locationIDs"])  # Ensure consistent ordering
         location_batches = [sorted_location_ids[i : i + batch_size] for i in range(0, len(sorted_location_ids), batch_size)]
 

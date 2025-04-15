@@ -28,13 +28,17 @@ def orchestrator_locationInsights_report(context: DurableOrchestrationContext):
 
     location_data_list = []
     for locationID in settings['locationIDs']:
+        local_egress = {
+            **egress,
+            "runtime_container": {**egress["runtime_container"]},
+        }
         # call activity to get location info such as address, owner, latlong, and geometry
-        egress["runtime_container"]["location_blob"] = f"{egress['batch_instance_id']}/{context.instance_id}/{locationID}/locations.csv"
+        local_egress["runtime_container"]["location_blob"] = f"{local_egress['batch_instance_id']}/{context.instance_id}/{locationID}/locations.csv"
         yield context.call_activity_with_retry(
             "activity_locationInsights_getLocationInfo",
             retry,
             {
-                **egress, "locationID":locationID
+                **local_egress, "locationID":locationID
             },
         )
 
@@ -43,20 +47,20 @@ def orchestrator_locationInsights_report(context: DurableOrchestrationContext):
             "activity_locationInsights_createObservationsRequest",
             retry,
             {
-                **egress, "locationID":locationID
+                **local_egress, "locationID":locationID
             },
         )
 
         # send a request to Onspot to get device observations for this location
         # returned data will be stored in CSV format inside the `observations` folder
-        egress["runtime_container"]["observations_blob"] = f"{egress['batch_instance_id']}/{context.instance_id}/{locationID}/observations"
+        local_egress["runtime_container"]["observations_blob"] = f"{local_egress['batch_instance_id']}/{context.instance_id}/{locationID}/observations"
 
         onspot_job = yield context.call_sub_orchestrator(
             "onspot_orchestrator",
             {
-                "conn_str": egress["runtime_container"]["conn_str"],
-                "container": egress["runtime_container"]["container_name"],
-                "outputPath": egress["runtime_container"]["observations_blob"],
+                "conn_str": local_egress["runtime_container"]["conn_str"],
+                "container": local_egress["runtime_container"]["container_name"],
+                "outputPath": local_egress["runtime_container"]["observations_blob"],
                 "endpoint": "/save/geoframe/all/observations",
                 "request": observations_request,
             },
@@ -75,7 +79,7 @@ def orchestrator_locationInsights_report(context: DurableOrchestrationContext):
             )
 
         # use Synapse to extract unique deviceids from the device observations file
-        egress["runtime_container"]["unique_devices_blob"] = f"{egress['batch_instance_id']}/{context.instance_id}/{locationID}/unique_devices"
+        local_egress["runtime_container"]["unique_devices_blob"] = f"{local_egress['batch_instance_id']}/{context.instance_id}/{locationID}/unique_devices"
         unique_device_urls = yield context.call_activity_with_retry(
             "synapse_activity_cetas",
             retry,
@@ -84,28 +88,27 @@ def orchestrator_locationInsights_report(context: DurableOrchestrationContext):
                 "bind": "synapse-general",
                 "table": {"name": "unique_deviceids"},
                 "destination": {
-                    "conn_str": egress["runtime_container"]["conn_str"],
-                    "container_name": egress["runtime_container"]["container_name"],
+                    "conn_str": local_egress["runtime_container"]["conn_str"],
+                    "container_name": local_egress["runtime_container"]["container_name"],
                     "handle": "sa_esquirereports",
-                    "path": egress["runtime_container"]["unique_devices_blob"],
+                    "path": local_egress["runtime_container"]["unique_devices_blob"],
                     "format": "CSV",
                 },
                 "query": cetas_query_unique_deviceids(
-                    paths=f"{egress['runtime_container']['container_name']}/{egress['runtime_container']['observations_blob']}/*",
+                    paths=f"{local_egress['runtime_container']['container_name']}/{local_egress['runtime_container']['observations_blob']}/*",
                     handle="sa_esquirereports",
                 ),
                 "return_urls": True,
             },
         )
-        print('getting demos')
         # send a request for demographics data based on the unique devices which were partitioned out by Synapse
-        egress["runtime_container"]["demographics_blob"] = f"{egress['batch_instance_id']}/{context.instance_id}/{locationID}/demographics"
+        local_egress["runtime_container"]["demographics_blob"] = f"{local_egress['batch_instance_id']}/{context.instance_id}/{locationID}/demographics"
         yield context.call_sub_orchestrator(
             "onspot_orchestrator",
             {
-                "conn_str": egress["runtime_container"]["conn_str"],
-                "container": egress["runtime_container"]["container_name"],
-                "outputPath": egress["runtime_container"]["demographics_blob"],
+                "conn_str": local_egress["runtime_container"]["conn_str"],
+                "container": local_egress["runtime_container"]["container_name"],
+                "outputPath": local_egress["runtime_container"]["demographics_blob"],
                 "endpoint": "/save/files/demographics/all",
                 "request": {
                     "type": "FeatureCollection",
@@ -127,23 +130,23 @@ def orchestrator_locationInsights_report(context: DurableOrchestrationContext):
             },
             instance_id=f"{context.instance_id}:demos",
         )
-        print("appending data")
         # Store collected data for this location
         location_data_list.append({
             "locationID": locationID,
-            "location_blob": egress["runtime_container"]["location_blob"],
-            "observations_blob": egress["runtime_container"]["observations_blob"],
-            "demographics_blob": egress["runtime_container"]["demographics_blob"],
+            "location_blob": local_egress["runtime_container"]["location_blob"],
+            "observations_blob": local_egress["runtime_container"]["observations_blob"],
+            "demographics_blob": local_egress["runtime_container"]["demographics_blob"],
         })
 
     # call activity to build the Onspot observations payload
-    egress["runtime_container"]["output_blob"] = f"{egress['batch_instance_id']}/{context.instance_id}/output"
+    local_egress["runtime_container"]["output_blob"] = f"{local_egress['batch_instance_id']}/{context.instance_id}/output"
     output_blob_name = yield context.call_activity_with_retry(
         "activity_locationInsights_buildReport",
         retry,
         {
-            **egress, 
+            **local_egress, 
             "locations_data": location_data_list,
+            "report_id": context.instance_id
         },
     )
 

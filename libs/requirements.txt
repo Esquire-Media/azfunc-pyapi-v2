@@ -21,7 +21,7 @@ marshmallow==3.21.3
 marshmallow-geojson==0.5.0
 marshmallow-jsonapi==0.24.0
 marshmallow-sqlalchemy==0.29.0
-pydantic
+pydantic<2.0
 pandas
 fsspec==2024.6.0
 s3fs==2024.6.0

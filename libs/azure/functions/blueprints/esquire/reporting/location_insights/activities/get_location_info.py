@@ -24,7 +24,7 @@ def activity_locationInsights_getLocationInfo(settings: dict):
                     id,
                     ST_Centroid(ST_Collect(ST_GeomFromGeoJSON(feature->'geometry'))) AS centroid
                 FROM 
-                    public."TargetingGeoFrame",
+                    keystone."TargetingGeoFrame",
                     jsonb_array_elements(polygon->'features') AS feature
                 GROUP BY
                     id
@@ -40,7 +40,7 @@ def activity_locationInsights_getLocationInfo(settings: dict):
                 G.polygon->'features'->0->'geometry' AS "Geometry",
                 ST_Y(C.centroid) AS "Latitude",
                 ST_X(C.centroid) AS "Longitude"
-            FROM public."TargetingGeoFrame" AS G
+            FROM keystone."TargetingGeoFrame" AS G
             JOIN centroids AS C
                 ON C.id = G.id
             WHERE

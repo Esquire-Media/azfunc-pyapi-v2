@@ -22,7 +22,7 @@ def activity_esquireAudienceBuilder_fetchAudienceIds(ingress: dict):
     list: A list of audience IDs.
     """
     provider = from_bind("keystone")
-    audience = provider.models["public"]["Audience"]
+    audience = provider.models["keystone"]["Audience"]
     session: Session = provider.connect()
 
     query = select(audience.id).where(audience.status == True)

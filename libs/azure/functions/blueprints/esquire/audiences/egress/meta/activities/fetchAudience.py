@@ -25,8 +25,8 @@ def activity_esquireAudienceMeta_fetchAudience(ingress: str):
     Exception: If no results are found for the given audience ID.
     """
     provider = from_bind("keystone")
-    audience = provider.models["public"]["Audience"]
-    advertiser = provider.models["public"]["Advertiser"]
+    audience = provider.models["keystone"]["Audience"]
+    advertiser = provider.models["keystone"]["Advertiser"]
 
     session: Session = provider.connect()
     query = (

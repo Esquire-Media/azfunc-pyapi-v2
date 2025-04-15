@@ -13,11 +13,11 @@ bp: Blueprint = Blueprint()
 # activity to validate the addresses
 @bp.activity_trigger(input_name="polys")
 def activity_rooftopPolys_writeCache(polys: List[dict]):
-    pg_engine = create_engine(os.environ["DATABIND_SQL_POSTGRES"])
+    pg_engine = create_engine(os.environ["DATABIND_SQL_KEYSTONE"])
 
     # Define the upsert query (for WKB insertion)
     upsert_query = """
-    INSERT INTO public.google_rooftop_cache (query, boundary, last_updated) 
+    INSERT INTO utils.google_rooftop_cache (query, boundary, last_updated) 
     VALUES (%s, ST_GeomFromText(%s), %s)
     ON CONFLICT (query) 
     DO UPDATE SET

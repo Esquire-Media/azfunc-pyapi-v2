@@ -21,13 +21,13 @@ if not from_bind("keystone"):
         max_overflow=100,
     )
 
-if not from_bind("salesforce"):
-    register_binding(
-        "salesforce",
-        "Structured",
-        "sql",
-        url=os.environ["DATABIND_SQL_SALESFORCE"],
-        schemas=["dbo"],
-        pool_size=1000,
-        max_overflow=100
-    )
+# if not from_bind("salesforce"):
+#     register_binding(
+#         "salesforce",
+#         "Structured",
+#         "sql",
+#         url=os.environ["DATABIND_SQL_SALESFORCE"],
+#         schemas=["dbo"],
+#         pool_size=1000,
+#         max_overflow=100
+#     )

@@ -11,11 +11,13 @@ import os
 
 bp = Blueprint()
 
-@bp.activity_trigger(input_name="data")
-def activity_validateAddresses(sales: pd.DataFrame, header_info):
+@bp.activity_trigger(input_name="settings")
+def activity_validateAddresses(settings:dict):
     """
     Validates address information and generates deterministic uuids
     """
+    sales = settings['sales']
+    header_info = settings['header_info']
 
     # do the initial set of billing addresses
     billing_adds = validate_address_set(sales, header_info['billing']).rename(

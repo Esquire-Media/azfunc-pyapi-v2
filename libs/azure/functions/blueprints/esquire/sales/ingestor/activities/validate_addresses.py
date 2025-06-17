@@ -19,6 +19,8 @@ def activity_validateAddresses(settings:dict):
     sales = settings['sales']
     header_info = settings['header_info']
 
+    sales['sales_index'] = np.arange(sales.shape[0]) # used to merge on after Smarty call
+
     # do the initial set of billing addresses
     billing_adds = validate_address_set(sales, header_info['billing']).rename(
         columns={
@@ -57,7 +59,13 @@ def activity_validateAddresses(settings:dict):
         how='outer'
     )
 
-    return cleaned_adds
+    settings['sales'] = settings['sales'].merge(
+        cleaned_adds,
+        on='sales_index',
+        how='left'
+    )
+
+    return settings
 
 
 def validate_address_set(sales, ADDRESS, CITY, STATE, ZIPCODE):
@@ -75,7 +83,6 @@ def validate_address_set(sales, ADDRESS, CITY, STATE, ZIPCODE):
 
 def get_smarty_addresses(sales, ADDRESS, CITY, STATE, ZIPCODE):
     # clean sales through SmartySreets
-    sales['sales_index'] = np.arange(sales.shape[0]) # used to merge on after Smarty call
     sales = sales[sales[ADDRESS] != '']
     smarty_sales = smarty_streets_cleaning(
         df=sales,
@@ -88,7 +95,7 @@ def get_smarty_addresses(sales, ADDRESS, CITY, STATE, ZIPCODE):
     # collect neccessary smarty-cleaned columns and remaning untouched client sales data
     smarty_sales['sales_index'] = smarty_sales['sales_index'].astype(int)
     cleaned_sales = pd.merge(
-        smarty_sales[['sales_index','delivery_line_1','city_name','state_abbreviation','zipcode','full_zipcode','latitude','longitude']], 
+        smarty_sales[['sales_index','delivery_line_1','city_name','state_abbreviation','zipcode']], 
         sales[ [col for col in sales.columns if col not in [ADDRESS,CITY,STATE,ZIPCODE]] ],
         on='sales_index' 
     )

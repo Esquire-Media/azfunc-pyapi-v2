@@ -82,7 +82,7 @@ def validate_address_set(sales, header_info):
     cleaned_addresses = get_smarty_addresses(df, ADDRESS, CITY, STATE, ZIPCODE)
 
     # generate the deterministic id for the addresses
-    cleaned_addresses['address_id'] = cleaned_addresses.apply(lambda entry: generate_deterministic_id(NAMESPACE_ADDRESS, [entry[field] for field in [ADDRESS, CITY, STATE, ZIPCODE]]), axis=1)
+    cleaned_addresses['address_id'] = cleaned_addresses.apply(lambda entry: generate_deterministic_id(NAMESPACE_ADDRESS, [entry[field] for field in ['delivery_line_1','city_name','state_abbreviation','zipcode']]), axis=1)
 
     return cleaned_addresses[['delivery_line_1','city_name','state_abbreviation','zipcode', 'address_id', 'sales_index']]
 

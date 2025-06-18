@@ -4,11 +4,16 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from psycopg2.extras import execute_values
 
-from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.database_helpers import write_dataframe
+from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.database_helpers import write_dataframe, upload_complete_check
 bp = Blueprint()
 
 @bp.activity_trigger(input_name="settings")
 def activity_writeDatabase(settings: dict):
+    if upload_complete_check(
+        engine, 
+        settings['metadata']['upload_id'], 
+        schema='sales'):
+        return
     engine = create_engine(os.environ['DATABIND_SQL_KEYSTONE_DEV'])
     write_all_tables(
         engine  = engine,

@@ -50,6 +50,7 @@ def insert_upload_record(engine, upload_id: str, tenant_id: str, upload_timestam
             :source,
             :metadata
         )
+        ON CONFLICT DO NOTHING
     """).bindparams(
         bindparam("metadata", type_=JSON)
     )
@@ -79,3 +80,12 @@ def clean_nans(df: pd.DataFrame) -> pd.DataFrame:
             df[col] = df[col].apply(lambda x: np.nan if x is None else x)
 
     return df
+
+def upload_complete_check(engine, upload_id: str, schema: str) -> bool:
+    query = text(f"""
+        SELECT 1 FROM {schema}.uploads
+        WHERE upload_id = :upload_id AND status = 'Done.'
+    """)
+    with engine.begin() as conn:
+        return conn.execute(query, {"upload_id": upload_id}).first() is not None
+

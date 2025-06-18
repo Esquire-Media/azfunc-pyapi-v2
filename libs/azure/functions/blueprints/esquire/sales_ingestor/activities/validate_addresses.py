@@ -16,7 +16,7 @@ def activity_validateAddresses(settings:dict):
     """
     Validates address information and generates deterministic uuids
     """
-    sales = settings['sales']
+    sales = pd.DataFrame(settings['sales'])
     header_info = settings['header_info']
 
     sales['sales_index'] = np.arange(sales.shape[0]) # used to merge on after Smarty call
@@ -126,9 +126,8 @@ def pre_clean(df, ADDRESS, CITY, STATE, ZIPCODE):
 
     return df
 
-def smarty_streets_cleaning(df_dict, ADDRESS, CITY, STATE, ZIPCODE):
+def smarty_streets_cleaning(df, ADDRESS, CITY, STATE, ZIPCODE):
 
-    df = pd.DataFrame(df_dict)
     # send addresses through the Smarty Python SDK
     smarty_df = bulk_validate(
         df=df.rename(columns={ZIPCODE:'raw_zip'}), 

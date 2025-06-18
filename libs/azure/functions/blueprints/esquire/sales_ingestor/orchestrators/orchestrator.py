@@ -53,18 +53,18 @@ def orchestrator_ingestData(context: DurableOrchestrationContext):
 
     if res:
         # if any errors are caught, post an error card to teams tagging Ryan and the calling user
-        yield context.call_activity(
-            "activity_microsoftGraph_postErrorCard",
-            {
-                "function_name": "esquire-sales-ingestion",
-                "instance_id": context.instance_id,
-                "owners": ["matt@esquireadvertising.com", settings["metadata"]["uploader"]],
-                "error": f"{type(res['error']).__name__} : {res['error']}"[:1000],
-                "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
-            },
-        )
-        logging.warning("Error card sent")
-        raise e
+        # yield context.call_activity(
+        #     "activity_microsoftGraph_postErrorCard",
+        #     {
+        #         "function_name": "esquire-sales-ingestion",
+        #         "instance_id": context.instance_id,
+        #         "owners": ["matt@esquireadvertising.com", settings["metadata"]["uploader"]],
+        #         "error": f"{type(res['error']).__name__} : {res['error']}"[:1000],
+        #         "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
+        #     },
+        # )
+        # logging.warning("Error card sent")
+        # raise e
         return HttpResponse(status=500, body=f"{res['message']}{res['error']}")
 
     else:

@@ -11,15 +11,15 @@ bp: Blueprint = Blueprint()
 
 # initialize logging features
 __handler = AzureTableHandler()
-__logger = logging.getLogger("locationInsights.logger")
+__logger = logging.getLogger("salesIngestor.logger")
 if __handler not in __logger.handlers:
     __logger.addHandler(__handler)
 
 
-@bp.route(route="esquire/sales_ingestor", methods=["POST"])
+@bp.route(route="esquire/sales_ingestor/starter", methods=["POST"])
 @bp.durable_client_input(client_name="client")
 async def sales_ingestion_starter(req: HttpRequest, client: DurableOrchestrationClient):
-    logger = logging.getLogger("locationInsights.logger")
+    logger = logging.getLogger("salesIngestor.logger")
 
     # load the request payload as a Pydantic object
     payload = req.get_body()

@@ -21,8 +21,13 @@ if __handler not in __logger.handlers:
 async def sales_ingestion_starter(req: HttpRequest, client: DurableOrchestrationClient):
     logger = logging.getLogger("salesIngestor.logger")
 
-    # load the request payload as a Pydantic object
-    payload = req.get_body()
+    # load the request payload
+    # load and parse the request payload
+    payload_bytes = req.get_body()
+    try:
+        payload = json.loads(payload_bytes)
+    except Exception:
+        return HttpResponse(status_code=400, body="Invalid JSON payload.")
 
     # validate the MS bearer token to ensure the user is authorized to make requests
     try:

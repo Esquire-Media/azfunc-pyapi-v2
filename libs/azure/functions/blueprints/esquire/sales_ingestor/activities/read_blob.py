@@ -16,6 +16,8 @@ async def activity_readBlob(settings: dict):
         async for blob in container_client.list_blobs(name_starts_with=f"{settings['metadata']['upload_id']}/"):
             blob_list.append(blob)
 
+        blob_list.sort(key=lambda b: b.name)
+
         for blob in blob_list:
             blob_client = container_client.get_blob_client(blob)
             stream = await blob_client.download_blob()

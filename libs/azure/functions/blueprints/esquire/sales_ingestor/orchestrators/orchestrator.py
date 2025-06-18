@@ -65,7 +65,7 @@ def orchestrator_ingestData(context: DurableOrchestrationContext):
         # )
         # logging.warning("Error card sent")
         # raise e
-        return HttpResponse(status=500, body=f"{res['message']}{res['error']}")
+        return HttpResponse(status_code=500, body=f"{res['message']}{res['error']}")
 
     else:
         return {"status": "success"}

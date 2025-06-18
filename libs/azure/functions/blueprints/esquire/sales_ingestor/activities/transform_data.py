@@ -1,10 +1,10 @@
 from azure.durable_functions import Blueprint
 import pandas as pd, io, os
-from uuid import uuid4
 
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.generate_ids import (
     generate_deterministic_id,
-    NAMESPACE_SALE
+    NAMESPACE_SALE,
+    NAMESPACE_LINEITEM
 )
 
 bp = Blueprint()
@@ -35,7 +35,7 @@ def activity_transformData(settings: dict):
         'sales_index'
         ]
 
-    for order_id, group in df.groupby(settings['header_info']['order_info']['order_num'], dropna=False):
+    for order_id, group in df.groupby(settings['header_info']['order_info']['order_num'], dropna=False, sort=True):
 
         first_row = group.iloc[0]
         sale_id = generate_deterministic_id(NAMESPACE_SALE, [settings['metadata']['upload_id'], order_id])
@@ -64,7 +64,7 @@ def activity_transformData(settings: dict):
         }
 
         for _, row in group.iterrows():
-            line_item_id = str(uuid4())
+            line_item_id = generate_deterministic_id(NAMESPACE_LINEITEM, row.values)
 
             line_items.append({
                 'sale_id': sale_id,

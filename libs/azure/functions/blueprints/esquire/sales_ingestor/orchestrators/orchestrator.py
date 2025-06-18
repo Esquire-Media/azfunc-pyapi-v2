@@ -3,7 +3,8 @@ from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.database_hel
 from sqlalchemy import create_engine
 import os
 import logging
-from http import HTTPStatus, HttpResponse
+from http import HTTPStatus
+from azure.functions import HttpResponse
 
 bp = Blueprint()
 

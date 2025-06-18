@@ -92,6 +92,11 @@ BLUEPRINTS = {
         "libs/azure/functions/blueprints/keep_alive",
         "libs/azure/functions/blueprints/logger",
     ],
+    "esquire-sales-ingestion":[
+        "libs/azure/functions/blueprints/keep_alive",
+        "libs/azure/functions/blueprints/esquire/sales_ingestor/*",
+        "libs/azure/functions/blueprints/microsoft/graph/*",
+    ],
     # !!! DANGER ZONE !!!
     "debug_env": [
         # !!! CAUTION !!!

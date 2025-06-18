@@ -4,7 +4,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from psycopg2.extras import execute_values
 
-from libs.azure.functions.blueprints.esquire.sales.ingestor.utility.database_helpers import write_dataframe
+from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.database_helpers import write_dataframe
 bp = Blueprint()
 
 @bp.activity_trigger(input_name="settings")

@@ -16,7 +16,7 @@ if __handler not in __logger.handlers:
     __logger.addHandler(__handler)
 
 
-@bp.route(route="esquire/sales/ingestor", methods=["POST"])
+@bp.route(route="esquire/sales_ingestor", methods=["POST"])
 @bp.durable_client_input(client_name="client")
 async def sales_ingestion_starter(req: HttpRequest, client: DurableOrchestrationClient):
     logger = logging.getLogger("locationInsights.logger")

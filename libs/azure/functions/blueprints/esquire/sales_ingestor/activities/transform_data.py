@@ -2,7 +2,7 @@ from azure.durable_functions import Blueprint
 import pandas as pd, io, os
 from uuid import uuid4
 
-from libs.azure.functions.blueprints.esquire.sales.ingestor.utility.generate_ids import (
+from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.generate_ids import (
     generate_deterministic_id,
     NAMESPACE_SALE
 )

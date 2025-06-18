@@ -1,9 +1,9 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
-from libs.azure.functions.blueprints.esquire.sales.ingestor.utility.database_helpers import insert_upload_record
+from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.database_helpers import insert_upload_record
 from sqlalchemy import create_engine
 import os
 import logging
-from http import HTTPStatus
+from http import HTTPStatus, HttpResponse
 
 bp = Blueprint()
 
@@ -62,8 +62,8 @@ def orchestrator_ingestData(context: DurableOrchestrationContext):
             },
         )
         logging.warning("Error card sent")
-        
-        return res
+        raise e
+        return HttpResponse(status=500, body=f"{res['message']}{res['error']}")
 
     else:
         return {"status": "success"}

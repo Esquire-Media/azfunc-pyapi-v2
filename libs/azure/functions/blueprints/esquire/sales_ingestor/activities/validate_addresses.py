@@ -1,6 +1,6 @@
 from azure.durable_functions import Blueprint
 from libs.utils.smarty import bulk_validate
-from libs.azure.functions.blueprints.esquire.sales.ingestor.utility.generate_ids import (
+from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.generate_ids import (
     generate_deterministic_id,
     NAMESPACE_ADDRESS
 )

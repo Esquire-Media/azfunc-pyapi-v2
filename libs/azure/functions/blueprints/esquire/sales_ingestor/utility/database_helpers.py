@@ -31,7 +31,7 @@ def write_dataframe(conn, df: pd.DataFrame, table_name: str, schema: str = "sale
         # print(f"[ERROR] Failed to write to '{schema}.{table_name}': {e}")
         raise
 
-def insert_upload_record(engine, upload_id: str, tenant_id: str, status: str = "Pending", source: str = "Uploader Backend testing", metadata: dict = None, schema: str = "sales"):
+def insert_upload_record(engine, upload_id: str, tenant_id: str, upload_timestamp: str, status: str = "Pending", source: str = "Uploader Backend testing", metadata: dict = None, schema: str = "sales"):
     """Insert a new row into sales.uploads."""
     query = text(f"""
         INSERT INTO {schema}.uploads (
@@ -58,7 +58,7 @@ def insert_upload_record(engine, upload_id: str, tenant_id: str, status: str = "
         conn.execute(query, {
             "upload_id": upload_id,
             "tenant_id": tenant_id,
-            "timestamp": pd.to_datetime(datetime.now()),
+            "timestamp": upload_timestamp,
             "status": status,
             "source": source,
             "metadata": metadata

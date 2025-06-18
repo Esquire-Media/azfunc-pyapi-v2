@@ -19,6 +19,7 @@ def orchestrator_ingestData(context: DurableOrchestrationContext):
         engine=engine,
         upload_id=settings['metadata']['upload_id'],
         tenant_id='',
+        upload_timestamp=settings['metadata']['upload_timestamp'],
         status='Pending',
         metadata={key:val for key, val in settings['metadata'].items() if key not in ['tenant_id','upload_timestamp', 'upload_id', '']},
         schema='sales'

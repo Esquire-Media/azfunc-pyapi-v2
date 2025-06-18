@@ -68,7 +68,12 @@ def activity_validateAddresses(settings:dict):
     return settings
 
 
-def validate_address_set(sales, ADDRESS, CITY, STATE, ZIPCODE):
+def validate_address_set(sales, header_info):
+
+    ADDRESS = header_info['street']
+    CITY    = header_info['city']
+    STATE   = header_info['state']
+    ZIPCODE = header_info['zipcode']
 
     # do some initial pre-cleaning to increase validation chance
     df = pre_clean(sales, ADDRESS, CITY, STATE, ZIPCODE)

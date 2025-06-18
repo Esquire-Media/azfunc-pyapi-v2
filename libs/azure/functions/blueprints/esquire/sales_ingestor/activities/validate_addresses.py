@@ -136,8 +136,6 @@ def smarty_streets_cleaning(df, ADDRESS, CITY, STATE, ZIPCODE):
     # send addresses through the Smarty Python SDK
     smarty_df = bulk_validate(
         df=df.rename(columns={ZIPCODE:'raw_zip'}), 
-        auth_id=os.environ['SMARTY_APP_ID'], 
-        auth_token=os.environ['SMARTY_APP_TOKEN'],
         address_col=ADDRESS,
         city_col=CITY,
         state_col=STATE,

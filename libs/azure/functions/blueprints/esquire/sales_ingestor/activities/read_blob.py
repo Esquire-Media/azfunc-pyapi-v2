@@ -29,5 +29,5 @@ async def activity_readBlob(settings: dict):
                 )
             dfs.append(df)
 
-    settings['sales'] = pd.concat(dfs, ignore_index=True)
+    settings['sales'] = pd.concat(dfs, ignore_index=True).to_dict(orient="records")
     return settings

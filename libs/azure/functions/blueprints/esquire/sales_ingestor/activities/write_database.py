@@ -74,6 +74,8 @@ def insert_addresses_on_conflict(conn, df: pd.DataFrame, schema: str = "sales", 
         raise
 
 def write_all_tables(engine: Engine, tables: dict, schema: str = "sales"):
+    for table_name, data in tables:
+        tables[table_name] = pd.DataFrame(data)
     # do this transactionally so that we either write all or none
     with engine.begin() as conn:
         insert_addresses_on_conflict(conn, tables['addresses'], schema=schema)

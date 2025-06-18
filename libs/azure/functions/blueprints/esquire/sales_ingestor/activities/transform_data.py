@@ -12,7 +12,7 @@ bp = Blueprint()
 @bp.activity_trigger(input_name="settings")
 def activity_transformData(settings: dict):
 
-    df = settings['sales']
+    df = pd.DataFrame(settings['sales'])
     address_ids = set()
     addresses = []
     sales = []
@@ -85,13 +85,13 @@ def activity_transformData(settings: dict):
         ).replace('',pd.NA).dropna(how='any').assign(upload_id=settings['metadata']['upload_id'])
 
     settings['table_data'] = {
-        'sales': pd.DataFrame(sales),
-        'line_items': pd.DataFrame(line_items),
-        'addresses': pd.DataFrame(addresses),
-        'sale_attributes': pd.DataFrame(sale_attributes),
-        'line_item_attributes': pd.DataFrame(line_item_attributes),
-        'upload_sales': pd.DataFrame(upload_sales),
-        'readable_attributes': readable_attributes
+        'sales': pd.DataFrame(sales).to_dict(orient="records"),
+        'line_items': pd.DataFrame(line_items).to_dict(orient="records"),
+        'addresses': pd.DataFrame(addresses).to_dict(orient="records"),
+        'sale_attributes': pd.DataFrame(sale_attributes).to_dict(orient="records"),
+        'line_item_attributes': pd.DataFrame(line_item_attributes).to_dict(orient="records"),
+        'upload_sales': pd.DataFrame(upload_sales).to_dict(orient="records"),
+        'readable_attributes': readable_attributes.to_dict(orient="records")
     }
 
     return settings

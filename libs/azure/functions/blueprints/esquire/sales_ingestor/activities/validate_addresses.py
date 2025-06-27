@@ -1,189 +1,179 @@
-from azure.durable_functions import Blueprint
-from libs.utils.smarty import bulk_validate
-from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.generate_ids import (
-    generate_deterministic_id,
-    NAMESPACE_ADDRESS
-)
+# blueprints/validate_addresses_bp.py
+from azure.durable_functions import Blueprint, activity_trigger
+from sqlalchemy import text
 import pandas as pd
-import numpy as np
-import re
-import os
+
+# 🔁 reuse the same helpers you already ship with another function-app
+from libs.utils.smarty import bulk_validate                # address → Smarty
+from libs.utils.text import format_full_address            # add1 + add2
+from libs.utils.text import format_zipcode, format_zip4, format_full_address
+
+from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import db  # pooled SQLAlchemy conn
 
 bp = Blueprint()
 
+
 @bp.activity_trigger(input_name="settings")
-def activity_validateAddresses(settings:dict):
+def validate_addresses(settings: dict) -> str:
     """
-    Validates address information and generates deterministic uuids
+    1. Pull rows from the *temp* staging table.
+    2. Bulk-validate them with Smarty in one call.
+    3. Normalise the response via your `format_validated_addresses`.
+    4. Upsert the **full address, city, state, zip, zip4, lat, lon** back into staging.
     """
-    sales = pd.DataFrame(settings['sales'])
-    header_info = settings['header_info']
 
-    sales['sales_index'] = np.arange(sales.shape[0]) # used to merge on after Smarty call
+    table      = settings["table"]
+    pk_col     = settings.get("id_field", "id")         # primary-key column name
+    add1_col   = settings.get("add1_field", "add1")
+    add2_col   = settings.get("add2_field", "add2")
+    city_col   = settings.get("city_field", "city")
+    state_col  = settings.get("state_field", "st")
+    zip_col    = settings.get("zip_field", "zip")
 
-    # do the initial set of billing addresses
-    billing_adds = validate_address_set(sales, header_info['billing']).rename(
-        columns={
-            'delivery_line_1'   : 'billing_street_cleaned',
-            'city_name'         : 'billing_city_cleaned',
-            'state_abbreviation': 'billing_state_cleaned',
-            'zipcode'           : 'billing_zipcode_cleaned', 
-            'address_id'        : 'billing_address_id'
-            })
+    # ── 1. Load the addresses that need validation ────────────────────
+    with db() as conn:
+        df = pd.read_sql(
+            text(f'''
+                SELECT "{pk_col}", "{add1_col}" AS add1, "{add2_col}" AS add2,
+                       "{city_col}" AS city, "{state_col}" AS st, "{zip_col}" AS zip
+                FROM "{table}"
+            '''), conn
+        )
 
-    # if we only have one address, then no need to repeat it
-    if header_info['billing'] == header_info['shipping']:
-        shipping_adds = billing_adds.copy().rename(
-        columns={
-            'delivery_line_1'   : 'shipping_street_cleaned',
-            'city_name'         : 'shipping_city_cleaned',
-            'state_abbreviation': 'shipping_state_cleaned',
-            'zipcode'           : 'shipping_zipcode_cleaned', 
-            'address_id'        : 'shipping_address_id'
-            })
-    else:
-        # if they're different, do the shipping
-        shipping_adds = validate_address_set(sales, header_info['shipping']).rename(
-        columns={
-            'delivery_line_1'   : 'shipping_street_cleaned',
-            'city_name'         : 'shipping_city_cleaned',
-            'state_abbreviation': 'shipping_state_cleaned',
-            'zipcode'           : 'shipping_zipcode_cleaned', 
-            'address_id'        : 'shipping_address_id'
-            })
+    if df.empty:
+        return "no rows to validate"
 
-    # combine the two sets
-    cleaned_adds = billing_adds.merge(
-        shipping_adds,
-        on='sales_index',
-        how='outer'
+    df["full_add"] = df.apply(
+        lambda r: format_full_address(r.add1, r.add2), axis=1
     )
 
-    settings['sales'] = settings['sales'].merge(
-        cleaned_adds,
-        on='sales_index',
-        how='left'
+    # ── 2. One bulk call to Smarty (your helper already chunks & retries) ─
+    validated = bulk_validate(
+        df,
+        address_col="full_add",
+        city_col="city",
+        state_col="st",
+        zip_col="zip",
     )
 
-    return settings
+    # ── 3. Re-use your formatter so we get clean, typed columns ─────────
+    cleaned = format_validated_addresses(validated)   # DataFrame with address, city, state, zipcode …
 
+    # ── 4. Upsert back into the temp staging table ──────────────────────
+    # Convert DataFrame → list-of-tuples in the exact order of the VALUES clause
+    rows = cleaned[[pk_col, "address", "city", "state",
+                    "zipcode", "plus4Code", "latitude", "longitude"]
+                  ].to_records(index=False)
 
-def validate_address_set(sales, header_info):
+    if rows.size:
+        with db() as conn:
+            conn.execute(
+                text(f"""
+                    UPDATE "{table}" AS t
+                       SET {add1_col} = v.address,
+                           {city_col} = v.city,
+                           {state_col}= v.state,
+                           {zip_col}   = v.zipcode,
+                           zip4        = v.plus4Code,
+                           latitude    = v.latitude,
+                           longitude   = v.longitude
+                      FROM (VALUES :rows) AS v({pk_col},
+                                                address,
+                                                city,
+                                                state,
+                                                zipcode,
+                                                plus4Code,
+                                                latitude,
+                                                longitude)
+                     WHERE t."{pk_col}" = v.{pk_col}
+                """),
+                {"rows": list(rows)}
+            )
 
-    ADDRESS = header_info['street']
-    CITY    = header_info['city']
-    STATE   = header_info['state']
-    ZIPCODE = header_info['zipcode']
+    return f"validated & updated {len(cleaned)} rows"
 
-    # do some initial pre-cleaning to increase validation chance
-    df = pre_clean(sales, ADDRESS, CITY, STATE, ZIPCODE)
-    
-    # get the information from smarty
-    cleaned_addresses = get_smarty_addresses(df, ADDRESS, CITY, STATE, ZIPCODE)
-
-    # generate the deterministic id for the addresses
-    cleaned_addresses['address_id'] = cleaned_addresses.apply(lambda entry: generate_deterministic_id(NAMESPACE_ADDRESS, [entry[field] for field in ['delivery_line_1','city_name','state_abbreviation','zipcode']]), axis=1)
-
-    return cleaned_addresses[['delivery_line_1','city_name','state_abbreviation','zipcode', 'address_id', 'sales_index']]
-
-def get_smarty_addresses(sales, ADDRESS, CITY, STATE, ZIPCODE):
-    # clean sales through SmartySreets
-    sales = sales[sales[ADDRESS] != '']
-    smarty_sales = smarty_streets_cleaning(
-        df=sales,
-        ADDRESS=ADDRESS, 
-        CITY=CITY, 
-        STATE=STATE, 
-        ZIPCODE=ZIPCODE
-    )
-
-    # collect neccessary smarty-cleaned columns and remaning untouched client sales data
-    smarty_sales['sales_index'] = smarty_sales['sales_index'].astype(int)
-    cleaned_sales = pd.merge(
-        smarty_sales[['sales_index','delivery_line_1','city_name','state_abbreviation','zipcode']], 
-        sales[ [col for col in sales.columns if col not in [ADDRESS,CITY,STATE,ZIPCODE]] ],
-        on='sales_index' 
-    )
-
-    return cleaned_sales
-
-def pre_clean(df, ADDRESS, CITY, STATE, ZIPCODE):
-    # street address column formatting
-    df[ADDRESS] = df[ADDRESS].replace(np.nan,'')
-    df[ADDRESS] = df[ADDRESS].str.strip().str.upper()
-
-    # creates the columns for ones that were not selected b/c missing
-    # also the dropna above can drop the address columns, so add them back in if it did
-    df[[col for col in [ADDRESS, CITY, STATE, ZIPCODE] if col not in df.columns]] = ''
-
-    # zipcode column formatting
-    zip_replacements = {
-        '\'':'',
-        'O':'0',
-        '!':'0'
+def format_validated_addresses(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Utillty function to apply all necessary formatting steps to the address dataset post-Smarty validation.
+    """
+    column_map = {
+        "keycode": "date",
+        "delivery_line_1": "address",
+        "primary_number": "primaryNumber",
+        "street_name": "streetName",
+        "street_predirection": "streetPredirection",
+        "street_postdirection": "streetPostdirection",
+        "street_suffix": "streetSuffix",
+        "secondary_number": "secondaryNumber",
+        "secondary_designator": "secondaryDesignator",
+        "city_name": "city",
+        "state_abbreviation": "state",
+        "zipcode": "zipcode",
+        "plus4_code": "plus4Code",
+        "carrier_route": "carrierCode",
+        "latitude": "latitude",
+        "longitude": "longitude",
+        "oldcity": "oldCity",
+        "oldstate": "oldState",
+        "oldzip": "oldZipcode",
+        "hoc": "homeOwnership",
+        "addtype": "addressType",
+        "p_inc_val": "estimatedIncome",
+        "p_hv_val": "estimatedHomeValue",
+        "age": "estimatedAge",
     }
-    for key, value in zip_replacements.items():
-        df[ZIPCODE] = df[ZIPCODE].str.replace(key, value, regex=False)
+    # filter and format column names
+    for col in column_map.keys():
+        if col not in df.columns:
+            df[col] = None
+    df = df[column_map.keys()].rename(columns=column_map)
 
-    # quick drop if there is no address info
-    # some files have generated columns that extend way past where the actual data is, so it reads in everything
-    df = df.replace('',np.nan).dropna(subset=[ADDRESS, CITY, STATE, ZIPCODE], how='all').replace(np.nan,'')
+    # fill in abbreviations with more descriptive values
+    hoc_codes = {
+        "R": "Renter",
+        "P": "ProbableRenter",
+        "W": "ProbableHomeOwner",
+        "Y": "HomeOwner",
+    }
+    df["homeOwnership"] = df["homeOwnership"].apply(
+        lambda x: hoc_codes[x] if x in hoc_codes.keys() else None
+    )
+    # fill in abbreviations with more descriptive values
+    addtype_codes = {"S": "SingleFamily", "H": "Highrise"}
+    df["addressType"] = df["addressType"].apply(
+        lambda x: addtype_codes[x] if x in addtype_codes.keys() else None
+    )
+
+    # format zipcodes
+    df["zipcode"] = df["zipcode"].apply(format_zipcode)
+    df["plus4Code"] = df["plus4Code"].apply(format_zip4)
+    df["oldZipcode"] = df["oldZipcode"].apply(format_zipcode)
+
+    # explicity set column types
+    df["date"] = df["date"].astype(dtype=str)
+    df["address"] = df["address"].astype(dtype=str)
+    df["primaryNumber"] = df["primaryNumber"].astype(dtype=str)
+    df["streetPredirection"] = df["streetPredirection"].astype(dtype=str)
+    df["streetName"] = df["streetName"].astype(dtype=str)
+    df["streetSuffix"] = df["streetSuffix"].astype(dtype=str)
+    df["streetPostdirection"] = df["streetPostdirection"].astype(dtype=str)
+    df["secondaryDesignator"] = df["secondaryDesignator"].astype(dtype=str)
+    df["secondaryNumber"] = df["secondaryNumber"].astype(dtype=str)
+    df["city"] = df["city"].astype(dtype=str)
+    df["state"] = df["state"].astype(dtype=str)
+    df["zipcode"] = df["zipcode"].astype(dtype=str)
+    df["plus4Code"] = df["plus4Code"].astype(dtype=str)
+    df["carrierCode"] = df["carrierCode"].astype(dtype=str)
+    df["latitude"] = df["latitude"].astype(dtype=float)
+    df["longitude"] = df["longitude"].astype(dtype=float)
+    df["oldCity"] = df["oldCity"].astype(dtype=str)
+    df["oldState"] = df["oldState"].astype(dtype=str)
+    df["oldZipcode"] = df["oldZipcode"].astype(dtype=str)
+    df["homeOwnership"] = df["homeOwnership"].astype(dtype=str)
+    df["addressType"] = df["addressType"].astype(dtype=str)
+    df["estimatedIncome"] = df["estimatedIncome"].astype(dtype=int)
+    df["estimatedHomeValue"] = df["estimatedHomeValue"].astype(dtype=int)
+    df["estimatedAge"] = df["estimatedAge"].astype(dtype=int)
+    df["h3_index"] = df["h3_index"].astype(dtype=str)
 
     return df
-
-def smarty_streets_cleaning(df, ADDRESS, CITY, STATE, ZIPCODE):
-
-    # send addresses through the Smarty Python SDK
-    smarty_df = bulk_validate(
-        df=df.rename(columns={ZIPCODE:'raw_zip'}), 
-        address_col=ADDRESS,
-        city_col=CITY,
-        state_col=STATE,
-        zip_col='raw_zip'
-    )
-
-    # drop duplicate entries
-    smarty_df = smarty_df.drop_duplicates()
-    # drop null latlongs (if applicable)
-    if 'latitude' in smarty_df.columns and 'longitude' in smarty_df.columns:
-        smarty_df = smarty_df.dropna(subset=['latitude','longitude'])
-    
-    # format the zipcodes to prevent any injection attacks when building SQL querys
-    smarty_df['zipcode'] = smarty_df['zipcode'].apply(format_zipcode)
-    smarty_df['plus4_code'] = smarty_df['plus4_code'].apply(format_zip4)
-    smarty_df = smarty_df.dropna(subset=['zipcode'])
-    smarty_df['full_zipcode'] = smarty_df['zipcode'] + '-' + smarty_df['plus4_code']
-
-    # uppercase the text columns to prevent case matching issues later
-    smarty_df['delivery_line_1'] = smarty_df['delivery_line_1'].str.upper()
-    smarty_df['city_name'] = smarty_df['city_name'].str.upper()
-
-    return smarty_df
-
-def format_zipcode(z):
-    """
-    Formats a zipcode by extracting the first 5-digit portion and adding leading zeroes if needed
-    Returns null if no 5-digit portion can be extracted
-    """
-    try:
-        z = str(z)
-        z = re.findall('([0-9]{4,5})',str(z))[0]
-        while len(z) < 5:
-            z = '0' + z
-        return z
-    except IndexError:
-        return np.nan
-
-
-def format_zip4(z):
-    """
-    Formats a 4-digit zip_plus_four_code
-    """
-    try:
-        z = str(z)
-        z = re.findall('([0-9]{3,4})',str(z))[0]
-        while len(z) < 4:
-            z = '0' + z
-        return z
-    except IndexError:
-        return np.nan

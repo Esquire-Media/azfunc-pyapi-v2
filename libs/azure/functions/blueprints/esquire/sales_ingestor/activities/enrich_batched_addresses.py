@@ -4,6 +4,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 import uuid
 import pandas as pd
 from libs.utils.smarty import bulk_validate
+from libs.utils.text import format_zipcode
 from azure.durable_functions import Blueprint, activity_trigger
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.generate_ids import (
     NAMESPACE_ADDRESS,
@@ -71,8 +72,6 @@ def enrich_addresses_in_batches(settings: dict) -> str:
             )
 
     return f"{scope} enrichment complete"
-
-
 
 def process_batch_fast(
     raw_df: pd.DataFrame,
@@ -178,4 +177,102 @@ def process_batch_fast(
     with _ENGINE.begin() as conn2:
         conn2.execute(stmt.on_conflict_do_nothing(index_elements=['id']))
 
+    upsert_address_attributes(cleaned)
+
     return f"{scope} enrichment complete"
+
+def upsert_address_attributes(cleaned: pd.DataFrame):
+    """
+    cleaned: DataFrame with columns
+      ['delivery_line_1','city_name','state_abbreviation','zipcode','address_id']
+    """
+
+    # 1) Ensure the attribute definitions exist
+    ATTRIBUTE_NAMES = [
+      'delivery_line_1',
+      'city_name',
+      'state_abbreviation',
+      'zipcode'
+    ]
+
+    cleaned["address_id"]    = cleaned["address_id"].astype(str)
+    for col in ATTRIBUTE_NAMES:
+        cleaned[col] = cleaned[col].astype(str)
+    cleaned['zipcode'] = cleaned['zipcode'].apply(format_zipcode)
+
+    # Build a VALUES() list with explicit enum casts
+    vals = ",\n  ".join([
+      f"({ADDRESS_TYPE_ID!r}, {name!r}, 'string'::sales.attr_data_type)"
+      for name in ATTRIBUTE_NAMES
+    ])
+    sql_attrs = f"""
+    INSERT INTO sales.attributes(entity_type_id, name, data_type)
+    SELECT x.entity_type_id, x.name, x.data_type
+      FROM (VALUES
+        {vals}
+      ) AS x(entity_type_id, name, data_type)
+     WHERE NOT EXISTS (
+        SELECT 1
+          FROM sales.attributes a
+         WHERE a.entity_type_id = x.entity_type_id
+           AND a.name          = x.name
+     );
+    """
+    with _ENGINE.begin() as conn:
+        conn.execute(text(sql_attrs))
+
+    # 2) Re‐reflect attributes and EAV tables
+    meta     = MetaData()
+    ATTR     = Table('attributes',            meta, autoload_with=_ENGINE, schema='sales')
+    EAV      = Table('entity_attribute_values', meta, autoload_with=_ENGINE, schema='sales')
+
+    # 3) Retrieve the attribute_ids
+    with _ENGINE.connect() as conn:
+        rows = conn.execute(text("""
+          SELECT name, id
+            FROM sales.attributes
+           WHERE entity_type_id = :etype
+             AND name = ANY(:names)
+        """), {
+          'etype': ADDRESS_TYPE_ID,
+          'names': ATTRIBUTE_NAMES
+        }).mappings().all()
+    attr_map = {r['name']: r['id'] for r in rows}
+    print(attr_map)
+
+    # 4) Build the list of EAV rows
+    eav_rows = []
+    for entry in cleaned[ATTRIBUTE_NAMES + ['address_id']].dropna(how='any').itertuples(index=False):
+
+        aid = str(entry.address_id)
+        eav_rows.extend([
+        {
+            'entity_id':    aid,
+            'attribute_id': attr_map['delivery_line_1'],
+            'value_string': entry.delivery_line_1.upper()
+        },
+        {
+            'entity_id':    aid,
+            'attribute_id': attr_map['city_name'],
+            'value_string': entry.city_name.upper()
+        },
+        {
+            'entity_id':    aid,
+            'attribute_id': attr_map['state_abbreviation'],
+            'value_string': entry.state_abbreviation.upper()
+        },
+        {
+            'entity_id':    aid,
+            'attribute_id': attr_map['zipcode'],
+            'value_string': entry.zipcode.upper()
+        },
+        ])
+
+    # 5) One big INSERT … ON CONFLICT DO UPDATE
+    stmt = pg_insert(EAV).values(eav_rows)
+    upsert = stmt.on_conflict_do_update(
+      index_elements=['entity_id','attribute_id'],
+      set_={'value_string': stmt.excluded.value_string}
+    )
+    with _ENGINE.begin() as conn:
+        conn.execute(upsert)

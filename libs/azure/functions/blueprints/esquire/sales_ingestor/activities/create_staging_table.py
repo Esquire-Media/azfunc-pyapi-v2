@@ -1,21 +1,18 @@
-import logging, pyarrow as pa
-from azure.storage.blob import BlobClient
+
 from azure.durable_functions import Blueprint, activity_trigger
-from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import db
-from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.type_map import PG_TYPES
+import logging
+import pyarrow as pa
+from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import db, qtbl
+from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.arrow_ingest import _pg_type
 
 bp = Blueprint()
 
 @bp.activity_trigger(input_name="settings")
-def create_staging_table(settings: dict):
-    """DDL for the temp staging table that matches the Arrow schema."""
-    blob = BlobClient.from_blob_url(settings["blob_url"])
-    with pa.ipc.open_file(blob.download_blob()) as rdr:
-        cols = ",\n".join(
-            f'"{f.name}" {PG_TYPES.get(str(f.type), "text")}'
-            for f in rdr.schema
-        )
-    ddl = f'CREATE TEMP TABLE "{settings["table"]}" (\n{cols}\n);'
+def activity_create_table(settings) -> None:
+    table_name = settings['table_name']
+    schema = settings['schema']
+
     with db() as conn:
+        cols = [f'"{f.name}" {_pg_type(f)}' for f in schema]
+        ddl = f"CREATE TABLE IF NOT EXISTS {qtbl(table_name)} ({', '.join(cols)});"
         conn.exec_driver_sql(ddl)
-    logging.info("Created staging table %s", settings["table"])

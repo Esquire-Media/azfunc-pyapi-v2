@@ -28,14 +28,14 @@ def orchestrator_ingestData(context: DurableOrchestrationContext):
         conn_str,
         container_name=container,
         blob_name=blob_path,
-        max_chunk_get_size=chunk_size,            # download tuning
-        max_single_get_size=chunk_size,           # 〃
+        max_chunk_get_size=chunk_size,
+        max_single_get_size=chunk_size,
     )
 
     reader = _arrow_reader(blob, chunk_size)
 
     yield context.call_activity_with_retry(
-        "create_staging_table", 
+        "activity_salesIngestor_createStagingTable", 
         {
             "table_name":table_name,
             "schema":reader.schema,
@@ -43,7 +43,7 @@ def orchestrator_ingestData(context: DurableOrchestrationContext):
             }
         )
     yield context.call_activity_with_retry(
-        "bulk_load_arrow", 
+        "activity_salesIngestor_bulkLoadArrow", 
         {
             "table_name":table_name,
             "reader":reader,
@@ -53,7 +53,7 @@ def orchestrator_ingestData(context: DurableOrchestrationContext):
 
     # 2. Address validation (fan-out / fan-in)
     yield context.call_activity_with_retry(
-        "enrich_batched_addresses",
+        "activity_sales_ingestor_enrichAddresses",
         retry,
         {
             'scope':'billing',
@@ -62,7 +62,7 @@ def orchestrator_ingestData(context: DurableOrchestrationContext):
             }
         )
     yield context.call_activity_with_retry(
-        "enrich_batched_addresses",
+        "activity_sales_ingestor_enrichAddresses",
         retry,
         {
             'scope':'shipping',
@@ -71,6 +71,9 @@ def orchestrator_ingestData(context: DurableOrchestrationContext):
             }
     )
     # 3.
+    yield context.call_activity_with_retry(
+        'activity_salesIngestor_transformToEAV'
+    )
 
 
     # 4. Finish

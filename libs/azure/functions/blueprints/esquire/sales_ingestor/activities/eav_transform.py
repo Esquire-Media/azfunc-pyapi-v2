@@ -81,7 +81,6 @@ def eav_transform(settings: dict):
             col.value AS column_value
         FROM {staging_table} s,
         LATERAL jsonb_each_text(to_jsonb(s)) col
-        WHERE col.key NOT IN ('{order_col}')
     ),
     column_consistency AS (
         SELECT

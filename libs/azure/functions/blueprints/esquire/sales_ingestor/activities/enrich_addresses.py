@@ -25,7 +25,7 @@ ADDRESS_TYPE_ID = uuid.UUID("fe694dd2-2dc4-452f-910c-7023438bb0ac")
 bp = Blueprint()
 
 @bp.activity_trigger(input_name="settings")
-def enrich_addresses_in_batches(settings: dict) -> str:
+def enrich_addresses(settings: dict) -> str:
     """
     settings = {
       "scope":         "billing" | "shipping",
@@ -268,7 +268,16 @@ def upsert_address_attributes(cleaned: pd.DataFrame):
         },
         ])
 
-    # 5) One big INSERT … ON CONFLICT DO UPDATE
+    unique = {}
+    for row in eav_rows:
+        key = (row['entity_id'], row['attribute_id'])
+        # override with the last one (or apply any logic you like)
+        unique[key] = row
+
+    # Now turn it back into a list
+    eav_rows = list(unique.values())
+
+    # 5) One big insert
     stmt = pg_insert(EAV).values(eav_rows)
     upsert = stmt.on_conflict_do_update(
       index_elements=['entity_id','attribute_id'],

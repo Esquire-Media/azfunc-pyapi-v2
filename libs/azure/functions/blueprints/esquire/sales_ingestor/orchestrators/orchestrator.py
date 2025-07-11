@@ -76,10 +76,3 @@ def orchestrator_ingestData(context: DurableOrchestrationContext):
         'activity_salesIngestor_transformToEAV'
     )
 
-
-    # 4. Finish
-    yield context.call_activity_with_retry(
-        "job_complete", 
-        retry,
-        {**settings})
-    return "OK"

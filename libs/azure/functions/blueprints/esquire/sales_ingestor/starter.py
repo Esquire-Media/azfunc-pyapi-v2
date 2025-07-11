@@ -28,6 +28,14 @@ async def sales_ingestion_starter(req: HttpRequest, client: DurableOrchestration
         payload = json.loads(payload_bytes)
     except Exception:
         return HttpResponse(status_code=400, body="Invalid JSON payload.")
+    
+    #validate the format of the incoming payload
+    valid_schema = validate_schema(payload)
+    if valid_schema.get("status") == "error":
+        return HttpResponse(
+            status_code=400,
+            body=f"Malformed payload: {valid_schema['error']}"
+            )
 
     # validate the MS bearer token to ensure the user is authorized to make requests
     try:
@@ -52,7 +60,45 @@ async def sales_ingestion_starter(req: HttpRequest, client: DurableOrchestration
     # ensure that each value is json serializable
     logger.info(
         msg="started",
-        extra={"context": {"PartitionKey": "locationInsights", "RowKey": instance_id, **{k:v if isinstance(v, str) else json.dumps(v).decode() for k,v in payload.items()}}},
+        extra={"context": {"PartitionKey": "salesIngestor", "RowKey": instance_id, **{k:v if isinstance(v, str) else json.dumps(v).decode() for k,v in payload.items()}}},
     )
 
     return client.create_check_status_response(req, instance_id)
+
+def validate_schema(settings):
+    # primary sections
+    for section in [
+        "fields",
+        "metadata",
+        ]:
+        if not settings.get(section,{}):
+            return {"status": "error", "error": f"Missing {section}"}
+        
+    # required metadata information
+    for metadata in [
+        "tenant_id",
+        "upload_id",
+        "uploader",
+        "upload_timestamp"
+        ]:
+        if not settings['metadata'].get(metadata,""):
+            return {"status": "error", "error": f"Missing {metadata} metadata"}
+
+    # required field sections
+    for subsection in [
+        "billing",
+        "shipping",
+        "order_info"
+        ]:
+        if not settings['fields'].get(section,""):
+            return {"status": "error", "error": f"Missing {subsection} fields"}
+        
+    for field in [
+        "order_num",
+        "sale_date"
+        ]:
+        if not settings['fields']['order_info'].get(field,""):
+            return {"status": "error", "error": f"Missing {field} order field"}
+        
+    # success
+    return {"status":"successful"}

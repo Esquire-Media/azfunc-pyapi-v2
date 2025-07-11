@@ -22,7 +22,7 @@ def orchestrator_ingestData(context: DurableOrchestrationContext):
     container = 'ingest'
     blob_path = settings['blob_url'].split(container)[-1].lstrip('/')
 
-    table_name = 'Staging'
+    table_name = f'staging_{settings['metadata']['upload_id']}'
 
     blob = BlobClient.from_connection_string(
         conn_str,
@@ -70,7 +70,8 @@ def orchestrator_ingestData(context: DurableOrchestrationContext):
             **settings
             }
     )
-    # 3.
+
+    # 3. Do the big sql query moving staging data into the EAV tables
     yield context.call_activity_with_retry(
         'activity_salesIngestor_transformToEAV'
     )

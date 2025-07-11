@@ -51,6 +51,7 @@ async def sales_ingestion_starter(req: HttpRequest, client: DurableOrchestration
     payload['user'] = headers['oid']
     payload['callback'] = headers['preferred_username']
     
+    # start a new orchestration
     instance_id = await client.start_new(
         orchestration_function_name="orchestrator_ingestData",
         client_input=payload,

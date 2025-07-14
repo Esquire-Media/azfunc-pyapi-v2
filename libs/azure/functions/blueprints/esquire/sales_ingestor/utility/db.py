@@ -2,10 +2,6 @@ import os
 from contextlib import contextmanager
 from sqlalchemy import create_engine
 
-import orjson, os
-with open("local.settings.json") as f:
-    os.environ.update(orjson.loads(f.read())["Values"])
-
 _ENGINE = create_engine(
     os.environ["DATABIND_SQL_KEYSTONE_DEV"].replace("psycopg2", "psycopg"),      # postgresql+psycopg2://…
     pool_pre_ping=True, 

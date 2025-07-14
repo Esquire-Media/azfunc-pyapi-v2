@@ -11,7 +11,7 @@ import pyarrow as pa
 bp = Blueprint()
 
 @bp.activity_trigger(input_name="settings")
-def activity_copy_binary(settings):
+def stream_arrow(settings):
     
     table_name = settings['table_name']
     reader = settings['reader']

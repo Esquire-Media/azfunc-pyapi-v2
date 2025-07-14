@@ -12,7 +12,7 @@ from azure.storage.blob import BlobClient, ContainerClient
 bp = Blueprint()
 
 @bp.orchestration_trigger(context_name="context")
-def orchestrator_ingestData(context: DurableOrchestrationContext):
+def orchestrator_salesIngestor(context: DurableOrchestrationContext):
 
     try:
         settings = context.get_input()
@@ -45,7 +45,7 @@ def orchestrator_ingestData(context: DurableOrchestrationContext):
                 }
             )
         yield context.call_activity_with_retry(
-            "activity_salesIngestor_bulkLoadArrow", 
+            "activity_salesIngestor_streamArrow", 
             {
                 "table_name":table_name,
                 "reader":reader,
@@ -55,7 +55,7 @@ def orchestrator_ingestData(context: DurableOrchestrationContext):
 
         # 2. Address validation (fan-out / fan-in)
         yield context.call_activity_with_retry(
-            "activity_sales_ingestor_enrichAddresses",
+            "activity_salesIngestor_enrichAddresses",
             retry,
             {
                 'scope':'billing',
@@ -64,7 +64,7 @@ def orchestrator_ingestData(context: DurableOrchestrationContext):
                 }
             )
         yield context.call_activity_with_retry(
-            "activity_sales_ingestor_enrichAddresses",
+            "activity_salesIngestor_enrichAddresses",
             retry,
             {
                 'scope':'shipping',
@@ -75,7 +75,7 @@ def orchestrator_ingestData(context: DurableOrchestrationContext):
 
         # 3. Do the big sql query moving staging data into the EAV tables
         yield context.call_activity_with_retry(
-            'activity_salesIngestor_transformToEAV'
+            'activity_salesIngestor_eavTransform'
         )
 
     except Exception as e:

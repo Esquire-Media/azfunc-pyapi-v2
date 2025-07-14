@@ -1,24 +1,16 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationClient
 from azure.functions import HttpRequest, HttpResponse
-from libs.utils.logging import AzureTableHandler
 from libs.utils.oauth2.tokens.microsoft import ValidateMicrosoft
 from libs.utils.oauth2.tokens import TokenValidationError
 import orjson as json, logging, os
 
 
 
-bp: Blueprint = Blueprint()
-
-# initialize logging features
-__handler = AzureTableHandler()
-__logger = logging.getLogger("salesIngestor.logger")
-if __handler not in __logger.handlers:
-    __logger.addHandler(__handler)
-
+bp = Blueprint()
 
 @bp.route(route="esquire/sales_ingestor/starter", methods=["POST"])
 @bp.durable_client_input(client_name="client")
-async def sales_ingestion_starter(req: HttpRequest, client: DurableOrchestrationClient):
+async def starter_salesIngestor(req: HttpRequest, client: DurableOrchestrationClient):
     logger = logging.getLogger("salesIngestor.logger")
 
     # load the request payload
@@ -53,7 +45,7 @@ async def sales_ingestion_starter(req: HttpRequest, client: DurableOrchestration
     
     # start a new orchestration
     instance_id = await client.start_new(
-        orchestration_function_name="orchestrator_salesIngestor_root",
+        orchestration_function_name="orchestrator_salesIngestor",
         client_input=payload,
     )
 

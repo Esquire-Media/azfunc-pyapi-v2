@@ -253,8 +253,12 @@ def flatten_fields(d, parent_key='', result=None):
     'billing_city': 'City',
     'billing_state': 'State',
     'billing_zipcode': 'PostalCodeID'}
-
     """
+
+    # only append if it's a shipping or billing field, no others should be duplicated
+    if parent_key not in ['billing', 'shipping']:
+        parent_key = ''
+
     if result is None:
         result = {}
     for k, v in d.items():

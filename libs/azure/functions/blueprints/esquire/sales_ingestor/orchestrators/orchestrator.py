@@ -24,7 +24,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         container = 'ingest'
         blob_path = settings['blob_url'].split(container)[-1].lstrip('/')
 
-        table_name = f'staging_{settings['metadata']['upload_id']}'
+        table_name = f"staging_{settings['metadata']['upload_id']}"
 
         blob = BlobClient.from_connection_string(
             conn_str,

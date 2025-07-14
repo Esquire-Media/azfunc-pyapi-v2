@@ -53,7 +53,7 @@ async def sales_ingestion_starter(req: HttpRequest, client: DurableOrchestration
     
     # start a new orchestration
     instance_id = await client.start_new(
-        orchestration_function_name="orchestrator_ingestData",
+        orchestration_function_name="orchestrator_salesIngestor_root",
         client_input=payload,
     )
 

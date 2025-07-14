@@ -96,6 +96,7 @@ BLUEPRINTS = {
         "libs/azure/functions/blueprints/keep_alive",
         "libs/azure/functions/blueprints/esquire/sales_ingestor/*",
         "libs/azure/functions/blueprints/microsoft/graph/*",
+        "libs/azure/functions/blueprints/purge_instance_history",
     ],
     # !!! DANGER ZONE !!!
     "debug_env": [

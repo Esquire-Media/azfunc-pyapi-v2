@@ -1,5 +1,5 @@
 
-from azure.durable_functions import Blueprint, activity_trigger
+from azure.durable_functions import Blueprint
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import db, qtbl
 from sqlalchemy import text
 import uuid

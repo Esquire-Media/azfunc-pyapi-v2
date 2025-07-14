@@ -1,5 +1,5 @@
 
-from azure.durable_functions import Blueprint, activity_trigger
+from azure.durable_functions import Blueprint
 import logging
 import pyarrow as pa
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import db, qtbl

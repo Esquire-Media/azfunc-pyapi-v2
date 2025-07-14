@@ -2,11 +2,16 @@ from azure.durable_functions import Blueprint, DurableOrchestrationClient
 from azure.functions import HttpRequest, HttpResponse
 from libs.utils.oauth2.tokens.microsoft import ValidateMicrosoft
 from libs.utils.oauth2.tokens import TokenValidationError
+from libs.utils.logging import AzureTableHandler
 import orjson as json, logging, os
 
-
-
 bp = Blueprint()
+
+# initialize logging features
+__handler = AzureTableHandler()
+__logger = logging.getLogger("campaignProposal.logger")
+if __handler not in __logger.handlers:
+    __logger.addHandler(__handler)
 
 @bp.route(route="esquire/sales_ingestor/starter", methods=["POST"])
 @bp.durable_client_input(client_name="client")

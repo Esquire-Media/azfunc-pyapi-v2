@@ -5,7 +5,7 @@ import uuid
 import pandas as pd
 from libs.utils.smarty import bulk_validate
 from libs.utils.text import format_zipcode
-from azure.durable_functions import Blueprint, activity_trigger
+from azure.durable_functions import Blueprint
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.generate_ids import (
     NAMESPACE_ADDRESS,
     generate_deterministic_id

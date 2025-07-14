@@ -1,12 +1,8 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
-from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import insert_upload_record
-from sqlalchemy import create_engine
 import os
 import logging
-from http import HTTPStatus
-from azure.functions import HttpResponse
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.blob import  _arrow_reader
-from azure.storage.blob import BlobClient, ContainerClient
+from azure.storage.blob import BlobClient
 
 
 bp = Blueprint()

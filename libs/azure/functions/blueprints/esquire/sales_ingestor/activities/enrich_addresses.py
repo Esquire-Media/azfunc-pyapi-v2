@@ -11,13 +11,22 @@ from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.generate_ids
     generate_deterministic_id
 )
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import qtbl
+import os
 
 # Shared engine + metadata
-_ENGINE = create_engine("postgresql://user:pass@host:5432/your_db")
-_META   = MetaData(bind=_ENGINE)
-_STG    = Table("staging_table", _META, autoload_with=_ENGINE)
-_ENT    = Table("entities",       _META, autoload_with=_ENGINE)
-_ET     = Table("entity_types",   _META, autoload_with=_ENGINE)
+_ENGINE = create_engine(
+    os.environ["DATABIND_SQL_KEYSTONE_DEV"].replace("psycopg2", "psycopg"),      # postgresql+psycopg2://…
+    pool_pre_ping=True, 
+    pool_size=10,
+    max_overflow=20, 
+    future=True,
+)
+_META   = MetaData()
+_STG    = Table("staging",        _META, autoload_with=_ENGINE, schema='sales')
+_ENT    = Table("entities",       _META, autoload_with=_ENGINE, schema='sales')
+_ATTR   = Table('attributes',   _META, autoload_with=_ENGINE, schema='sales')
+_EAV   = Table('attributes',   _META, autoload_with=_ENGINE, schema='sales')
+_ET     = Table("entity_types",   _META, autoload_with=_ENGINE, schema='sales')
 
 NAMESPACE_ADDRESS = uuid.UUID("30000000-0000-0000-0000-000000000000")
 ADDRESS_TYPE_ID = uuid.UUID("fe694dd2-2dc4-452f-910c-7023438bb0ac")

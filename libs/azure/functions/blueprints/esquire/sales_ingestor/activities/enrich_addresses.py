@@ -25,7 +25,7 @@ ADDRESS_TYPE_ID = uuid.UUID("fe694dd2-2dc4-452f-910c-7023438bb0ac")
 bp = Blueprint()
 
 @bp.activity_trigger(input_name="settings")
-def enrich_addresses(settings: dict) -> str:
+def enrich_addresses(settings: dict):
     """
     settings = {
       "scope":         "billing" | "shipping",

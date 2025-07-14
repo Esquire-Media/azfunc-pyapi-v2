@@ -8,7 +8,7 @@ from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.arrow_ingest
 bp = Blueprint()
 
 @bp.activity_trigger(input_name="settings")
-def create_staging_table(settings) -> None:
+def create_staging_table(settings: dict):
     table_name = settings['table_name']
     schema = settings['schema']
 

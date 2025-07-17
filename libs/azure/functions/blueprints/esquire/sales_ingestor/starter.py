@@ -9,7 +9,7 @@ bp = Blueprint()
 
 # initialize logging features
 __handler = AzureTableHandler()
-__logger = logging.getLogger("campaignProposal.logger")
+__logger = logging.getLogger("salesIngestor.logger")
 if __handler not in __logger.handlers:
     __logger.addHandler(__handler)
 

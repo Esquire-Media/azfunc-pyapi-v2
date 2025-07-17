@@ -3,7 +3,7 @@ import os
 import logging
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.blob import  _arrow_reader
 from azure.storage.blob import BlobClient
-
+import traceback
 
 bp = Blueprint()
 
@@ -92,15 +92,25 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
 
     except Exception as e:
         logging.error(e)
+        full_trace = traceback.format_exc()
         # if any errors are caught, post an error card to teams tagging Ryan and the calling user
+        html_body = f"""
+            <html>
+                <body>
+                    <h2 style="color:red;">Sales Ingestion Failure</h2>
+                    <p><strong>{type(e).__name__}:</strong> {str(e)}</p>
+                    <p><strong>Trace:</strong> {full_trace}</p>
+                </body>
+            </html>
+            """
         yield context.call_activity(
             "activity_microsoftGraph_sendEmail",
             {
                 "from_id": "57d355d1-eeb7-45a0-a260-00daceea9f5f",
-                "to_addresses": [f"matt@esquireadvertising.com"],
+                "to_addresses": ["matt@esquireadvertising.com"],
                 "subject": "esquire-sales-ingestion Failure",
-                "message": f"{type(e).__name__} : {e}"[:1000],
-                "content_type": "text",
+                "message": html_body,
+                "content_type": "html",
             },
         )
         logging.warning("Error email sent")

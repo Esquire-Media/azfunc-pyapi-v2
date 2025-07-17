@@ -15,6 +15,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
 
         table_name = f"staging_{settings['metadata']['upload_id']}"
 
+        logging.log("[LOG] Creating Staging Table")
         yield context.call_activity_with_retry(
             "activity_salesIngestor_createStagingTable", 
             retry,
@@ -23,6 +24,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
                 **settings
                 }
             )
+        logging.log("[LOG] Streaming blob to staging table")
         yield context.call_activity_with_retry(
             "activity_salesIngestor_streamArrow", 
             retry,
@@ -31,8 +33,9 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
                 **settings
                 }
             )
-
+        
         # 2. Address validation (fan-out / fan-in)
+        logging.log("[LOG] Enriching Billing Addresses")
         yield context.call_activity_with_retry(
             "activity_salesIngestor_enrichAddresses",
             retry,
@@ -42,6 +45,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
                 **settings
                 }
             )
+        logging.log("[LOG] Enriching Shipping Addresses")
         yield context.call_activity_with_retry(
             "activity_salesIngestor_enrichAddresses",
             retry,
@@ -53,6 +57,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         )
 
         # 3. Do the big sql query moving staging data into the EAV tables
+        logging.log("[LOG] Transforming into EAV tables")
         yield context.call_activity_with_retry(
             'activity_salesIngestor_eavTransform',
             retry,
@@ -62,6 +67,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         )
 
         # 4. do cleanup of staging table
+        logging.log("[LOG] Cleaning up staging table")
         yield context.call_activity_with_retry(
             'activity_salesIngestor_cleanup',
             retry,
@@ -103,5 +109,6 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         "purge_instance_history",
         {"instance_id": context.instance_id},
     )
+
 
 

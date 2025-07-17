@@ -91,18 +91,19 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         )
 
     except Exception as e:
+        logging.error(e)
         # if any errors are caught, post an error card to teams tagging Ryan and the calling user
         yield context.call_activity(
-            "activity_microsoftGraph_postErrorCard",
+            "activity_microsoftGraph_sendEmail",
             {
-                "function_name": "esquire-sales-ingestion",
-                "instance_id": context.instance_id,
-                "owners": [settings["user"]],
-                "error": f"{type(e).__name__} : {e}"[:1000],
-                "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
+                "from_id": "57d355d1-eeb7-45a0-a260-00daceea9f5f",
+                "to_addresses": [f"matt@esquireadvertising.com"],
+                "subject": "esquire-sales-ingestion Failure",
+                "message": f"{type(e).__name__} : {e}"[:1000],
+                "content_type": "text",
             },
         )
-        logging.warning("Error card sent")
+        logging.warning("Error email sent")
         raise e
 
     logging.warning("All tasks completed.")

@@ -35,6 +35,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
 
         yield context.call_activity_with_retry(
             "activity_salesIngestor_createStagingTable", 
+            retry,
             {
                 "table_name":table_name,
                 "schema":reader.schema,
@@ -43,6 +44,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
             )
         yield context.call_activity_with_retry(
             "activity_salesIngestor_streamArrow", 
+            retry,
             {
                 "table_name":table_name,
                 "reader":reader,
@@ -73,6 +75,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         # 3. Do the big sql query moving staging data into the EAV tables
         yield context.call_activity_with_retry(
             'activity_salesIngestor_eavTransform',
+            retry,
             {
                 **settings
                 }
@@ -81,6 +84,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         # 4. do cleanup of staging table
         yield context.call_activity_with_retry(
             'activity_salesIngestor_cleanup',
+            retry,
             {
                 **settings
                 }

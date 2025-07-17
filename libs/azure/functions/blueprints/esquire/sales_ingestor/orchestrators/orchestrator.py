@@ -18,7 +18,8 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         conn_str = os.environ['SALES_INGEST_CONN_STR']
         chunk_size = 10 * 1024 * 1024
         container = 'ingest'
-        blob_path = settings['blob_url'].split(container)[-1].lstrip('/')
+        # blob_path = settings['blob_url'].split(container)[-1].lstrip('/')
+        blob_path = settings['metadata']['upload_id']
 
         table_name = f"staging_{settings['metadata']['upload_id']}"
 

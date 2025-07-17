@@ -89,7 +89,7 @@ def validate_schema(settings):
         "shipping",
         "order_info"
         ]:
-        if not settings['fields'].get(section,""):
+        if not settings['fields'].get(subsection,""):
             return {"status": "error", "error": f"Missing {subsection} fields"}
         
     for field in [

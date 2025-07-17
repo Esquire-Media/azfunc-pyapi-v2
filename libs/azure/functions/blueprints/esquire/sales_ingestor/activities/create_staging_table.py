@@ -7,10 +7,14 @@ from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.arrow_ingest
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.blob import  _arrow_reader
 from azure.storage.blob import BlobClient
 
+logger = logging.getLogger("salesIngestor.logger")
+logger.setLevel(logging.WARNING)
+
 bp = Blueprint()
 
 @bp.activity_trigger(input_name="settings")
-def create_staging_table(settings: dict):
+def activity_salesIngestor_createStagingTable(settings: dict):
+    logger.warning(msg="[LOG] Creating Staging Table")
 
     blob_path = settings['metadata']['upload_id']
     conn_str = os.environ['SALES_INGEST_CONN_STR']

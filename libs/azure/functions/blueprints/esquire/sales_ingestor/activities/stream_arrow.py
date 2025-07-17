@@ -11,11 +11,15 @@ import psycopg
 import pyarrow as pa
 import json
 from azure.storage.blob import BlobClient
+import logging
+logger = logging.getLogger("salesIngestor.logger")
+logger.setLevel(logging.WARNING)
 
 bp = Blueprint()
 
 @bp.activity_trigger(input_name="settings")
-def stream_arrow(settings: dict):
+def activity_salesIngestor_streamArrow(settings: dict):
+    logger.warning(msg="[LOG] Streaming blob to staging table")
 
     blob_path = settings['metadata']['upload_id']
     conn_str = os.environ['SALES_INGEST_CONN_STR']

@@ -1,13 +1,12 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 import os
 import logging
-from azure.storage.blob import BlobClient
 import traceback
 
-bp = Blueprint()
-
-logger = logging.getLogger("azure")
+logger = logging.getLogger("salesIngestor.logger")
 logger.setLevel(logging.WARNING)
+
+bp = Blueprint()
 
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_salesIngestor(context: DurableOrchestrationContext):
@@ -18,7 +17,6 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
 
         table_name = f"staging_{settings['metadata']['upload_id']}"
 
-        logger.info("[LOG] Creating Staging Table")
         yield context.call_activity_with_retry(
             "activity_salesIngestor_createStagingTable", 
             retry,
@@ -27,7 +25,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
                 **settings
                 }
             )
-        logger.info("[LOG] Streaming blob to staging table")
+
         yield context.call_activity_with_retry(
             "activity_salesIngestor_streamArrow", 
             retry,
@@ -38,7 +36,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
             )
         
         # 2. Address validation (fan-out / fan-in)
-        logger.info("[LOG] Enriching Billing Addresses")
+        
         yield context.call_activity_with_retry(
             "activity_salesIngestor_enrichAddresses",
             retry,
@@ -48,7 +46,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
                 **settings
                 }
             )
-        logger.info("[LOG] Enriching Shipping Addresses")
+
         yield context.call_activity_with_retry(
             "activity_salesIngestor_enrichAddresses",
             retry,
@@ -60,7 +58,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         )
 
         # 3. Do the big sql query moving staging data into the EAV tables
-        logger.info("[LOG] Transforming into EAV tables")
+        
         yield context.call_activity_with_retry(
             'activity_salesIngestor_eavTransform',
             retry,
@@ -70,7 +68,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         )
 
         # 4. do cleanup of staging table
-        logger.info("[LOG] Cleaning up staging table")
+        
         yield context.call_activity_with_retry(
             'activity_salesIngestor_cleanup',
             retry,
@@ -80,7 +78,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         )
 
     except Exception as e:
-        logger.error(e)
+        logger.error(msg=e)
         full_trace = traceback.format_exc()
         # if any errors are caught, post an error card to teams tagging Ryan and the calling user
         html_body = f"""
@@ -102,10 +100,10 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
                 "content_type": "html",
             },
         )
-        logger.warning("Error email sent")
+        logger.warning(msg="Error email sent")
         raise e
 
-    logger.warning("All tasks completed.")
+    logger.warning(msg="All tasks completed.")
 
     # Purge history related to this instance
     yield context.call_sub_orchestrator(

@@ -12,6 +12,9 @@ from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.generate_ids
 )
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import qtbl
 import os
+import logging
+logger = logging.getLogger("salesIngestor.logger")
+logger.setLevel(logging.WARNING)
 
 # Shared engine + metadata
 _ENGINE = create_engine(
@@ -34,7 +37,7 @@ ADDRESS_TYPE_ID = uuid.UUID("fe694dd2-2dc4-452f-910c-7023438bb0ac")
 bp = Blueprint()
 
 @bp.activity_trigger(input_name="settings")
-def enrich_addresses(settings: dict):
+def activity_salesIngestor_enrichAddresses(settings: dict):
     """
     settings = {
       "scope":         "billing" | "shipping",
@@ -44,6 +47,7 @@ def enrich_addresses(settings: dict):
       "batch_size":    500  # optional override
     }
     """
+    logger.warning(msg=f"[LOG] Enriching {settings['scope']} Addresses")
 
     scope      = settings["scope"]
     addr_map   = settings["fields"][scope]

@@ -5,16 +5,20 @@ from sqlalchemy import text
 import uuid
 from sqlalchemy import text, bindparam
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB
-
+import logging
+logger = logging.getLogger("salesIngestor.logger")
+logger.setLevel(logging.WARNING)
 
 bp = Blueprint()
 
 @bp.activity_trigger(input_name="settings")
-def eav_transform(settings: dict):
+def activity_salesIngestor_eavTransform(settings: dict):
 
     """
     Runs the one‐shot EAV load. 
     """
+    logger.warning(msg="[LOG] Transforming into EAV tables")
+
     staging_table = qtbl(settings['staging_table'])
     fields_map    = settings['fields']
     order_col     = fields_map['order_info']['order_num']

@@ -3,10 +3,12 @@ from azure.durable_functions import Blueprint
 import pyarrow as pa
 import os
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import db, qtbl
+from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.arrow_ingest import _pg_type
 import io
 import csv
 import psycopg
 import pyarrow as pa
+import json
 
 bp = Blueprint()
 
@@ -17,36 +19,40 @@ def stream_arrow(settings: dict):
     reader = settings['reader']
     conninfo = os.environ['DATABIND_SQL_KEYSTONE_DEV'].replace("+psycopg2", "")
 
-    copy_sql = f"COPY {qtbl(table_name)} FROM STDIN (FORMAT BINARY)"
+    copy_sql = f"COPY {qtbl(table_name)} FROM STDIN (FORMAT CSV)"
     with psycopg.connect(conninfo) as conn:
         with conn.cursor() as cur:
             with cur.copy(copy_sql) as cp:
                 for batch in _iter_batches(reader):
-                    for row in _rows(batch):
-                        cp.write_row(row)
+                    buf = _copy_buffer(batch)
+                    cp.write(buf.read())
 
 
 def _copy_buffer(record_batch: pa.RecordBatch) -> io.BytesIO:
-    """Arrow RecordBatch → in-RAM CSV buffer ready for COPY FROM STDIN."""
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\n")
-    cols = [c.to_pylist() for c in record_batch.columns]
+
+    schema = record_batch.schema
+    columns = record_batch.columns
+    pg_types = [_pg_type(f) for f in schema]
+
+    # Convert all columns to pylist up front
+    col_lists = [c.to_pylist() for c in columns]
+
     for i in range(record_batch.num_rows):
-        writer.writerow(col[i] for col in cols)
+        row = []
+        for val, pg_type in zip((col[i] for col in col_lists), pg_types):
+            if val is None:
+                row.append("")
+            elif pg_type in ("JSON", "JSONB"):
+                row.append(json.dumps(val))  # Ensures valid JSON encoding
+            else:
+                row.append(val)
+        writer.writerow(row)
+
     buf.seek(0)
-    return io.BytesIO(buf.getvalue().encode())   # psycopg2 wants bytes
+    return io.BytesIO(buf.getvalue().encode())
 
-
-def activity_copy_batches(conn, table_name: str, reader: pa.RecordBatchReader):
-    cursor = conn.connection.cursor()            # raw psycopg2 cursor
-    for batch in _iter_batches(reader):
-        if not batch.num_rows:
-            continue
-        buf = _copy_buffer(batch)
-        cursor.copy_expert(
-            f"COPY {qtbl(table_name)} FROM STDIN WITH (FORMAT csv)",
-            file=buf
-        )
 
 def _iter_batches(reader: pa.RecordBatchReader):
     """Stream batches no matter the concrete reader."""
@@ -56,8 +62,4 @@ def _iter_batches(reader: pa.RecordBatchReader):
         for i in range(reader.num_record_batches):
             yield reader.get_batch(i)
 
-def _rows(batch: pa.RecordBatch):
-    cols = [c.to_pylist() for c in batch.columns]
-    for i in range(batch.num_rows):
-        yield tuple(col[i] for col in cols)
 

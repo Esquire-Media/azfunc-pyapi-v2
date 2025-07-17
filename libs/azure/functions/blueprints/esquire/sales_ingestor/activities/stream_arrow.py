@@ -4,19 +4,35 @@ import pyarrow as pa
 import os
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import db, qtbl
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.arrow_ingest import _pg_type
+from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.blob import  _arrow_reader
 import io
 import csv
 import psycopg
 import pyarrow as pa
 import json
+from azure.storage.blob import BlobClient
 
 bp = Blueprint()
 
 @bp.activity_trigger(input_name="settings")
 def stream_arrow(settings: dict):
+
+    blob_path = settings['metadata']['upload_id']
+    conn_str = os.environ['SALES_INGEST_CONN_STR']
+    chunk_size = 10 * 1024 * 1024
+    container = 'ingest'
+
+    blob = BlobClient.from_connection_string(
+        conn_str,
+        container_name=container,
+        blob_name=blob_path,
+        max_chunk_get_size=chunk_size,
+        max_single_get_size=chunk_size,
+    )
+
+    reader = _arrow_reader(blob, chunk_size)
     
     table_name = settings['table_name']
-    reader = settings['reader']
     conninfo = os.environ['DATABIND_SQL_KEYSTONE_DEV'].replace("+psycopg2", "")
 
     copy_sql = f"COPY {qtbl(table_name)} FROM STDIN (FORMAT CSV)"

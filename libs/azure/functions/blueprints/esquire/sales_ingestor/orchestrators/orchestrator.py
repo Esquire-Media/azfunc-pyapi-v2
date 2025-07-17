@@ -1,7 +1,6 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 import os
 import logging
-from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.blob import  _arrow_reader
 from azure.storage.blob import BlobClient
 import traceback
 
@@ -14,31 +13,13 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         settings = context.get_input()
         retry = RetryOptions(15000, 3)
 
-        # 1. Stage + ingest
-        conn_str = os.environ['SALES_INGEST_CONN_STR']
-        chunk_size = 10 * 1024 * 1024
-        container = 'ingest'
-        # blob_path = settings['blob_url'].split(container)[-1].lstrip('/')
-        blob_path = settings['metadata']['upload_id']
-
         table_name = f"staging_{settings['metadata']['upload_id']}"
-
-        blob = BlobClient.from_connection_string(
-            conn_str,
-            container_name=container,
-            blob_name=blob_path,
-            max_chunk_get_size=chunk_size,
-            max_single_get_size=chunk_size,
-        )
-
-        reader = _arrow_reader(blob, chunk_size)
 
         yield context.call_activity_with_retry(
             "activity_salesIngestor_createStagingTable", 
             retry,
             {
                 "table_name":table_name,
-                "schema":reader.schema,
                 **settings
                 }
             )
@@ -47,7 +28,6 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
             retry,
             {
                 "table_name":table_name,
-                "reader":reader,
                 **settings
                 }
             )

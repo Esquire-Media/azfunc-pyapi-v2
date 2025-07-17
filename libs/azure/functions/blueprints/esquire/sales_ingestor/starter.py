@@ -20,10 +20,11 @@ async def starter_salesIngestor(req: HttpRequest, client: DurableOrchestrationCl
 
     # load the request payload
     # load and parse the request payload
-    payload_bytes = req.get_body()
+    payload = req.get_body().decode("utf-8")
     try:
-        payload = json.loads(payload_bytes)
+        payload = json.loads(payload)
     except Exception:
+        logger.exception("Invalid JSON payload")
         return HttpResponse(status_code=400, body="Invalid JSON payload.")
     
     #validate the format of the incoming payload

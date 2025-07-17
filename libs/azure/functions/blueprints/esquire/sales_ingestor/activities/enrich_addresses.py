@@ -99,6 +99,7 @@ def process_batch_fast(
     cleaned = bulk_validate(
         raw_df,
         address_col = addr_map['street'],
+        addr2_col   = addr_map.get('addr2', None),
         city_col    = addr_map['city'],
         state_col   = addr_map['state'],
         zip_col     = addr_map['zipcode']
@@ -107,10 +108,11 @@ def process_batch_fast(
         lambda entry: generate_deterministic_id(
             NAMESPACE_ADDRESS,
             [
-              entry['delivery_line_1'],
-              entry['city_name'],
-              entry['state_abbreviation'],
-              entry['zipcode']
+              entry.get('delivery_line_1', ''),
+              entry.get('delivery_line_2', ''),
+              entry.get('city_name', ''),
+              entry.get('state_abbreviation', ''),
+              entry.get('zipcode', '')
             ]
         ),
         axis=1
@@ -199,36 +201,27 @@ def upsert_address_attributes(cleaned: pd.DataFrame):
     # 1) Ensure the attribute definitions exist
     ATTRIBUTE_NAMES = [
       'delivery_line_1',
+      'delivery_line_2',
       'city_name',
       'state_abbreviation',
       'zipcode'
     ]
 
-    cleaned["address_id"]    = cleaned["address_id"].astype(str)
-    for col in ATTRIBUTE_NAMES:
-        cleaned[col] = cleaned[col].astype(str)
-    cleaned['zipcode'] = cleaned['zipcode'].apply(format_zipcode)
-
     # Build a VALUES() list with explicit enum casts
-    vals = ",\n  ".join([
-      f"({ADDRESS_TYPE_ID!r}, {name!r}, 'string'::sales.attr_data_type)"
-      for name in ATTRIBUTE_NAMES
-    ])
-    sql_attrs = f"""
-    INSERT INTO sales.attributes(entity_type_id, name, data_type)
-    SELECT x.entity_type_id, x.name, x.data_type
-      FROM (VALUES
-        {vals}
-      ) AS x(entity_type_id, name, data_type)
-     WHERE NOT EXISTS (
-        SELECT 1
-          FROM sales.attributes a
-         WHERE a.entity_type_id = x.entity_type_id
-           AND a.name          = x.name
-     );
-    """
+    rows = [
+        {
+            'entity_type_id': ADDRESS_TYPE_ID,
+            'name':           name,
+            'data_type':      'string'
+        }
+        for name in ATTRIBUTE_NAMES
+    ]
+    ATTR = Table('attributes', MetaData(), autoload_with=_ENGINE, schema='sales')
+    stmt = pg_insert(ATTR).values(rows)
+    stmt = stmt.on_conflict_do_nothing(index_elements=['entity_type_id', 'name'])
+
     with _ENGINE.begin() as conn:
-        conn.execute(text(sql_attrs))
+        conn.execute(stmt)
 
     # 2) Re‐reflect attributes and EAV tables
     meta     = MetaData()
@@ -250,32 +243,23 @@ def upsert_address_attributes(cleaned: pd.DataFrame):
     print(attr_map)
 
     # 4) Build the list of EAV rows
+    cleaned["address_id"]    = cleaned["address_id"].astype(str)
+    for col in ATTRIBUTE_NAMES:
+        cleaned[col] = cleaned[col].astype(str)
+    cleaned['zipcode'] = cleaned['zipcode'].apply(format_zipcode)
+
     eav_rows = []
     for entry in cleaned[ATTRIBUTE_NAMES + ['address_id']].dropna(how='any').itertuples(index=False):
 
         aid = str(entry.address_id)
-        eav_rows.extend([
-        {
-            'entity_id':    aid,
-            'attribute_id': attr_map['delivery_line_1'],
-            'value_string': entry.delivery_line_1.upper()
-        },
-        {
-            'entity_id':    aid,
-            'attribute_id': attr_map['city_name'],
-            'value_string': entry.city_name.upper()
-        },
-        {
-            'entity_id':    aid,
-            'attribute_id': attr_map['state_abbreviation'],
-            'value_string': entry.state_abbreviation.upper()
-        },
-        {
-            'entity_id':    aid,
-            'attribute_id': attr_map['zipcode'],
-            'value_string': entry.zipcode.upper()
-        },
-        ])
+        for col in ATTRIBUTE_NAMES:
+            val = getattr(entry, col, None)
+            if val:
+                eav_rows.append({
+                    'entity_id':    aid,
+                    'attribute_id': attr_map[col],
+                    'value_string': val.upper()
+                })
 
     unique = {}
     for row in eav_rows:

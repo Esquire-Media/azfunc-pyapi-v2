@@ -14,7 +14,7 @@ def activity_salesIngestor_inferDataTypes(settings: dict):
 
     table_name = settings['table_name']
 
-    logger.warning(msg=f"[LOG] Cleaning up staging table {qtbl(table_name)}")
+    logger.warning(msg=f"[LOG] Inferring data types for staging table {qtbl(table_name)}")
 
     with db() as conn:
         # get the inferred types 

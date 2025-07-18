@@ -67,16 +67,6 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
                 }
         )
 
-        # 4. do cleanup of staging table
-        
-        yield context.call_activity_with_retry(
-            'activity_salesIngestor_cleanup',
-            retry,
-            {
-                **settings
-                }
-        )
-
     except Exception as e:
         logger.error(msg=e)
         full_trace = traceback.format_exc()
@@ -102,6 +92,16 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         )
         logger.warning(msg="Error email sent")
         raise e
+    finally:
+        # 4. do cleanup of staging table
+        
+        yield context.call_activity_with_retry(
+            'activity_salesIngestor_cleanup',
+            retry,
+            {
+                **settings
+                }
+        )
 
     logger.warning(msg="All tasks completed.")
 

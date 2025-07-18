@@ -35,6 +35,8 @@ def activity_salesIngestor_inferDataTypes(settings: dict):
         # actually run the alters
         apply_alter_statements(conn, alter_statements)
 
+        logger.warning(msg=f"Field types inferred: {inferred_types_dict}")
+
 def apply_alter_statements(conn, alter_statements: list):
     for stmt in alter_statements:
         conn.execute(text(stmt))

@@ -21,11 +21,33 @@ _AR2PG = {
 }
 
 def _pg_type(field: pa.Field) -> str:
-    """Translate a PyArrow field to a PostgreSQL column type."""
-    if pa.types.is_timestamp(field.type):
-        unit = field.type.unit  # s|ms|us|ns
-        return f"TIMESTAMP" + (" WITH TIME ZONE" if field.type.tz else "")
-    if pa.types.is_decimal(field.type):
-        return f"NUMERIC({field.type.precision},{field.type.scale})"
-    return _AR2PG.get(field.type, "JSONB")   # fallback for lists/structs/etc.
+    """Map Arrow field to PostgreSQL type based on its value type."""
+    arrow_type = field.type
 
+    # If it's a dictionary, unwrap and inspect the actual value type
+    if pa.types.is_dictionary(arrow_type):
+        arrow_type = arrow_type.value_type
+
+    if pa.types.is_timestamp(arrow_type):
+        return "TIMESTAMP WITH TIME ZONE" if arrow_type.tz else "TIMESTAMP"
+    if pa.types.is_decimal(arrow_type):
+        return f"NUMERIC({arrow_type.precision},{arrow_type.scale})"
+    if pa.types.is_string(arrow_type) or pa.types.is_large_string(arrow_type):
+        return "TEXT"
+    if pa.types.is_boolean(arrow_type):
+        return "BOOLEAN"
+    if pa.types.is_integer(arrow_type):
+        if pa.types.is_int8(arrow_type) or pa.types.is_int16(arrow_type):
+            return "SMALLINT"
+        elif pa.types.is_int32(arrow_type):
+            return "INTEGER"
+        elif pa.types.is_int64(arrow_type):
+            return "BIGINT"
+    if pa.types.is_floating(arrow_type):
+        if pa.types.is_float32(arrow_type):
+            return "REAL"
+        elif pa.types.is_float64(arrow_type):
+            return "DOUBLE PRECISION"
+
+    # Fallback for unknown or complex types
+    return "JSONB"

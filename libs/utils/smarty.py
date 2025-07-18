@@ -99,7 +99,8 @@ def bulk_validate(
 
         # check if we have an address2
         if addr2_col != None:
-            if len(row[addr2_col]) > 0:
+            val = row.get(addr2_col)
+            if val and len(val.strip()) > 0:
                 lookup.street2 = row[addr2_col]
 
         # check that city field is specified and data is not empty, then set data

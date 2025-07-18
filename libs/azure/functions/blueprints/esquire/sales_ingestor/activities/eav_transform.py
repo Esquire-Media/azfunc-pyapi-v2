@@ -2,9 +2,9 @@
 from azure.durable_functions import Blueprint
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import db, qtbl
 from sqlalchemy import text
-from uuid import UUID
+import uuid
 from sqlalchemy import text, bindparam
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB, TEXT
 import logging
 logger = logging.getLogger("salesIngestor.logger")
 logger.setLevel(logging.WARNING)
@@ -228,8 +228,8 @@ def activity_salesIngestor_eavTransform(settings: dict):
     # bind the things that we can
     # can't bind table or field names, hence the f-string we have above
     stmt = text(sql).bindparams(
-        bindparam("upload_id", value=UUID(settings['metadata']['upload_id']), type_=PG_UUID),
-        bindparam("tenant_id", value=UUID(settings['metadata']['tenant_id']), type_=PG_UUID),
+        bindparam("upload_id", value=settings['metadata']['upload_id'], type_=PG_UUID),
+        bindparam("tenant_id", value=settings['metadata']['tenant_id'], type_=TEXT),
         bindparam("fields", value=flatten_fields(settings["fields"]), type_=JSONB)
     )
 

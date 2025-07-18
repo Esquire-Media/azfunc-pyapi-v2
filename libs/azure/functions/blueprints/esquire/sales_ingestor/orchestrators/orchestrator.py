@@ -63,6 +63,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
             'activity_salesIngestor_eavTransform',
             retry,
             {
+                "staging_table":table_name,
                 **settings
                 }
         )
@@ -91,10 +92,8 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
             },
         )
         logger.warning(msg="Error email sent")
-        raise e
-    finally:
+
         # 4. do cleanup of staging table
-        
         yield context.call_activity_with_retry(
             'activity_salesIngestor_cleanup',
             retry,
@@ -102,6 +101,18 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
                 **settings
                 }
         )
+
+        raise e
+
+
+    # 4. do cleanup of staging table
+    yield context.call_activity_with_retry(
+        'activity_salesIngestor_cleanup',
+        retry,
+        {
+            **settings
+            }
+    )
 
     logger.warning(msg="All tasks completed.")
 

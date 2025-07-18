@@ -9,9 +9,10 @@ bp = Blueprint()
 
 @bp.activity_trigger(input_name="settings")
 def activity_salesIngestor_cleanup(settings: dict):
-    logger.warning(msg="[LOG] Cleaning up staging table")
 
     table_name = settings['table_name']
+
+    logger.warning(msg=f"[LOG] Cleaning up staging table {qtbl(table_name)}")
 
     with db() as conn:
         ddl = f"DROP TABLE IF EXISTS {qtbl(table_name)};"

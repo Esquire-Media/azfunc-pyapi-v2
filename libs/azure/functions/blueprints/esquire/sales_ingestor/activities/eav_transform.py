@@ -1,7 +1,6 @@
 
 from azure.durable_functions import Blueprint
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import db, qtbl
-from sqlalchemy import text
 import uuid
 from sqlalchemy import text, bindparam
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB, TEXT
@@ -24,7 +23,7 @@ def activity_salesIngestor_eavTransform(settings: dict):
     order_col     = fields_map['order_info']['order_num']
 
     sql = f"""
-    -- Create a new sales_batch entity
+    -- 1. Create a new sales_batch entity
     WITH sales_batch_entity AS (
         INSERT INTO entities (id, entity_type_id)
         VALUES (
@@ -34,7 +33,7 @@ def activity_salesIngestor_eavTransform(settings: dict):
         RETURNING id
     ),
 
-    -- Create transaction entities for each unique transaction value
+    -- 2. Create transaction entities for each unique {order_col}
     transaction_data AS (
         SELECT DISTINCT s.{order_col}, gen_random_uuid() AS txn_id
         FROM {staging_table} s
@@ -166,7 +165,7 @@ def activity_salesIngestor_eavTransform(settings: dict):
     ),
     client_header_mappings AS (
         SELECT
-            CAST(:tenant_id AS UUID) AS tenant_id,
+            :tenant_id AS tenant_id,
             fm.key AS mapped_header,
             a.id AS attribute_id
         FROM fields_mapping fm
@@ -204,6 +203,8 @@ def activity_salesIngestor_eavTransform(settings: dict):
             column_value
         FROM unpivoted_attributes
     )
+
+    -- 8. Insert into entity_attribute_values
     INSERT INTO entity_attribute_values (
         entity_id,
         attribute_id,
@@ -222,6 +223,7 @@ def activity_salesIngestor_eavTransform(settings: dict):
         CASE WHEN av.data_type = 'timestamptz' THEN av.column_value::timestamptz ELSE NULL END,
         CASE WHEN av.data_type = 'jsonb' THEN av.column_value::jsonb ELSE NULL END
     FROM attribute_values av;
+
 
     """
 

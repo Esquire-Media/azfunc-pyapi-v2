@@ -28,7 +28,7 @@ def activity_salesIngestor_inferDataTypes(settings: dict):
 
         # make all our alters
         alter_statements = generate_alter_table_sql(
-            table_name = table_name,
+            table_name = qtbl(table_name),
             inferred_schema = inferred_types_dict
         )
 

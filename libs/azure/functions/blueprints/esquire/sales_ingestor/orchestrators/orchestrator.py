@@ -35,7 +35,17 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
                 }
             )
         
-        # 2. Address validation (fan-out / fan-in)
+        # 2. infer data types and alter the fields as necessary
+        yield context.call_activity_with_retry(
+            "activity_salesIngestor_inferDataTypes",
+            retry,
+            {
+                "table_name":table_name,
+                **settings
+                }
+        )
+        
+        # 3. Address validation (fan-out / fan-in)
         
         yield context.call_activity_with_retry(
             "activity_salesIngestor_enrichAddresses",
@@ -57,7 +67,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
                 }
         )
 
-        # 3. Do the big sql query moving staging data into the EAV tables
+        # 4. Do the big sql query moving staging data into the EAV tables
         
         yield context.call_activity_with_retry(
             'activity_salesIngestor_eavTransform',
@@ -93,7 +103,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         )
         logger.warning(msg="Error email sent")
 
-        # 4. do cleanup of staging table
+        # 5. do cleanup of staging table
         yield context.call_activity_with_retry(
             'activity_salesIngestor_cleanup',
             retry,
@@ -105,7 +115,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         raise e
 
 
-    # 4. do cleanup of staging table
+    # 5. do cleanup of staging table
     yield context.call_activity_with_retry(
         'activity_salesIngestor_cleanup',
         retry,

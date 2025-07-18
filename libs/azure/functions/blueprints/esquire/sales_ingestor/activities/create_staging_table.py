@@ -35,6 +35,9 @@ def activity_salesIngestor_createStagingTable(settings: dict):
     schema = reader.schema
 
     with db() as conn:
+        # drop in case if was left over
+        conn.exec_driver_sql(f"DROP TABLE IF EXISTS {qtbl(table_name)};")
+
         cols = [f'"{f.name}" {_pg_type(f)}' for f in schema]
-        ddl = f"CREATE TABLE IF NOT EXISTS {qtbl(table_name)} ({', '.join(cols)});"
+        ddl = f"CREATE TABLE {qtbl(table_name)} ({', '.join(cols)});"
         conn.exec_driver_sql(ddl)

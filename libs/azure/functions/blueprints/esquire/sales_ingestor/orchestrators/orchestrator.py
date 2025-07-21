@@ -108,6 +108,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
             'activity_salesIngestor_cleanup',
             retry,
             {
+                "staging_table":table_name,
                 **settings
                 }
         )
@@ -120,6 +121,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         'activity_salesIngestor_cleanup',
         retry,
         {
+            "staging_table":table_name,
             **settings
             }
     )

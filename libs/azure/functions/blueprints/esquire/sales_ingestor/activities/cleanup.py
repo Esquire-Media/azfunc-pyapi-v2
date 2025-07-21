@@ -10,7 +10,7 @@ bp = Blueprint()
 @bp.activity_trigger(input_name="settings")
 def activity_salesIngestor_cleanup(settings: dict):
 
-    table_name = settings['table_name']
+    table_name = settings['staging_table']
 
     logger.warning(msg=f"[LOG] Cleaning up staging table {qtbl(table_name)}")
 

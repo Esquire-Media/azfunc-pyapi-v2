@@ -27,9 +27,10 @@ def activity_salesIngestor_inferDataTypes(settings: dict):
             )
 
         # make all our alters
-        alter_statements = generate_alter_table_sql(
+        alter_statements = generate_alter_statements(
             table_name = qtbl(table_name),
-            inferred_schema = inferred_types_dict
+            inferred_schema = inferred_types_dict,
+            settings=settings
         )
 
         # actually run the alters
@@ -122,9 +123,37 @@ def infer_schema_to_df(conn, staging_table: str) -> pd.DataFrame:
     # 3. Fetch results into DataFrame
     return pd.read_sql("SELECT column_name, suggested_type FROM tmp_type_inference_results", conn)
 
-def generate_alter_table_sql(table_name: str, inferred_schema: dict) -> list:
-    return [
-        f"ALTER TABLE {table_name} ALTER COLUMN {col} TYPE {pg_type} USING {col}::{pg_type};"
-        for col, pg_type in inferred_schema.items()
-        if pg_type != 'TEXT'
-    ]
+def generate_alter_statements(inferred_schema: dict, table_name: str, settings: dict = None):
+    billing_zip     = settings['fields']['billing']['zipcode']
+    shipping_zip    = settings['fields']['shipping']['zipcode']
+    sale_date       = settings['fields']['order_info']['sale_date']
+    order_number    = settings['fields']['order_info']['order_num']
+
+    alter_statements = []
+
+    for col, pg_type in inferred_schema.items():
+        # Always skip if still TEXT
+        if pg_type == 'TEXT':
+            continue
+
+        # Force zip codes to remain TEXT
+        if col in {billing_zip, shipping_zip} and pg_type in {'INTEGER', 'NUMERIC'}:
+            continue
+
+        # Sale date can only become TIMESTAMP
+        if col == sale_date and pg_type != 'TIMESTAMP':
+            continue
+
+        if col == order_number:
+            continue
+
+        stmt = (
+            f'ALTER TABLE {table_name} '
+            f'ALTER COLUMN "{col}" TYPE {pg_type} '
+            f'USING "{col}"::{pg_type};'
+        )
+        alter_statements.append(stmt)
+
+    return alter_statements
+
+

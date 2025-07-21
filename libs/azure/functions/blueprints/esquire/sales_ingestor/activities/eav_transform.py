@@ -23,31 +23,42 @@ def activity_salesIngestor_eavTransform(settings: dict):
     order_col     = fields_map['order_info']['order_num']
 
     sql = f"""
-    -- 1. Create a new sales_batch entity
-    WITH sales_batch_entity AS (
+    -- 1. Create or get the sales_batch entity
+    WITH inserted_sales_batch AS (
         INSERT INTO entities (id, entity_type_id)
         VALUES (
             :upload_id,
             (SELECT entity_type_id FROM entity_types WHERE name = 'sales_batch')
         )
+        ON CONFLICT (id) DO NOTHING
         RETURNING id
     ),
+    sales_batch_entity AS (
+        SELECT id FROM inserted_sales_batch
+        UNION ALL
+        SELECT id FROM entities WHERE id = :upload_id
+    ),
 
-    -- 2. Create transaction entities for each unique {order_col}
+    -- 2. Create transaction entities
     transaction_data AS (
         SELECT DISTINCT s.{order_col}, gen_random_uuid() AS txn_id
         FROM {staging_table} s
     ),
-    insert_transaction_entities AS (
+    inserted_transactions AS (
         INSERT INTO entities (id, entity_type_id, parent_entity_id)
         SELECT
             txn_id,
             (SELECT entity_type_id FROM entity_types WHERE name = 'transaction'),
             (SELECT id FROM sales_batch_entity)
         FROM transaction_data
+        ON CONFLICT (id) DO NOTHING
         RETURNING id
     ),
-    -- Similarly set up the line items
+    transaction_entities AS (
+        SELECT txn_id AS id FROM transaction_data
+    ),
+
+    -- 3. Create line items
     line_item_data AS (
         SELECT
             s.*,
@@ -63,11 +74,14 @@ def activity_salesIngestor_eavTransform(settings: dict):
             (SELECT entity_type_id FROM entity_types WHERE name = 'line_item'),
             transaction_entity_id
         FROM line_item_data
+        ON CONFLICT (id) DO NOTHING
         RETURNING id
     ),
+    line_item_entities AS (
+        SELECT line_item_id AS id FROM line_item_data
+    ),
 
-    -- Insert attributes if they don't exist
-    -- Pull column types from information_schema
+    -- 4. Attribute classification
     staging_column_types AS (
         SELECT
             column_name,
@@ -75,8 +89,6 @@ def activity_salesIngestor_eavTransform(settings: dict):
         FROM information_schema.columns
         WHERE table_schema = 'sales' AND table_name = '{settings['staging_table']}'
     ),
-
-    -- Determine constancy per column across transactions (are attributes line item or trx?)
     flattened_staging AS (
         SELECT
             s.{order_col},
@@ -101,11 +113,11 @@ def activity_salesIngestor_eavTransform(settings: dict):
         JOIN column_consistency cc ON sc.column_name = cc.column_name
     ),
 
-    -- Generate attribute rows for transactions
+    -- 5. Generate attribute definitions
     transaction_attributes AS (
         SELECT
             gen_random_uuid() AS id,
-            (SELECT entity_type_id FROM entity_types WHERE name = 'transaction') AS entity_type_id,
+            (SELECT entity_type_id FROM entity_types WHERE name = 'transaction'),
             column_name AS name,
             CASE
                 WHEN data_type IN ('character varying', 'text') THEN 'string'
@@ -114,17 +126,15 @@ def activity_salesIngestor_eavTransform(settings: dict):
                 WHEN data_type = 'timestamp with time zone' THEN 'timestamptz'
                 WHEN data_type IN ('json', 'jsonb') THEN 'jsonb'
                 ELSE 'string'
-            END::attr_data_type AS data_type,
-            NULL::text AS description
+            END::attr_data_type,
+            NULL::text
         FROM column_classification
         WHERE always_constant = TRUE
     ),
-
-    -- Generate attribute rows for line_items
     line_item_attributes AS (
         SELECT
             gen_random_uuid() AS id,
-            (SELECT entity_type_id FROM entity_types WHERE name = 'line_item') AS entity_type_id,
+            (SELECT entity_type_id FROM entity_types WHERE name = 'line_item'),
             column_name AS name,
             CASE
                 WHEN data_type IN ('character varying', 'text') THEN 'string'
@@ -133,13 +143,11 @@ def activity_salesIngestor_eavTransform(settings: dict):
                 WHEN data_type = 'timestamp with time zone' THEN 'timestamptz'
                 WHEN data_type IN ('json', 'jsonb') THEN 'jsonb'
                 ELSE 'string'
-            END::attr_data_type AS data_type,
-            NULL::text AS description
+            END::attr_data_type,
+            NULL::text
         FROM column_classification
         WHERE always_constant = FALSE
     ),
-
-    -- Insert into attributes
     insert_new_attributes AS (
         INSERT INTO attributes (id, entity_type_id, name, data_type, description)
         SELECT * FROM transaction_attributes
@@ -148,20 +156,18 @@ def activity_salesIngestor_eavTransform(settings: dict):
         ON CONFLICT (entity_type_id, name) DO NOTHING
         RETURNING id, name, entity_type_id, data_type
     ),
-
-    -- Final attribute reference for downstream use
     attribute_info AS (
         SELECT id AS attribute_id, name AS attribute_name, entity_type_id, data_type
         FROM attributes
     ),
 
-    -- Populate client_header_map for attributes specified in settings['fields']
+    -- 6. Map headers
     fields_cte AS (
         SELECT :fields AS fields_json
     ),
     fields_mapping AS (
         SELECT key, value
-        FROM fields_cte, jsonb_each_text(fields_cte.fields_json)
+        FROM fields_cte, jsonb_each_text(fields_json)
     ),
     client_header_mappings AS (
         SELECT
@@ -175,10 +181,10 @@ def activity_salesIngestor_eavTransform(settings: dict):
         INSERT INTO client_header_map (tenant_id, mapped_header, attribute_id)
         SELECT tenant_id, mapped_header, attribute_id
         FROM client_header_mappings
-        ON CONFLICT DO NOTHING
+        ON CONFLICT (tenant_id, mapped_header) DO NOTHING
     ),
 
-    -- Unpivot line_item_data into attribute-value pairs
+    -- 7. Unpivot values
     unpivoted_attributes AS (
         SELECT
             CASE
@@ -192,9 +198,6 @@ def activity_salesIngestor_eavTransform(settings: dict):
         FROM line_item_data lid
         JOIN attribute_info ai ON TRUE
     ),
-
-    -- get the last bit of attribute values. and insert into entity_attribute_values
-    -- doing this as a subquery broke for some reason so CTE it is!
     attribute_values AS (
         SELECT
             entity_id,
@@ -204,7 +207,7 @@ def activity_salesIngestor_eavTransform(settings: dict):
         FROM unpivoted_attributes
     )
 
-    -- 8. Insert into entity_attribute_values
+    -- 8. Insert final values
     INSERT INTO entity_attribute_values (
         entity_id,
         attribute_id,
@@ -222,7 +225,14 @@ def activity_salesIngestor_eavTransform(settings: dict):
         CASE WHEN av.data_type = 'boolean' THEN av.column_value::boolean ELSE NULL END,
         CASE WHEN av.data_type = 'timestamptz' THEN av.column_value::timestamptz ELSE NULL END,
         CASE WHEN av.data_type = 'jsonb' THEN av.column_value::jsonb ELSE NULL END
-    FROM attribute_values av;
+    FROM attribute_values av
+    ON CONFLICT (entity_id, attribute_id) DO UPDATE
+    SET
+        value_string = EXCLUDED.value_string,
+        value_numeric = EXCLUDED.value_numeric,
+        value_boolean = EXCLUDED.value_boolean,
+        value_ts = EXCLUDED.value_ts,
+        value_jsonb = EXCLUDED.value_jsonb;
 
 
     """

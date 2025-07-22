@@ -41,7 +41,7 @@ def activity_salesIngestor_eavTransform(settings: dict):
 
     -- 2. Create transaction entities
     transaction_data AS (
-        SELECT DISTINCT s.{order_col}, gen_random_uuid() AS txn_id
+        SELECT DISTINCT s."{order_col}", gen_random_uuid() AS txn_id
         FROM {staging_table} s
     ),
     inserted_transactions AS (
@@ -65,7 +65,7 @@ def activity_salesIngestor_eavTransform(settings: dict):
             gen_random_uuid() AS line_item_id,
             tx.txn_id AS transaction_entity_id
         FROM {staging_table} s
-        JOIN transaction_data tx ON s.{order_col} = tx.{order_col}
+        JOIN transaction_data tx ON s."{order_col}" = tx."{order_col}"
     ),
     inserted_line_items AS (
         INSERT INTO entities (id, entity_type_id, parent_entity_id)
@@ -91,7 +91,7 @@ def activity_salesIngestor_eavTransform(settings: dict):
     ),
     flattened_staging AS (
         SELECT
-            s.{order_col},
+            s."{order_col}",
             col.key AS column_name,
             col.value AS column_value
         FROM {staging_table} s,
@@ -102,7 +102,7 @@ def activity_salesIngestor_eavTransform(settings: dict):
             column_name,
             BOOL_AND(COUNT(DISTINCT column_value) = 1) OVER (PARTITION BY column_name) AS always_constant
         FROM flattened_staging
-        GROUP BY {order_col}, column_name
+        GROUP BY "{order_col}", column_name
     ),
     column_classification AS (
         SELECT

@@ -202,7 +202,7 @@ def process_batch_fast(
 def upsert_address_attributes(cleaned: pd.DataFrame):
     """
     cleaned: DataFrame with columns
-      ['delivery_line_1','city_name','state_abbreviation','zipcode','address_id']
+      ['delivery_line_1','city_name','state_abbreviation','zipcode','address_id', 'latitude', 'longitude']
     """
 
     # 1) Ensure the attribute definitions exist
@@ -211,7 +211,9 @@ def upsert_address_attributes(cleaned: pd.DataFrame):
       'delivery_line_2',
       'city_name',
       'state_abbreviation',
-      'zipcode'
+      'zipcode',
+      'latitude',
+      'longitude'
     ]
 
     # Build a VALUES() list with explicit enum casts

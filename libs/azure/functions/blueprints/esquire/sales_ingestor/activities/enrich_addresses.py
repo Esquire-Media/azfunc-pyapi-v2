@@ -99,6 +99,9 @@ def process_batch_fast(
     """
     col_name = f"{scope}_address_id"
 
+    # tack on empty strings for anything that's missing
+    raw_df[[col for col in ['street', 'city', 'state', 'zipcode'] if (col not in addr_map.keys() | addr_map[col] is None | addr_map[col] == '')]] = ''
+
     # 1) standardize & uuid—as in enrich_slow.py
     cleaned = bulk_validate(
         raw_df,

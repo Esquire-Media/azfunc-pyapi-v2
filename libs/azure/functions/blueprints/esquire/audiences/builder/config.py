@@ -41,6 +41,16 @@ if not from_bind("foursquare"):
         pool_size=1000,
         max_overflow=100,
     )
+if not from_bind("sales"):
+    register_binding(
+        "sales",
+        "Structured",
+        "sql",
+        url=os.environ["DATABIND_SQL_KEYSTONE"],
+        schemas=["sales"],
+        pool_size=1000,
+        max_overflow=100,
+    )
 
 MAPPING_DATASOURCE = {
     # Attom estated data - can use for testing
@@ -88,7 +98,7 @@ MAPPING_DATASOURCE = {
     # Esquire sales - not ready to be used yet
     "clwjn2q4t0057rw04kbhlog0s": {
         "dbType": "postgres",
-        "bind": "keystone",
+        "bind": "sales",
         "table": {
             "schema": "sales",
             "name": "entities",

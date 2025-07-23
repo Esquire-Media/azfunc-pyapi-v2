@@ -161,6 +161,11 @@ def orchestrator_esquireAudiences_processingSteps(
                                 for source_url in source_urls
                             ]
                         )
+                    case "neighbors": # addresses -> neighbors addresses
+                        process["results"] = yield context.call_sub_orchestrator(
+                            "orchestator_esquireAudienceSteps_addresses2neighbors",
+                            egress,
+                        )
             case "device_ids":
                 match process["outputType"]:
                     case "addresses":  # deviceids -> addresses

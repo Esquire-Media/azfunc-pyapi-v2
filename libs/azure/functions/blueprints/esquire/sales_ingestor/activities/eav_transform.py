@@ -39,6 +39,47 @@ def activity_salesIngestor_eavTransform(settings: dict):
         SELECT id FROM entities WHERE id = :upload_id
     ),
 
+    -- Metadata attributes for sales_batch
+    metadata_fields AS (
+        SELECT key AS name, value
+        FROM jsonb_each_text(:metadata)
+    ),
+    sales_batch_attributes AS (
+        SELECT
+            gen_random_uuid() AS id,
+            (SELECT entity_type_id FROM entity_types WHERE name = 'sales_batch'),
+            name,
+            'string'::attr_data_type,
+            NULL::text
+        FROM metadata_fields
+    ),
+    insert_sales_batch_attributes AS (
+        INSERT INTO attributes (id, entity_type_id, name, data_type, description)
+        SELECT * FROM sales_batch_attributes
+        ON CONFLICT (entity_type_id, name) DO NOTHING
+        RETURNING id, name
+    ),
+    sb_attribute_info AS (
+        SELECT a.id AS attribute_id, mf.value
+        FROM attributes a
+        JOIN metadata_fields mf ON a.name = mf.name
+        WHERE a.entity_type_id = (SELECT entity_type_id FROM entity_types WHERE name = 'sales_batch')
+    ),
+    insert_sales_batch_metadata AS (
+        INSERT INTO entity_attribute_values (
+            entity_id,
+            attribute_id,
+            value_string
+        )
+        SELECT
+            (SELECT id FROM sales_batch_entity),
+            attribute_id,
+            value
+        FROM sb_attribute_info
+        ON CONFLICT (entity_id, attribute_id) DO UPDATE
+        SET value_string = EXCLUDED.value_string
+    ),
+
     -- 2. Create transaction entities
     transaction_data AS (
         SELECT DISTINCT s."{order_col}", gen_random_uuid() AS txn_id
@@ -248,7 +289,8 @@ def activity_salesIngestor_eavTransform(settings: dict):
     stmt = text(sql).bindparams(
         bindparam("upload_id", value=settings['metadata']['upload_id'], type_=PG_UUID),
         bindparam("tenant_id", value=settings['metadata']['tenant_id'], type_=TEXT),
-        bindparam("fields", value=flatten_fields(settings["fields"]), type_=JSONB)
+        bindparam("fields", value=flatten_fields(settings["fields"]), type_=JSONB),
+        bindparam("metadata", value=flatten_fields(settings["metadata"]), type_=JSONB)
     )
 
     # set up the pathing and run it

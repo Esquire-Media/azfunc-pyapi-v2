@@ -106,11 +106,17 @@ def activity_salesIngestor_eavTransform(settings: dict):
     ),
     column_classification AS (
         SELECT
-            sc.column_name,
-            sc.data_type,
+            c.column_name,
+            format_type(a.atttypid, a.atttypmod) AS data_type,
             cc.always_constant
-        FROM staging_column_types sc
-        JOIN column_consistency cc ON sc.column_name = cc.column_name
+        FROM information_schema.columns c
+        JOIN pg_class cls ON cls.relname = c.table_name AND cls.relnamespace = 'sales'::regnamespace
+        JOIN pg_attribute a ON a.attrelid = cls.oid AND a.attname = c.column_name
+        JOIN column_consistency cc ON c.column_name = cc.column_name
+        WHERE c.table_schema = 'sales'
+        AND c.table_name = "{staging_table}"
+        AND a.attnum > 0
+        AND NOT a.attisdropped
     ),
 
     -- 5. Generate attribute definitions

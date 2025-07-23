@@ -13,15 +13,15 @@ bp = Blueprint()
 
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: dict):
-    tenant_id = ingress["tenant_id"]
-    entity_type = ingress.get("entity_type", "transaction")
-    depth = ingress.get("depth", "line_item")  # "transaction" or "line_item"
-    address_source = ingress.get("address_source", "shipping")  # "shipping", "billing", or "both"
+    tenant_id       = ingress["tenant_id"]
+    entity_type     = ingress.get("entity_type", "transaction")
+    depth           = ingress.get("depth", "line_item")  # "transaction" or "line_item"
+    address_source  = ingress.get("address_source", "shipping")  # "shipping", "billing", or "both"
 
-    provider = from_bind("sales")
-    map_model = provider.models["sales"]["ClientHeaderMap"]
-    attr_model = provider.models["sales"]["Attribute"]
-    session = provider.connect()
+    provider    = from_bind("sales")
+    map_model   = provider.models["sales"]["ClientHeaderMap"]
+    attr_model  = provider.models["sales"]["Attribute"]
+    session     = provider.connect()
 
     # Step 1: Fetch all mapped headers for this tenant
     query = (
@@ -108,8 +108,13 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
 
     # Step 4: Final SQL
     return f"""
-    SELECT {', '.join(fields)}
-    {base}
-    {' '.join(joins)}
-    WHERE sb.tenant_id = '{tenant_id}'
+    SELECT
+        *
+        FROM (
+            SELECT {', '.join(fields)}
+            {base}
+            {' '.join(joins)}
+            WHERE sb.tenant_id = '{tenant_id}'
+        ) sub
+        WHERE {ingress["audience"]["dataFilter"]}
     """

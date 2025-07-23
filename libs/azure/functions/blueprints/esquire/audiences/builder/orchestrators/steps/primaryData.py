@@ -123,8 +123,16 @@ def orchestrator_esquireAudiences_primaryData(
                     },
                 )
             case "postgres":
+                # get query to handle anything hooking into the sales data (because of EAV setup)
                 if MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]].get("isEAV", False):
-                    pass
+                    ingress["query"] = yield context.call_activity(
+                        "activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery",
+                        {
+                            **ingress,
+                            **MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]]
+                            }
+                    )
+
                 else:
                     ingress["query"] = "SELECT * FROM {}{} WHERE {}".format(
                         (

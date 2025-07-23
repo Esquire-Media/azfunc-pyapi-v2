@@ -13,10 +13,36 @@ bp = Blueprint()
 
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: dict):
+    """
+    Generates a sql query to flatten the EAV sales data of a given tenant.
+
+    This replaces the "SELECT * FROM {}{} WHERE {}" query generation most audiences use in PrimaryData
+
+    Parameters:
+    ingress (dict): A dictionary containing the audience ID and the new metadata
+        also includes optional information regarding the audience generation for the level of information to query against
+        {
+            "tenant_id",
+            "entity_type",
+            "depth",
+            "address_source",
+            "id",
+            "audience": {
+                "dataFilter": int,
+            }
+        }
+
+
+    Returns:
+    None: Returns None if the update is successful.
+
+    Raises:
+    Exception: If an error occurs during the database operation.
+    """
     tenant_id       = ingress["tenant_id"]
     entity_type     = ingress.get("entity_type", "transaction")
     depth           = ingress.get("depth", "line_item")  # "transaction" or "line_item"
-    address_source  = ingress.get("address_source", "shipping")  # "shipping", "billing", or "both"
+    address_source  = ingress.get("address_source", "billing")  # "shipping", "billing", or "both"
 
     provider    = from_bind("sales")
     map_model   = provider.models["sales"]["ClientHeaderMap"]

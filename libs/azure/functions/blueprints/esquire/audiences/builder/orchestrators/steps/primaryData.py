@@ -123,25 +123,28 @@ def orchestrator_esquireAudiences_primaryData(
                     },
                 )
             case "postgres":
-                ingress["query"] = "SELECT * FROM {}{} WHERE {}".format(
-                    (
-                        '"{}".'.format(
-                            MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
+                if MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]].get("isEAV", False):
+                    pass
+                else:
+                    ingress["query"] = "SELECT * FROM {}{} WHERE {}".format(
+                        (
+                            '"{}".'.format(
+                                MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
+                                    "table"
+                                ]["schema"]
+                            )
+                            if MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
                                 "table"
-                            ]["schema"]
-                        )
-                        if MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
+                            ].get("schema", None)
+                            else ""
+                        ),
+                        '"'
+                        + MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
                             "table"
-                        ].get("schema", None)
-                        else ""
-                    ),
-                    '"'
-                    + MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
-                        "table"
-                    ]["name"]
-                    + '"',
-                    ingress["audience"]["dataFilter"],
-                )
+                        ]["name"]
+                        + '"',
+                        ingress["audience"]["dataFilter"],
+                    )
                 ingress["results"] = yield context.call_sub_orchestrator(
                     "orchestrator_azurePostgres_queryToBlob",
                     {

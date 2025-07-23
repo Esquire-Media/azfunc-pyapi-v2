@@ -87,12 +87,13 @@ MAPPING_DATASOURCE = {
     },
     # Esquire sales - not ready to be used yet
     "clwjn2q4t0057rw04kbhlog0s": {
-        "dbType": "synapse",
-        "bind": "general",
+        "dbType": "postgres",
+        "bind": "keystone",
         "table": {
-            "schema": "dbo",
-            "name": "sales",
+            "schema": "sales",
+            "name": "entities",
         },
+        "isEAV":True
     },
     # Foursquare POI - can use for testing
     "clwjn2q4t0058rw04fx6qanbh": {

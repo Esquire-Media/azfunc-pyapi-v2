@@ -14,7 +14,7 @@ from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import qt
 import os
 import logging
 logger = logging.getLogger("salesIngestor.logger")
-logger.setLevel(logging.WARNING)
+logger.setLevel(logging.INFO)
 
 # Shared engine + metadata
 _ENGINE = create_engine(
@@ -47,7 +47,7 @@ def activity_salesIngestor_enrichAddresses(settings: dict):
       "batch_size":    500  # optional override
     }
     """
-    logger.warning(msg=f"[LOG] Enriching {settings['scope']} Addresses")
+    logger.info(msg=f"[LOG] Enriching {settings['scope']} Addresses")
 
     scope      = settings["scope"]
     addr_map   = settings["fields"][scope]
@@ -65,7 +65,7 @@ def activity_salesIngestor_enrichAddresses(settings: dict):
 
     def stream_batches():
         # build DISTINCT-stmt on the five raw columns
-        cols = [stg.c[addr_map[k]] for k in ["street","addr2","city","state","zipcode"] if addr_map[k]]
+        cols = [stg.c[addr_map[k]] for k in ["street","addr2","city","state","zipcode"] if (addr_map.get(k,'') != '')]
         stmt = select(*cols).distinct()
         with _ENGINE.connect() as conn:
             rs = conn.execution_options(stream_results=True).execute(stmt)

@@ -13,10 +13,12 @@ __logger = logging.getLogger("salesIngestor.logger")
 if __handler not in __logger.handlers:
     __logger.addHandler(__handler)
 
+
 @bp.route(route="esquire/sales_ingestor/starter", methods=["POST"])
 @bp.durable_client_input(client_name="client")
 async def starter_salesIngestor(req: HttpRequest, client: DurableOrchestrationClient):
     logger = logging.getLogger("salesIngestor.logger")
+    logger.setLevel(logging.INFO)
 
     # load the request payload
     # load and parse the request payload

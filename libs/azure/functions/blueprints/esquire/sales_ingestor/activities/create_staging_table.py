@@ -8,13 +8,13 @@ from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.blob import 
 from azure.storage.blob import BlobClient
 
 logger = logging.getLogger("salesIngestor.logger")
-logger.setLevel(logging.WARNING)
+logger.setLevel(logging.INFO)
 
 bp = Blueprint()
 
 @bp.activity_trigger(input_name="settings")
 def activity_salesIngestor_createStagingTable(settings: dict):
-    logger.warning(msg="[LOG] Creating Staging Table")
+    logger.info(msg="[LOG] Creating Staging Table")
 
     blob_path = settings['metadata']['upload_id']
     conn_str = os.environ['SALES_INGEST_CONN_STR']

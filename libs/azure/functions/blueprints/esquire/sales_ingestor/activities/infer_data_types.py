@@ -5,7 +5,7 @@ import pandas as pd
 from sqlalchemy import text
 import logging
 logger = logging.getLogger("salesIngestor.logger")
-logger.setLevel(logging.WARNING)
+logger.setLevel(logging.INFO)
 
 bp = Blueprint()
 
@@ -14,7 +14,7 @@ def activity_salesIngestor_inferDataTypes(settings: dict):
 
     table_name = settings['table_name']
 
-    logger.warning(msg=f"[LOG] Inferring data types for staging table {qtbl(table_name)}")
+    logger.info(msg=f"[LOG] Inferring data types for staging table {qtbl(table_name)}")
 
     with db() as conn:
         # get the inferred types 
@@ -36,7 +36,7 @@ def activity_salesIngestor_inferDataTypes(settings: dict):
         # actually run the alters
         apply_alter_statements(conn, alter_statements)
 
-        logger.warning(msg=f"Field types inferred: {inferred_types_dict}")
+        logger.info(msg=f"Field types inferred: {inferred_types_dict}")
 
 def apply_alter_statements(conn, alter_statements: list):
     for stmt in alter_statements:

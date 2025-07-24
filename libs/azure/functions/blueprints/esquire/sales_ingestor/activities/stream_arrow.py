@@ -13,13 +13,13 @@ import json
 from azure.storage.blob import BlobClient
 import logging
 logger = logging.getLogger("salesIngestor.logger")
-logger.setLevel(logging.WARNING)
+logger.setLevel(logging.INFO)
 
 bp = Blueprint()
 
 @bp.activity_trigger(input_name="settings")
 def activity_salesIngestor_streamArrow(settings: dict):
-    logger.warning(msg="[LOG] Streaming blob to staging table")
+    logger.info(msg="[LOG] Streaming blob to staging table")
 
     blob_path = settings['metadata']['upload_id']
     conn_str = os.environ['SALES_INGEST_CONN_STR']

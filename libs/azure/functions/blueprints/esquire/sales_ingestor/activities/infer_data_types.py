@@ -90,7 +90,7 @@ def infer_schema_to_df(conn, staging_table: str) -> pd.DataFrame:
                         COUNT(*) FILTER (WHERE LOWER((%1$I)::TEXT) IN ('true','false','0','1'))::FLOAT AS bool_matches,
                         COUNT(*) FILTER (WHERE (%1$I)::TEXT ~ '^[+-]?\d+$')::FLOAT AS int_matches,
                         COUNT(*) FILTER (WHERE (%1$I)::TEXT ~ '^[+-]?(\d+\.\d*|\.\d+)([eE][+-]?\d+)?$')::FLOAT AS float_matches,
-                        COUNT(*) FILTER (WHERE (%1$I)::TEXT ~ '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$')::FLOAT AS datetime_matches
+                        COUNT(*) FILTER (WHERE (%1$I)::TEXT ~ '^\d{4}-\d{2}-\d{2}$')::FLOAT AS datetime_matches
                     FROM sales."{staging_table}"
                 )
                 SELECT

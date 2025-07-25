@@ -16,7 +16,7 @@ async def activity_esquireAudiencesBuilder_findNeighbors(ingress: dict):
     state = ingress["state"].strip().upper()
     zip_code = ingress["zip"].strip()
     input_blob_url = ingress["inputBlob"]
-    N = ingress.get("N", 100)
+    n_per_side = ingress.get("n_per_side", 100)
     same_side_only = ingress.get("same_side_only", True)
 
     # Parse blob URL
@@ -64,7 +64,7 @@ async def activity_esquireAudiencesBuilder_findNeighbors(ingress: dict):
             continue
 
         neighbors = find_neighbors_for_street(
-            street_data, street_addresses, N, same_side_only
+            street_data, street_addresses, n_per_side, same_side_only
         )
         if not neighbors.empty:
             group_results.append(neighbors)

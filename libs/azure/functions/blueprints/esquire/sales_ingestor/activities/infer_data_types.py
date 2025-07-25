@@ -28,7 +28,7 @@ def activity_salesIngestor_inferDataTypes(settings: dict):
         
         date_types = {"DATE", "TIMESTAMP", "DATETIME"}
         if not any(dtype.upper() in date_types for dtype in inferred_types.values()):
-            logger.info(msg=f"[LOG] No date fields were able to be inferred.")
+            logger.error(msg=f"[LOG] No date fields were able to be inferred.")
 
             raise TypeError("No date fields were able to be inferred.")
 

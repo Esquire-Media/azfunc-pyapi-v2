@@ -141,8 +141,14 @@ def orchestrator_esquireAudiences_processingSteps(
             case "addresses":
                 match process["outputType"]:
                     case "addresses":  # addresses -> addresses
-                        # No specific processing required
-                        pass
+                        if process.get(custom_coding, {}).get('find_neighbors', False):
+                            # No specific processing required
+                            process["results"] = yield context.call_sub_orchestrator(
+                                "orchestator_esquireAudienceSteps_addresses2neighbors",
+                                egress,
+                            )
+                        else:
+                            pass
                     case "device_ids":  # addresses -> deviceids
                         process["results"] = yield context.call_sub_orchestrator(
                             "orchestrator_esquireAudiencesSteps_addresses2deviceids",
@@ -160,11 +166,6 @@ def orchestrator_esquireAudiences_processingSteps(
                                 )
                                 for source_url in source_urls
                             ]
-                        )
-                    case "neighbors": # addresses -> neighbors addresses
-                        process["results"] = yield context.call_sub_orchestrator(
-                            "orchestator_esquireAudienceSteps_addresses2neighbors",
-                            egress,
                         )
             case "device_ids":
                 match process["outputType"]:

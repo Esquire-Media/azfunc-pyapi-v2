@@ -23,9 +23,9 @@ def orchestrator_esquireAudiencesSteps_addresses2neighbors(
             "city": part["city"],
             "state": part["state"],
             "zip": part["zip"],
-            "n_per_side": ingress['custom_coding'].get("n_per_side", 100),
-            "same_side_only": ingress['custom_coding'].get("same_side_only", True),
-            "limit": ingress['custom_coding'].get("limit", -1)
+            "n_per_side": ingress.get('custom_coding',{}).get("n_per_side", 100),
+            "same_side_only": ingress.get('custom_coding',{}).get("same_side_only", True),
+            "limit": ingress.get('custom_coding',{}).get("limit", -1)
         }))
 
     results = yield context.task_all(tasks)

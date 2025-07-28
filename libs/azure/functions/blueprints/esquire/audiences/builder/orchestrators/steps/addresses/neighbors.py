@@ -41,11 +41,11 @@ def orchestrator_esquireAudiencesSteps_addresses2neighbors(
             seen.add(key)
 
     # Step 4: Write output
-    blob_name = f"{ingress["destination"]["blob_prefix"]}/results/neighbors.csv"
+    blob_name = f"{ingress['destination']['blob_prefix']}/results/neighbors.csv"
     out_url = yield context.call_activity("activity_esquireBlob_writeCsv", {
         "records": deduped,
-        "container": ingress["container"],
-        "blobName": f"neighbors/{blob_name}"
+        "container": ingress["destination"]["container_name"],
+        "blobName": blob_name
     })
 
     return [out_url]

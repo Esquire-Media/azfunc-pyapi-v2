@@ -26,6 +26,7 @@ def get_items_recursive(obj, dict={}):
 def bulk_validate(
     df:pd.DataFrame,
     address_col:str,
+    addr2_col:str=None,
     city_col:str=None,
     state_col:str=None,
     zip_col:str=None,
@@ -95,6 +96,12 @@ def bulk_validate(
 
         # add data for the address field
         lookup.street = row[address_col]
+
+        # check if we have an address2
+        if addr2_col != None:
+            val = row.get(addr2_col)
+            if val and len(val.strip()) > 0:
+                lookup.street2 = row[addr2_col]
 
         # check that city field is specified and data is not empty, then set data
         if city_col != None:

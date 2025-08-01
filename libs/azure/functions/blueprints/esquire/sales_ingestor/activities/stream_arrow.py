@@ -19,7 +19,7 @@ bp = Blueprint()
 
 @bp.activity_trigger(input_name="settings")
 def activity_salesIngestor_streamArrow(settings: dict):
-    logger.info(msg="[LOG] Streaming blob to staging table")
+    logger.info(msg=f"[LOG] Streaming blob to staging table {qtbl(settings['table_name'])}")
 
     blob_path = settings['metadata']['upload_id']
     conn_str = os.environ['SALES_INGEST_CONN_STR']
@@ -37,7 +37,7 @@ def activity_salesIngestor_streamArrow(settings: dict):
     reader = _arrow_reader(blob, chunk_size)
     
     table_name = settings['table_name']
-    conninfo = os.environ['DATABIND_SQL_KEYSTONE_DEV'].replace("+psycopg2", "")
+    conninfo = os.environ['DATABIND_SQL_KEYSTONE'].replace("+psycopg2", "")
 
     copy_sql = f"COPY {qtbl(table_name)} FROM STDIN (FORMAT CSV)"
     with psycopg.connect(conninfo) as conn:

@@ -14,7 +14,7 @@ bp = Blueprint()
 
 @bp.activity_trigger(input_name="settings")
 def activity_salesIngestor_createStagingTable(settings: dict):
-    logger.info(msg="[LOG] Creating Staging Table")
+    logger.info(msg=f"[LOG] Creating Staging Table {qtbl(settings['table_name'])}")
 
     blob_path = settings['metadata']['upload_id']
     conn_str = os.environ['SALES_INGEST_CONN_STR']
@@ -41,3 +41,5 @@ def activity_salesIngestor_createStagingTable(settings: dict):
         cols = [f'"{f.name}" {_pg_type(f)}' for f in schema]
         ddl = f"CREATE TABLE {qtbl(table_name)} ({', '.join(cols)});"
         conn.exec_driver_sql(ddl)
+
+    logger.info(msg=f"[LOG] Created Staging Table {qtbl(settings['table_name'])}")

@@ -16,20 +16,6 @@ import logging
 logger = logging.getLogger("salesIngestor.logger")
 logger.setLevel(logging.INFO)
 
-# Shared engine + metadata
-_ENGINE = create_engine(
-    os.environ["DATABIND_SQL_KEYSTONE_DEV"].replace("psycopg2", "psycopg"),      # postgresql+psycopg2://…
-    pool_pre_ping=True, 
-    pool_size=10,
-    max_overflow=20, 
-    future=True,
-)
-_META   = MetaData()
-_STG    = Table("staging",        _META, autoload_with=_ENGINE, schema='sales')
-_ENT    = Table("entities",       _META, autoload_with=_ENGINE, schema='sales')
-_ATTR   = Table('attributes',   _META, autoload_with=_ENGINE, schema='sales')
-_EAV   = Table('attributes',   _META, autoload_with=_ENGINE, schema='sales')
-_ET     = Table("entity_types",   _META, autoload_with=_ENGINE, schema='sales')
 
 NAMESPACE_ADDRESS = uuid.UUID("30000000-0000-0000-0000-000000000000")
 ADDRESS_TYPE_ID = uuid.UUID("fe694dd2-2dc4-452f-910c-7023438bb0ac")
@@ -47,6 +33,16 @@ def activity_salesIngestor_enrichAddresses(settings: dict):
       "batch_size":    500  # optional override
     }
     """
+    # Shared engine + metadata
+    _ENGINE = create_engine(
+        os.environ["DATABIND_SQL_KEYSTONE"].replace("psycopg2", "psycopg"),      # postgresql+psycopg2://…
+        pool_pre_ping=True, 
+        pool_size=10,
+        max_overflow=20, 
+        future=True,
+    )
+    _META   = MetaData()
+
     logger.info(msg=f"[LOG] Enriching {settings['scope']} Addresses")
 
     scope      = settings["scope"]
@@ -177,11 +173,20 @@ def process_batch_fast(
       FROM mapping AS m
      WHERE {where_sql};
     """
+    _ENGINE = create_engine(
+        os.environ["DATABIND_SQL_KEYSTONE"].replace("psycopg2", "psycopg"),      # postgresql+psycopg2://…
+        pool_pre_ping=True, 
+        pool_size=10,
+        max_overflow=20, 
+        future=True,
+    )
+    _META   = MetaData()
 
     with _ENGINE.begin() as conn:
         conn.execute(text(sql), params)
 
     # 6) upsert into entities (same as slow method)
+    _ENT    = Table("entities",       _META, autoload_with=_ENGINE, schema='sales')
     unique_ids = cleaned['address_id'].unique().tolist()
     rows = [
         {
@@ -204,6 +209,13 @@ def upsert_address_attributes(cleaned: pd.DataFrame):
     cleaned: DataFrame with columns
       ['delivery_line_1','city_name','state_abbreviation','zipcode','address_id', 'latitude', 'longitude']
     """
+    _ENGINE = create_engine(
+        os.environ["DATABIND_SQL_KEYSTONE"].replace("psycopg2", "psycopg"),      # postgresql+psycopg2://…
+        pool_pre_ping=True, 
+        pool_size=10,
+        max_overflow=20, 
+        future=True,
+    )
 
     # 1) Ensure the attribute definitions exist
     ATTRIBUTE_NAMES = [

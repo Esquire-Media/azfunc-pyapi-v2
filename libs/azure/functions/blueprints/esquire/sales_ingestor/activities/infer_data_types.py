@@ -26,6 +26,8 @@ def activity_salesIngestor_inferDataTypes(settings: dict):
             inferred_types
             )
         
+        logger.info(msg=f"Field types inferred: {inferred_types_dict}")
+
         date_types = {"DATE", "TIMESTAMP", "DATETIME"}
         if not any(dtype.upper() in date_types for dtype in inferred_types_dict.values()):
             logger.error(msg=f"[LOG] No date fields were able to be inferred.")
@@ -53,8 +55,7 @@ def cleanup_inferred_schema(settings, inferred_types):
                 (inferred_types['suggested_type'] != 'TEXT') &
                 (~inferred_types['column_name'].isin([
                     settings['fields']['billing']['zipcode'],
-                    settings['fields']['shipping']['zipcode'],
-                    settings['fields']['order_info']['sale_date']
+                    settings['fields']['shipping']['zipcode']
                 ]))
             ].set_index('column_name')['suggested_type'].to_dict()
 
@@ -96,7 +97,7 @@ def infer_schema_to_df(conn, staging_table: str) -> pd.DataFrame:
                         COUNT(*) FILTER (WHERE LOWER((%1$I)::TEXT) IN ('true','false','0','1'))::FLOAT AS bool_matches,
                         COUNT(*) FILTER (WHERE (%1$I)::TEXT ~ '^[+-]?\d+$')::FLOAT AS int_matches,
                         COUNT(*) FILTER (WHERE (%1$I)::TEXT ~ '^[+-]?(\d+\.\d*|\.\d+)([eE][+-]?\d+)?$')::FLOAT AS float_matches,
-                        COUNT(*) FILTER (WHERE (%1$I)::TEXT ~ '^\d{'{4}'}-\d{'{2}'}-\d{'{2}'}$')::FLOAT AS datetime_matches
+                        COUNT(*) FILTER (WHERE sales.try_cast_timestamp((%1$I)::TEXT) IS NOT NULL)::FLOAT AS datetime_matches
                     FROM sales."{staging_table}"
                 )
                 SELECT

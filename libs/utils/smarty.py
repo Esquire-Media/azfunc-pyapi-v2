@@ -73,8 +73,8 @@ def bulk_validate(
     df = df.reset_index(drop=True)
 
     # convert all address data to strings
-    for col in address_col, city_col, state_col, zip_col:
-        if col != None:
+    for col in address_col, addr2_col, city_col, state_col, zip_col:
+        if col:
             df[col] = df[col].astype(str)
 
     # authentication

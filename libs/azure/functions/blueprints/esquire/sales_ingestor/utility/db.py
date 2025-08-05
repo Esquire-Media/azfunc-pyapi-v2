@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine
 
 _ENGINE = create_engine(
-    os.environ["DATABIND_SQL_KEYSTONE_DEV"].replace("psycopg2", "psycopg"),      # postgresql+psycopg2://…
+    os.environ["DATABIND_SQL_KEYSTONE"].replace("psycopg2", "psycopg"),      # postgresql+psycopg2://…
     pool_pre_ping=True, 
     pool_size=10,
     max_overflow=20, 

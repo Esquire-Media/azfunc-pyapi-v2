@@ -49,7 +49,6 @@ async def starter_salesIngestor(req: HttpRequest, client: DurableOrchestrationCl
     
     # extract user information from bearer token metadata
     payload['user'] = headers['oid']
-    payload['callback'] = headers['preferred_username']
     
     # start a new orchestration
     instance_id = await client.start_new(

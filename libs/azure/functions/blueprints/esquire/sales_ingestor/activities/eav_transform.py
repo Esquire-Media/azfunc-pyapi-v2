@@ -155,7 +155,7 @@ def activity_salesIngestor_eavTransform(settings: dict):
         JOIN pg_attribute a ON a.attrelid = cls.oid AND a.attname = c.column_name
         JOIN column_consistency cc ON c.column_name = cc.column_name
         WHERE c.table_schema = 'sales'
-        AND c.table_name = {staging_table}
+        AND c.table_name = '{settings['staging_table']}'
         AND a.attnum > 0
         AND NOT a.attisdropped
     ),

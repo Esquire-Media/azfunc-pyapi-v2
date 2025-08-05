@@ -101,11 +101,11 @@ def process_batch_fast(
     # 1) standardize & uuid—as in enrich_slow.py
     cleaned = bulk_validate(
         raw_df,
-        address_col = addr_map['street'],
-        addr2_col   = addr_map.get('addr2', None),
-        city_col    = addr_map['city'],
-        state_col   = addr_map['state'],
-        zip_col     = addr_map['zipcode']
+        address_col = addr_map['street'] if addr_map['street'] != "" else None,
+        addr2_col   = addr_map.get('addr2', None) if addr_map['addr2'] != "" else None,
+        city_col    = addr_map['city'] if addr_map['city'] != "" else None,
+        state_col   = addr_map['state'] if addr_map['state'] != "" else None,
+        zip_col     = addr_map['zipcode'] if addr_map['zipcode'] != "" else None
     )
     cleaned['address_id'] = cleaned.apply(
         lambda entry: generate_deterministic_id(

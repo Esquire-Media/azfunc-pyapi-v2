@@ -111,7 +111,7 @@ def infer_schema_to_df(conn, staging_table: str) -> pd.DataFrame:
                     datetime_matches / GREATEST(non_null_count, 1) AS datetime_ratio,
                     CASE
                         WHEN bool_matches = non_null_count THEN 'BOOLEAN'
-                        WHEN int_matches = non_null_count THEN 'INTEGER'
+                        WHEN int_matches = non_null_count THEN 'BIGINT'
                         WHEN int_matches + float_matches = non_null_count THEN 'NUMERIC'
                         WHEN datetime_matches = non_null_count THEN 'TIMESTAMP'
                         ELSE 'TEXT'
@@ -144,7 +144,7 @@ def generate_alter_statements(inferred_schema: dict, table_name: str, settings: 
             continue
 
         # Force zip codes to remain TEXT
-        if col in {billing_zip, shipping_zip} and pg_type in {'INTEGER', 'NUMERIC'}:
+        if col in {billing_zip, shipping_zip} and pg_type in {'INTEGER', 'NUMERIC', 'BIGINT'}:
             continue
 
         # Sale date can only become TIMESTAMP

@@ -16,6 +16,7 @@ def activity_salesIngestor_cleanup(settings: dict):
     logger.info(msg=f"[LOG] Cleaning up staging table {qtbl(table_name)}")
 
     with db() as conn:
-        conn = conn.execution_options(isolation_level="AUTOCOMMIT")
         # Drop without a trailing semicolon, via SQLAlchemy’s text()
-        conn.execute(text(f"DROP TABLE IF EXISTS {qtbl(table_name)}"))
+        conn.execute(text(f"DROP TABLE IF EXISTS {qtbl(table_name)};"))
+        conn.execute(text(f"DROP TABLE IF EXISTS {table_name};"))
+        conn.commit()

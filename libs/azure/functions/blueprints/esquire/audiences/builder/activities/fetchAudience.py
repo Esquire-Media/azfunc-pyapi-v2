@@ -64,11 +64,11 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
             "processes": list(
                 map(
                     lambda row: {
-                        "id": row.id,
-                        "sort": row.sort,
-                        "outputType": row.convertTo.title,
-                        "filterBy": row.filterBy,
-                        "customCoding": row.customCoding,
+                    "id":           row.id,
+                    "sort":         row.order,
+                    "outputType":   row.related_TargetingProcessingStep.convertTo,
+                    "filterBy":     row.related_TargetingProcessingStep.filterBy,
+                    "customCoding": row.related_TargetingProcessingStep.customCode,
                     },
                     result.Audience.collection_AudienceProcess,
                 )

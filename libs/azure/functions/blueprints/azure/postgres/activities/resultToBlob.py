@@ -4,6 +4,7 @@ from azure.durable_functions import Blueprint
 from libs.data import from_bind
 from libs.utils.azure_storage import get_blob_sas, init_blob_client
 import os, pandas as pd, uuid
+import logging
 
 bp = Blueprint()
 
@@ -24,7 +25,7 @@ def activity_azurePostgres_resultToBlob(ingress: dict) -> int:
     #     "limit": 100,
     #     "offset": 0
     # }
-
+    logging.info("[LOG] Getting primary query results")
     # Establish a session with the database using the provided bind information.
     df = pd.read_sql_query(
         sql="{} LIMIT {} OFFSET {}".format(
@@ -34,6 +35,13 @@ def activity_azurePostgres_resultToBlob(ingress: dict) -> int:
     )
 
     # Initialize Azure Blob client for the output blob using the extracted connection string
+    logging.info(f'[LOG] Sending to output blob via:\nConn str: {os.environ[ingress["destination"]["conn_str"]]}')
+    logging.info(f'[LOG] Container name: {ingress["destination"]["container_name"]}')
+    logging.info('[LOG] Blob name: ' + "{}/{}.{}".format(
+            ingress["destination"]["blob_prefix"],
+            uuid.uuid4().hex,
+            ingress["destination"]["format"].lower(),
+        ))
     output_blob = init_blob_client(
         conn_str=os.environ[ingress["destination"]["conn_str"]],
         container_name=ingress["destination"]["container_name"],

@@ -3,6 +3,7 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 from azure.durable_functions import Blueprint
 import orjson as json
+import logging
 
 bp = Blueprint()
 
@@ -75,6 +76,8 @@ def orchestrator_esquireAudiences_processingSteps(
     for step, process in enumerate(
         processes := ingress["audience"].get("processes", [])
     ):
+        logging.info(f"[LOG] Step: {step}")
+        logging.info(f"[LOG] Processing step {process}")
         # Determine the input type and source URLs for the current step
         inputType = (
             processes[step - 1]["outputType"]  # Use previous step's output type
@@ -92,24 +95,27 @@ def orchestrator_esquireAudiences_processingSteps(
             )
 
         # Prepare custom coding for the first step or as specified
-        if not step:
-            custom_coding = {
-                "request": {
-                    "dateStart": {
-                        "date_add": [
-                            {"now": []},
-                            0 - int(ingress["audience"]["TTL_Length"]),
-                            ingress["audience"]["TTL_Unit"],
-                        ]
-                    },
-                    "dateEnd": {"date_add": [{"now": []}, -2, "days"]},
-                }
-            }
-        elif process.get("customCoding", False):
-            try:
-                custom_coding = json.loads(process["customCoding"])
-            except:
-                custom_coding = {}
+        # if not step:
+        #     custom_coding = {
+        #         "request": {
+        #             "dateStart": {
+        #                 "date_add": [
+        #                     {"now": []},
+        #                     0 - int(ingress["audience"]["TTL_Length"]),
+        #                     ingress["audience"]["TTL_Unit"],
+        #                 ]
+        #             },
+        #             "dateEnd": {"date_add": [{"now": []}, -2, "days"]},
+        #         }
+        #     }
+        # elif process.get("customCoding", False):
+        try:
+            logging.info("[LOG] Trying to get custom coding")
+            custom_coding = json.loads(process["customCoding"])
+            logging.info(f"[LOG] Successfully got custom Coding: {custom_coding}")
+        except Exception as e:
+            custom_coding = {}
+            logging.info(f"[LOG] Failed to get custom coding. Exception: {e}")
 
         # Set up the egress data structure for the current step
         egress = {
@@ -136,18 +142,36 @@ def orchestrator_esquireAudiences_processingSteps(
             "custom_coding": custom_coding,
         }
 
+        # convert ids to names if needed
+        output_type_ids = {
+            'cm47df42v002nrwunycaw83uq':'addresses',
+            'clyohqf4v0000me5qxa2cmh27':'polygons',
+            'cm47dfpds001xxgq7yidctx8z':'deviceids'
+        }
+        if process["outputType"] in output_type_ids.keys():
+            process["outputType"] = output_type_ids[process["outputType"]]
+
         # Process the data based on the input and output types
+        # logging.info(f"[LOG] Egress: {egress}")
+        logging.info(f"[LOG] Input Type: {inputType}")
+        logging.info(f"[LOG] Output Type: {process['outputType']}")
+
         match inputType:
             case "addresses":
                 match process["outputType"]:
                     case "addresses":  # addresses -> addresses
-                        if process.get(custom_coding, {}).get('find_neighbors', False):
+                        logging.info("[LOG] Addresses output type")
+                        logging.info(f'[LOG] Custom Coding: {egress["custom_coding"]}')
+                        logging.info(f'[LOG] Custom Coding Get: {egress["custom_coding"].get("neighbors_query", False)}')
+                        if egress["custom_coding"].get("neighbors_query", False):
+                            logging.info("[LOG] neighbors custom coding")
                             # No specific processing required
                             process["results"] = yield context.call_sub_orchestrator(
-                                "orchestrator_esquireAudienceSteps_addresses2neighbors",
+                                "orchestrator_esquireAudiencesSteps_addresses2neighbors",
                                 egress,
                             )
                         else:
+                            logging.info("[LOG] No Neighbor Logic used")
                             pass
                     case "device_ids":  # addresses -> deviceids
                         process["results"] = yield context.call_sub_orchestrator(

@@ -6,7 +6,7 @@ from azure.durable_functions import Blueprint
 
 bp = Blueprint()
 
-@bp.activity_trigger(input_name="ingress")
+@bp.activity_trigger(input_name="payload")
 def activity_esquireAudienceBuilder_writeBlob(payload: dict) -> str:
     records = payload["records"]
     container = payload["container"]

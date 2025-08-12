@@ -89,14 +89,15 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
                 build,
             )
         except Exception as e:
-            # if any errors are caught, post an error card to teams tagging Ryan
-            yield context.call_activity(
-                "activity_microsoftGraph_postErrorCard",
-                {
-                    "instance_id": context.instance_id,
-                    "error": f"{type(e).__name__} : {e}"[:1000],
-                },
-            )
+            raise e
+            # # if any errors are caught, post an error card to teams tagging Ryan
+            # yield context.call_activity(
+            #     "activity_microsoftGraph_postErrorCard",
+            #     {
+            #         "instance_id": context.instance_id,
+            #         "error": f"{type(e).__name__} : {e}"[:1000],
+            #     },
+            # )
 
     # Calculate the next timer for the next scheduled run
     context.set_custom_status(

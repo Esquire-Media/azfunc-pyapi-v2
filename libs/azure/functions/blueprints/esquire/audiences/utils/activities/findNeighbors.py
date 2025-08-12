@@ -3,44 +3,48 @@ from azure.durable_functions import Blueprint
 import os
 from libs.utils.esquire.neighbors.logic_async import load_estated_data_partitioned_blob, find_neighbors_for_street
 from io import StringIO
+from azure.storage.blob import BlobClient
 import csv
 from azure.storage.blob import BlobServiceClient
 import pandas as pd
+import logging
 
 bp = Blueprint()
 
-
 @bp.activity_trigger(input_name="ingress")
-async def activity_esquireAudiencesBuilder_findNeighbors(ingress: dict):
+async def activity_esquireAudiencesNeighbors_findNeighbors(ingress: dict):
+
     city = ingress["city"].strip().lower().replace(" ", "_")
     state = ingress["state"].strip().upper()
     zip_code = ingress["zip"].strip()
-    input_blob_url = ingress["inputBlob"]
-    n_per_side = ingress.get("n_per_side", 100)
-    same_side_only = ingress.get("same_side_only", True)
+    source_urls = ingress.get("source_urls", [])
+    n_per_side = ingress.get("n_per_side")
+    same_side_only = ingress.get("same_side_only")
 
-    # Parse blob URL
-    blob_parts = input_blob_url.split("/")
-    container = blob_parts[3]
-    blob_name = "/".join(blob_parts[4:])
+    logging.info(f"[LOG] Finding neighbors for {city}, {state}, {zip_code} across {len(source_urls)} url(s)")
 
-    # Set up blob client
-    blob_service = BlobServiceClient.from_connection_string(os.environ["AzureWebJobsStorage"])
-    blob_client = blob_service.get_blob_client(container=container, blob=blob_name)
-    blob_data = blob_client.download_blob().readall().decode("utf-8")
-
-    # Filter addresses in this partition
+    # Aggregate & filter addresses for this partition from ALL sources
     addresses = []
-    reader = csv.DictReader(StringIO(blob_data))
-    for row in reader:
-        if (
-            row.get("city", "").strip().lower() == city and
-            row.get("state", "").strip().upper() == state and
-            row.get("zipCode", "").strip() == zip_code
-        ):
-            addresses.append(row)
+    for url in source_urls:
+        logging.info(f"[LOG] Neighbors for url {url}")
+        try:
+            blob_client = BlobClient.from_blob_url(url)
+            csv_bytes = blob_client.download_blob().readall()
+        except Exception as e:
+            logging.warning(f"[LOG] Failed to read {url}: {e}")
+            continue
+        reader = csv.DictReader(StringIO(csv_bytes.decode("utf-8")))
+        for row in reader:
+            if (
+                row.get("city_name", "").strip().lower() == city and
+                row.get("state_abbreviation", "").strip().upper() == state and
+                row.get("zipcode", "").strip() == zip_code
+            ):
+                addresses.append(row)
+                
 
     if not addresses:
+        logging.info(f"[LOG] No addresses for {city}, {state}, {zip_code}")
         return []
 
     # Load estated data for this partition
@@ -48,10 +52,13 @@ async def activity_esquireAudiencesBuilder_findNeighbors(ingress: dict):
         estated_data = await load_estated_data_partitioned_blob(
             f"estated_partition_testing/state={state}/zip_code={zip_code}/city={city}/"
         )
+        logging.info("[LOG] Loaded estated")
     except Exception as e:
+        logging.info("[LOG] Failed to load estated")
         return None
     
     if estated_data.empty:
+        logging.info("[LOG] Estated pull is empty")
         return []
 
     # Run neighbor matching
@@ -62,6 +69,7 @@ async def activity_esquireAudiencesBuilder_findNeighbors(ingress: dict):
         ]
         if street_data.empty:
             continue
+        street_data = street_data.rename(columns={'primary_number':'street_number'}, errors='ignore')
 
         neighbors = find_neighbors_for_street(
             street_data, street_addresses, n_per_side, same_side_only
@@ -70,6 +78,8 @@ async def activity_esquireAudiencesBuilder_findNeighbors(ingress: dict):
             group_results.append(neighbors)
 
     if group_results:
-        return pd.concat(group_results, ignore_index=True)
+        logging.info("[LOG] Got group results")
+        return pd.concat(group_results, ignore_index=True).to_dict(orient="records")
     else:
+        logging.info("[LOG] No group results")
         return None

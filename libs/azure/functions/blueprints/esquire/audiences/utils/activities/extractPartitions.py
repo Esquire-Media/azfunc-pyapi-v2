@@ -2,31 +2,49 @@ import requests
 import csv
 from io import StringIO
 from azure.durable_functions import Blueprint
+from azure.storage.blob import BlobClient
+import logging
 
 bp = Blueprint()
 
 @bp.activity_trigger(input_name="ingress")
-def activity_esquireAudienceBuilder_extractPartitions(ingress: dict) -> list[str]:
+def activity_esquireAudiencesNeighbors_extractPartitions(ingress: dict) -> list[str]:
 
-    url = ingress["url"]
+    urls = ingress.get("source_urls", [])
+    # logging.info(f"[LOG] Source urls: {urls}")
+    if not urls:
+        # logging.info(f"[LOG] No urls found.")
+        return []
     
-    response = requests.get(url)
-    response.raise_for_status()
-
     seen = set()
     out = []
-    csv_file = StringIO(response.text)
-    reader = csv.DictReader(csv_file)
 
-    for row in reader:
-        city = row.get("city")
-        state = row.get("state")
-        zip_code = row.get("zipCode")
-        if city and state and zip_code:
+    for url in urls:
+        # logging.info(f"[LOG] url: {url}")
+        try:
+            blob_client = BlobClient.from_blob_url(url)
+            csv_bytes = blob_client.download_blob().readall()
+        except Exception as e:
+            # logging.warning(f"[LOG] Failed to read {url}: {e}")
+            continue
+        reader = csv.DictReader(StringIO(csv_bytes.decode("utf-8")))
+
+        for row in reader:
+            city = row.get("city_name")
+            state = row.get("state_abbreviation")
+            zip_code = row.get("zipcode")
+
+            if not(city and state and zip_code):
+                # logging.info(f"[LOG] not all parts found: {city}; {state}; {zip_code}")
+                continue
+
             key = (city.lower().strip(), state.upper().strip(), zip_code.strip())
-            if key not in seen:
-                out.append({"city": city, "state": state, "zip": zip_code})
-                seen.add(key)
+            if key in seen:
+                continue
+
+            out.append({"city": city, "state": state, "zip": zip_code})
+            seen.add(key)
+            # logging.info(f"[LOG] Added {key}")
 
 
     return out

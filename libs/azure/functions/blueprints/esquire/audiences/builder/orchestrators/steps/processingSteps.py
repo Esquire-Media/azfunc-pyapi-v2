@@ -142,15 +142,6 @@ def orchestrator_esquireAudiences_processingSteps(
             "custom_coding": custom_coding,
         }
 
-        # convert ids to names if needed
-        output_type_ids = {
-            'cm47df42v002nrwunycaw83uq':'addresses',
-            'clyohqf4v0000me5qxa2cmh27':'polygons',
-            'cm47dfpds001xxgq7yidctx8z':'deviceids'
-        }
-        if process["outputType"] in output_type_ids.keys():
-            process["outputType"] = output_type_ids[process["outputType"]]
-
         # Process the data based on the input and output types
         # logging.info(f"[LOG] Egress: {egress}")
         logging.info(f"[LOG] Input Type: {inputType}")

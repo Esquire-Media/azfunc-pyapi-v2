@@ -66,7 +66,7 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
                     lambda row: {
                     "id":           row.id,
                     "sort":         row.order,
-                    "outputType":   row.related_TargetingProcessingStep.convertTo,
+                    "outputType":   row.related_TargetingProcessingStep.related_TargetingDataType.title.lower(),
                     "filterBy":     row.related_TargetingProcessingStep.filterBy,
                     "customCoding": row.related_TargetingProcessingStep.customCode,
                     },

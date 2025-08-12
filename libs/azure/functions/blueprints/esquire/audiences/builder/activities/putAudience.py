@@ -42,4 +42,7 @@ def activity_esquireAudiencesBuilder_putAudience(ingress: dict):
     )
     session.commit()
 
+    import logging
+    logging.info("[LOG] Audience put into keystone")
+
     return None

@@ -25,7 +25,8 @@ async def onspot_activity_submit(ingress: dict):
         The response from the OnSpotAPI as a JSON object.
     """
     data = OnSpot[(ingress["endpoint"], "post")](ingress["request"])
-
+    import logging
+    logging.info(f"{data}")
     return (
         [d.model_dump() for d in data] if isinstance(data, list) else data.model_dump()
     )

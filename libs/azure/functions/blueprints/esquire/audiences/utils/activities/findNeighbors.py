@@ -14,19 +14,18 @@ bp = Blueprint()
 @bp.activity_trigger(input_name="ingress")
 async def activity_esquireAudiencesNeighbors_findNeighbors(ingress: dict):
 
-    city = ingress["city"].strip().lower().replace(" ", "_")
+    city = ingress["city"].strip().upper().replace(" ", "_")
     state = ingress["state"].strip().upper()
     zip_code = ingress["zip"].strip()
     source_urls = ingress.get("source_urls", [])
     n_per_side = ingress.get("n_per_side")
     same_side_only = ingress.get("same_side_only")
 
-    logging.info(f"[LOG] Finding neighbors for {city}, {state}, {zip_code} across {len(source_urls)} url(s)")
+    # logging.info(f"[LOG] Finding neighbors for {city}, {state}, {zip_code} across {len(source_urls)} url(s)")
 
     # Aggregate & filter addresses for this partition from ALL sources
     addresses = []
     for url in source_urls:
-        logging.info(f"[LOG] Neighbors for url {url}")
         try:
             blob_client = BlobClient.from_blob_url(url)
             csv_bytes = blob_client.download_blob().readall()
@@ -36,7 +35,7 @@ async def activity_esquireAudiencesNeighbors_findNeighbors(ingress: dict):
         reader = csv.DictReader(StringIO(csv_bytes.decode("utf-8")))
         for row in reader:
             if (
-                row.get("city_name", "").strip().lower() == city and
+                row.get("city_name", "").strip().upper() == city and
                 row.get("state_abbreviation", "").strip().upper() == state and
                 row.get("zipcode", "").strip() == zip_code
             ):
@@ -44,7 +43,7 @@ async def activity_esquireAudiencesNeighbors_findNeighbors(ingress: dict):
                 
 
     if not addresses:
-        logging.info(f"[LOG] No addresses for {city}, {state}, {zip_code}")
+        # logging.info(f"[LOG] No addresses for {city}, {state}, {zip_code}")
         return []
 
     # Load estated data for this partition
@@ -52,13 +51,11 @@ async def activity_esquireAudiencesNeighbors_findNeighbors(ingress: dict):
         estated_data = await load_estated_data_partitioned_blob(
             f"estated_partition_testing/state={state}/zip_code={zip_code}/city={city}/"
         )
-        logging.info("[LOG] Loaded estated")
     except Exception as e:
-        logging.info("[LOG] Failed to load estated")
+        # logging.info("[LOG] Failed to load estated")
         return None
     
     if estated_data.empty:
-        logging.info("[LOG] Estated pull is empty")
         return []
 
     # Run neighbor matching
@@ -69,17 +66,17 @@ async def activity_esquireAudiencesNeighbors_findNeighbors(ingress: dict):
         ]
         if street_data.empty:
             continue
-        street_data = street_data.rename(columns={'primary_number':'street_number'}, errors='ignore')
+        street_data = street_data
 
         neighbors = find_neighbors_for_street(
-            street_data, street_addresses, n_per_side, same_side_only
+            street_data, street_addresses.rename(columns={'primary_number':'street_number'}, errors='ignore'), n_per_side, same_side_only
         )
         if not neighbors.empty:
             group_results.append(neighbors)
 
     if group_results:
-        logging.info("[LOG] Got group results")
-        return pd.concat(group_results, ignore_index=True).to_dict(orient="records")
+        # logging.info("[LOG] Got group results")
+        return pd.concat(group_results, ignore_index=True)[['address', 'city', 'state', 'zipCode', 'plus4Code']].to_dict(orient="records")
     else:
-        logging.info("[LOG] No group results")
+        # logging.info("[LOG] No group results")
         return None

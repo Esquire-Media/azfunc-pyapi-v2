@@ -160,29 +160,30 @@ async def load_parquet_from_blob(container_client: ContainerClient, blob_dir_pat
     pandas.DataFrame
         The concatenated DataFrame of all parquet files in the given directory.
     """
-    blobs = (b async for b in container_client.list_blobs(name_starts_with=blob_dir_path))
-    
-    async def load_blob(blob):
-        if blob.size == 0:
-            return None
-        blob_client = container_client.get_blob_client(blob)
-        df = pd.read_parquet(
-            BytesIO(await (await blob_client.download_blob()).readall()),
-            columns=["street_number", "street_name", "city", "state", "zip_code"],
-        )
-        await blob_client.close()
-        return df.dropna(subset=["street_number", "street_name"], how="any") if not df.empty else None
+    cols = ["street_number", "street_name", "formatted_street_address", "city", "state", "zip_code", "zip_plus_four_code"]
+    dfs = []
 
-    # Using generator to load blobs to avoid keeping all in memory at once
-    dataframes = [await load_blob(blob) async for blob in blobs]
-    non_empty_dataframes = [df for df in dataframes if df is not None]
+    async for blob in container_client.list_blobs(name_starts_with=blob_dir_path):
+        if getattr(blob, "size", 1) == 0:
+            continue
 
-    await container_client.close()
+        # BlobClient supports async context manager – this ensures its aiohttp session is closed.
+        async with container_client.get_blob_client(blob=blob.name) as blob_client: 
+            downloader = await blob_client.download_blob()
+            try:
+                data = await downloader.readall()
+            finally:
+                # Some SDK versions require explicit close() on the downloader to release the connection.
+                if hasattr(downloader, "close"):
+                    await downloader.close()
 
-    if non_empty_dataframes:
-        return pd.concat(non_empty_dataframes, ignore_index=True)
-    else:
-        return pd.DataFrame()
+        df = pd.read_parquet(BytesIO(data), columns=cols)
+        if not df.empty:
+            df = df.dropna(subset=["street_number", "street_name"], how="any")
+            if not df.empty:
+                dfs.append(df)
+
+    return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame(columns=cols)
 
 
 async def load_estated_data_partitioned_blob(table_path):
@@ -199,12 +200,18 @@ async def load_estated_data_partitioned_blob(table_path):
     pandas.DataFrame
         The formatted estated data.
     """    
-    container_client = ContainerClient.from_connection_string(
-        os.environ["DATALAKE_CONN_STR"], container_name="general"
-    )
-    blob_df = (await load_parquet_from_blob(container_client, table_path)).drop_duplicates()
-    blob_df["street_number"] = pd.to_numeric(
-        blob_df["street_number"], errors="coerce"
-    ).astype("Int64")
-    blob_df["street_name"] = blob_df["street_name"].astype("str")
+    conn_str = os.environ["DATALAKE_CONN_STR"]
+    async with ContainerClient.from_connection_string(conn_str, container_name="general") as container:
+        blob_df = await load_parquet_from_blob(container, table_path)
+        # rename for the onspot orchestrator
+        blob_df = blob_df.rename(columns={
+            'formatted_street_address':'address',
+            'zip_code':'zipCode',
+            'zip_plus_four_code':'plus4Code'
+            })
+
+    if not blob_df.empty:
+        blob_df = blob_df.drop_duplicates()
+        blob_df["street_number"] = pd.to_numeric(blob_df["street_number"], errors="coerce").astype("Int64")
+        blob_df["street_name"] = blob_df["street_name"].astype("str")
     return blob_df

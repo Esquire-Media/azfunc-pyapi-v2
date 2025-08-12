@@ -80,6 +80,8 @@ def activity_esquireAudienceBuilder_finalize(ingress: dict):
                 column = c
                 break
 
+    import logging
+    logging.info("[LOG] Writing to blob")
     # Process the data: filter, rename, remove duplicates, and ensure UUID format
     output_blob.upload_blob(
         pd.read_csv(
@@ -108,6 +110,9 @@ def activity_esquireAudienceBuilder_finalize(ingress: dict):
         permission=BlobSasPermissions(read=True),
         expiry=datetime.utcnow() + relativedelta(days=2),
     )
+    logging.info("[LOG] Wrote to blob" + "{}/{}".format(
+        ingress["destination"]["blob_prefix"],
+        os.path.basename(input_blob.blob_name)))
 
     # Return the URL of the destination blob with the SAS token
     return unquote(output_blob.url) + "?" + sas_token

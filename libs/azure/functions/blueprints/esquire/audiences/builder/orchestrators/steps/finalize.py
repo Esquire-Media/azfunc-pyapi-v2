@@ -2,7 +2,7 @@
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 import orjson as json
-
+import logging
 bp = Blueprint()
 
 
@@ -127,6 +127,7 @@ def orchestrator_esquireAudiences_finalize(
                 {**egress, "source_urls": source_urls},
             )
 
+    logging.info("[LOG] Did final conversion to deviceids")
     # Finalize and store the results
     ingress["results"] = yield context.task_all(
         [
@@ -138,6 +139,7 @@ def orchestrator_esquireAudiences_finalize(
         ]
     )
     
+    logging.info("[LOG] Getting MAID count")
     # Count results
     counts = yield context.task_all([
         context.call_activity(
@@ -146,11 +148,12 @@ def orchestrator_esquireAudiences_finalize(
         )
         for source_url in ingress["results"]
     ])
+    logging.info("[LOG] Putting audience")
     ingress["audience"]["count"] = sum(counts)
     yield context.call_activity(
         "activity_esquireAudiencesBuilder_putAudience",
         ingress
     )
-
+    logging.info("[LOG] Done finalizing.")
     # Return the updated ingress data
     return ingress

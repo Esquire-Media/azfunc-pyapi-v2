@@ -72,6 +72,8 @@ def orchestrator_esquireAudiences_processingSteps(
 
     ingress = context.get_input()
 
+    ingress["base_prefix"]   = str(ingress["working"]["blob_prefix"]).strip("/")
+
     # Loop through each processing step
     for step, process in enumerate(
         processes := ingress["audience"].get("processes", [])
@@ -118,22 +120,19 @@ def orchestrator_esquireAudiences_processingSteps(
             logging.info(f"[LOG] Failed to get custom coding. Exception: {e}")
 
         # Set up the egress data structure for the current step
+
         egress = {
             "working": {
                 **ingress["working"],
-                "blob_prefix": "{}/{}/{}/{}/working".format(
-                    ingress["working"]["blob_prefix"],
-                    ingress["instance_id"],
-                    ingress["audience"]["id"],
+                "blob_prefix": "{}/{}/working".format(
+                    ingress['base_prefix'],
                     step,
                 ),
             },
             "destination": {
                 **ingress["working"],
-                "blob_prefix": "{}/{}/{}/{}".format(
-                    ingress["working"]["blob_prefix"],
-                    ingress["instance_id"],
-                    ingress["audience"]["id"],
+                "blob_prefix": "{}/{}".format(
+                    ingress['base_prefix'],
                     step,
                 ),
             },

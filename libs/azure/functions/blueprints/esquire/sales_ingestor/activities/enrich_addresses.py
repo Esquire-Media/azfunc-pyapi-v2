@@ -313,7 +313,8 @@ def upsert_address_attributes(cleaned: pd.DataFrame):
     # 4) Build the list of EAV rows
     cleaned["address_id"]    = cleaned["address_id"].astype(str)
     for col in ATTRIBUTE_NAMES:
-        cleaned[col] = cleaned[col].astype(str)
+        if col in cleaned.columns:
+            cleaned[col] = cleaned[col].astype(str)
     cleaned['zipcode'] = cleaned['zipcode'].apply(format_zipcode)
 
     eav_rows = []

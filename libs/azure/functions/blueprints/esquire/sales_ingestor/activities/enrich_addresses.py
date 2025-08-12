@@ -12,6 +12,7 @@ from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.generate_ids
 )
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import qtbl
 import os
+from math import ceil
 import logging
 logger = logging.getLogger("salesIngestor.logger")
 logger.setLevel(logging.INFO)
@@ -337,11 +338,20 @@ def upsert_address_attributes(cleaned: pd.DataFrame):
     # Now turn it back into a list
     eav_rows = list(unique.values())
 
-    # 5) One big insert
-    stmt = pg_insert(EAV).values(eav_rows)
-    upsert = stmt.on_conflict_do_update(
-      index_elements=['entity_id','attribute_id'],
-      set_={'value_string': stmt.excluded.value_string}
-    )
+    # compute a safe batch size: 3 bind params per row; leave headroom
+    cols_per_row = 3
+    max_params = 65000
+    batch_size = max(1000, (max_params // cols_per_row) - 1000)  # ≈ 20k
+
     with _ENGINE.begin() as conn:
-        conn.execute(upsert)
+        for chunk in _chunks(eav_rows, batch_size):
+            stmt = pg_insert(EAV).values(chunk)
+            upsert = stmt.on_conflict_do_update(
+                index_elements=['entity_id', 'attribute_id'],
+                set_={'value_string': stmt.excluded.value_string}
+            )
+            conn.execute(upsert)
+
+def _chunks(lst, size):
+    for i in range(0, len(lst), size):
+        yield lst[i:i+size]

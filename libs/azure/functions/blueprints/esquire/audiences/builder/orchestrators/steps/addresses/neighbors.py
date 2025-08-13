@@ -36,38 +36,21 @@ def orchestrator_esquireAudiencesSteps_addresses2neighbors(
 
     results = yield context.task_all(tasks)
 
-    # Step 3: Merge + dedupe
-    # logging.info(f"[LOG] Merging output and deduping from {len(results)} result groups")
-    combined = [rec for r in results if r for rec in r]  # flatten list[list[dict]]
-    seen, deduped = set(), []
-    for rec in combined:
-        key = (rec.get("address"), rec.get("city"), rec.get("zipCode"))
-        if key not in seen:
-            seen.add(key)
-            deduped.append(rec)
+    # Step 3: fan-out to write each records batch to blob
+    write_tasks = [
+        context.call_activity(
+            "activity_write_blob",
+            {
+                "records": recs,
+                "container": ingress["destination"]["container_name"],
+                "blob_prefix": f"{ingress['destination']['blob_prefix']}",
+                "conn_setting": "AzureWebJobsStorage",  # name of setting, not the raw conn string
+                "preflight": True,
+            },
+        )
+        for recs in results
+    ]
 
-    # Step 4: Write output
-    # blob_id = uuid.uuid4().hex
-    # logging.info(f"[LOG] Writing output to {ingress['destination']['blob_prefix']}/blob_id")
-    # blob_name = f"{ingress['destination']['blob_prefix']}/{blob_id}"
-    # out_url = yield context.call_activity("activity_esquireAudienceBuilder_writeBlob", 
-    #     {
-    #         "records": deduped,
-    #         "container": ingress["destination"]["container_name"],
-    #         "blobName": blob_name
-    #     }
-    # )
-    out_url = yield context.call_activity(
-    "activity_write_blob",
-        {
-            "records": deduped,
-            "container": ingress["destination"]["container_name"],
-            "blob_prefix": f"{ingress['destination']['blob_prefix']}",   # or whatever your layout is
-            "conn_str": "AzureWebJobsStorage",
-            "preflight": True,  # optional
-        },
-    )
+    out_urls = yield context.task_all(write_tasks) 
 
-    logging.info(f"Output url: {out_url}")
-
-    return [out_url]
+    return out_urls

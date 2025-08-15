@@ -256,6 +256,7 @@ def activity_salesIngestor_eavTransform(settings: dict):
             data_type,
             column_value
         FROM unpivoted_attributes
+        WHERE column_value IS NOT NULL
     )
 
     -- 8. Insert final values

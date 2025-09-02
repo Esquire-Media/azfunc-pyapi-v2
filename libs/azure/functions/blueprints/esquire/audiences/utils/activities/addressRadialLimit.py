@@ -43,7 +43,8 @@ def filter_by_radius(sales_records, owned_locations, radius_miles):
     sales_array = np.radians([c for _, c in sales_clean])
     owned_array = np.radians(owned_clean)
 
-    radius_radians = radius_miles / 3958.8  # convert to radians for haversine
+    earth_radius_miles = 3958.8
+    radius_radians = radius_miles / earth_radius_miles  # convert to radians for haversine
 
     tree = BallTree(owned_array, metric="haversine")
     matches = tree.query_radius(sales_array, r=radius_radians)
@@ -55,5 +56,5 @@ def load_csv_from_blob(blob_url: str) -> list:
     blob = BlobClient.from_blob_url(blob_url)
     raw_bytes = blob.download_blob().readall()
     text = raw_bytes.decode("utf-8")
-    
+
     return list(csv.DictReader(StringIO(text)))

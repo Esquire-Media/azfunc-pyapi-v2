@@ -135,7 +135,8 @@ def orchestrator_esquireAudiences_primaryData(
                             **ingress,
                             **MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]],
                             "tenant_id": extract_tenant_id_from_datafilter(ingress["audience"]["dataFilter"]),
-                            "fields": extract_fields_from_dataFilter(ingress["audience"]["dataFilter"])
+                            "fields": extract_fields_from_dataFilter(ingress["audience"]["dataFilter"]),
+                            "utc_now": context.current_utc_datetime
                             }
                     )
                     # logging.info(f"generateSalesAudiencePrimaryQuery returned query: {ingress['query']!r}")

@@ -5,6 +5,7 @@ from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
     jsonlogic_to_sql,
 )
 import logging
+from datetime import datetime, timedelta, timezone
 
 bp = Blueprint()
 
@@ -57,6 +58,12 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
 
     tenant_lit = _sql_lit(tenant_id)
     addr_attr_name_lit = _sql_lit(addr_attr_name)
+
+    # get 30 days prior to run (based on orchestrator context utc datetime for replay)
+    days_back = 30
+    utc_now = ingress.get("utc_now")
+    since_dt = utc_now - timedelta(days=days_back)
+    since_utc_lit = _sql_lit(since_dt.isoformat())  
 
     # ---------- dynamic LATERALs for tx & li ----------
     def _build_attrs_lateral(alias: str, entity_ref: str) -> str:
@@ -226,6 +233,16 @@ tx AS (
   CROSS JOIN etypes t
   WHERE e.entity_type_id = t.transaction_type_id
     AND e.parent_entity_id IN (SELECT id FROM batches)
+    AND EXISTS (
+      SELECT 1
+      FROM sales.entity_attribute_values eav
+      JOIN sales.attributes a ON a.id = eav.attribute_id
+      LEFT JOIN sales.client_header_map chm
+        ON chm.attribute_id = a.id AND chm.tenant_id = '{tenant_lit}'
+      WHERE eav.entity_id = e.id
+        AND COALESCE(chm.mapped_header, a.name) = 'sale_date'
+        AND eav.value_ts > '{since_utc_lit}'::timestamptz
+    )
 ),
 line_items AS (
   SELECT li.id AS line_item_id, li.parent_entity_id AS transaction_id

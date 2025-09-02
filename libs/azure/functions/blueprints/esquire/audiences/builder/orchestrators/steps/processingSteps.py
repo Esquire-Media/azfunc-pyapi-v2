@@ -160,6 +160,12 @@ def orchestrator_esquireAudiences_processingSteps(
                                 "orchestrator_esquireAudiencesSteps_addresses2neighbors",
                                 egress,
                             )
+                        elif egress["custom_coding"].get("owned_locations_radius", False):
+                            logging.info("[LOG] Limiting addresses to radius around owned locations")
+                            process["results"] = yield context.call_sub_orchestrator(
+                                "orchestrator_esquireAudiencesSteps_ownedLocationRadius",
+                                egress
+                            )
                         else:
                             logging.info("[LOG] No Neighbor Logic used")
                             pass

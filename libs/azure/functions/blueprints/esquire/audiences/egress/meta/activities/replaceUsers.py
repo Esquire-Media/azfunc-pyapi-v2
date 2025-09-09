@@ -7,7 +7,7 @@ from libs.azure.functions.blueprints.esquire.audiences.egress.meta.utils import 
     initialize_facebook_api,
 )
 from libs.data import from_bind
-import math, pandas as pd, random
+import pandas as pd
 
 bp = Blueprint()
 
@@ -65,19 +65,7 @@ def activity_esquireAudienceMeta_customAudience_replaceUsers(ingress: dict):
                 )["deviceid"]
                 .apply(lambda x: str(x).lower())
                 .to_list(),
-                session={
-                    "session_id": ingress["batch"]["session"].get(
-                        "session_id", random.randint(0, 2**32 - 1)
-                    ),
-                    "estimated_num_total": ingress["batch"]["total"],
-                    "batch_seq": ingress["batch"]["sequence"] + 1,
-                    "last_batch_flag": (
-                        ingress["batch"]["sequence"]
-                        == math.ceil(
-                            ingress["batch"]["total"] // (ingress["batch"]["size"])
-                        )
-                    ),
-                },
+                session=ingress["batch"],
             )
             .json()
         )

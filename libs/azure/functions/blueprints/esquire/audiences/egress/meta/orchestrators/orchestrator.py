@@ -1,6 +1,8 @@
 # File path: libs/azure/functions/blueprints/esquire/audiences/meta/orchestrator.py
 
 from datetime import timedelta
+import hashlib
+import math
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 
 # Initialize a Blueprint object to define and manage functions
@@ -23,6 +25,9 @@ def meta_customaudience_orchestrator(
     """
     batch_size = 10000  # Define the batch size for processing audience data
     ingress = context.get_input()  # Get the audience ID from the input
+
+    sid_bytes = hashlib.sha256(context.instance_id.encode("utf-8")).digest()[:8]
+    session_id = (int.from_bytes(sid_bytes, "big") % ((1 << 63) - 1)) + 1
 
     # Fetch audience definition from the database
     try:
@@ -128,8 +133,16 @@ def meta_customaudience_orchestrator(
     )
 
     # Add users to the Meta audience
-    session = {}
-    for sequence, offset in enumerate(range(0, response[0]["count"], batch_size)):
+    total = response[0]["count"]
+    for sequence, offset in enumerate(range(0, total, batch_size)):
+        # correctly flag the last batch
+        is_last = (sequence + 1) == math.ceil(total / batch_size)
+        session_payload = {
+            "session_id": session_id,
+            "estimated_num_total": total,
+            "batch_seq": sequence + 1,
+            "last_batch_flag": is_last,
+        }
         while True:
             context.set_custom_status("Adding users to Meta Audience.")
             session = yield context.call_activity(
@@ -152,12 +165,7 @@ def meta_customaudience_orchestrator(
                             WHERE LEN(deviceid) = 36
                         """,
                     },
-                    "batch": {
-                        "session": session,
-                        "sequence": sequence,
-                        "size": batch_size,
-                        "total": response[0]["count"],
-                    },
+                    "batch": session_payload,
                 },
             )
             if session.get("error", False):

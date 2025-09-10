@@ -61,18 +61,6 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
                 "dataType": result.Audience.related_TargetingDataSource.dataType,
             },
             "dataFilter": jsonlogic_to_sql(result.Audience.dataFilter),
-            "processes": list(
-                map(
-                    lambda row: {
-                    "id":           row.id,
-                    "sort":         row.order,
-                    "outputType":   row.related_TargetingProcessingStep.related_TargetingDataType.title.lower(),
-                    "filterBy":     row.related_TargetingProcessingStep.filterBy,
-                    "customCoding": row.related_TargetingProcessingStep.customCode,
-                    },
-                    result.Audience.collection_AudienceProcess,
-                )
-            ),
         }
 
     return ingress

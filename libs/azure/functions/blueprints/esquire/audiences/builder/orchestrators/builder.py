@@ -48,15 +48,6 @@ def orchestrator_esquireAudiences_builder(
                 "dataType": dict,
             },
             "dataFilter": str,
-            "processes": [
-                {
-                    "id": str,
-                    "sort": str,
-                    "outputType": str,
-                    "filterBy": str,
-                    "customCoding": str,
-                }
-            ]
         },
     }
     """

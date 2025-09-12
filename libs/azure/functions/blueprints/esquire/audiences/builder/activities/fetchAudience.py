@@ -39,7 +39,6 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
         .options(
             lazyload(audience.related_Advertiser),
             lazyload(audience.related_TargetingDataSource),
-            lazyload(audience.collection_AudienceProcess),
         )
         .where(audience.id == ingress["id"])
     )

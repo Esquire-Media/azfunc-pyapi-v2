@@ -49,10 +49,13 @@ def orchestrator_esquireAudiences_processingSteps(
             "dataFilter": str,
             "processes": [
                 {
-                    "id": str,
-                    "sort": str,
-                    "outputType": str,
-                    "customCoding": str
+                    "steps": [
+                    {
+                        "kind": str,
+                        "{args}": str
+                    }
+                    ],
+                    "version":int
                 }
             ]
         },
@@ -76,10 +79,10 @@ def orchestrator_esquireAudiences_processingSteps(
 
     # Loop through each processing step
     for step, process in enumerate(
-        processes := ingress["audience"].get("processes", [])
+        processes := ingress["audience"].get("processing", {}).get("steps",[])
     ):
-        logging.info(f"[LOG] Step: {step}")
-        logging.info(f"[LOG] Processing step {process}")
+        logging.info(f"[LOG] Step: {step} - {process['kind']}")
+        process["outputType"] = processing_step_output_types(process["kind"])
         # Determine the input type and source URLs for the current step
         inputType = (
             processes[step - 1]["outputType"]  # Use previous step's output type
@@ -95,29 +98,6 @@ def orchestrator_esquireAudiences_processingSteps(
                     step - 1, inputType, process["outputType"]
                 )
             )
-
-        # Prepare custom coding for the first step or as specified
-        # if not step:
-        #     custom_coding = {
-        #         "request": {
-        #             "dateStart": {
-        #                 "date_add": [
-        #                     {"now": []},
-        #                     0 - int(ingress["audience"]["TTL_Length"]),
-        #                     ingress["audience"]["TTL_Unit"],
-        #                 ]
-        #             },
-        #             "dateEnd": {"date_add": [{"now": []}, -2, "days"]},
-        #         }
-        #     }
-        # elif process.get("customCoding", False):
-        try:
-            logging.info("[LOG] Trying to get custom coding")
-            custom_coding = json.loads(process["customCoding"])
-            logging.info(f"[LOG] Successfully got custom Coding: {custom_coding}")
-        except Exception as e:
-            custom_coding = {}
-            logging.info(f"[LOG] Failed to get custom coding. Exception: {e}")
 
         # Set up the egress data structure for the current step
 
@@ -138,7 +118,7 @@ def orchestrator_esquireAudiences_processingSteps(
             },
             "transform": [inputType, process["outputType"]],
             "source_urls": source_urls,
-            "custom_coding": custom_coding,
+            "process": process
         }
 
         # Process the data based on the input and output types
@@ -151,17 +131,14 @@ def orchestrator_esquireAudiences_processingSteps(
                 match process["outputType"]:
                     case "addresses":  # addresses -> addresses
                         logging.info("[LOG] Addresses output type")
-                        logging.info(f'[LOG] Custom Coding: {egress["custom_coding"]}')
-                        logging.info(f'[LOG] Custom Coding Get: {egress["custom_coding"].get("neighbors_query", False)}')
-                        if egress["custom_coding"].get("neighbors_query", False):
-                            logging.info("[LOG] neighbors custom coding")
+                        logging.info("[LOG] Step Type:" + egress.get("process",{}).get("kind",""))
+                        if egress["process"].get("kind", "") == "Neighbors":
                             # No specific processing required
                             process["results"] = yield context.call_sub_orchestrator(
                                 "orchestrator_esquireAudiencesSteps_addresses2neighbors",
                                 egress,
                             )
-                        elif egress["custom_coding"].get("owned_locations_radius", False):
-                            logging.info("[LOG] Limiting addresses to radius around owned locations")
+                        elif egress["process"].get("kind", "") == "Proximity":
                             process["results"] = yield context.call_sub_orchestrator(
                                 "orchestrator_esquireAudiencesSteps_ownedLocationRadius",
                                 egress
@@ -231,21 +208,11 @@ def orchestrator_esquireAudiences_processingSteps(
                         # No specific processing required
                         pass
 
-        # Apply custom coding filters if specified
-        if custom_coding.get("filter", False):
-            process["results"] = yield context.task_all(
-                [
-                    context.call_activity(
-                        "activity_esquireAudienceBuilder_filterResults",
-                        {
-                            "source": url,
-                            "destination": egress["working"],
-                            "filter": custom_coding["filter"],
-                        },
-                    )
-                    for url in process["results"]
-                ]
-            )
-
     # Return the updated ingress data after all processing steps
     return ingress
+
+def processing_step_output_types(step_kind):
+    return {
+        "Proximity":"addresses",
+        "Neighbors":"addresses"
+    }[step_kind]

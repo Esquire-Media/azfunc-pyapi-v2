@@ -40,53 +40,33 @@ def orchestrator_esquireAudiences_finalize(
                 "dataType": str
             },
             "dataFilter": str,
-            "processes": [
+            "processing": [
                 {
-                    "id": str,
-                    "sort": str,
-                    "outputType": str,
-                    "customCoding": str
+                    "steps": [
+                    {
+                        "kind": str,
+                        "{args}": str
+                    }
+                    ],
+                    "version":int
                 }
-            ],
-            "TTL_Length": str,
-            "TTL_Unit": str
+            ]
         },
         "results": [str]
     }
     """
 
     ingress = context.get_input()
-    steps = len(ingress["audience"].get("processes", []))
+    processing = ingress["audience"].get("processing", {})
+    steps = processing.get("steps", [])
+    has_steps = bool(steps)
+
     inputType = (
-        ingress["audience"]["processes"][-1]["outputType"]
-        if steps
-        else ingress["audience"]["dataSource"]["dataType"]
+        steps[-1]["outputType"] if has_steps else ingress["audience"]["dataSource"]["dataType"]
     )
     source_urls = (
-        ingress["audience"]["processes"][-1]["results"] if steps else ingress["results"]
+        steps[-1].get("results", []) if has_steps else ingress["results"]
     )
-
-    # Prepare custom coding for the first step or as specified
-    if not steps:
-        custom_coding = {
-            "request": {
-                "dateStart": {
-                    "date_add": [
-                        {"now": []},
-                        0 - int(ingress["audience"]["TTL_Length"]),
-                        ingress["audience"]["TTL_Unit"],
-                    ]
-                },
-                "dateEnd": {"date_add": [{"now": []}, -2, "days"]},
-            }
-        }
-    elif ingress["audience"]["processes"][-1].get("customCoding", False):
-        try:
-            custom_coding = json.loads(
-                ingress["audience"]["processes"][-1]["customCoding"]
-            )
-        except:
-            custom_coding = {}
 
     # Check if there are source URLs to process
     if not source_urls:
@@ -111,7 +91,6 @@ def orchestrator_esquireAudiences_finalize(
                 context.current_utc_datetime.isoformat(),
             ),
         },
-        "custom_coding": custom_coding,
     }
 
     # Perform final conversion to device IDs if necessary

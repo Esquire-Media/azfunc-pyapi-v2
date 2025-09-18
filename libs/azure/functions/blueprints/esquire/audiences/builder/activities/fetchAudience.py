@@ -7,6 +7,7 @@ from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
 from libs.data import from_bind
 from sqlalchemy import select
 from sqlalchemy.orm import Session, lazyload
+import logging
 
 bp = Blueprint()
 
@@ -60,6 +61,9 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
                 "dataType": result.Audience.related_TargetingDataSource.dataType,
             },
             "dataFilter": jsonlogic_to_sql(result.Audience.dataFilter),
+            "processing": result.Audience.processing
         }
+    
+    logging.warning(f"[LOG] ingress after fetch audience: {ingress}")
 
     return ingress

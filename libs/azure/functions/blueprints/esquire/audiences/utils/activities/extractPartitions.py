@@ -11,16 +11,16 @@ bp = Blueprint()
 def activity_esquireAudiencesNeighbors_extractPartitions(ingress: dict) -> list[str]:
 
     urls = ingress.get("source_urls", [])
-    # logging.info(f"[LOG] Source urls: {urls}")
+    # logging.warning(f"[LOG] Source urls: {urls}")
     if not urls:
-        # logging.info(f"[LOG] No urls found.")
+        # logging.warning(f"[LOG] No urls found.")
         return []
     
     seen = set()
     out = []
 
     for url in urls:
-        # logging.info(f"[LOG] url: {url}")
+        # logging.warning(f"[LOG] url: {url}")
         try:
             blob_client = BlobClient.from_blob_url(url)
             csv_bytes = blob_client.download_blob().readall()
@@ -35,7 +35,7 @@ def activity_esquireAudiencesNeighbors_extractPartitions(ingress: dict) -> list[
             zip_code = row.get("zipcode")
 
             if not(city and state and zip_code):
-                # logging.info(f"[LOG] not all parts found: {city}; {state}; {zip_code}")
+                # logging.warning(f"[LOG] not all parts found: {city}; {state}; {zip_code}")
                 continue
 
             key = (city.lower().strip(), state.upper().strip(), zip_code.strip())
@@ -44,7 +44,7 @@ def activity_esquireAudiencesNeighbors_extractPartitions(ingress: dict) -> list[
 
             out.append({"city": city, "state": state, "zip": zip_code})
             seen.add(key)
-            # logging.info(f"[LOG] Added {key}")
+            # logging.warning(f"[LOG] Added {key}")
 
 
     return out

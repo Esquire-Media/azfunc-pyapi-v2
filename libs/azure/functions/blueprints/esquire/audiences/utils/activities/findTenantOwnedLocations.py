@@ -17,7 +17,7 @@ def activity_esquireAudiencesNeighbors_findTenantOwnedLocations(ingress: dict) -
         ...
     ]
     """
-    tenant_id = ingress["tenant_id"] 
+    tenant_id = ingress['tenant_id']
     engine = create_engine(os.environ["DATABIND_SQL_KEYSTONE"]) 
 
     sql = text("""
@@ -75,4 +75,8 @@ def activity_esquireAudiencesNeighbors_findTenantOwnedLocations(ingress: dict) -
 
     with engine.connect() as conn:
         result = conn.execute(sql, {"tenant_id": tenant_id})
-        return [dict(row) for row in result.mappings().all()]
+        locs = [dict(row) for row in result.mappings().all()]
+
+    if not locs:
+        logging.warning("[LOG] No owned locations found.")
+    return locs

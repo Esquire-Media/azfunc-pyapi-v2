@@ -62,8 +62,11 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
     # get 30 days prior to run (based on orchestrator context utc datetime for replay)
     days_back = 30
     utc_now = ingress.get("utc_now")
-    since_dt = utc_now - timedelta(days=days_back)
-    since_utc_lit = _sql_lit(since_dt.isoformat())  
+    logging.warning(f"[LOG] utc_now: {utc_now}")
+    since_dt = datetime.strptime(utc_now, "%Y-%m-%d %H:%M:%S.%f%z") - timedelta(days=days_back)
+    logging.warning(f"[LOG] since_dt: {since_dt}")
+    since_utc_lit = _sql_lit(since_dt.isoformat())
+    logging.warning(f"[LOG] since_utc_lit: {since_utc_lit}")
 
     # ---------- dynamic LATERALs for tx & li ----------
     def _build_attrs_lateral(alias: str, entity_ref: str) -> str:

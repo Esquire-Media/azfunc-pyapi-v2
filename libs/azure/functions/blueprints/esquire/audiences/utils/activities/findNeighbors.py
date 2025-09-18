@@ -21,7 +21,7 @@ async def activity_esquireAudiencesNeighbors_findNeighbors(ingress: dict):
     n_per_side = ingress.get("n_per_side")
     same_side_only = ingress.get("same_side_only")
 
-    # logging.info(f"[LOG] Finding neighbors for {city}, {state}, {zip_code} across {len(source_urls)} url(s)")
+    # logging.warning(f"[LOG] Finding neighbors for {city}, {state}, {zip_code} across {len(source_urls)} url(s)")
 
     # Aggregate & filter addresses for this partition from ALL sources
     addresses = []
@@ -43,7 +43,7 @@ async def activity_esquireAudiencesNeighbors_findNeighbors(ingress: dict):
                 
 
     if not addresses:
-        # logging.info(f"[LOG] No addresses for {city}, {state}, {zip_code}")
+        # logging.warning(f"[LOG] No addresses for {city}, {state}, {zip_code}")
         return []
 
     # Load estated data for this partition
@@ -52,7 +52,7 @@ async def activity_esquireAudiencesNeighbors_findNeighbors(ingress: dict):
             f"estated_partition_testing/state={state}/zip_code={zip_code}/city={city}/"
         )
     except Exception as e:
-        # logging.info("[LOG] Failed to load estated")
+        # logging.warning("[LOG] Failed to load estated")
         return None
     
     if estated_data.empty:
@@ -75,8 +75,8 @@ async def activity_esquireAudiencesNeighbors_findNeighbors(ingress: dict):
             group_results.append(neighbors)
 
     if group_results:
-        # logging.info("[LOG] Got group results")
+        # logging.warning("[LOG] Got group results")
         return pd.concat(group_results, ignore_index=True)[['address', 'city', 'state', 'zipCode', 'plus4Code']].to_dict(orient="records")
     else:
-        # logging.info("[LOG] No group results")
+        # logging.warning("[LOG] No group results")
         return None

@@ -10,20 +10,20 @@ bp = Blueprint()
 def orchestrator_esquireAudiencesSteps_addresses2neighbors(
     context: DurableOrchestrationContext,
 ):
-    logging.info("[LOG] Starting the addresses2neighbors functions")
+    logging.warning("[LOG] Starting the addresses2neighbors functions")
     ingress = context.get_input()
 
-    logging.info("[LOG] Getting partitions")
+    logging.warning("[LOG] Getting partitions")
     # Step 1: Get partition key tuples only — low memory
     partition_keys = yield context.call_activity("activity_esquireAudiencesNeighbors_extractPartitions", 
         ingress
         )
 
     # Step 2: Query 
-    logging.info(f"[LOG] Setting {len(partition_keys)} tasks")
+    logging.warning(f"[LOG] Setting {len(partition_keys)} tasks")
     tasks = []
     for part in partition_keys:
-        # logging.info(f"[LOG] Partition {part}")
+        # logging.warning(f"[LOG] Partition {part}")
         tasks.append(context.call_activity("activity_esquireAudiencesNeighbors_findNeighbors", {
             "city": part["city"],
             "state": part["state"],

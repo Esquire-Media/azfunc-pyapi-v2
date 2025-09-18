@@ -10,13 +10,15 @@ import numpy as np
 bp = Blueprint()
 
 @bp.activity_trigger(input_name="ingress")
-def activity_esquireAudiencesNeighbors_addressRadialLimit(ingress: dict) -> list[str]:
+def activity_esquireAudiencesNeighbors_addressRadialLimitation(ingress: dict) -> list[str]:
 
     sales_blob_url = ingress["sales_blob_url"]
     owned_locations = ingress["owned_locations"]
     radius_miles = ingress["radius_miles"]  # rename this param to reflect miles
 
     sales_records = load_csv_from_blob(sales_blob_url)
+    # logging.warning(f"[LOG] sales_records: {sales_records}")
+    logging.warning(f"[LOG] owned_locations: {owned_locations}")
     return filter_by_radius(sales_records, owned_locations, radius_miles)
 
 

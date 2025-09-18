@@ -8,11 +8,11 @@ bp = Blueprint()
 def orchestrator_esquireAudiencesSteps_ownedLocationRadius(
     context: DurableOrchestrationContext,
 ):
-    logging.info("[LOG] Starting the ownedLocationRadius functions")
+    logging.warning("[LOG] Starting the ownedLocationRadius functions")
     ingress = context.get_input()
 
     # first we get the owned locations for that tenant
-    ingress["owned_locations"] = context.call_activity(
+    ingress["owned_locations"] = yield context.call_activity(
         "activity_esquireAudiencesNeighbors_findTenantOwnedLocations",
         ingress
     )

@@ -2,6 +2,9 @@
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 from azure.durable_functions import Blueprint
+from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
+    extract_tenant_id_from_datafilter,
+)
 import orjson as json
 import logging
 
@@ -47,7 +50,7 @@ def orchestrator_esquireAudiences_processingSteps(
                 "dataType": str
             },
             "dataFilter": str,
-            "processes": [
+            "processing": [
                 {
                     "steps": [
                     {
@@ -72,16 +75,23 @@ def orchestrator_esquireAudiences_processingSteps(
         "results": [str]
     }
     """
+    logging.warning("[LOG] Processing Steps")
 
     ingress = context.get_input()
+
+    # early retrn if we have no processing to do
+    processing = ingress.get("audience", {}).get("processing")
+    # if not processing or not processing.get("steps"):
+    #     logging.warning("[LOG] No processing steps found, returning ingress unchanged.")
+    #     return ingress
 
     ingress["base_prefix"]   = str(ingress["working"]["blob_prefix"]).strip("/")
 
     # Loop through each processing step
     for step, process in enumerate(
-        processes := ingress["audience"].get("processing", {}).get("steps",[])
+        processes := processing.get("steps",[])
     ):
-        logging.info(f"[LOG] Step: {step} - {process['kind']}")
+        logging.warning(f"[LOG] Step: {step} - {process['kind']}")
         process["outputType"] = processing_step_output_types(process["kind"])
         # Determine the input type and source URLs for the current step
         inputType = (
@@ -118,20 +128,21 @@ def orchestrator_esquireAudiences_processingSteps(
             },
             "transform": [inputType, process["outputType"]],
             "source_urls": source_urls,
-            "process": process
+            "process": process,
+            "tenant_id": extract_tenant_id_from_datafilter(ingress["audience"]["dataFilter"])
         }
 
         # Process the data based on the input and output types
-        # logging.info(f"[LOG] Egress: {egress}")
-        logging.info(f"[LOG] Input Type: {inputType}")
-        logging.info(f"[LOG] Output Type: {process['outputType']}")
+        # logging.warning(f"[LOG] Egress: {egress}")
+        logging.warning(f"[LOG] Input Type: {inputType}")
+        logging.warning(f"[LOG] Output Type: {process['outputType']}")
 
         match inputType:
             case "addresses":
                 match process["outputType"]:
                     case "addresses":  # addresses -> addresses
-                        logging.info("[LOG] Addresses output type")
-                        logging.info("[LOG] Step Type:" + egress.get("process",{}).get("kind",""))
+                        logging.warning("[LOG] Addresses output type")
+                        logging.warning("[LOG] Step Type:" + egress.get("process",{}).get("kind",""))
                         if egress["process"].get("kind", "") == "Neighbors":
                             # No specific processing required
                             process["results"] = yield context.call_sub_orchestrator(
@@ -144,7 +155,7 @@ def orchestrator_esquireAudiences_processingSteps(
                                 egress
                             )
                         else:
-                            logging.info("[LOG] No Neighbor Logic used")
+                            logging.warning("[LOG] No Neighbor Logic used")
                             pass
                     case "device_ids":  # addresses -> deviceids
                         process["results"] = yield context.call_sub_orchestrator(
@@ -207,6 +218,14 @@ def orchestrator_esquireAudiences_processingSteps(
                     case "polygons":  # polygons -> polygons
                         # No specific processing required
                         pass
+
+        logging.warning(f"[LOG] Step: {step} - {process['kind']} done.")
+
+    # Ensure last step results are returned in ingress["results"]
+    if processes:
+        final_results = processes[-1].get("results", [])
+        ingress["results"] = final_results
+        ingress["audience"]["processing"][-1]["results"] = final_results
 
     # Return the updated ingress data after all processing steps
     return ingress

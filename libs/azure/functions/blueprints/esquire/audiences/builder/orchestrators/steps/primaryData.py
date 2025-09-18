@@ -49,13 +49,16 @@ def orchestrator_esquireAudiences_primaryData(
                 "id": str,
                 "dataType": str
             },
-            "dataFilter": str
+            "dataFilter": str,
+            "processing": dict
         }
     }
     """
 
     # Retrieve the input data for the orchestration
     ingress = context.get_input()
+
+    logging.warning(f"[LOG] ingress before PrimaryData: {ingress}")
 
     # Check if the audience has a data source
     if ingress["audience"].get("dataSource"):
@@ -124,11 +127,11 @@ def orchestrator_esquireAudiences_primaryData(
                     },
                 )
             case "postgres":
-                logging.info("[LOG] Taking postgres branch")
+                logging.warning("[LOG] Taking postgres branch")
                 # get query to handle anything hooking into the sales data (because of EAV setup)
                 if MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]].get("isEAV", False):
-                    logging.info("[LOG] Taking EAV sales branch")
-                    logging.info("[LOG] Calling generateSalesAudiencePrimaryQuery activity")
+                    logging.warning("[LOG] Taking EAV sales branch")
+                    logging.warning("[LOG] Calling generateSalesAudiencePrimaryQuery activity")
                     ingress["query"] = yield context.call_activity(
                         "activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery",
                         {
@@ -136,11 +139,11 @@ def orchestrator_esquireAudiences_primaryData(
                             **MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]],
                             "tenant_id": extract_tenant_id_from_datafilter(ingress["audience"]["dataFilter"]),
                             "fields": extract_fields_from_dataFilter(ingress["audience"]["dataFilter"]),
-                            "utc_now": context.current_utc_datetime
+                            "utc_now": str(context.current_utc_datetime)
                             }
                     )
-                    # logging.info(f"generateSalesAudiencePrimaryQuery returned query: {ingress['query']!r}")
-                    logging.info(f"[LOG] Getting ready to send to blob.\nConn_str: {ingress['working']['conn_str']}\nContainer name':{ingress['working']['container_name']}")
+                    # logging.warning(f"generateSalesAudiencePrimaryQuery returned query: {ingress['query']!r}")
+                    logging.warning(f"[LOG] Getting ready to send to blob.\nConn_str: {ingress['working']['conn_str']}\nContainer name':{ingress['working']['container_name']}")
 
                     ingress["results"] = yield context.call_sub_orchestrator(
                         "orchestrator_azurePostgres_queryToBlob",

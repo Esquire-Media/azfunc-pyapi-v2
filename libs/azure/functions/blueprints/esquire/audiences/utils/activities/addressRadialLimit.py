@@ -18,7 +18,7 @@ def activity_esquireAudiencesNeighbors_addressRadialLimitation(ingress: dict) ->
 
     sales_records = load_csv_from_blob(sales_blob_url)
     # logging.warning(f"[LOG] sales_records: {sales_records}")
-    logging.warning(f"[LOG] owned_locations: {owned_locations}")
+    # logging.warning(f"[LOG] owned_locations: {owned_locations}")
     return filter_by_radius(sales_records, owned_locations, radius_miles)
 
 

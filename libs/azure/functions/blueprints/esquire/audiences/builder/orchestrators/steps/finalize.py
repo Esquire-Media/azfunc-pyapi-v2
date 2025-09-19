@@ -60,6 +60,11 @@ def orchestrator_esquireAudiences_finalize(
     processing = ingress["audience"].get("processing", {})
     steps = processing.get("steps", [])
     has_steps = bool(steps)
+    logging.warning(f"[LOG] FINALIZE INFO")
+    logging.warning(f"[LOG] ingress: {ingress}")
+    logging.warning(f"[LOG] processing: {processing}")
+    logging.warning(f"[LOG] steps: {steps}")
+    logging.warning(f"[LOG] has_steps: {has_steps}")
 
     inputType = (
         steps[-1]["outputType"] if has_steps else ingress["audience"]["dataSource"]["dataType"]
@@ -67,6 +72,8 @@ def orchestrator_esquireAudiences_finalize(
     source_urls = (
         steps[-1].get("results", []) if has_steps else ingress["results"]
     )
+
+    logging.warning(f"[LOG] source_urls: {source_urls}")
 
     # Check if there are source URLs to process
     if not source_urls:

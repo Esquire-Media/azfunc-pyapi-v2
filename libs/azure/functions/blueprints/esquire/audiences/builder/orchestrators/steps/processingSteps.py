@@ -81,9 +81,9 @@ def orchestrator_esquireAudiences_processingSteps(
 
     # early retrn if we have no processing to do
     processing = ingress.get("audience", {}).get("processing")
-    # if not processing or not processing.get("steps"):
-    #     logging.warning("[LOG] No processing steps found, returning ingress unchanged.")
-    #     return ingress
+    if not processing or not processing.get("steps"):
+        logging.warning("[LOG] No processing steps found, returning ingress unchanged.")
+        return ingress
 
     ingress["base_prefix"]   = str(ingress["working"]["blob_prefix"]).strip("/")
 
@@ -221,11 +221,13 @@ def orchestrator_esquireAudiences_processingSteps(
 
         logging.warning(f"[LOG] Step: {step} - {process['kind']} done.")
 
+    logging.warning(f"[LOG] Final processes list: {json.dumps(processes, option=json.OPT_INDENT_2)}")
+
     # Ensure last step results are returned in ingress["results"]
-    if processes:
-        final_results = processes[-1].get("results", [])
-        ingress["results"] = final_results
-        ingress["audience"]["processing"][-1]["results"] = final_results
+    if processes and isinstance(processes[-1].get("results"), list):
+        ingress["results"] = processes[-1]["results"]
+    else:
+        raise Exception("Final processing step did not produce valid results.")
 
     # Return the updated ingress data after all processing steps
     return ingress

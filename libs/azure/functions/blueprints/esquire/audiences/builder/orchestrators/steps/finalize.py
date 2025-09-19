@@ -87,7 +87,7 @@ def orchestrator_esquireAudiences_finalize(
             **ingress["working"],
             "blob_prefix": "{}/{}".format(
                 ingress["working"]["blob_prefix"],
-                steps,
+                len(steps),
             ),
         },
         "destination": {

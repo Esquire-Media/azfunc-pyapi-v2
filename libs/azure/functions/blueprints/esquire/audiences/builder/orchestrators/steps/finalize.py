@@ -58,7 +58,7 @@ def orchestrator_esquireAudiences_finalize(
 
     ingress = context.get_input()
     processing = ingress["audience"].get("processing", {})
-    steps = processing.get("steps", [])
+    steps = processing.get("steps", []) if processing else []
     has_steps = bool(steps)
     logging.warning(f"[LOG] FINALIZE INFO")
     logging.warning(f"[LOG] ingress: {ingress}")

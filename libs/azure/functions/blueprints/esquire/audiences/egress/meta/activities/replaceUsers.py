@@ -58,8 +58,8 @@ def activity_esquireAudienceMeta_customAudience_replaceUsers(ingress: dict):
                             ingress["destination"]["blob_prefix"],
                             ingress["destination"]["data_source"],
                         ),
-                        ingress["batch"]["sequence"] * ingress["batch"]["size"],
-                        ingress["batch"]["size"],
+                        ingress["batch"]["batch_seq"] * ingress["batch_size"],
+                        ingress["batch_size"],
                     ),
                     from_bind(ingress["sql"]["bind"]).connect().connection(),
                 )["deviceid"]

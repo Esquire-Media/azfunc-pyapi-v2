@@ -166,6 +166,7 @@ def meta_customaudience_orchestrator(
                         """,
                     },
                     "batch": session_payload,
+                    "batch_size": batch_size,
                 },
             )
             if session.get("error", False):

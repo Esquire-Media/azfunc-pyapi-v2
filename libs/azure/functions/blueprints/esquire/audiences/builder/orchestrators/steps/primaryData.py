@@ -7,7 +7,7 @@ from libs.azure.functions.blueprints.esquire.audiences.builder.config import (
 )
 from libs.azure.functions.blueprints.esquire.audiences.builder.utils import extract_tenant_id_from_datafilter, extract_fields_from_dataFilter
 import os
-import logging
+# import logging
 bp = Blueprint()
 
 
@@ -58,7 +58,7 @@ def orchestrator_esquireAudiences_primaryData(
     # Retrieve the input data for the orchestration
     ingress = context.get_input()
 
-    logging.warning(f"[LOG] ingress before PrimaryData: {ingress}")
+    # logging.warning(f"[LOG] ingress before PrimaryData: {ingress}")
 
     # Check if the audience has a data source
     if ingress["audience"].get("dataSource"):
@@ -127,11 +127,11 @@ def orchestrator_esquireAudiences_primaryData(
                     },
                 )
             case "postgres":
-                logging.warning("[LOG] Taking postgres branch")
+                # logging.warning("[LOG] Taking postgres branch")
                 # get query to handle anything hooking into the sales data (because of EAV setup)
                 if MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]].get("isEAV", False):
-                    logging.warning("[LOG] Taking EAV sales branch")
-                    logging.warning("[LOG] Calling generateSalesAudiencePrimaryQuery activity")
+                    # logging.warning("[LOG] Taking EAV sales branch")
+                    # logging.warning("[LOG] Calling generateSalesAudiencePrimaryQuery activity")
                     ingress["query"] = yield context.call_activity(
                         "activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery",
                         {
@@ -143,7 +143,7 @@ def orchestrator_esquireAudiences_primaryData(
                             }
                     )
                     # logging.warning(f"generateSalesAudiencePrimaryQuery returned query: {ingress['query']!r}")
-                    logging.warning(f"[LOG] Getting ready to send to blob.\nConn_str: {ingress['working']['conn_str']}\nContainer name':{ingress['working']['container_name']}")
+                    # logging.warning(f"[LOG] Getting ready to send to blob.\nConn_str: {ingress['working']['conn_str']}\nContainer name':{ingress['working']['container_name']}")
 
                     ingress["results"] = yield context.call_sub_orchestrator(
                         "orchestrator_azurePostgres_queryToBlob",

@@ -3,7 +3,7 @@ import csv
 from io import StringIO
 from azure.durable_functions import Blueprint
 from azure.storage.blob import BlobClient
-import logging
+# import logging
 from sklearn.neighbors import BallTree
 import numpy as np
 

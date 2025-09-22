@@ -7,7 +7,7 @@ from azure.storage.blob import BlobClient
 import csv
 from azure.storage.blob import BlobServiceClient
 import pandas as pd
-import logging
+# import logging
 
 bp = Blueprint()
 
@@ -30,7 +30,7 @@ async def activity_esquireAudiencesNeighbors_findNeighbors(ingress: dict):
             blob_client = BlobClient.from_blob_url(url)
             csv_bytes = blob_client.download_blob().readall()
         except Exception as e:
-            logging.warning(f"[LOG] Failed to read {url}: {e}")
+            # logging.warning(f"[LOG] Failed to read {url}: {e}")
             continue
         reader = csv.DictReader(StringIO(csv_bytes.decode("utf-8")))
         for row in reader:

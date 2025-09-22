@@ -2,7 +2,7 @@
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 import pandas as pd
-import logging
+# import logging
 bp = Blueprint()
 
 
@@ -10,17 +10,17 @@ bp = Blueprint()
 def orchestrator_esquireAudiencesSteps_addresses2neighbors(
     context: DurableOrchestrationContext,
 ):
-    logging.warning("[LOG] Starting the addresses2neighbors functions")
+    # logging.warning("[LOG] Starting the addresses2neighbors functions")
     ingress = context.get_input()
 
-    logging.warning("[LOG] Getting partitions")
+    # logging.warning("[LOG] Getting partitions")
     # Step 1: Get partition key tuples only — low memory
     partition_keys = yield context.call_activity("activity_esquireAudiencesNeighbors_extractPartitions", 
         ingress
         )
 
     # Step 2: Query 
-    logging.warning(f"[LOG] Setting {len(partition_keys)} tasks")
+    # logging.warning(f"[LOG] Setting {len(partition_keys)} tasks")
     tasks = []
     for part in partition_keys:
         # logging.warning(f"[LOG] Partition {part}")

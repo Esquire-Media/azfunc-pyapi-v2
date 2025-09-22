@@ -1,6 +1,6 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 import pandas as pd
-import logging
+# import logging
 bp = Blueprint()
 
 
@@ -8,7 +8,7 @@ bp = Blueprint()
 def orchestrator_esquireAudiencesSteps_ownedLocationRadius(
     context: DurableOrchestrationContext,
 ):
-    logging.warning("[LOG] Starting the ownedLocationRadius functions")
+    # logging.warning("[LOG] Starting the ownedLocationRadius functions")
     ingress = context.get_input()
 
     # first we get the owned locations for that tenant

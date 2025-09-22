@@ -6,7 +6,7 @@ from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
     extract_tenant_id_from_datafilter,
 )
 import orjson as json
-import logging
+# import logging
 
 bp = Blueprint()
 
@@ -75,23 +75,24 @@ def orchestrator_esquireAudiences_processingSteps(
         "results": [str]
     }
     """
-    logging.warning("[LOG] Processing Steps")
+    # logging.warning("[LOG] Processing Steps")
 
     ingress = context.get_input()
 
     # early retrn if we have no processing to do
     processing = ingress.get("audience", {}).get("processing")
     if not processing or not processing.get("steps"):
-        logging.warning("[LOG] No processing steps found, returning ingress unchanged.")
+        # logging.warning("[LOG] No processing steps found, returning ingress unchanged.")
         return ingress
 
     ingress["base_prefix"]   = str(ingress["working"]["blob_prefix"]).strip("/")
+    # logging.warning(f"[LOG] base prefix: {ingress['base_prefix']}")
 
     # Loop through each processing step
     for step, process in enumerate(
         processes := processing.get("steps",[])
     ):
-        logging.warning(f"[LOG] Step: {step} - {process['kind']}")
+        # logging.warning(f"[LOG] Step: {step} - {process['kind']}")
         process["outputType"] = processing_step_output_types(process["kind"])
         # Determine the input type and source URLs for the current step
         inputType = (
@@ -134,15 +135,15 @@ def orchestrator_esquireAudiences_processingSteps(
 
         # Process the data based on the input and output types
         # logging.warning(f"[LOG] Egress: {egress}")
-        logging.warning(f"[LOG] Input Type: {inputType}")
-        logging.warning(f"[LOG] Output Type: {process['outputType']}")
+        # logging.warning(f"[LOG] Input Type: {inputType}")
+        # logging.warning(f"[LOG] Output Type: {process['outputType']}")
 
         match inputType:
             case "addresses":
                 match process["outputType"]:
                     case "addresses":  # addresses -> addresses
-                        logging.warning("[LOG] Addresses output type")
-                        logging.warning("[LOG] Step Type:" + egress.get("process",{}).get("kind",""))
+                        # logging.warning("[LOG] Addresses output type")
+                        # logging.warning("[LOG] Step Type:" + egress.get("process",{}).get("kind",""))
                         if egress["process"].get("kind", "") == "Neighbors":
                             # No specific processing required
                             process["results"] = yield context.call_sub_orchestrator(
@@ -155,7 +156,7 @@ def orchestrator_esquireAudiences_processingSteps(
                                 egress
                             )
                         else:
-                            logging.warning("[LOG] No Neighbor Logic used")
+                            # logging.warning("[LOG] No Neighbor Logic used")
                             pass
                     case "device_ids":  # addresses -> deviceids
                         process["results"] = yield context.call_sub_orchestrator(
@@ -219,9 +220,9 @@ def orchestrator_esquireAudiences_processingSteps(
                         # No specific processing required
                         pass
 
-        logging.warning(f"[LOG] Step: {step} - {process['kind']} done.")
+        # logging.warning(f"[LOG] Step: {step} - {process['kind']} done.")
 
-    logging.warning(f"[LOG] Final processes list: {json.dumps(processes, option=json.OPT_INDENT_2)}")
+    # logging.warning(f"[LOG] Final processes list: {json.dumps(processes, option=json.OPT_INDENT_2)}")
 
     # Ensure last step results are returned in ingress["results"]
     if processes and isinstance(processes[-1].get("results"), list):

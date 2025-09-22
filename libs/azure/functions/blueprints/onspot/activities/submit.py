@@ -2,7 +2,7 @@
 
 from azure.durable_functions import Blueprint
 from libs.openapi.clients.onspot import OnSpot
-
+import logging
 bp = Blueprint()
 
 
@@ -24,9 +24,10 @@ async def onspot_activity_submit(ingress: dict):
     dict
         The response from the OnSpotAPI as a JSON object.
     """
+    logging.warning(f"[LOG] onspot request: {ingress['request']}")
     data = OnSpot[(ingress["endpoint"], "post")](ingress["request"])
-    import logging
-    logging.info(f"{data}")
+
+    logging.info(f"OnSpot Data: {data}")
     return (
         [d.model_dump() for d in data] if isinstance(data, list) else data.model_dump()
     )

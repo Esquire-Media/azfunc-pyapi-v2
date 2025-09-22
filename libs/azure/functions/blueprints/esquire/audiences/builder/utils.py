@@ -109,3 +109,15 @@ def jsonlogic_to_sql(json_logic):
 
     logic = json.loads(json_logic) if isinstance(json_logic, str) else json_logic
     return parse_logic(logic)
+
+def extract_fields_from_dataFilter(dataFilter):
+    """
+    from a given sql-ified datafilter, it tries to find all of the fields that we're interacting with
+    """
+    import re
+    return re.findall(r'"([^"]+)"', dataFilter)
+
+def extract_tenant_id_from_datafilter(sql):
+    import re
+    match = re.search(r'"tenant_id"\s*(?:=|!=|<>|<|>|LIKE|IN)\s*\'([^\']+)\'', sql, re.IGNORECASE)
+    return match.group(1) if match else None

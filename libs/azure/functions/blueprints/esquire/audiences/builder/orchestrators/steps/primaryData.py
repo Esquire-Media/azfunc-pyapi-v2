@@ -5,8 +5,9 @@ from azure.storage.blob import BlobServiceClient
 from libs.azure.functions.blueprints.esquire.audiences.builder.config import (
     MAPPING_DATASOURCE,
 )
+from libs.azure.functions.blueprints.esquire.audiences.builder.utils import extract_tenant_id_from_datafilter, extract_fields_from_dataFilter
 import os
-
+# import logging
 bp = Blueprint()
 
 
@@ -48,13 +49,16 @@ def orchestrator_esquireAudiences_primaryData(
                 "id": str,
                 "dataType": str
             },
-            "dataFilter": str
+            "dataFilter": str,
+            "processing": dict
         }
     }
     """
 
     # Retrieve the input data for the orchestration
     ingress = context.get_input()
+
+    # logging.warning(f"[LOG] ingress before PrimaryData: {ingress}")
 
     # Check if the audience has a data source
     if ingress["audience"].get("dataSource"):
@@ -123,25 +127,64 @@ def orchestrator_esquireAudiences_primaryData(
                     },
                 )
             case "postgres":
-                ingress["query"] = "SELECT * FROM {}{} WHERE {}".format(
-                    (
-                        '"{}".'.format(
-                            MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
+                # logging.warning("[LOG] Taking postgres branch")
+                # get query to handle anything hooking into the sales data (because of EAV setup)
+                if MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]].get("isEAV", False):
+                    # logging.warning("[LOG] Taking EAV sales branch")
+                    # logging.warning("[LOG] Calling generateSalesAudiencePrimaryQuery activity")
+                    ingress["query"] = yield context.call_activity(
+                        "activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery",
+                        {
+                            **ingress,
+                            **MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]],
+                            "tenant_id": extract_tenant_id_from_datafilter(ingress["audience"]["dataFilter"]),
+                            "fields": extract_fields_from_dataFilter(ingress["audience"]["dataFilter"]),
+                            "utc_now": str(context.current_utc_datetime)
+                            }
+                    )
+                    # logging.warning(f"generateSalesAudiencePrimaryQuery returned query: {ingress['query']!r}")
+                    # logging.warning(f"[LOG] Getting ready to send to blob.\nConn_str: {ingress['working']['conn_str']}\nContainer name':{ingress['working']['container_name']}")
+
+                    ingress["results"] = yield context.call_sub_orchestrator(
+                        "orchestrator_azurePostgres_queryToBlob",
+                        {
+                            "source": {
+                                "bind": MAPPING_DATASOURCE[
+                                    ingress["audience"]["dataSource"]["id"]
+                                ]["bind"],
+                                "query": ingress["query"],
+                            },
+                            "destination": {
+                                "conn_str": ingress["working"]["conn_str"],
+                                "container_name": ingress["working"]["container_name"],
+                                "blob_prefix": "{}/-1".format(
+                                    ingress["working"]["blob_prefix"]
+                                ),
+                                "format": "CSV",
+                            },
+                        },
+                    )
+
+                else:
+                    ingress["query"] = "SELECT * FROM {}{} WHERE {}".format(
+                        (
+                            '"{}".'.format(
+                                MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
+                                    "table"
+                                ]["schema"]
+                            )
+                            if MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
                                 "table"
-                            ]["schema"]
-                        )
-                        if MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
+                            ].get("schema", None)
+                            else ""
+                        ),
+                        '"'
+                        + MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
                             "table"
-                        ].get("schema", None)
-                        else ""
-                    ),
-                    '"'
-                    + MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
-                        "table"
-                    ]["name"]
-                    + '"',
-                    ingress["audience"]["dataFilter"],
-                )
+                        ]["name"]
+                        + '"',
+                        ingress["audience"]["dataFilter"],
+                    )
                 ingress["results"] = yield context.call_sub_orchestrator(
                     "orchestrator_azurePostgres_queryToBlob",
                     {

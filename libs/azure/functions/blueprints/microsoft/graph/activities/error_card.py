@@ -26,7 +26,7 @@ def activity_microsoftGraph_postErrorCard(ingress: dict):
     error           : Detailed error log (will be truncated to the first 10 lines).
     webhook         : URL of webhook where the adaptive card will be sent.
     """
-
+    return
     # connect to Microsoft Graph using key vault credentials
     client = KeyVaultClient("graph-service")
     client_id = client.get_secret("client-id").value

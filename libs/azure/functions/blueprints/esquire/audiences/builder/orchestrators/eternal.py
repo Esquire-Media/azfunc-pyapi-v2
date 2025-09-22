@@ -89,7 +89,6 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
                 build,
             )
         except Exception as e:
-            raise e
             # # if any errors are caught, post an error card to teams tagging Ryan
             # yield context.call_activity(
             #     "activity_microsoftGraph_postErrorCard",
@@ -98,6 +97,17 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
             #         "error": f"{type(e).__name__} : {e}"[:1000],
             #     },
             # )
+            yield context.call_activity(
+                "activity_microsoftGraph_sendEmail",
+                {
+                    "from_id": "74891a5a-d0e9-43a4-a7c1-a9c04f6483c8",
+                    "to_addresses": ["isaac@esquireadvertising.com"],
+                    "subject": "esquire-auto-audience Failure",
+                    "message": e,
+                    "content_type": "html",
+                },
+            )
+            raise e
 
     # Calculate the next timer for the next scheduled run
     context.set_custom_status(

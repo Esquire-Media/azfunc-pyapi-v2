@@ -4,6 +4,14 @@ from azure.durable_functions import Blueprint, DurableOrchestrationContext
 
 bp = Blueprint()
 
+@bp.orchestration_trigger(context_name="context")
+def orchestrator_noop(context: DurableOrchestrationContext):
+    """
+    Deterministic no-op sub-orchestrator used to keep schedule shape stable.
+    """
+    _ = context.get_input()  # ignored intentionally
+    return None
+
 
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_esquireAudiences_uploader(
@@ -37,25 +45,28 @@ def orchestrator_esquireAudiences_uploader(
     }
     """
 
-    # Retrieve the input data for the orchestration
     ingress = context.get_input()
+    advertiser = (ingress.get("audience", {}) or {}).get("advertiser", {}) or {}
 
-    # Push the most recently generated audiences to the DSPs that are configured
+    # Targets in deterministic, fixed order
+    targets = [
+        ("meta_customaudience_orchestrator", bool(advertiser.get("meta"))),
+        ("xandr_segment_orchestrator", bool(advertiser.get("xandr"))),
+    ]
+
+    # Always schedule exactly 2 sub-orchestrations in that order.
     tasks = []
-    if ingress["audience"]["advertiser"]["meta"]:
-        tasks.append(
-            context.call_sub_orchestrator(
-                "meta_customaudience_orchestrator",
-                ingress,
+    for orch_name, enabled in targets:
+        if enabled:
+            tasks.append(context.call_sub_orchestrator(orch_name, ingress))
+        else:
+            # Keep the schedule shape constant with a no-op
+            tasks.append(
+                context.call_sub_orchestrator(
+                    "orchestrator_noop",
+                    {"reason": f"{orch_name} disabled", "audienceId": ingress.get("audience", {}).get("id")},
+                )
             )
-        )
-    if ingress["audience"]["advertiser"]["xandr"]:
-        tasks.append(
-            context.call_sub_orchestrator(
-                "xandr_segment_orchestrator",
-                ingress,
-            )
-        )
 
-    # Wait for all tasks to complete
+    # Wait for both to complete (order preserved)
     yield context.task_all(tasks)

@@ -31,16 +31,15 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
     Returns:
         str: An empty string indicating the completion of the orchestration.
     """
-    # Retrieve the initial configuration for working and destination connections
     ingress = context.get_input()
 
-    # Fetch the full details for the audience using its ID (from context instance ID)
+    # Fetch audience
     ingress["audience"] = yield context.call_activity(
         "activity_esquireAudienceBuilder_fetchAudience",
         {"id": context.instance_id},
     )
 
-    # Fetch the last run time by getting the most recent audience blob prefix from storage
+    # Last run prefix
     audience_blob_prefix = yield context.call_activity(
         "activity_esquireAudiencesUtils_newestAudienceBlobPrefix",
         {
@@ -54,49 +53,37 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
         if audience_blob_prefix
         else datetime.datetime(year=1970, month=1, day=1)
     )
-    # Ensure last_run_time is timezone-aware
     if last_run_time.tzinfo is None:
         last_run_time = last_run_time.replace(tzinfo=pytz.UTC)
 
-    # Calculate the next scheduled run time based on the cron expression and last run time
     next_run = (
         croniter(ingress["audience"]["rebuildSchedule"], last_run_time)
         .get_next(datetime.datetime)
         .replace(tzinfo=pytz.UTC)
     )
 
-    # Ensure context.current_utc_datetime is timezone-aware
     current_utc_datetime = context.current_utc_datetime
     if current_utc_datetime.tzinfo is None:
         current_utc_datetime = current_utc_datetime.replace(tzinfo=pytz.UTC)
 
-    # Check if the current time is past the next scheduled run time and if the audience status is active,
-    # or if a force rebuild has been requested
+    # Build + upload when due (or forced)
     if (
         context.current_utc_datetime >= next_run and ingress["audience"]["status"]
     ) or ingress.get("forceRebuild"):
         try:
             context.set_custom_status({"state": "Building audience..."})
-            # Generate the audience data by calling the audience builder orchestrator
             build = yield context.call_sub_orchestrator(
                 "orchestrator_esquireAudiences_builder",
                 ingress,
             )
-            # Upload the newly generated audience data to the configured DSPs
             context.set_custom_status({"state": "Uploading audience..."})
+            # NOTE: Call the versioned, deterministic uploader
             yield context.call_sub_orchestrator(
                 "orchestrator_esquireAudiences_uploader",
                 build,
             )
         except Exception as e:
-            # # if any errors are caught, post an error card to teams tagging Ryan
-            # yield context.call_activity(
-            #     "activity_microsoftGraph_postErrorCard",
-            #     {
-            #         "instance_id": context.instance_id,
-            #         "error": f"{type(e).__name__} : {e}"[:1000],
-            #     },
-            # )
+            # Optionally notify; left as-is from previous code
             yield context.call_activity(
                 "activity_microsoftGraph_sendEmail",
                 {
@@ -109,7 +96,7 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
             )
             raise e
 
-    # Calculate the next timer for the next scheduled run
+    # Announce next run
     context.set_custom_status(
         {
             "next_run": croniter(
@@ -118,28 +105,22 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
             )
             .get_next(datetime.datetime)
             .isoformat(),
-            "context": ingress
+            "context": ingress,
         }
     )
 
-    # Schedule a trigger to rerun the orchestrator (>6 days)
+    # Sleep until tomorrow or manual restart
     timer_task = context.create_timer(
         croniter("0 0 * * *", context.current_utc_datetime).get_next(datetime.datetime)
     )
-    # Create an optional external event to manually restart
     external_event_task = context.wait_for_external_event("restart")
-
-    # Wait for the first of the tasks to complete
     winner = yield context.task_any([timer_task, external_event_task])
     if winner == external_event_task:
-        # If the external event is received, cancel the timer and get the settings from the event
         timer_task.cancel()
         settings = json.loads(winner.result)
     else:
-        # If the timer completes first, use the current settings
         settings: dict = context.get_input()
         settings.pop("forceRebuild", None)
 
-    # Restart the orchestrator
     context.continue_as_new(settings)
     return ""

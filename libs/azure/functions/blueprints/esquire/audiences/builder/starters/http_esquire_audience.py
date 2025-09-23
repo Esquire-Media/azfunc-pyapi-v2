@@ -55,11 +55,31 @@ async def starter_http_esquire_audience(
     }
 
     for audience in audiences:
-        # Check the status of the orchestrator instance
         status = await client.get_status(audience, True)
-        status.custom_status
-        match req.method:
-            case "POST":
+        force = bool(req.params.get("force"))
+        if req.method == "POST":
+            if force:
+                # Hard reset the instance regardless of its state
+                if status.runtime_status in (
+                    OrchestrationRuntimeStatus.Running,
+                    OrchestrationRuntimeStatus.Pending,
+                ):
+                    try:
+                        await client.terminate(audience, "force restart")
+                    except Exception:
+                        pass
+                if status.runtime_status:
+                    try:
+                        await client.purge_instance_history(audience)
+                    except Exception:
+                        pass
+                await client.start_new(
+                    orchestration_function_name="orchestrator_esquire_audience",
+                    client_input=settings,
+                    instance_id=audience,
+                )
+            else:
+                # Old behavior: gentle restart if in the timer loop; else purge+start
                 if (
                     status.runtime_status == OrchestrationRuntimeStatus.Running
                     and '"next_run"' in str(status.custom_status)
@@ -78,7 +98,6 @@ async def starter_http_esquire_audience(
                         instance_id=audience,
                     )
 
-    # Create and return a status response
     if len(audiences) == 1:
         return client.create_check_status_response(req, audiences[0])
     else:

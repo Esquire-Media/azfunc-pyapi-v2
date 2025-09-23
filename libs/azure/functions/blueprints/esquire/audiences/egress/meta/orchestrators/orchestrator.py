@@ -1,35 +1,28 @@
-# File path: libs/azure/functions/blueprints/esquire/audiences/meta/orchestrator.py
+# File path: /libs/azure/functions/blueprints/esquire/audiences/egress/meta/orchestrator.py
 
 from datetime import timedelta
 import hashlib
 import math
+from typing import Any, Dict, List
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 
-# Initialize a Blueprint object to define and manage functions
 bp = Blueprint()
 
 
-# Define the orchestration trigger function for managing Meta custom audiences
 @bp.orchestration_trigger(context_name="context")
-def meta_customaudience_orchestrator(
-    context: DurableOrchestrationContext,
-):
+def meta_customaudience_orchestrator(context: DurableOrchestrationContext):
     """
-    Orchestrates the process of managing and updating Meta custom audiences.
-
-    This function handles the creation of new Meta audiences, fetching existing audience information,
-    updating audience data, and adding users to the audience.
-
-    Args:
-        context (DurableOrchestrationContext): The orchestration context.
+    Orchestrates managing & updating a Meta custom audience (create/get/update + replace users).
+    Deterministic + idempotent by construction.
     """
-    batch_size = 10000  # Define the batch size for processing audience data
-    ingress = context.get_input()  # Get the audience ID from the input
+    batch_size = 10_000
+    ingress: Dict[str, Any] = context.get_input()
 
+    # Deterministic session id for this orchestration instance.
     sid_bytes = hashlib.sha256(context.instance_id.encode("utf-8")).digest()[:8]
     session_id = (int.from_bytes(sid_bytes, "big") % ((1 << 63) - 1)) + 1
 
-    # Fetch audience definition from the database
+    # 1) Fetch ESQ audience definition
     try:
         audience = yield context.call_activity(
             "activity_esquireAudienceMeta_fetchAudience",
@@ -41,16 +34,17 @@ def meta_customaudience_orchestrator(
             if len(ingress["audience"]["tags"])
             else ingress["audience"]["id"]
         )
-    except:
+    except Exception:
+        # If not found or inactive, terminate deterministically with an empty result.
         return {}
 
-    # Get or create the custom audience on Meta
+    # 2) Ensure a Meta Custom Audience exists and is named as desired
     if not ingress["audience"]["audience"]:
         custom_audience = yield context.call_activity(
             "activity_esquireAudienceMeta_customAudience_create",
             ingress,
         )
-        # Store the new audience ID in the database
+        # Persist new Meta Audience ID back to ESQ
         yield context.call_activity(
             "activity_esquireAudienceMeta_putAudience",
             {
@@ -64,42 +58,73 @@ def meta_customaudience_orchestrator(
             ingress,
         )
 
-    # Update the audience name and description if they differ
     if (
-        custom_audience["name"] != ingress["audience"]["name"]
-        or custom_audience["description"] != ingress["audience"]["id"]
+        custom_audience.get("name") != ingress["audience"]["name"]
+        or custom_audience.get("description") != ingress["audience"]["id"]
     ):
         custom_audience = yield context.call_activity(
             "activity_esquireAudienceMeta_customAudience_update",
             ingress,
         )
 
-    if custom_audience.get("operation_status", False):
-        # Handle the status of the audience
-        match custom_audience["operation_status"]["code"]:
-            case 300 | 414:  # Update in progress
-                # Close out a stuck session if any
-                sessions = yield context.call_activity(
-                    "activity_esquireAudienceMeta_customAudienceSessions_get",
-                    ingress,
-                )
-                for s in sessions:
-                    if s["stage"] in ["uploading"]:
-                        yield context.call_activity(
-                            "activity_esquireAudienceMeta_customAudienceSession_forceEnd",
-                            {
-                                **ingress,
-                                "batch": {
-                                    "session_id": s["session_id"],
-                                    "total": int(s["num_received"]) + 1,
-                                    "sequence": int(s["num_received"]) // batch_size
-                                    + 1,
-                                },
-                            },
-                        )
+    # 3) If audience is "Updating", try to deterministically close out any stuck sessions
+    op = custom_audience.get("operation_status") or {}
+    if op.get("code") in (300, 414):  # Updating / Busy
+        sessions: List[Dict[str, Any]] = yield context.call_activity(
+            "activity_esquireAudienceMeta_customAudienceSessions_get",
+            ingress,
+        )
+
+        # Sort deterministically for replay consistency: by num_received desc, then session_id
+        def _num_received(s):
+            try:
+                return int(s.get("num_received", "0"))
+            except Exception:
+                return 0
+
+        sessions = sorted(
+            sessions,
+            key=lambda s: (_num_received(s), str(s.get("session_id", ""))),
+            reverse=True,
+        )
+
+        for s in sessions:
+            if s.get("stage") != "uploading":
+                continue
+
+            num_received = _num_received(s)
+            # Next REPLACE batch we will send to close the session:
+            # Use ceil(num_received / batch_size) + 1 to send a definitive "last" batch
+            # (if num_received == 0 -> 1)
+            closing_seq = ((num_received + batch_size - 1) // batch_size) + 1
+            closing_seq = max(closing_seq, 1)
+
+            force_payload = {
+                **ingress,
+                "batch": {
+                    "session_id": s["session_id"],
+                    "estimated_num_total": max(num_received + 1, 1),
+                    "batch_seq": closing_seq,           # IMPORTANT: no extra +1 in the activity
+                    "last_batch_flag": True,
+                },
+            }
+
+            # Never let exceptions bubble up (keeps orchestration deterministic).
+            _ = yield context.call_activity(
+                "activity_esquireAudienceMeta_customAudienceSession_forceEnd",
+                force_payload,
+            )
+
+        # Re-fetch status after attempting closures (still deterministic because it's an activity result)
+        custom_audience = yield context.call_activity(
+            "activity_esquireAudienceMeta_customAudience_get",
+            ingress,
+        )
+
+    # Refresh Meta Audience ID on ingress (from create/get)
     ingress["audience"]["audience"] = custom_audience["id"]
 
-    # Get the folder with the most recent MAIDs (Mobile Advertiser IDs)
+    # 4) Determine newest data prefix (blob folder)
     ingress["destination"]["blob_prefix"] = yield context.call_activity(
         "activity_esquireAudiencesUtils_newestAudienceBlobPrefix",
         {
@@ -109,7 +134,7 @@ def meta_customaudience_orchestrator(
         },
     )
 
-    # Query to count distinct device IDs in the audience data
+    # 5) Count distinct MAIDs
     response = yield context.call_activity(
         "activity_synapse_query",
         {
@@ -124,7 +149,8 @@ def meta_customaudience_orchestrator(
                     PARSER_VERSION = '2.0',
                     HEADER_ROW = TRUE
                 ) AS [data]
-                WHERE LEN(deviceid) = 36""".format(
+                WHERE LEN(deviceid) = 36
+            """.format(
                 ingress["destination"]["container_name"],
                 ingress["destination"]["blob_prefix"],
                 ingress["destination"]["data_source"],
@@ -132,17 +158,19 @@ def meta_customaudience_orchestrator(
         },
     )
 
-    # Add users to the Meta audience
-    total = response[0]["count"]
-    for sequence, offset in enumerate(range(0, total, batch_size)):
-        # correctly flag the last batch
+    total = int(response[0]["count"])
+
+    # 6) Upload users via REPLACE in deterministic batches
+    for sequence, _ in enumerate(range(0, total, batch_size)):
         is_last = (sequence + 1) == math.ceil(total / batch_size)
+
         session_payload = {
             "session_id": session_id,
             "estimated_num_total": total,
-            "batch_seq": sequence + 1,
+            "batch_seq": sequence + 1,  # 1-based for FB session API
             "last_batch_flag": is_last,
         }
+
         while True:
             context.set_custom_status("Adding users to Meta Audience.")
             session = yield context.call_activity(
@@ -154,7 +182,7 @@ def meta_customaudience_orchestrator(
                         "query": """
                             SELECT DISTINCT deviceid
                             FROM OPENROWSET(
-                                BULK '{}/{}',
+                                BULK '{}/{}/*',
                                 DATA_SOURCE = '{}',  
                                 FORMAT = 'CSV',
                                 PARSER_VERSION = '2.0',
@@ -169,21 +197,20 @@ def meta_customaudience_orchestrator(
                     "batch_size": batch_size,
                 },
             )
-            if session.get("error", False):
-                # Handle specific error codes by waiting and retrying if the audience is being updated
-                if session["error"].get("code") == 2650 and (
-                    session["error"].get("error_subcode") == 1870145
-                    or session["error"].get("error_subcode") == 1870158
-                ):
+
+            if session.get("error"):
+                err = session["error"]
+                # If the audience is busy (replace in progress elsewhere), wait deterministically and retry
+                if err.get("code") == 2650 and err.get("error_subcode") in (1870145, 1870158):
                     context.set_custom_status(
-                        "Waiting for the audience availability to become 'Ready' and try again."
+                        "Waiting for the audience to become Ready before retrying."
                     )
                     yield context.create_timer(
                         context.current_utc_datetime + timedelta(minutes=5)
                     )
                     continue
-                else:
-                    raise Exception(session["error"])
+                # Any other error: fail the orchestration (deterministically)
+                raise Exception(session["error"])
             break
 
-    return session  # Return the last session's results
+    return session

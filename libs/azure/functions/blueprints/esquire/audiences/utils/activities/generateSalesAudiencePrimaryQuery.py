@@ -60,7 +60,7 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
     addr_attr_name_lit = _sql_lit(addr_attr_name)
 
     # get 30 days prior to run (based on orchestrator context utc datetime for replay)
-    days_back = 30
+    days_back = ingress.get("days_back", 30)
     utc_now = ingress.get("utc_now")
     # logging.warning(f"[LOG] utc_now: {utc_now}")
     since_dt = datetime.strptime(utc_now, "%Y-%m-%d %H:%M:%S.%f%z") - timedelta(days=days_back)

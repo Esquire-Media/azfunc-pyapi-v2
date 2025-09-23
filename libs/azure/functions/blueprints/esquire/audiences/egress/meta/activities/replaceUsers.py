@@ -26,18 +26,62 @@ def activity_esquireAudienceMeta_customAudience_replaceUsers(ingress: dict):
                 - "query" (str): The SQL query to fetch device IDs.
                 - "bind" (str): The database connection bind string.
             - "batch" (dict): Contains batching details:
-                - "sequence" (int): The current batch sequence number.
-                - "size" (int): The number of records to fetch per batch.
-                - "total" (int): The total number of records to process.
-                - "session_id" (optional, int): The session ID for the batch process. If not provided, a random session ID will be generated.
-            - "access_token" (optional, str): The access token for Facebook API. If not provided, it will be fetched from environment variables.
-            - "app_id" (optional, str): The app ID for Facebook API. If not provided, it will be fetched from environment variables.
-            - "app_secret" (optional, str): The app secret for Facebook API. If not provided, it will be fetched from environment variables.
+                - "batch_seq" (int): 1-based batch sequence number (required by FB sessions).
+                - "session_id" (int): The session ID for the batch process.
+                - "estimated_num_total" (int): Total distinct records expected.
+                - "last_batch_flag" (bool): True for the last batch in the session.
+            - "batch_size" (int): Number of records per page.
+            - "access_token" (optional, str)
+            - "app_id" (optional, str)
+            - "app_secret" (optional, str)
 
     Returns:
-        None
+        dict: The FB response JSON or an object describing why a call was skipped.
     """
     try:
+        # Convert 1-based FB session sequence to 0-based SQL OFFSET
+        page_index_zero_based = max(ingress["batch"]["batch_seq"] - 1, 0)
+        offset = page_index_zero_based * ingress["batch_size"]
+        limit = ingress["batch_size"]
+
+        # Page the distinct MAIDs deterministically
+        df = pd.read_sql(
+            """
+                {}
+                ORDER BY deviceid
+                OFFSET {} ROWS
+                FETCH NEXT {} ROWS ONLY
+            """.format(
+                ingress["sql"]["query"].format(
+                    ingress["destination"]["container_name"],
+                    ingress["destination"]["blob_prefix"],
+                    ingress["destination"]["data_source"],
+                ),
+                offset,
+                limit,
+            ),
+            from_bind(ingress["sql"]["bind"]).connect().connection(),
+        )
+
+        users = (
+            df["deviceid"]
+            .astype(str)
+            .str.lower()
+            .tolist()
+            if not df.empty
+            else []
+        )
+
+        # If this page is empty, do not call the API (prevents (#100))
+        if not users:
+            return {
+                "skipped": True,
+                "reason": "Empty batch; no users for this page.",
+                "batch": ingress["batch"],
+                "offset": offset,
+                "limit": limit,
+            }
+
         return (
             CustomAudience(
                 fbid=ingress["audience"]["audience"],
@@ -46,25 +90,7 @@ def activity_esquireAudienceMeta_customAudience_replaceUsers(ingress: dict):
             .add_users(
                 schema=CustomAudience.Schema.mobile_advertiser_id,
                 is_raw=True,
-                users=pd.read_sql(
-                    """
-                        {}
-                        ORDER BY deviceid
-                        OFFSET {} ROWS
-                        FETCH NEXT {} ROWS ONLY
-                    """.format(
-                        ingress["sql"]["query"].format(
-                            ingress["destination"]["container_name"],
-                            ingress["destination"]["blob_prefix"],
-                            ingress["destination"]["data_source"],
-                        ),
-                        ingress["batch"]["batch_seq"] * ingress["batch_size"],
-                        ingress["batch_size"],
-                    ),
-                    from_bind(ingress["sql"]["bind"]).connect().connection(),
-                )["deviceid"]
-                .apply(lambda x: str(x).lower())
-                .to_list(),
+                users=users,
                 session=ingress["batch"],
             )
             .json()

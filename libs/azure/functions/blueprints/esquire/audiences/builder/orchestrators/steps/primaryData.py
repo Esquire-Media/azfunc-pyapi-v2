@@ -5,7 +5,7 @@ from azure.storage.blob import BlobServiceClient
 from libs.azure.functions.blueprints.esquire.audiences.builder.config import (
     MAPPING_DATASOURCE,
 )
-from libs.azure.functions.blueprints.esquire.audiences.builder.utils import extract_tenant_id_from_datafilter, extract_fields_from_dataFilter
+from libs.azure.functions.blueprints.esquire.audiences.builder.utils import extract_tenant_id_from_datafilter, extract_fields_from_dataFilter, extract_daysback_from_dataFilter
 import os
 # import logging
 bp = Blueprint()
@@ -139,7 +139,8 @@ def orchestrator_esquireAudiences_primaryData(
                             **MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]],
                             "tenant_id": extract_tenant_id_from_datafilter(ingress["audience"]["dataFilter"]),
                             "fields": extract_fields_from_dataFilter(ingress["audience"]["dataFilter"]),
-                            "utc_now": str(context.current_utc_datetime)
+                            "utc_now": str(context.current_utc_datetime),
+                            "days_back": extract_daysback_from_dataFilter(ingress["audience"]["dataFilter"])
                             }
                     )
                     # logging.warning(f"generateSalesAudiencePrimaryQuery returned query: {ingress['query']!r}")

@@ -27,8 +27,10 @@
         "ms-python.python",
         "DurableFunctionsMonitor.durablefunctionsmonitor",
         "ms-toolsai.jupyter",
-        "ms-python.black-formatter"
+        "ms-python.black-formatter",
+        "AndyGeek.context-code"
       ]
     }
-  }
+  },
+  "postCreateCommand": "chmod +x /usr/lib/azure-functions-core-tools/in-proc6/func"
 }

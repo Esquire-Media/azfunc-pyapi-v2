@@ -134,13 +134,13 @@ def meta_customaudience_orchestrator(
 
     # Add users to the Meta audience
     total = response[0]["count"]
-    for sequence, offset in enumerate(range(0, total, batch_size)):
+    for sequence, _ in enumerate(range(0, total, batch_size)):
         # correctly flag the last batch
         is_last = (sequence + 1) == math.ceil(total / batch_size)
         session_payload = {
             "session_id": session_id,
             "estimated_num_total": total,
-            "batch_seq": sequence + 1,
+            "batch_seq": sequence + 1,   # 1-based for FB session API
             "last_batch_flag": is_last,
         }
         while True:
@@ -154,7 +154,7 @@ def meta_customaudience_orchestrator(
                         "query": """
                             SELECT DISTINCT deviceid
                             FROM OPENROWSET(
-                                BULK '{}/{}',
+                                BULK '{}/{}/*',
                                 DATA_SOURCE = '{}',  
                                 FORMAT = 'CSV',
                                 PARSER_VERSION = '2.0',

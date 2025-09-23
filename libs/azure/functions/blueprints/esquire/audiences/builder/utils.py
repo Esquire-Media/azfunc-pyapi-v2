@@ -121,3 +121,14 @@ def extract_tenant_id_from_datafilter(sql):
     import re
     match = re.search(r'"tenant_id"\s*(?:=|!=|<>|<|>|LIKE|IN)\s*\'([^\']+)\'', sql, re.IGNORECASE)
     return match.group(1) if match else None
+
+def extract_daysback_from_dataFilter(sql):
+    import re
+    match = re.search(
+        r'"days_back"\s*(?:=|!=|<>|<|>|LIKE|IN)\s*(?:\'([^\']+)\'|(\d+))',
+        filter_sql,
+        re.IGNORECASE
+    )
+    val = match.group(1) or match.group(2) if match else None
+
+    return float(val)

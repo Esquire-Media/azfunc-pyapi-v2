@@ -287,7 +287,47 @@ LIMIT 1000
 )
 SELECT *
 FROM base
-WHERE {ingress['audience']['dataFilter']}
+WHERE {remove_days_back_clause(ingress['audience']['dataFilter'])}
 """.strip()
 
     return final_sql
+
+def remove_days_back_clause(data_filter: str) -> str:
+    import re
+    # Define a pattern for any comparison to "days_back"
+    operator_pattern = r'(=|!=|<>|>=|<=|<|>)'
+    clause_pattern = rf'\(*\s*"days_back"\s*{operator_pattern}\s*\d+\s*\)*'
+
+    # This function handles replacing and rebalancing
+    def balanced_removal(text):
+        # Remove logical connectors + clause
+        full_pattern = rf'''
+            # Middle
+            (\s+(AND|OR)\s+{clause_pattern})|
+            # Start
+            (^({clause_pattern})\s+(AND|OR)\s+)|
+            # End
+            (\s+(AND|OR)\s+{clause_pattern}$)|
+            # Only clause
+            (^({clause_pattern})$)
+        '''
+        cleaned = re.sub(full_pattern, '', text, flags=re.IGNORECASE | re.VERBOSE).strip()
+
+        # Final fallback: remove bare clause if missed
+        cleaned = re.sub(clause_pattern, '', cleaned, flags=re.IGNORECASE).strip()
+
+        # Remove dangling operators at start/end
+        cleaned = re.sub(r'^(AND|OR)\s+', '', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\s+(AND|OR)$', '', cleaned, flags=re.IGNORECASE)
+
+        # Fix unbalanced parentheses
+        open_parens = cleaned.count('(')
+        close_parens = cleaned.count(')')
+        if open_parens > close_parens:
+            cleaned += ')' * (open_parens - close_parens)
+        elif close_parens > open_parens:
+            cleaned = '(' * (close_parens - open_parens) + cleaned
+
+        return cleaned
+
+    return balanced_removal(data_filter)

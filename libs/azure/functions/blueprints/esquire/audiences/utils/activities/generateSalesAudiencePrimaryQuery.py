@@ -45,7 +45,7 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
             " END"
         ).format(p=prefix)
 
-    fields = list(ingress.get("fields") or [])
+    fields = list(field for field in ingress.get("fields") if field not in ["days_back"] or [])
     depth = (ingress.get("depth") or "line_item").lower()
     if depth not in ("transaction", "line_item"):
         raise ValueError("ingress['depth'] must be 'transaction' or 'line_item'")
@@ -125,51 +125,6 @@ LEFT JOIN LATERAL (
         ("plus4_code"                   , "plus4_code"),
         ("latitude"                     , "latitude"),
         ("longitude"                    , "longitude"),
-        ("addressee"                    , "addressee"),
-        ("default_city_name"            , "default_city_name"),
-        ("last_line"                    , "last_line"),
-        ("delivery_point_barcode"       , "delivery_point_barcode"),
-        ("urbanization"                 , "urbanization"),
-        ("primary_number"               , "primary_number"),
-        ("street_name"                  , "street_name"),
-        ("street_predirection"          , "street_predirection"),
-        ("street_postdirection"         , "street_postdirection"),
-        ("street_suffix"                , "street_suffix"),
-        ("secondary_number"             , "secondary_number"),
-        ("secondary_designator"         , "secondary_designator"),
-        ("extra_secondary_number"       , "extra_secondary_number"),
-        ("extra_secondary_designator"   , "extra_secondary_designator"),
-        ("pmb_designator"               , "pmb_designator"),
-        ("pmb_number"                   , "pmb_number"),
-        ("delivery_point"               , "delivery_point"),
-        ("delivery_point_check_digit"   , "delivery_point_check_digit"),
-        ("record_type"                  , "record_type"),
-        ("zip_type"                     , "zip_type"),
-        ("county_fips"                  , "county_fips"),
-        ("county_name"                  , "county_name"),
-        ("carrier_route"                , "carrier_route"),
-        ("congressional_district"       , "congressional_district"),
-        ("building_default_indicator"   , "building_default_indicator"),
-        ("rdi"                          , "rdi"),
-        ("elot_sequence"                , "elot_sequence"),
-        ("elot_sort"                    , "elot_sort"),
-        ("coordinate_license"           , "coordinate_license"),
-        ("precision"                    , "precision"),
-        ("time_zone"                    , "time_zone"),
-        ("utc_offset"                   , "utc_offset"),
-        ("obeys_dst"                    , "obeys_dst"),
-        ("is_ews_match"                 , "is_ews_match"),
-        ("dpv_match_code"               , "dpv_match_code"),
-        ("dpv_footnotes"                , "dpv_footnotes"),
-        ("cmra"                         , "cmra"),
-        ("vacant"                       , "vacant"),
-        ("active"                       , "active"),
-        ("dpv_no_stat"                  , "dpv_no_stat"),
-        ("footnotes"                    , "footnotes"),
-        ("lacs_link_code"               , "lacs_link_code"),
-        ("lacs_link_indicator"          , "lacs_link_indicator"),
-        ("is_suite_link_match"          , "is_suite_link_match"),
-        ("enhanced_match"               , "enhanced_match")
     ]
     
     addr_names_in = ", ".join("'" + _sql_lit(k) + "'" for k, _ in addr_fields)
@@ -279,15 +234,109 @@ LEFT JOIN sales.entities addr_e
 {addr_join_sql}
 """.strip()
 
+    ingress['audience']['dataFilter'] = remove_days_back_clause(ingress['audience']['dataFilter'])
     # ---------- OUTER FILTER ----------
     final_sql = f"""
 WITH base AS (
 {wide_sql}
 LIMIT 1000
-)
+){build_typed_cte_from_filter(ingress['audience']['dataFilter'])}
 SELECT *
-FROM base
+FROM typed
 WHERE {ingress['audience']['dataFilter']}
 """.strip()
 
     return final_sql
+
+import re
+
+def build_typed_cte_from_filter(data_filter: str) -> str:
+    """
+    Infer casts from a dataFilter clause and build a typed CTE
+    that only selects the casted/filter columns + address fields.
+    """
+
+    # Regex: find ("col" OP value...) patterns
+    pattern = r'"\s*([^"]+)\s*"\s*(=|!=|<>|>=|<=|>|<|IN)\s*(\([^)]+\)|[^)ANDOR]+)'
+    matches = re.findall(pattern, data_filter)
+
+    casts = []
+    seen = set()
+
+    for col, op, val in matches:
+        if col in seen:
+            continue
+        seen.add(col)
+
+        val = val.strip()
+
+        # Decide cast type
+        if val.startswith("'") or op.upper() == "IN":
+            expr = f'    base."{col}"'
+        elif val.lower() in ("true", "false"):
+            expr = f'    base."{col}"::boolean AS "{col}"'
+        elif re.match(r"'?\d{4}-\d{2}-\d{2}.*'?", val):  # date-like
+            expr = f'    base."{col}"::timestamptz AS "{col}"'
+        elif re.match(r"^-?\d+(\.\d+)?$", val):          # number
+            expr = f'    base."{col}"::numeric AS "{col}"'
+        else:
+            expr = f'    base."{col}"'
+
+        casts.append(expr)
+
+    # Always include address columns
+    addr_fields = [
+        "delivery_line_1", "delivery_line_2", "city_name", "state_abbreviation",
+        "zipcode", "plus4_code", "latitude", "longitude"
+    ]
+    for col in addr_fields:
+        if col not in seen:  # avoid double inclusion
+            casts.append(f'    base."{col}"')
+
+    return (
+        ", typed AS (\n"
+        "  SELECT\n"
+        + ",\n".join(casts) +
+        "\n  FROM base\n)"
+    )
+
+
+def remove_days_back_clause(data_filter: str) -> str:
+    import re
+    # Define a pattern for any comparison to "days_back"
+    operator_pattern = r'(=|!=|<>|>=|<=|<|>)'
+    clause_pattern = rf'\(*\s*"days_back"\s*{operator_pattern}\s*\d+\s*\)*'
+
+    # This function handles replacing and rebalancing
+    def balanced_removal(text):
+        # Remove logical connectors + clause
+        full_pattern = rf'''
+            # Middle
+            (\s+(AND|OR)\s+{clause_pattern})|
+            # Start
+            (^({clause_pattern})\s+(AND|OR)\s+)|
+            # End
+            (\s+(AND|OR)\s+{clause_pattern}$)|
+            # Only clause
+            (^({clause_pattern})$)
+        '''
+        cleaned = re.sub(full_pattern, '', text, flags=re.IGNORECASE | re.VERBOSE).strip()
+
+        # Final fallback: remove bare clause if missed
+        cleaned = re.sub(clause_pattern, '', cleaned, flags=re.IGNORECASE).strip()
+
+        # Remove dangling operators at start/end
+        cleaned = re.sub(r'^(AND|OR)\s+', '', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\s+(AND|OR)$', '', cleaned, flags=re.IGNORECASE)
+
+        # Fix unbalanced parentheses
+        open_parens = cleaned.count('(')
+        close_parens = cleaned.count(')')
+        if open_parens > close_parens:
+            cleaned += ')' * (open_parens - close_parens)
+        elif close_parens > open_parens:
+            cleaned = '(' * (close_parens - open_parens) + cleaned
+
+        return cleaned
+
+    return balanced_removal(data_filter)

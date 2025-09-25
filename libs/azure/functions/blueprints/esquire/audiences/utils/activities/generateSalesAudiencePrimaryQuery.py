@@ -234,18 +234,72 @@ LEFT JOIN sales.entities addr_e
 {addr_join_sql}
 """.strip()
 
+    ingress['audience']['dataFilter'] = remove_days_back_clause(ingress['audience']['dataFilter'])
     # ---------- OUTER FILTER ----------
     final_sql = f"""
 WITH base AS (
 {wide_sql}
 LIMIT 1000
-)
+){build_typed_cte_from_filter(ingress['audience']['dataFilter'])}
 SELECT *
-FROM base
-WHERE {remove_days_back_clause(ingress['audience']['dataFilter'])}
+FROM typed
+WHERE {ingress['audience']['dataFilter']}
 """.strip()
 
     return final_sql
+
+import re
+
+def build_typed_cte_from_filter(data_filter: str) -> str:
+    """
+    Infer casts from a dataFilter clause and build a typed CTE
+    that only selects the casted/filter columns + address fields.
+    """
+
+    # Regex: find ("col" OP value...) patterns
+    pattern = r'"\s*([^"]+)\s*"\s*(=|!=|<>|>=|<=|>|<|IN)\s*(\([^)]+\)|[^)ANDOR]+)'
+    matches = re.findall(pattern, data_filter)
+
+    casts = []
+    seen = set()
+
+    for col, op, val in matches:
+        if col in seen:
+            continue
+        seen.add(col)
+
+        val = val.strip()
+
+        # Decide cast type
+        if val.startswith("'") or op.upper() == "IN":
+            expr = f'    base."{col}"'
+        elif val.lower() in ("true", "false"):
+            expr = f'    base."{col}"::boolean AS "{col}"'
+        elif re.match(r"'?\d{4}-\d{2}-\d{2}.*'?", val):  # date-like
+            expr = f'    base."{col}"::timestamptz AS "{col}"'
+        elif re.match(r"^-?\d+(\.\d+)?$", val):          # number
+            expr = f'    base."{col}"::numeric AS "{col}"'
+        else:
+            expr = f'    base."{col}"'
+
+        casts.append(expr)
+
+    # Always include address columns
+    addr_fields = [
+        "delivery_line_1", "delivery_line_2", "city_name", "state_abbreviation",
+        "zipcode", "plus4_code", "latitude", "longitude"
+    ]
+    for col in addr_fields:
+        if col not in seen:  # avoid double inclusion
+            casts.append(f'    base."{col}"')
+
+    return (
+        ", typed AS (\n"
+        "  SELECT\n"
+        + ",\n".join(casts) +
+        "\n  FROM base\n)"
+    )
+
 
 def remove_days_back_clause(data_filter: str) -> str:
     import re

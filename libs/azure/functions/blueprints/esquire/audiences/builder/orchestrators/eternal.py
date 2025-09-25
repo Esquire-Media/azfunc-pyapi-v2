@@ -475,7 +475,7 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
                 "activity_microsoftGraph_sendEmail",
                 {
                     "from_id": "74891a5a-d0e9-43a4-a7c1-a9c04f6483c8",
-                    "to_addresses": ["isaac@esquireadvertising.com"],
+                    "to_addresses": ["isaac@esquireadvertising.com", "matt@esquireadvertising.com"],
                     "subject": subject,
                     "message": html_body,
                     "content_type": "html",

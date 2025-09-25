@@ -45,7 +45,7 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
             " END"
         ).format(p=prefix)
 
-    fields = list(ingress.get("fields") or [])
+    fields = list(field for field in ingress.get("fields") if field not in ["days_back"] or [])
     depth = (ingress.get("depth") or "line_item").lower()
     if depth not in ("transaction", "line_item"):
         raise ValueError("ingress['depth'] must be 'transaction' or 'line_item'")
@@ -125,51 +125,6 @@ LEFT JOIN LATERAL (
         ("plus4_code"                   , "plus4_code"),
         ("latitude"                     , "latitude"),
         ("longitude"                    , "longitude"),
-        ("addressee"                    , "addressee"),
-        ("default_city_name"            , "default_city_name"),
-        ("last_line"                    , "last_line"),
-        ("delivery_point_barcode"       , "delivery_point_barcode"),
-        ("urbanization"                 , "urbanization"),
-        ("primary_number"               , "primary_number"),
-        ("street_name"                  , "street_name"),
-        ("street_predirection"          , "street_predirection"),
-        ("street_postdirection"         , "street_postdirection"),
-        ("street_suffix"                , "street_suffix"),
-        ("secondary_number"             , "secondary_number"),
-        ("secondary_designator"         , "secondary_designator"),
-        ("extra_secondary_number"       , "extra_secondary_number"),
-        ("extra_secondary_designator"   , "extra_secondary_designator"),
-        ("pmb_designator"               , "pmb_designator"),
-        ("pmb_number"                   , "pmb_number"),
-        ("delivery_point"               , "delivery_point"),
-        ("delivery_point_check_digit"   , "delivery_point_check_digit"),
-        ("record_type"                  , "record_type"),
-        ("zip_type"                     , "zip_type"),
-        ("county_fips"                  , "county_fips"),
-        ("county_name"                  , "county_name"),
-        ("carrier_route"                , "carrier_route"),
-        ("congressional_district"       , "congressional_district"),
-        ("building_default_indicator"   , "building_default_indicator"),
-        ("rdi"                          , "rdi"),
-        ("elot_sequence"                , "elot_sequence"),
-        ("elot_sort"                    , "elot_sort"),
-        ("coordinate_license"           , "coordinate_license"),
-        ("precision"                    , "precision"),
-        ("time_zone"                    , "time_zone"),
-        ("utc_offset"                   , "utc_offset"),
-        ("obeys_dst"                    , "obeys_dst"),
-        ("is_ews_match"                 , "is_ews_match"),
-        ("dpv_match_code"               , "dpv_match_code"),
-        ("dpv_footnotes"                , "dpv_footnotes"),
-        ("cmra"                         , "cmra"),
-        ("vacant"                       , "vacant"),
-        ("active"                       , "active"),
-        ("dpv_no_stat"                  , "dpv_no_stat"),
-        ("footnotes"                    , "footnotes"),
-        ("lacs_link_code"               , "lacs_link_code"),
-        ("lacs_link_indicator"          , "lacs_link_indicator"),
-        ("is_suite_link_match"          , "is_suite_link_match"),
-        ("enhanced_match"               , "enhanced_match")
     ]
     
     addr_names_in = ", ".join("'" + _sql_lit(k) + "'" for k, _ in addr_fields)

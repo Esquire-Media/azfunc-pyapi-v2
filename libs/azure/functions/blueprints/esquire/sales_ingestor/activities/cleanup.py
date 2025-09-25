@@ -18,5 +18,18 @@ def activity_salesIngestor_cleanup(settings: dict):
     with db() as conn:
         # Drop without a trailing semicolon, via SQLAlchemy’s text()
         conn.execute(text(f"DROP TABLE IF EXISTS {qtbl(table_name)};"))
-        conn.execute(text(f"DROP TABLE IF EXISTS {table_name};"))
+        conn.execute(text(f"""DO $$
+                DECLARE
+                    r RECORD;
+                BEGIN
+                    FOR r IN
+                        SELECT table_name
+                        FROM information_schema.tables
+                        WHERE table_schema = 'sales'
+                        AND table_name LIKE '{table_name.split("sales.")[-1]}'
+                    LOOP
+                        EXECUTE format('DROP TABLE sales.%I;', r.table_name);
+                    END LOOP;
+                END $$;
+                """))
         conn.commit()

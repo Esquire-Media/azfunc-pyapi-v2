@@ -245,9 +245,10 @@ def activity_salesIngestor_eavTransform(settings: dict):
             END AS entity_id,
             ai.attribute_id,
             ai.data_type,
-            row_to_json(lid) ->> ai.attribute_name AS column_value
-        FROM line_item_data lid
-        JOIN attribute_info ai ON TRUE
+            kv.value AS column_value
+        FROM line_item_data lid,
+        LATERAL jsonb_each_text(to_jsonb(lid)) kv
+        JOIN attribute_info ai ON ai.attribute_name = kv.key
     ),
     attribute_values AS (
         SELECT

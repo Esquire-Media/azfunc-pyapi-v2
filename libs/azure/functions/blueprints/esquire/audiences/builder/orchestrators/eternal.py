@@ -2,8 +2,8 @@
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 from croniter import croniter
-import datetime, orjson as json, pytz, hashlib
-from typing import Any, Dict, List, Optional
+import datetime, orjson as json, pytz, hashlib, re, html
+from typing import Any, Dict, List, Optional, Tuple
 
 bp = Blueprint()
 
@@ -53,6 +53,176 @@ def _dedupe_and_trim_history(
     return filtered
 
 
+# ---------------------------
+# Error formatting utilities
+# ---------------------------
+
+class _ParsedOrchError:
+    def __init__(self, name: str, message: Optional[str], stack: List[str]):
+        self.name = name
+        self.message = (message or "").strip() or None
+        self.stack = stack
+
+
+def _parse_durable_error_chain(err_text: str) -> List[_ParsedOrchError]:
+    """
+    Best-effort parser for Durable orchestrator exception strings like:
+      Orchestrator function 'A' failed: Orchestrator function 'B' failed: None
+      Message: None, StackTrace: at ...
+      Message: Orchestrator function 'B' failed: None Message: None, StackTrace: at ...
+      , StackTrace: at ...
+
+    Strategy:
+    - Split on "Orchestrator function '<name>' failed:" boundaries to reveal the nested chain.
+    - For each segment, pull optional 'Message:' and 'StackTrace:'.
+    - Normalize + de-duplicate stack frames while preserving order.
+    """
+    if not err_text:
+        return []
+
+    parts = re.split(r"(?=Orchestrator function ')", err_text)
+    results: List[_ParsedOrchError] = []
+
+    for part in parts:
+        m_name = re.search(r"Orchestrator function '([^']+)'", part)
+        if not m_name:
+            # If no orchestrator header, try to salvage as the leaf error
+            # Treat it as an anonymous step with whatever message/stack we can find.
+            name = "orchestrator"
+        else:
+            name = m_name.group(1)
+
+        msg = None
+        stack_text = ""
+
+        # Grab the last explicit Message: ... before a StackTrace:, if present
+        m_msg = re.search(r"Message:\s*(.*?)(?:,\s*StackTrace:|$)", part, flags=re.DOTALL)
+        if m_msg:
+            msg = m_msg.group(1)
+
+        # Prefer the last StackTrace: section in this piece (closest to the leaf)
+        stack_candidates = re.findall(r"StackTrace:\s*(.*)", part, flags=re.DOTALL)
+        if stack_candidates:
+            stack_text = stack_candidates[-1]
+
+        # Split stack into lines, strip noise, de-dup preserving order
+        raw_lines = [ln.strip() for ln in stack_text.splitlines() if ln.strip()]
+        seen = set()
+        stack_lines: List[str] = []
+        for ln in raw_lines:
+            if ln in seen:
+                continue
+            seen.add(ln)
+            stack_lines.append(ln)
+
+        results.append(_ParsedOrchError(name=name, message=msg, stack=stack_lines))
+
+    # If we didn't find any orchestrator markers at all, return a single leaf with raw text
+    if not results:
+        return [_ParsedOrchError(name="orchestrator", message=err_text, stack=[])]
+
+    return results
+
+
+def _ellipsize_lines(lines: List[str], max_lines: int = 25) -> List[str]:
+    if len(lines) <= max_lines:
+        return lines
+    head = lines[: max_lines - 1]
+    return head + ["… ({} more lines)".format(len(lines) - (max_lines - 1))]
+
+
+def _format_error_html(
+    *,
+    instance_id: str,
+    audience_id: Optional[str],
+    exception: Exception,
+    now_utc: datetime.datetime,
+) -> Tuple[str, str]:
+    """
+    Returns (subject_suffix, html_body)
+    """
+    err_text = str(exception) or repr(exception)
+    err_type = type(exception).__name__
+    chain = _parse_durable_error_chain(err_text)
+
+    # Build a breadcrumb of failing orchestrators (outer → inner)
+    breadcrumb = " → ".join([c.name for c in chain if c.name])
+
+    # Build sections per orchestrator with message + stack
+    sections_html: List[str] = []
+    for c in chain:
+        msg_html = (
+            f"<div><code>{html.escape(c.message)}</code></div>"
+            if c.message and c.message.lower() != "none"
+            else "<div><em>No message</em></div>"
+        )
+        stack_lines = _ellipsize_lines(c.stack, max_lines=25)
+        stack_html = (
+            "<pre style='margin:8px 0;padding:8px;border:1px solid #eee;"
+            "border-radius:6px;overflow:auto;font-size:12px;'>"
+            + html.escape("\n".join(stack_lines))
+            + "</pre>"
+            if stack_lines
+            else "<div><em>No stack trace</em></div>"
+        )
+        sections_html.append(
+            f"""
+            <details style="margin:10px 0;" open>
+              <summary style="cursor: pointer; font-weight:600;">
+                Orchestrator: <code>{html.escape(c.name)}</code>
+              </summary>
+              {msg_html}
+              {stack_html}
+            </details>
+            """
+        )
+
+    raw_block = (
+        "<details style='margin-top:14px;'>"
+        "<summary style='cursor:pointer;font-weight:600;'>Raw exception</summary>"
+        "<pre style='margin:8px 0;padding:8px;border:1px solid #eee;border-radius:6px;overflow:auto;font-size:12px;'>"
+        + html.escape(err_text)
+        + "</pre></details>"
+    )
+
+    header_rows = [
+        ("Status", "<strong style='color:#b00020;'>Error</strong>"),
+        ("When (UTC)", html.escape(_safe_iso(now_utc))),
+        ("Instance ID", f"<code>{html.escape(instance_id)}</code>"),
+        ("Audience ID", f"<code>{html.escape(str(audience_id))}</code>" if audience_id else "<em>unknown</em>"),
+        ("Exception Type", f"<code>{html.escape(err_type)}</code>"),
+        ("Orchestrator Chain", f"<code>{html.escape(breadcrumb or 'n/a')}</code>"),
+    ]
+
+    info_table = (
+        "<table cellpadding='6' cellspacing='0' style='border-collapse:collapse;font-size:14px;'>"
+        + "".join(
+            f"<tr>"
+            f"<td style='border:1px solid #eee;background:#fafafa;font-weight:600;'>{k}</td>"
+            f"<td style='border:1px solid #eee;'>{v}</td>"
+            f"</tr>"
+            for k, v in header_rows
+        )
+        + "</table>"
+    )
+
+    body = f"""
+    <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial,'Noto Sans',sans-serif; line-height:1.45; color:#111;">
+      <h2 style="margin:0 0 8px;">esquire-auto-audience failure</h2>
+      <p style="margin:0 0 12px;">A Durable Functions orchestrator run failed.</p>
+      {info_table}
+      <h3 style="margin:16px 0 6px;">Details</h3>
+      {''.join(sections_html)}
+      {raw_block}
+    </div>
+    """.strip()
+
+    subject_suffix = f"instance {instance_id}"
+    if audience_id:
+        subject_suffix += f" | audience {audience_id}"
+    return subject_suffix, body
+
+
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_esquire_audience(context: DurableOrchestrationContext):
     """
@@ -70,6 +240,18 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
         "activity_esquireAudienceBuilder_fetchAudience",
         {"id": context.instance_id},
     )
+
+    # NEW: Exit gracefully if the audience is disabled
+    if not bool((ingress.get("audience") or {}).get("status", False)):
+        context.set_custom_status(
+            {
+                "state": "Disabled",
+                "previous_runs": history,
+                "audience_id": (ingress.get("audience") or {}).get("id"),
+                "enabled": False,
+            }
+        )
+        return ""
 
     # Determine the last run time from storage layout (prefix ends in ISO timestamp)
     audience_blob_prefix = yield context.call_activity(
@@ -232,7 +414,9 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
                 "prefix": post_prefix,
                 "file_count": {
                     "actual": post_file_count,
-                    "expected": len(build.get("results") or []) if isinstance(build.get("results"), list) else None,
+                    "expected": len(build.get("results") or [])
+                    if isinstance(build.get("results"), list)
+                    else None,
                 },
                 "device_count": (build.get("audience", {}) or {}).get("count"),
                 "targets": targets,
@@ -246,7 +430,9 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
                     "state": "Completed",
                     "completed_at": _safe_iso(now),
                     "next_run": _safe_iso(
-                        croniter(ingress["audience"]["rebuildSchedule"], now).get_next(datetime.datetime)
+                        croniter(ingress["audience"]["rebuildSchedule"], now).get_next(
+                            datetime.datetime
+                        )
                     ),
                     "previous_runs": history,
                     "audience_id": build["audience"]["id"],
@@ -254,6 +440,7 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
             )
 
         except Exception as e:
+            # Record into history
             history = _dedupe_and_trim_history(
                 history,
                 {
@@ -273,17 +460,28 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
                 }
             )
 
-            # Existing notification behavior
+            # -------- Enhanced email contents --------
+            audience_id = (ingress.get("audience") or {}).get("id")
+            subject_suffix, html_body = _format_error_html(
+                instance_id=context.instance_id,
+                audience_id=audience_id,
+                exception=e,
+                now_utc=now,
+            )
+            subject = f"esquire-auto-audience Failure — {subject_suffix}"
+
+            # Existing notification behavior (HTML, with instance id and formatted error)
             yield context.call_activity(
                 "activity_microsoftGraph_sendEmail",
                 {
                     "from_id": "74891a5a-d0e9-43a4-a7c1-a9c04f6483c8",
                     "to_addresses": ["isaac@esquireadvertising.com"],
-                    "subject": "esquire-auto-audience Failure",
-                    "message": str(e),
+                    "subject": subject,
+                    "message": html_body,
                     "content_type": "html",
                 },
             )
+            # Re-raise to preserve Durable semantics / retries / diagnostics
             raise e
 
     # Publish the next daily tick and sleep

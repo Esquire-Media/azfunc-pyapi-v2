@@ -126,7 +126,7 @@ def extract_daysback_from_dataFilter(sql):
     import re
     match = re.search(
         r'"days_back"\s*(?:=|!=|<>|<|>|LIKE|IN)\s*(?:\'([^\']+)\'|(\d+))',
-        filter_sql,
+        sql,
         re.IGNORECASE
     )
     val = match.group(1) or match.group(2) if match else None

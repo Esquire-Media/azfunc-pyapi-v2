@@ -35,9 +35,9 @@ async def activity_esquireAudiencesNeighbors_findNeighbors(ingress: dict):
         reader = csv.DictReader(StringIO(csv_bytes.decode("utf-8")))
         for row in reader:
             if (
-                row.get("city_name", "").strip().upper() == city and
-                row.get("state_abbreviation", "").strip().upper() == state and
-                row.get("zipcode", "").strip() == zip_code
+                row.get("city", "").strip().upper() == city and
+                row.get("state", "").strip().upper() == state and
+                row.get("zipCode", "").strip() == zip_code
             ):
                 addresses.append(row)
                 

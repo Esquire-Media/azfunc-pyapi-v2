@@ -45,7 +45,8 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
             " END"
         ).format(p=prefix)
 
-    fields = list(field for field in ingress.get("fields") if field not in ["days_back"] or [])
+    # do not create coalescences or the like for address based information. just keep it in the final where
+    fields = list(field for field in ingress.get("fields") if field not in ["days_back", "zipcode", "state_abbreviation", "city_name", "plus4_code", "latitude", "longitude"] or [])
     depth = (ingress.get("depth") or "line_item").lower()
     if depth not in ("transaction", "line_item"):
         raise ValueError("ingress['depth'] must be 'transaction' or 'line_item'")

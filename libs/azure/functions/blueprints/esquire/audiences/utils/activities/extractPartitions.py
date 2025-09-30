@@ -30,9 +30,9 @@ def activity_esquireAudiencesNeighbors_extractPartitions(ingress: dict) -> list[
         reader = csv.DictReader(StringIO(csv_bytes.decode("utf-8")))
 
         for row in reader:
-            city = row.get("city_name")
-            state = row.get("state_abbreviation")
-            zip_code = row.get("zipcode")
+            city = row.get("city")
+            state = row.get("state")
+            zip_code = row.get("zipCode")
 
             if not(city and state and zip_code):
                 # logging.warning(f"[LOG] not all parts found: {city}; {state}; {zip_code}")

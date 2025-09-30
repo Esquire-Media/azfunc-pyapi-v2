@@ -240,7 +240,6 @@ LEFT JOIN sales.entities addr_e
     final_sql = f"""
 WITH base AS (
 {wide_sql}
-LIMIT 1000
 ){build_typed_cte_from_filter(ingress['audience']['dataFilter'])}
 SELECT *
 FROM typed

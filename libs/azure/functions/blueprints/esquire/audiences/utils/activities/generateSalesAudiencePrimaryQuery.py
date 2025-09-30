@@ -238,14 +238,49 @@ LEFT JOIN sales.entities addr_e
 
     ingress['audience']['dataFilter'] = remove_days_back_clause(ingress['audience']['dataFilter'])
     # ---------- OUTER FILTER ----------
+    # build the select list with aliases but no duplicates
+    address_alias_map = {
+        "delivery_line_1": "address",
+        "city_name": "city",
+        "state_abbreviation": "state",
+        "plus4_code": "plus4Code",
+        "zipcode": "zipCode",
+    }
+
+    # figure out all columns in typed CTE (fields + address columns)
+    # fields already comes from ingress
+    all_columns = list(fields) + [
+        "delivery_line_1",
+        "delivery_line_2",
+        "city_name",
+        "state_abbreviation",
+        "zipcode",
+        "plus4_code",
+        "latitude",
+        "longitude",
+    ]
+
+    # build select clause
+    select_cols = []
+    for col in all_columns:
+        alias = address_alias_map.get(col)
+        if alias:
+            select_cols.append(f'typed."{col}" AS "{alias}"')
+        else:
+            select_cols.append(f'typed."{col}"')
+
+    # join into SQL
+    select_clause = ",\n  ".join(select_cols)
+
     final_sql = f"""
-WITH base AS (
-{wide_sql}
-){build_typed_cte_from_filter(ingress['audience']['dataFilter'])}
-SELECT *
-FROM typed
-WHERE {ingress['audience']['dataFilter']}
-""".strip()
+    WITH base AS (
+    {wide_sql}
+    ){build_typed_cte_from_filter(ingress['audience']['dataFilter'])}
+    SELECT
+      {select_clause}
+    FROM typed
+    WHERE {ingress['audience']['dataFilter']}
+    """.strip()
 
     return final_sql
 

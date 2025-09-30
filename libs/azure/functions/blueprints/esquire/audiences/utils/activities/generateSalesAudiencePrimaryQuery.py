@@ -127,6 +127,8 @@ LEFT JOIN LATERAL (
         ("plus4_code"                   , "plus4_code"),
         ("latitude"                     , "latitude"),
         ("longitude"                    , "longitude"),
+        ("street_name"                  , "street_name"),
+        ("primary_number"               , "primary_number")
     ]
     
     addr_names_in = ", ".join("'" + _sql_lit(k) + "'" for k, _ in addr_fields)
@@ -258,6 +260,8 @@ LEFT JOIN sales.entities addr_e
         "plus4_code",
         "latitude",
         "longitude",
+        "street_name",
+        "primary_number"
     ]
 
     # build select clause
@@ -323,7 +327,7 @@ def build_typed_cte_from_filter(data_filter: str) -> str:
     # Always include address columns
     addr_fields = [
         "delivery_line_1", "delivery_line_2", "city_name", "state_abbreviation",
-        "zipcode", "plus4_code", "latitude", "longitude"
+        "zipcode", "plus4_code", "latitude", "longitude", "street_name", "primary_number"
     ]
     for col in addr_fields:
         if col not in seen:  # avoid double inclusion

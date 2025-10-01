@@ -1,13 +1,15 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/egress/meta/activities/forceEndSession.py
 
+from typing import Any, Dict
+import uuid
+
 from azure.durable_functions import Blueprint
 from facebook_business.adobjects.customaudience import CustomAudience
 from facebook_business.exceptions import FacebookRequestError
+
 from libs.azure.functions.blueprints.esquire.audiences.egress.meta.utils import (
     initialize_facebook_api,
 )
-import uuid
-from typing import Any, Dict
 
 bp = Blueprint()
 
@@ -31,8 +33,7 @@ def activity_esquireAudienceMeta_customAudienceSession_forceEnd(ingress: Dict[st
 
     Strategy:
       - Try usersreplace with provided session payload (no extra math here).
-      - If FB returns 2650/1870147 ("first batch_seq was not detected"), fall back to batch_seq=1
-        for this session to deterministically "start-and-end" the REPLACE sequence.
+      - If FB returns 2650/1870147 ("first batch_seq was not detected"), fall back to batch_seq=1.
       - Never raise; always return a structured dict so the orchestrator can continue deterministically.
     """
     api = initialize_facebook_api(ingress)
@@ -46,8 +47,7 @@ def activity_esquireAudienceMeta_customAudienceSession_forceEnd(ingress: Dict[st
                 params={
                     "payload": {
                         "schema": CustomAudience.Schema.mobile_advertiser_id,
-                        # Single dummy MAID is sufficient to close out a REPLACE session.
-                        "data": [str(uuid.uuid4())],
+                        "data": [str(uuid.uuid4())],  # minimal data to close session
                     },
                     "session": session_obj,
                 }
@@ -63,11 +63,10 @@ def activity_esquireAudienceMeta_customAudienceSession_forceEnd(ingress: Dict[st
         code = err.get("code")
         sub = err.get("error_subcode")
 
-        # 2650/1870147: "Invalid Upload Batch for Replace" – first batch_seq was not detected
+        # 2650/1870147: "Invalid Upload Batch for Replace" – first batch_seq not detected
         if code == 2650 and sub == 1870147:
             fallback_session = dict(session_payload)
             fallback_session["batch_seq"] = 1
-            # Make sure totals are >= 1 and we keep last flag
             fallback_session["estimated_num_total"] = max(
                 int(fallback_session.get("estimated_num_total", 1)), 1
             )
@@ -89,5 +88,4 @@ def activity_esquireAudienceMeta_customAudienceSession_forceEnd(ingress: Dict[st
                     "error": getattr(e2, "body", lambda: {"error": {"message": str(e2)}})(),
                 }
 
-        # For any other FB error, return it without throwing to keep orchestrator deterministic.
         return {"forced_end": False, "error": body}

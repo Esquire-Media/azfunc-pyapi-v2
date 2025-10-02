@@ -154,6 +154,9 @@ def generate_alter_statements(inferred_schema: dict, table_name: str, settings: 
         if col == order_number:
             continue
 
+        if pg_type == 'INTEGER':
+            pg_type = 'BIGINT'
+            
         stmt = (
             f'ALTER TABLE {table_name} '
             f'ALTER COLUMN "{col}" TYPE {pg_type} '

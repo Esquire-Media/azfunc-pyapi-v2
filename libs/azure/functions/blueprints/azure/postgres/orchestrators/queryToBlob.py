@@ -3,7 +3,7 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 
 bp = Blueprint()
-
+import logging
 
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_azurePostgres_queryToBlob(context: DurableOrchestrationContext):
@@ -19,10 +19,12 @@ def orchestrator_azurePostgres_queryToBlob(context: DurableOrchestrationContext)
     #         "format": "CSV",
     #     }
     # }
+    logging.warning('[LOG] Getting Record Count')
     ingress = context.get_input()
     count = yield context.call_activity(
         "activity_azurePostgres_getRecordCount", ingress["source"]
     )
+    logging.warning('[LOG] Sending Result to Blob')
     limit = ingress.get("limit", 1000)
     urls = yield context.task_all(
         [

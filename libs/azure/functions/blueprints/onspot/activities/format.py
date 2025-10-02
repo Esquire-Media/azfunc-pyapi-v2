@@ -9,6 +9,7 @@ from azure.storage.blob import (
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import uuid, os
+import logging
 
 bp = Blueprint()
 
@@ -95,5 +96,7 @@ async def onspot_activity_format(ingress: dict, client: DurableOrchestrationClie
                 )
                 + sas_token
             )
+
+    logging.info(f"[LOG] {ingress['request']}")
 
     return ingress["request"]

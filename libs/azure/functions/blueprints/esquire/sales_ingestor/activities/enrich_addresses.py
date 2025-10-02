@@ -318,6 +318,7 @@ def upsert_address_attributes(cleaned: pd.DataFrame):
     if 'zipcode' in cleaned.columns:
         cleaned['zipcode'] = cleaned['zipcode'].apply(format_zipcode)
 
+
     eav_rows = []
     for entry in cleaned[ATTRIBUTE_NAMES + ['address_id']].dropna(how='any').itertuples(index=False):
 

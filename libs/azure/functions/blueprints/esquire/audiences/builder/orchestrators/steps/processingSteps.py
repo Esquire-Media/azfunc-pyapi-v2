@@ -2,7 +2,11 @@
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 from azure.durable_functions import Blueprint
+from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
+    extract_tenant_id_from_datafilter,
+)
 import orjson as json
+# import logging
 
 bp = Blueprint()
 
@@ -46,12 +50,15 @@ def orchestrator_esquireAudiences_processingSteps(
                 "dataType": str
             },
             "dataFilter": str,
-            "processes": [
+            "processing": [
                 {
-                    "id": str,
-                    "sort": str,
-                    "outputType": str,
-                    "customCoding": str
+                    "steps": [
+                    {
+                        "kind": str,
+                        "{args}": str
+                    }
+                    ],
+                    "version":int
                 }
             ]
         },
@@ -68,13 +75,25 @@ def orchestrator_esquireAudiences_processingSteps(
         "results": [str]
     }
     """
+    # logging.warning("[LOG] Processing Steps")
 
     ingress = context.get_input()
 
+    # early retrn if we have no processing to do
+    processing = ingress.get("audience", {}).get("processing")
+    if not processing or not processing.get("steps"):
+        # logging.warning("[LOG] No processing steps found, returning ingress unchanged.")
+        return ingress
+
+    ingress["base_prefix"]   = str(ingress["working"]["blob_prefix"]).strip("/")
+    # logging.warning(f"[LOG] base prefix: {ingress['base_prefix']}")
+
     # Loop through each processing step
     for step, process in enumerate(
-        processes := ingress["audience"].get("processes", [])
+        processes := processing.get("steps",[])
     ):
+        # logging.warning(f"[LOG] Step: {step} - {process['kind']}")
+        process["outputType"] = processing_step_output_types(process["kind"])
         # Determine the input type and source URLs for the current step
         inputType = (
             processes[step - 1]["outputType"]  # Use previous step's output type
@@ -91,58 +110,54 @@ def orchestrator_esquireAudiences_processingSteps(
                 )
             )
 
-        # Prepare custom coding for the first step or as specified
-        if not step:
-            custom_coding = {
-                "request": {
-                    "dateStart": {
-                        "date_add": [
-                            {"now": []},
-                            0 - int(ingress["audience"]["TTL_Length"]),
-                            ingress["audience"]["TTL_Unit"],
-                        ]
-                    },
-                    "dateEnd": {"date_add": [{"now": []}, -2, "days"]},
-                }
-            }
-        elif process.get("customCoding", False):
-            try:
-                custom_coding = json.loads(process["customCoding"])
-            except:
-                custom_coding = {}
-
         # Set up the egress data structure for the current step
+
         egress = {
             "working": {
                 **ingress["working"],
-                "blob_prefix": "{}/{}/{}/{}/working".format(
-                    ingress["working"]["blob_prefix"],
-                    ingress["instance_id"],
-                    ingress["audience"]["id"],
+                "blob_prefix": "{}/{}/working".format(
+                    ingress['base_prefix'],
                     step,
                 ),
             },
             "destination": {
                 **ingress["working"],
-                "blob_prefix": "{}/{}/{}/{}".format(
-                    ingress["working"]["blob_prefix"],
-                    ingress["instance_id"],
-                    ingress["audience"]["id"],
+                "blob_prefix": "{}/{}".format(
+                    ingress['base_prefix'],
                     step,
                 ),
             },
             "transform": [inputType, process["outputType"]],
             "source_urls": source_urls,
-            "custom_coding": custom_coding,
+            "process": process,
+            "tenant_id": extract_tenant_id_from_datafilter(ingress["audience"]["dataFilter"])
         }
 
         # Process the data based on the input and output types
+        # logging.warning(f"[LOG] Egress: {egress}")
+        # logging.warning(f"[LOG] Input Type: {inputType}")
+        # logging.warning(f"[LOG] Output Type: {process['outputType']}")
+
         match inputType:
             case "addresses":
                 match process["outputType"]:
                     case "addresses":  # addresses -> addresses
-                        # No specific processing required
-                        pass
+                        # logging.warning("[LOG] Addresses output type")
+                        # logging.warning("[LOG] Step Type:" + egress.get("process",{}).get("kind",""))
+                        if egress["process"].get("kind", "") == "Neighbors":
+                            # No specific processing required
+                            process["results"] = yield context.call_sub_orchestrator(
+                                "orchestrator_esquireAudiencesSteps_addresses2neighbors",
+                                egress,
+                            )
+                        elif egress["process"].get("kind", "") == "Proximity":
+                            process["results"] = yield context.call_sub_orchestrator(
+                                "orchestrator_esquireAudiencesSteps_ownedLocationRadius",
+                                egress
+                            )
+                        else:
+                            # logging.warning("[LOG] No Neighbor Logic used")
+                            pass
                     case "device_ids":  # addresses -> deviceids
                         process["results"] = yield context.call_sub_orchestrator(
                             "orchestrator_esquireAudiencesSteps_addresses2deviceids",
@@ -205,21 +220,21 @@ def orchestrator_esquireAudiences_processingSteps(
                         # No specific processing required
                         pass
 
-        # Apply custom coding filters if specified
-        if custom_coding.get("filter", False):
-            process["results"] = yield context.task_all(
-                [
-                    context.call_activity(
-                        "activity_esquireAudienceBuilder_filterResults",
-                        {
-                            "source": url,
-                            "destination": egress["working"],
-                            "filter": custom_coding["filter"],
-                        },
-                    )
-                    for url in process["results"]
-                ]
-            )
+        # logging.warning(f"[LOG] Step: {step} - {process['kind']} done.")
+
+    # logging.warning(f"[LOG] Final processes list: {json.dumps(processes, option=json.OPT_INDENT_2)}")
+
+    # Ensure last step results are returned in ingress["results"]
+    if processes and isinstance(processes[-1].get("results"), list):
+        ingress["results"] = processes[-1]["results"]
+    else:
+        raise Exception("Final processing step did not produce valid results.")
 
     # Return the updated ingress data after all processing steps
     return ingress
+
+def processing_step_output_types(step_kind):
+    return {
+        "Proximity":"addresses",
+        "Neighbors":"addresses"
+    }[step_kind]

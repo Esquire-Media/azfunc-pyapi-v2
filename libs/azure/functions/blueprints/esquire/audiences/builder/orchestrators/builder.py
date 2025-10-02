@@ -1,6 +1,7 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/builder.py
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
+# import logging
 
 bp = Blueprint()
 
@@ -48,21 +49,15 @@ def orchestrator_esquireAudiences_builder(
                 "dataType": dict,
             },
             "dataFilter": str,
-            "processes": [
-                {
-                    "id": str,
-                    "sort": str,
-                    "outputType": str,
-                    "filterBy": str,
-                    "customCoding": str,
-                }
-            ]
+            "processing": dict
         },
     }
     """
     # Retrieve the input data for the orchestration
     ingress = context.get_input()
     ingress["instance_id"] = context.instance_id
+
+    # logging.warning(f"[LOG] ingress after fetch audience: {ingress}")
 
     # Prepend the instance id to the working path for easy cleanup
     ingress["working"]["blob_prefix"] = "{}/{}".format(

@@ -7,7 +7,7 @@
       "command": "host start",
       "problemMatcher": "$func-python-watch",
       "isBackground": true,
-      "dependsOn": "start azurite"
+      // "dependsOn": "start azurite"
     },
     {
       "label": "start azurite",

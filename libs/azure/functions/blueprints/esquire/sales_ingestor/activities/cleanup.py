@@ -32,4 +32,5 @@ def activity_salesIngestor_cleanup(settings: dict):
                     END LOOP;
                 END $$;
                 """))
+        conn.execute(text(f"DROP TABLE IF EXISTS {table_name};"))
         conn.commit()

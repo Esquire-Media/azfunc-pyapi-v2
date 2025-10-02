@@ -2,7 +2,7 @@
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 import orjson as json
-
+# import logging
 bp = Blueprint()
 
 
@@ -40,53 +40,40 @@ def orchestrator_esquireAudiences_finalize(
                 "dataType": str
             },
             "dataFilter": str,
-            "processes": [
+            "processing": [
                 {
-                    "id": str,
-                    "sort": str,
-                    "outputType": str,
-                    "customCoding": str
+                    "steps": [
+                    {
+                        "kind": str,
+                        "{args}": str
+                    }
+                    ],
+                    "version":int
                 }
-            ],
-            "TTL_Length": str,
-            "TTL_Unit": str
+            ]
         },
         "results": [str]
     }
     """
 
     ingress = context.get_input()
-    steps = len(ingress["audience"].get("processes", []))
+    processing = ingress["audience"].get("processing", {})
+    steps = processing.get("steps", []) if processing else []
+    has_steps = bool(steps)
+    # logging.warning(f"[LOG] FINALIZE INFO")
+    # logging.warning(f"[LOG] ingress: {ingress}")
+    # logging.warning(f"[LOG] processing: {processing}")
+    # logging.warning(f"[LOG] steps: {steps}")
+    # logging.warning(f"[LOG] has_steps: {has_steps}")
+
     inputType = (
-        ingress["audience"]["processes"][-1]["outputType"]
-        if steps
-        else ingress["audience"]["dataSource"]["dataType"]
+        steps[-1]["outputType"] if has_steps else ingress["audience"]["dataSource"]["dataType"]
     )
     source_urls = (
-        ingress["audience"]["processes"][-1]["results"] if steps else ingress["results"]
+        steps[-1].get("results", []) if has_steps else ingress["results"]
     )
 
-    # Prepare custom coding for the first step or as specified
-    if not steps:
-        custom_coding = {
-            "request": {
-                "dateStart": {
-                    "date_add": [
-                        {"now": []},
-                        0 - int(ingress["audience"]["TTL_Length"]),
-                        ingress["audience"]["TTL_Unit"],
-                    ]
-                },
-                "dateEnd": {"date_add": [{"now": []}, -2, "days"]},
-            }
-        }
-    elif ingress["audience"]["processes"][-1].get("customCoding", False):
-        try:
-            custom_coding = json.loads(
-                ingress["audience"]["processes"][-1]["customCoding"]
-            )
-        except:
-            custom_coding = {}
+    # logging.warning(f"[LOG] source_urls: {source_urls}")
 
     # Check if there are source URLs to process
     if not source_urls:
@@ -100,7 +87,7 @@ def orchestrator_esquireAudiences_finalize(
             **ingress["working"],
             "blob_prefix": "{}/{}".format(
                 ingress["working"]["blob_prefix"],
-                steps,
+                len(steps),
             ),
         },
         "destination": {
@@ -111,7 +98,6 @@ def orchestrator_esquireAudiences_finalize(
                 context.current_utc_datetime.isoformat(),
             ),
         },
-        "custom_coding": custom_coding,
     }
 
     # Perform final conversion to device IDs if necessary
@@ -127,6 +113,7 @@ def orchestrator_esquireAudiences_finalize(
                 {**egress, "source_urls": source_urls},
             )
 
+    # logging.info("[LOG] Did final conversion to deviceids")
     # Finalize and store the results
     ingress["results"] = yield context.task_all(
         [
@@ -138,6 +125,7 @@ def orchestrator_esquireAudiences_finalize(
         ]
     )
     
+    # logging.info("[LOG] Getting MAID count")
     # Count results
     counts = yield context.task_all([
         context.call_activity(
@@ -146,11 +134,12 @@ def orchestrator_esquireAudiences_finalize(
         )
         for source_url in ingress["results"]
     ])
+    # logging.info("[LOG] Putting audience")
     ingress["audience"]["count"] = sum(counts)
     yield context.call_activity(
         "activity_esquireAudiencesBuilder_putAudience",
         ingress
     )
-
+    # logging.info("[LOG] Done finalizing.")
     # Return the updated ingress data
     return ingress

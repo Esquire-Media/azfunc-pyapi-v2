@@ -108,4 +108,98 @@ def jsonlogic_to_sql(json_logic):
             raise ValueError(f"Unsupported operation or type: {type(logic)}")
 
     logic = json.loads(json_logic) if isinstance(json_logic, str) else json_logic
+    
+    # possible intervention if there is custom logic before the final parse
+    if contains_custom_field(logic):
+        logic = rewrite_custom_fields_json(logic)
+
     return parse_logic(logic)
+
+def rewrite_custom_fields_json(json_logic):
+    """
+    Function for handling custom datafilter fields. This will take a custom set of filters and turn them into one
+    EG:
+    {'and': [{'==': [{'var': 'custom.field'}, 'Sealy']},
+    {'>': [{'var': 'custom.numeric_value'}, 0]}]}]}
+    becomes
+    {'and': [{'>': [{'var': 'Sealy'}, 0]}]}]}
+    """
+    def process(node):
+        if isinstance(node, dict):
+            if 'and' in node:
+                # Check if this group has both a custom.field and value usage
+                field = None
+                new_ands = []
+                for cond in node['and']:
+                    if isinstance(cond, dict) and '==' in cond:
+                        left, right = cond['==']
+                        if isinstance(left, dict) and left.get('var') == 'custom.field':
+                            field = right
+                            continue  # drop this condition
+                    new_ands.append(cond)
+
+                # Replace any custom.value with the field
+                if field:
+                    updated = []
+                    for cond in new_ands:
+                        updated.append(replace_custom_value(cond, field))
+                    return {'and': updated}
+                else:
+                    return {'and': [process(c) for c in node['and']]}
+            else:
+                return {k: process(v) for k, v in node.items()}
+        elif isinstance(node, list):
+            return [process(i) for i in node]
+        else:
+            return node
+
+    def replace_custom_value(cond, field):
+        if isinstance(cond, dict):
+            for op, args in cond.items():
+                new_args = []
+                for arg in args:
+                    if isinstance(arg, dict) and arg.get('var') in ('custom.numeric_value', 'custom.text_value'):
+                        new_args.append({'var': field})
+                    else:
+                        new_args.append(arg)
+                return {op: new_args}
+        return cond
+
+    return process(json_logic)
+
+def contains_custom_field(node):
+    if isinstance(node, dict):
+        for key, val in node.items():
+            if key == '==':
+                left, _ = val
+                if isinstance(left, dict) and left.get('var') == 'custom.field':
+                    return True
+            elif isinstance(val, (dict, list)):
+                if contains_custom_field(val):
+                    return True
+    elif isinstance(node, list):
+        return any(contains_custom_field(i) for i in node)
+    return False
+
+def extract_fields_from_dataFilter(dataFilter):
+    """
+    from a given sql-ified datafilter, it tries to find all of the fields that we're interacting with
+    """
+    import re
+    return re.findall(r'"([^"]+)"', dataFilter)
+
+def extract_tenant_id_from_datafilter(sql):
+    import re
+    match = re.search(r'"tenant_id"\s*(?:=|!=|<>|<|>|LIKE|IN)\s*\'([^\']+)\'', sql, re.IGNORECASE)
+    return match.group(1) if match else None
+
+def extract_daysback_from_dataFilter(sql):
+    import re
+    match = re.search(
+        r'"days_back"\s*(?:=|!=|<>|<|>|LIKE|IN)\s*(?:\'([^\']+)\'|(\d+))',
+        sql,
+        re.IGNORECASE
+    )
+    val = match.group(1) or match.group(2) if match else None
+
+    return float(val)

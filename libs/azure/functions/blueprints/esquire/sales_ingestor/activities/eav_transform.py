@@ -173,6 +173,7 @@ def activity_salesIngestor_eavTransform(settings: dict):
                 WHEN data_type = 'timestamp with time zone' THEN 'timestamptz'
                 WHEN data_type = 'timestamp without time zone' THEN 'timestamptz'
                 WHEN data_type = 'timestamp' THEN 'timestamptz'
+
                 WHEN data_type IN ('json', 'jsonb') THEN 'jsonb'
                 ELSE 'string'
             END::attr_data_type,

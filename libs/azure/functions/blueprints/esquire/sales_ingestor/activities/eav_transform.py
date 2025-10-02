@@ -172,6 +172,8 @@ def activity_salesIngestor_eavTransform(settings: dict):
                 WHEN data_type = 'boolean' THEN 'boolean'
                 WHEN data_type = 'timestamp with time zone' THEN 'timestamptz'
                 WHEN data_type = 'timestamp without time zone' THEN 'timestamptz'
+                WHEN data_type = 'timestamp' THEN 'timestamptz'
+
                 WHEN data_type IN ('json', 'jsonb') THEN 'jsonb'
                 ELSE 'string'
             END::attr_data_type,
@@ -190,6 +192,7 @@ def activity_salesIngestor_eavTransform(settings: dict):
                 WHEN data_type = 'boolean' THEN 'boolean'
                 WHEN data_type = 'timestamp with time zone' THEN 'timestamptz'
                 WHEN data_type = 'timestamp without time zone' THEN 'timestamptz'
+                WHEN data_type = 'timestamp' THEN 'timestamptz'
                 WHEN data_type IN ('json', 'jsonb') THEN 'jsonb'
                 ELSE 'string'
             END::attr_data_type,
@@ -245,7 +248,12 @@ def activity_salesIngestor_eavTransform(settings: dict):
             ai.data_type,
             row_to_json(lid) ->> ai.attribute_name AS column_value
         FROM line_item_data lid
-        JOIN attribute_info ai ON TRUE
+        JOIN attribute_info ai
+        ON EXISTS (
+            SELECT 1
+            FROM jsonb_each_text(to_jsonb(lid)) kv
+            WHERE kv.key = ai.attribute_name
+        )
     ),
     attribute_values AS (
         SELECT
@@ -254,6 +262,7 @@ def activity_salesIngestor_eavTransform(settings: dict):
             data_type,
             column_value
         FROM unpivoted_attributes
+        WHERE column_value IS NOT NULL
     )
 
     -- 8. Insert final values

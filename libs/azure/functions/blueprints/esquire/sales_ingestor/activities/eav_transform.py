@@ -208,10 +208,6 @@ def activity_salesIngestor_eavTransform(settings: dict):
         ON CONFLICT (entity_type_id, name) DO NOTHING
         RETURNING id, name, entity_type_id, data_type
     ),
-    attribute_info AS (
-        SELECT id AS attribute_id, name AS attribute_name, entity_type_id, data_type
-        FROM attributes
-    ),
 
     -- 6. Map headers
     fields_cte AS (
@@ -225,9 +221,14 @@ def activity_salesIngestor_eavTransform(settings: dict):
         SELECT
             :tenant_id AS tenant_id,
             fm.key AS mapped_header,
-            a.id AS attribute_id
+            a.id  AS attribute_id
         FROM fields_mapping fm
-        JOIN attributes a ON a.name = fm.value
+        JOIN attributes a
+        ON a.name = fm.value
+        AND a.entity_type_id IN (
+            (SELECT entity_type_id FROM entity_types WHERE name = 'transaction'),
+            (SELECT entity_type_id FROM entity_types WHERE name = 'line_item')
+        )
     ),
     insert_client_header_map AS (
         INSERT INTO client_header_map (tenant_id, mapped_header, attribute_id)
@@ -236,33 +237,59 @@ def activity_salesIngestor_eavTransform(settings: dict):
         ON CONFLICT (tenant_id, mapped_header) DO NOTHING
     ),
 
-    -- 7. Unpivot values
-    unpivoted_attributes AS (
+    -- Restrict attributes to just the two entity types we emit values for
+    attribute_info AS (
         SELECT
-            CASE
-                WHEN ai.entity_type_id = (SELECT entity_type_id FROM entity_types WHERE name = 'transaction')
-                THEN lid.transaction_entity_id
-                ELSE lid.line_item_id
-            END AS entity_id,
-            ai.attribute_id,
-            ai.data_type,
-            row_to_json(lid) ->> ai.attribute_name AS column_value
-        FROM line_item_data lid
-        JOIN attribute_info ai
-        ON EXISTS (
-            SELECT 1
-            FROM jsonb_each_text(to_jsonb(lid)) kv
-            WHERE kv.key = ai.attribute_name
+            id   AS attribute_id,
+            name AS attribute_name,
+            entity_type_id,
+            data_type
+        FROM attributes
+        WHERE entity_type_id IN (
+            (SELECT entity_type_id FROM entity_types WHERE name = 'transaction'),
+            (SELECT entity_type_id FROM entity_types WHERE name = 'line_item')
         )
     ),
-    attribute_values AS (
+
+    -- 7. Unpivot values, split by entity type
+    unpivoted_txn AS (
         SELECT
+            lid.transaction_entity_id AS entity_id,
+            ai.attribute_id,
+            ai.data_type,
+            MIN( to_jsonb(lid) ->> ai.attribute_name ) AS column_value
+        FROM line_item_data AS lid
+        JOIN attribute_info AS ai
+        ON ai.entity_type_id = (SELECT entity_type_id FROM entity_types WHERE name = 'transaction')
+        AND to_jsonb(lid) ? ai.attribute_name
+        GROUP BY lid.transaction_entity_id, ai.attribute_id, ai.data_type
+    ),
+    unpivoted_line AS (
+        SELECT
+            lid.line_item_id AS entity_id,
+            ai.attribute_id,
+            ai.data_type,
+            to_jsonb(lid) ->> ai.attribute_name AS column_value
+        FROM line_item_data AS lid
+        JOIN attribute_info AS ai
+        ON ai.entity_type_id = (SELECT entity_type_id FROM entity_types WHERE name = 'line_item')
+        AND to_jsonb(lid) ? ai.attribute_name
+    ),
+    unpivoted_attributes AS (
+        SELECT * FROM unpivoted_txn
+        UNION ALL
+        SELECT * FROM unpivoted_line
+    ),
+    attribute_values AS (
+        -- final guard against duplicates
+        SELECT DISTINCT ON (entity_id, attribute_id)
             entity_id,
             attribute_id,
             data_type,
             column_value
         FROM unpivoted_attributes
         WHERE column_value IS NOT NULL
+        ORDER BY entity_id, attribute_id
     )
 
     -- 8. Insert final values
@@ -278,19 +305,19 @@ def activity_salesIngestor_eavTransform(settings: dict):
     SELECT
         av.entity_id,
         av.attribute_id,
-        CASE WHEN av.data_type = 'string' THEN av.column_value ELSE NULL END,
-        CASE WHEN av.data_type = 'numeric' THEN av.column_value::numeric ELSE NULL END,
-        CASE WHEN av.data_type = 'boolean' THEN av.column_value::boolean ELSE NULL END,
-        CASE WHEN av.data_type = 'timestamptz' THEN av.column_value::timestamptz ELSE NULL END,
-        CASE WHEN av.data_type = 'jsonb' THEN av.column_value::jsonb ELSE NULL END
+        CASE WHEN av.data_type = 'string'      THEN av.column_value                ELSE NULL END,
+        CASE WHEN av.data_type = 'numeric'     THEN av.column_value::numeric       ELSE NULL END,
+        CASE WHEN av.data_type = 'boolean'     THEN av.column_value::boolean       ELSE NULL END,
+        CASE WHEN av.data_type = 'timestamptz' THEN av.column_value::timestamptz   ELSE NULL END,
+        CASE WHEN av.data_type = 'jsonb'       THEN av.column_value::jsonb         ELSE NULL END
     FROM attribute_values av
     ON CONFLICT (entity_id, attribute_id) DO UPDATE
     SET
         value_string = EXCLUDED.value_string,
         value_numeric = EXCLUDED.value_numeric,
         value_boolean = EXCLUDED.value_boolean,
-        value_ts = EXCLUDED.value_ts,
-        value_jsonb = EXCLUDED.value_jsonb;
+        value_ts     = EXCLUDED.value_ts,
+        value_jsonb  = EXCLUDED.value_jsonb;
 
 
     """

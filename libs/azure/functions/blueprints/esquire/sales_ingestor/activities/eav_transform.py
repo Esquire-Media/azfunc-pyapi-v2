@@ -305,9 +305,17 @@ def activity_salesIngestor_eavTransform(settings: dict):
     )
 
     # set up the pathing and run it
-    with db() as conn:
-        conn.execute(text("SET search_path TO sales"))
-        conn.execute(stmt)
+    try:
+        with db() as conn:
+            conn.execute(text("SET search_path TO sales"))
+            conn.execute(stmt)
+    except Exception as e:
+        logger.exception("[LOG] EAV transform failed")
+        logger.exception(f"error: {type(e).__name__}: {str(e)})")
+        raise e
+        return f"error: {type(e).__name__}: {str(e)[:500]}"
+
+    logger.info(msg="[LOG] Data Inserted.")
 
 
 def flatten_fields(d, parent_key='', result=None):

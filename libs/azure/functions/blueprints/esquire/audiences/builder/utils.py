@@ -74,9 +74,14 @@ def jsonlogic_to_sql(json_logic):
                 return f"{left} >= {right}"
 
             elif "in" in logic:
-                var = parse_logic(logic["in"][0])
-                values = ", ".join(f"'{value}'" for value in logic["in"][1])
-                return f"{var} IN ({values})"
+                left = parse_logic(logic["contains"][0])
+                right = parse_logic(logic["contains"][1])
+
+                # left comes back quoted (e.g., "'mat'"), so strip once
+                if left.startswith("'") and left.endswith("'"):
+                    left = left[1:-1]
+
+                return f"{right} LIKE '%{left}%'"
 
             elif "var" in logic:
                 return f"\"{logic['var']}\""

@@ -297,7 +297,7 @@ def build_typed_cte_from_filter(data_filter: str) -> str:
     """
 
     # Regex: find ("col" OP value...) patterns
-    pattern = r'"\s*([^"]+)\s*"\s*(=|!=|<>|>=|<=|>|<|IN)\s*(\([^)]+\)|[^)ANDOR]+)'
+    pattern = r'"\s*([^"]+)\s*"\s*(=|!=|<>|>=|<=|>|<|IN|LIKE)\s*(\([^)]+\)|[^)ANDOR]+)'
     matches = re.findall(pattern, data_filter)
 
     casts = []

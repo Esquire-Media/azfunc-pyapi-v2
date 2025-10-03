@@ -88,7 +88,7 @@ def infer_schema_to_df(conn, staging_table: str, upload_id) -> pd.DataFrame:
               AND table_name = '{staging_table}'
         LOOP
             dyn_sql := format($f$
-                INSERT INTO tmp_type_inference_results
+                INSERT INTO tmp_type_inference_results_{upload_id}
                 WITH base AS (
                     SELECT
                         COUNT(*) AS total_rows,
@@ -128,7 +128,7 @@ def infer_schema_to_df(conn, staging_table: str, upload_id) -> pd.DataFrame:
     conn.execute(text(sql))
 
     # 3. Fetch results into DataFrame
-    return pd.read_sql("SELECT column_name, suggested_type FROM tmp_type_inference_results", conn)
+    return pd.read_sql("SELECT column_name, suggested_type FROM tmp_type_inference_results_{upload_id}", conn)
 
 def generate_alter_statements(inferred_schema: dict, table_name: str, settings: dict = None):
     billing_zip     = settings['fields']['billing']['zipcode']

@@ -18,7 +18,7 @@ def activity_salesIngestor_inferDataTypes(settings: dict):
 
     with db() as conn:
         # get the inferred types 
-        inferred_types = infer_schema_to_df(conn, table_name)
+        inferred_types = infer_schema_to_df(conn, table_name, settings['metadata']['upload_id'].replace('-',''))
 
         # and remove excessive ones, converting to a dict
         inferred_types_dict = cleanup_inferred_schema(
@@ -59,12 +59,12 @@ def cleanup_inferred_schema(settings, inferred_types):
                 ]))
             ].set_index('column_name')['suggested_type'].to_dict()
 
-def infer_schema_to_df(conn, staging_table: str) -> pd.DataFrame:
+def infer_schema_to_df(conn, staging_table: str, upload_id) -> pd.DataFrame:
     # 1. Format the SQL with your target table
     sql = f"""
-    DROP TABLE IF EXISTS tmp_type_inference_results;
+    DROP TABLE IF EXISTS tmp_type_inference_results_{upload_id};
 
-    CREATE TEMP TABLE tmp_type_inference_results (
+    CREATE TEMP TABLE tmp_type_inference_results_{upload_id} (
         column_name TEXT,
         total_rows BIGINT,
         null_count BIGINT,

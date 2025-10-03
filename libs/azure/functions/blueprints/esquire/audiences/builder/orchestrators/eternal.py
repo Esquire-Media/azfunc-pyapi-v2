@@ -1,5 +1,6 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/eternal.py
 
+import os
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 from croniter import croniter
 import datetime, orjson as json, pytz, hashlib, re, html
@@ -57,6 +58,7 @@ def _dedupe_and_trim_history(
 # Error formatting utilities
 # ---------------------------
 
+
 class _ParsedOrchError:
     def __init__(self, name: str, message: Optional[str], stack: List[str]):
         self.name = name
@@ -96,7 +98,9 @@ def _parse_durable_error_chain(err_text: str) -> List[_ParsedOrchError]:
         stack_text = ""
 
         # Grab the last explicit Message: ... before a StackTrace:, if present
-        m_msg = re.search(r"Message:\s*(.*?)(?:,\s*StackTrace:|$)", part, flags=re.DOTALL)
+        m_msg = re.search(
+            r"Message:\s*(.*?)(?:,\s*StackTrace:|$)", part, flags=re.DOTALL
+        )
         if m_msg:
             msg = m_msg.group(1)
 
@@ -189,7 +193,14 @@ def _format_error_html(
         ("Status", "<strong style='color:#b00020;'>Error</strong>"),
         ("When (UTC)", html.escape(_safe_iso(now_utc))),
         ("Instance ID", f"<code>{html.escape(instance_id)}</code>"),
-        ("Audience ID", f"<code>{html.escape(str(audience_id))}</code>" if audience_id else "<em>unknown</em>"),
+        (
+            "Audience ID",
+            (
+                f"<code>{html.escape(str(audience_id))}</code>"
+                if audience_id
+                else "<em>unknown</em>"
+            ),
+        ),
         ("Exception Type", f"<code>{html.escape(err_type)}</code>"),
         ("Orchestrator Chain", f"<code>{html.escape(breadcrumb or 'n/a')}</code>"),
     ]
@@ -287,7 +298,9 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
     if audience_blob_prefix:
         # ran_at from the last path segment
         try:
-            ran_at = datetime.datetime.fromisoformat(audience_blob_prefix.split("/")[-1])
+            ran_at = datetime.datetime.fromisoformat(
+                audience_blob_prefix.split("/")[-1]
+            )
         except Exception:
             ran_at = datetime.datetime(1970, 1, 1)
         ran_at_iso = _safe_iso(ran_at)
@@ -356,7 +369,9 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
     )
 
     # Build + upload if due (or forced)
-    if (now >= next_run and ingress["audience"]["status"]) or ingress.get("forceRebuild"):
+    if (now >= next_run and ingress["audience"]["status"]) or ingress.get(
+        "forceRebuild"
+    ):
         try:
             context.set_custom_status(
                 {
@@ -414,9 +429,11 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
                 "prefix": post_prefix,
                 "file_count": {
                     "actual": post_file_count,
-                    "expected": len(build.get("results") or [])
-                    if isinstance(build.get("results"), list)
-                    else None,
+                    "expected": (
+                        len(build.get("results") or [])
+                        if isinstance(build.get("results"), list)
+                        else None
+                    ),
                 },
                 "device_count": (build.get("audience", {}) or {}).get("count"),
                 "targets": targets,
@@ -459,28 +476,29 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
                     "audience_id": ingress.get("audience", {}).get("id"),
                 }
             )
+            to = [t for t in os.getenv("NOTIFICATION_RECIPIENTS", "").split(";") if t]
+            if len(to):
+                # -------- Enhanced email contents --------
+                audience_id = (ingress.get("audience") or {}).get("id")
+                subject_suffix, html_body = _format_error_html(
+                    instance_id=context.instance_id,
+                    audience_id=audience_id,
+                    exception=e,
+                    now_utc=now,
+                )
+                subject = f"esquire-auto-audience Failure — {subject_suffix}"
 
-            # -------- Enhanced email contents --------
-            audience_id = (ingress.get("audience") or {}).get("id")
-            subject_suffix, html_body = _format_error_html(
-                instance_id=context.instance_id,
-                audience_id=audience_id,
-                exception=e,
-                now_utc=now,
-            )
-            subject = f"esquire-auto-audience Failure — {subject_suffix}"
-
-            # Existing notification behavior (HTML, with instance id and formatted error)
-            yield context.call_activity(
-                "activity_microsoftGraph_sendEmail",
-                {
-                    "from_id": "74891a5a-d0e9-43a4-a7c1-a9c04f6483c8",
-                    "to_addresses": ["isaac@esquireadvertising.com", "matt@esquireadvertising.com"],
-                    "subject": subject,
-                    "message": html_body,
-                    "content_type": "html",
-                },
-            )
+                # Existing notification behavior (HTML, with instance id and formatted error)
+                yield context.call_activity(
+                    "activity_microsoftGraph_sendEmail",
+                    {
+                        "from_id": "74891a5a-d0e9-43a4-a7c1-a9c04f6483c8",
+                        "to_addresses": to,
+                        "subject": subject,
+                        "message": html_body,
+                        "content_type": "html",
+                    },
+                )
             # Re-raise to preserve Durable semantics / retries / diagnostics
             raise e
 

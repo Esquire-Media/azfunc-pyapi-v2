@@ -22,7 +22,7 @@ def activity_salesIngestor_cleanup(settings: dict):
         # 1) Drop the exact, schema-qualified table first (quotes handled by qtbl)
         #    CASCADE is safe for ephemeral staging tables.
         conn.execute(text(f"DROP TABLE IF EXISTS {qtbl(table_name)};"))
-
+        
         # 2) Safety net: drop any sibling tables in `sales` that match the same name
         #    or start with the same prefix (rare, but covers partial artifacts).
         rows = conn.execute(
@@ -46,3 +46,4 @@ def activity_salesIngestor_cleanup(settings: dict):
         conn.exec_driver_sql(f"DROP TABLE IF EXISTS \"{table_name}\";")
 
         conn.commit()
+

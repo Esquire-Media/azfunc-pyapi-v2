@@ -94,7 +94,7 @@ def infer_schema_to_df(conn, staging_table: str, upload_id) -> pd.DataFrame:
                         COUNT(*) AS total_rows,
                         COUNT(*) FILTER (WHERE (%1$I)::TEXT IS NULL OR (%1$I)::TEXT = '') AS null_count,
                         COUNT(*) FILTER (WHERE (%1$I)::TEXT IS NOT NULL AND (%1$I)::TEXT <> '') AS non_null_count,
-                        COUNT(*) FILTER (WHERE LOWER((%1$I)::TEXT) IN ('true','false','0','1'))::FLOAT AS bool_matches,
+                        COUNT(*) FILTER (WHERE LOWER((%1$I)::TEXT) IN ('true','false'))::FLOAT AS bool_matches,
                         COUNT(*) FILTER (WHERE (%1$I)::TEXT ~ '^[+-]?\d+$')::FLOAT AS int_matches,
                         COUNT(*) FILTER (WHERE (%1$I)::TEXT ~ '^[+-]?(\d+\.\d*|\.\d+)([eE][+-]?\d+)?$')::FLOAT AS float_matches,
                         COUNT(*) FILTER (WHERE sales.try_cast_timestamp((%1$I)::TEXT) IS NOT NULL)::FLOAT AS datetime_matches

@@ -94,7 +94,7 @@ def infer_schema_to_df(conn, staging_table: str, upload_id) -> pd.DataFrame:
                         COUNT(*) AS total_rows,
                         COUNT(*) FILTER (WHERE (%1$I)::TEXT IS NULL OR (%1$I)::TEXT = '') AS null_count,
                         COUNT(*) FILTER (WHERE (%1$I)::TEXT IS NOT NULL AND (%1$I)::TEXT <> '') AS non_null_count,
-                        COUNT(*) FILTER (WHERE LOWER((%1$I)::TEXT) IN ('true','false','0','1'))::FLOAT AS bool_matches,
+                        COUNT(*) FILTER (WHERE LOWER((%1$I)::TEXT) IN ('true','false'))::FLOAT AS bool_matches,
                         COUNT(*) FILTER (WHERE (%1$I)::TEXT ~ '^[+-]?\d+$')::FLOAT AS int_matches,
                         COUNT(*) FILTER (WHERE (%1$I)::TEXT ~ '^[+-]?(\d+\.\d*|\.\d+)([eE][+-]?\d+)?$')::FLOAT AS float_matches,
                         COUNT(*) FILTER (WHERE sales.try_cast_timestamp((%1$I)::TEXT) IS NOT NULL)::FLOAT AS datetime_matches
@@ -128,7 +128,9 @@ def infer_schema_to_df(conn, staging_table: str, upload_id) -> pd.DataFrame:
     conn.execute(text(sql))
 
     # 3. Fetch results into DataFrame
-    return pd.read_sql("SELECT column_name, suggested_type FROM tmp_type_inference_results_{upload_id}", conn)
+
+    return pd.read_sql(f"SELECT column_name, suggested_type FROM tmp_type_inference_results_{upload_id}", conn)
+
 
 def generate_alter_statements(inferred_schema: dict, table_name: str, settings: dict = None):
     billing_zip     = settings['fields']['billing']['zipcode']

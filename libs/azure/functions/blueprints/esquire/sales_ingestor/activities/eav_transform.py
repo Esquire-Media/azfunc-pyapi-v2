@@ -305,11 +305,30 @@ def activity_salesIngestor_eavTransform(settings: dict):
     SELECT
         av.entity_id,
         av.attribute_id,
-        CASE WHEN av.data_type = 'string'      THEN av.column_value                ELSE NULL END,
-        CASE WHEN av.data_type = 'numeric'     THEN av.column_value::numeric       ELSE NULL END,
-        CASE WHEN av.data_type = 'boolean'     THEN av.column_value::boolean       ELSE NULL END,
-        CASE WHEN av.data_type = 'timestamptz' THEN av.column_value::timestamptz   ELSE NULL END,
-        CASE WHEN av.data_type = 'jsonb'       THEN av.column_value::jsonb         ELSE NULL END
+        CASE 
+            WHEN av.data_type = 'string'      
+            THEN av.column_value                
+            ELSE NULL 
+            END,
+        CASE 
+            WHEN av.data_type = 'numeric'     
+            THEN av.column_value::numeric       
+            ELSE NULL 
+            END,
+        CASE
+            WHEN av.data_type = 'boolean' AND lower(av.column_value) IN ('true', 'false')
+            THEN lower(av.column_value)::boolean
+            ELSE NULL
+            END,
+        CASE 
+            WHEN av.data_type = 'timestamptz' 
+            THEN av.column_value::timestamptz   
+            ELSE NULL 
+            END,
+        CASE WHEN av.data_type = 'jsonb'       
+            THEN av.column_value::jsonb
+            ELSE NULL 
+            END
     FROM attribute_values av
     ON CONFLICT (entity_id, attribute_id) DO UPDATE
     SET

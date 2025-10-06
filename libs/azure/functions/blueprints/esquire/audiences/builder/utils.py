@@ -74,14 +74,21 @@ def jsonlogic_to_sql(json_logic):
                 return f"{left} >= {right}"
 
             elif "in" in logic:
-                left = parse_logic(logic["contains"][0])
-                right = parse_logic(logic["contains"][1])
+                left, right = logic["in"]
 
-                # left comes back quoted (e.g., "'mat'"), so strip once
-                if left.startswith("'") and left.endswith("'"):
-                    left = left[1:-1]
+                # Case 1: "Contains" — substring search
+                if isinstance(left, str) and isinstance(right, dict) and "var" in right:
+                    var = parse_logic(right)
+                    return f"{var} LIKE '%{left}%'"
 
-                return f"{right} LIKE '%{left}%'"
+                # Case 2: "Any In" — list check
+                elif isinstance(left, dict) and "var" in left and isinstance(right, list):
+                    var = parse_logic(left)
+                    values = ", ".join(f"'{v}'" for v in right)
+                    return f"{var} IN ({values})"
+
+                else:
+                    raise ValueError(f"Unsupported 'in' structure: {logic['in']}")
 
             elif "var" in logic:
                 return f"\"{logic['var']}\""

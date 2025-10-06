@@ -223,12 +223,21 @@ def activity_salesIngestor_eavTransform(settings: dict):
             fm.key AS mapped_header,
             a.id  AS attribute_id
         FROM fields_mapping fm
+        JOIN column_classification cc
+            ON cc.column_name = fm.value
         JOIN attributes a
-        ON a.name = fm.value
+            ON a.name = fm.value
+        AND (
+                (cc.data_type IN ('character varying','text') AND a.data_type = 'string')
+            OR (cc.data_type IN ('numeric','integer','bigint','real','double precision') AND a.data_type = 'numeric')
+            OR (cc.data_type = 'boolean' AND a.data_type = 'boolean')
+            OR (cc.data_type LIKE 'timestamp%' AND a.data_type = 'timestamptz')
+            OR (cc.data_type IN ('json','jsonb') AND a.data_type = 'jsonb')
+            )
         AND a.entity_type_id IN (
-            (SELECT entity_type_id FROM entity_types WHERE name = 'transaction'),
-            (SELECT entity_type_id FROM entity_types WHERE name = 'line_item')
-        )
+                (SELECT entity_type_id FROM entity_types WHERE name = 'transaction'),
+                (SELECT entity_type_id FROM entity_types WHERE name = 'line_item')
+            )
     ),
     insert_client_header_map AS (
         INSERT INTO client_header_map (tenant_id, mapped_header, attribute_id)
@@ -240,12 +249,21 @@ def activity_salesIngestor_eavTransform(settings: dict):
     -- Restrict attributes to just the two entity types we emit values for
     attribute_info AS (
         SELECT
-            id   AS attribute_id,
-            name AS attribute_name,
-            entity_type_id,
-            data_type
-        FROM attributes
-        WHERE entity_type_id IN (
+            a.id   AS attribute_id,
+            a.name AS attribute_name,
+            a.entity_type_id,
+            a.data_type
+        FROM attributes a
+        JOIN column_classification cc
+        ON cc.column_name = a.name
+        AND (
+            (cc.data_type IN ('character varying','text') AND a.data_type = 'string')
+        OR (cc.data_type IN ('numeric','integer','bigint','real','double precision') AND a.data_type = 'numeric')
+        OR (cc.data_type = 'boolean' AND a.data_type = 'boolean')
+        OR (cc.data_type LIKE 'timestamp%' AND a.data_type = 'timestamptz')
+        OR (cc.data_type IN ('json','jsonb') AND a.data_type = 'jsonb')
+        )
+        WHERE a.entity_type_id IN (
             (SELECT entity_type_id FROM entity_types WHERE name = 'transaction'),
             (SELECT entity_type_id FROM entity_types WHERE name = 'line_item')
         )

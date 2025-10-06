@@ -310,10 +310,16 @@ def activity_salesIngestor_eavTransform(settings: dict):
             THEN av.column_value                
             ELSE NULL 
             END,
-        CASE 
-            WHEN av.data_type = 'numeric'     
-            THEN av.column_value::numeric       
-            ELSE NULL 
+        CASE
+            WHEN av.data_type = 'numeric' THEN
+                NULLIF(
+                    REGEXP_REPLACE(
+                        REGEXP_REPLACE(av.column_value, '[\$,]', '', 'g'),
+                        '^\((.*)\)$', '-\1'
+                    ),
+                    ''
+                )::numeric
+            ELSE NULL
             END,
         CASE
             WHEN av.data_type = 'boolean' AND lower(av.column_value) IN ('true', 'false')

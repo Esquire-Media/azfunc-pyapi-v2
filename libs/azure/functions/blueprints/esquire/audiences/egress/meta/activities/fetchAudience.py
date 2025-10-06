@@ -1,59 +1,120 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/egress/meta/activities/fetchAudience.py
 
+from __future__ import annotations
+
+from typing import Optional, Any, Dict, List
+from copy import deepcopy
+
 from azure.durable_functions import Blueprint
-from libs.data import from_bind
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+
+from libs.data import from_bind
+from libs.data.structured.sqlalchemy.utils import _find_relationship_key
 
 bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
-def activity_esquireAudienceMeta_fetchAudience(ingress: str):
+def activity_esquireAudienceMeta_fetchAudience(ingress: str) -> Dict[str, Any]:
     """
-    Fetches audience metadata from the database using the given audience ID.
+    Idempotent activity: fetch audience metadata for a given ESQ Audience ID.
 
-    This activity retrieves the audience metadata, including related advertiser information and audience tags, from the database.
+    Why this is idempotent (safe for at-least-once execution):
+      - Pure read-only: no writes, mutations, or external side effects.
+      - Deterministic output schema and ordering for stable orchestration replays.
+        * Tags are ordered by AudienceTag.order (NULL as 0), then Tag.title (case-insensitive).
+      - Defensive validation: raises on missing data so the orchestrator can terminate deterministically.
 
-    Parameters:
-    ingress (str): The ID of the audience to fetch.
-
-    Returns:
-    dict: A dictionary containing the ad account metadata, audience metadata, and tags.
-
-    Raises:
-    Exception: If no results are found for the given audience ID.
-    """
-    provider = from_bind("keystone")
-    audience = provider.models["keystone"]["Audience"]
-    advertiser = provider.models["keystone"]["Advertiser"]
-
-    session: Session = provider.connect()
-    query = (
-        select(audience)
-        .join(advertiser)
-        .where(
-            audience.id == ingress,  # esq audience
-            audience.status == True,
-            audience.meta != None,
-            advertiser.meta != None,
-        )
-    )
-
-    result = session.execute(query).one_or_none()
-
-    if result and len(result):
-        return {
-            "adAccount": result.Audience.related_Advertiser.meta,
-            "audience": result.Audience.meta,
-            "tags": [
-                related_tag.related_Tag.title
-                for related_tag in sorted(
-                    result.Audience.collection_AudienceTag, key=lambda x: x.order
-                )
-            ],
+    Returns a dictionary with:
+        {
+            "adAccount": <Advertiser.meta>,   # required, non-null JSON-like (deep-copied)
+            "audience":  <Audience.meta>,     # required, non-null JSON-like (deep-copied)
+            "tags":      List[str],           # titles ordered deterministically
         }
 
-    raise Exception(
-        f"There were no Meta AdAccount results for the given ESQ audience ({ingress})."
-    )
+    Raises:
+        Exception: when the audience is not found, inactive, or required meta is missing.
+                   The orchestrator catches this and ends deterministically with {}.
+    """
+    # Validate input deterministically.
+    if not ingress or not isinstance(ingress, str):
+        raise Exception("A non-empty Audience ID (str) is required.")
+
+    provider = from_bind("keystone")
+
+    Audience = provider.models["keystone"]["Audience"]
+    Advertiser = provider.models["keystone"]["Advertiser"]
+    AudienceTag = provider.models["keystone"]["AudienceTag"]
+    Tag = provider.models["keystone"]["Tag"]
+
+    rel_Audience__Advertiser = _find_relationship_key(Audience, Advertiser, uselist=False)
+    rel_Audience__AudienceTag_collection = _find_relationship_key(Audience, AudienceTag, uselist=True)
+    rel_AudienceTag__Tag = _find_relationship_key(AudienceTag, Tag, uselist=False)
+
+    session: Session = provider.connect()
+    try:
+        query = (
+            select(Audience)
+            .options(
+                joinedload(getattr(Audience, rel_Audience__Advertiser)),
+                joinedload(getattr(Audience, rel_Audience__AudienceTag_collection)).joinedload(
+                    getattr(AudienceTag, rel_AudienceTag__Tag)
+                ),
+            )
+            .where(
+                Audience.id == ingress,
+                Audience.status.is_(True),
+                Audience.meta.isnot(None),
+                getattr(Audience, rel_Audience__Advertiser).has(
+                    getattr(Advertiser, "meta").isnot(None)
+                ),
+            )
+        )
+
+        audience_obj: Optional[Any] = session.execute(query).unique().scalars().one_or_none()
+        if not audience_obj:
+            raise Exception(
+                f"There were no Meta AdAccount results for the given ESQ audience ({(ingress)})."
+            )
+
+        advertiser_obj = getattr(audience_obj, rel_Audience__Advertiser)
+        audience_tags: List[Any] = getattr(audience_obj, rel_Audience__AudienceTag_collection) or []
+
+        def _order_key(at: Any):
+            order_val = getattr(at, "order", 0) or 0
+            tag_obj = getattr(at, rel_AudienceTag__Tag)
+            tag_title = getattr(tag_obj, "title", "") if tag_obj is not None else ""
+            return (int(order_val), str(tag_title).lower())
+
+        audience_tags_sorted = sorted(audience_tags, key=_order_key)
+
+        tags_titles: List[str] = []
+        for rel in audience_tags_sorted:
+            tag_obj = getattr(rel, rel_AudienceTag__Tag, None)
+            if tag_obj is None:
+                continue
+            title = getattr(tag_obj, "title", None)
+            if title is None:
+                continue
+            tags_titles.append(str(title))
+
+        ad_account_meta = getattr(advertiser_obj, "meta")
+        audience_meta = getattr(audience_obj, "meta")
+
+        if ad_account_meta is None or audience_meta is None:
+            raise Exception(
+                f"Audience ({ingress}) or Advertiser has null meta; cannot sync Meta audience."
+            )
+
+        return {
+            "adAccount": deepcopy(ad_account_meta),
+            "audience": deepcopy(audience_meta),
+            "tags": tags_titles,
+        }
+
+    finally:
+        try:
+            session.close()
+        except Exception:
+            pass

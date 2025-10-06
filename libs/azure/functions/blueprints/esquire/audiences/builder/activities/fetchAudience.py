@@ -1,5 +1,7 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/activities/fetchAudience.py
 
+from __future__ import annotations
+
 from azure.durable_functions import Blueprint
 from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
     jsonlogic_to_sql,
@@ -9,6 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, lazyload
 import logging
 from typing import Any, Dict, List, Union, Optional
+
+from libs.data.structured.sqlalchemy.utils import _find_relationship_key
 
 bp = Blueprint()
 
@@ -27,7 +31,7 @@ def _canonicalize_jsonlogic(node: Any) -> Any:
         # sort keys for deterministic traversal
         return {k: _canonicalize_jsonlogic(node[k]) for k in sorted(node.keys())}
     if isinstance(node, (list, tuple)):
-        return [ _canonicalize_jsonlogic(v) for v in node ]
+        return [_canonicalize_jsonlogic(v) for v in node]
     return node
 
 
@@ -41,27 +45,36 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
               The shape and ordering of derived fields are deterministic.
     """
     provider = from_bind("keystone")
-    audience = provider.models["keystone"]["Audience"]
+
+    Audience = provider.models["keystone"]["Audience"]
+    Advertiser = provider.models["keystone"]["Advertiser"]
+    TargetingDataSource = provider.models["keystone"]["TargetingDataSource"]
+
+    # Discover relationship attribute names dynamically (works with old & new naming)
+    rel_Audience__Advertiser = _find_relationship_key(Audience, Advertiser, uselist=False)
+    rel_Audience__TargetingDataSource = _find_relationship_key(
+        Audience, TargetingDataSource, uselist=False
+    )
 
     session: Session = provider.connect()
     try:
         query = (
-            select(audience)
+            select(Audience)
             .options(
                 # Keep relationship loading explicit to avoid incidental loads later.
-                lazyload(audience.related_Advertiser),
-                lazyload(audience.related_TargetingDataSource),
+                lazyload(getattr(Audience, rel_Audience__Advertiser)),
+                lazyload(getattr(Audience, rel_Audience__TargetingDataSource)),
             )
-            .where(audience.id == ingress["id"])
+            .where(Audience.id == ingress["id"])
         )
 
         result = session.execute(query).one_or_none()
         if result:
             aud = result.Audience
 
-            # Defensive extraction of related objects
-            adv = getattr(aud, "related_Advertiser", None)
-            tds = getattr(aud, "related_TargetingDataSource", None)
+            # Defensive extraction of related objects (using discovered attribute names)
+            adv = getattr(aud, rel_Audience__Advertiser, None)
+            tds = getattr(aud, rel_Audience__TargetingDataSource, None)
 
             # Canonicalize dataFilter before converting to SQL to prevent order-induced differences.
             data_filter_raw: Optional[Union[Dict[str, Any], List[Any]]] = getattr(aud, "dataFilter", None)

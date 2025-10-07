@@ -15,7 +15,7 @@ def activity_salesIngestor_intermediate_processing(settings: dict):
 
     logger.info(msg="[LOG] Intermediate Cleanup")
 
-    staging_table = qtbl(settings['staging_table'])
+    staging_table = qtbl(settings['table_name'])
     fields_map    = settings['fields']
     order_col     = fields_map['order_info']['order_num']
 

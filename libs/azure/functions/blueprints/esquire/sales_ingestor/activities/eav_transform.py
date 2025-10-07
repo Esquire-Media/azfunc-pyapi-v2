@@ -225,7 +225,13 @@ def activity_salesIngestor_eavTransform(settings: dict):
         FROM fields_mapping fm
         JOIN column_classification cc
             ON cc.column_name = fm.value
-        JOIN attributes a
+        JOIN (
+            SELECT id, name, entity_type_id, data_type
+            FROM attributes
+            UNION ALL
+            SELECT id, name, entity_type_id, data_type
+            FROM insert_new_attributes
+        ) a
             ON a.name = fm.value
         AND (
                 (cc.data_type IN ('character varying','text') AND a.data_type = 'string')
@@ -240,10 +246,10 @@ def activity_salesIngestor_eavTransform(settings: dict):
             )
     ),
     insert_client_header_map AS (
-        INSERT INTO client_header_map (tenant_id, mapped_header, attribute_id)
-        SELECT tenant_id, mapped_header, attribute_id
+        INSERT INTO client_header_map (tenant_id, attribute_id, mapped_header)
+        SELECT tenant_id, attribute_id, mapped_header
         FROM client_header_mappings
-        ON CONFLICT (tenant_id, mapped_header) DO NOTHING
+        ON CONFLICT (tenant_id, attribute_id, mapped_header) DO NOTHING
     ),
 
     -- Restrict attributes to just the two entity types we emit values for
@@ -253,7 +259,13 @@ def activity_salesIngestor_eavTransform(settings: dict):
             a.name AS attribute_name,
             a.entity_type_id,
             a.data_type
-        FROM attributes a
+        FROM (
+            SELECT id, name, entity_type_id, data_type
+            FROM attributes
+            UNION ALL
+            SELECT id, name, entity_type_id, data_type
+            FROM insert_new_attributes
+        ) a
         JOIN column_classification cc
         ON cc.column_name = a.name
         AND (

@@ -246,10 +246,10 @@ def activity_salesIngestor_eavTransform(settings: dict):
             )
     ),
     insert_client_header_map AS (
-        INSERT INTO client_header_map (tenant_id, attribute_id, mapped_header)
-        SELECT tenant_id, attribute_id, mapped_header
+        INSERT INTO client_header_map (tenant_id, mapped_header, attribute_id)
+        SELECT tenant_id, mapped_header, attribute_id
         FROM client_header_mappings
-        ON CONFLICT (tenant_id, attribute_id, mapped_header) DO NOTHING
+        ON CONFLICT (tenant_id, mapped_header) DO NOTHING
     ),
 
     -- Restrict attributes to just the two entity types we emit values for

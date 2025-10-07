@@ -35,6 +35,16 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
                 }
             )
         
+        # 1.5 intermediate cleaning
+        yield context.call_activity_with_retry(
+            "activity_salesIngestor_intermediate_processing",
+            retry,
+            {
+                "table_name":table_name,
+                **settings
+            }
+        )
+        
         # 2. infer data types and alter the fields as necessary
         yield context.call_activity_with_retry(
             "activity_salesIngestor_inferDataTypes",

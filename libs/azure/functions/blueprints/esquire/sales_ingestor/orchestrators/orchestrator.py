@@ -79,11 +79,10 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
 
         # 4. Do the big sql query moving staging data into the EAV tables
         
-        yield context.call_activity_with_retry(
-            'activity_salesIngestor_eavTransform',
-            retry,
+        yield context.call_sub_orchestrator(
+            "suborchestrator_salesIngestor_eav",
             {
-                "staging_table":table_name,
+                "staging_table": table_name,
                 **settings
                 }
         )

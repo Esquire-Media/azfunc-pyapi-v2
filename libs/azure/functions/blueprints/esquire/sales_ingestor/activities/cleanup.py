@@ -20,11 +20,9 @@ def activity_salesIngestor_cleanup(settings: dict):
         conn.execute(text("SET LOCAL statement_timeout = '30s';"))
 
         # 1) Drop the exact, schema-qualified table first (quotes handled by qtbl)
-        #    CASCADE is safe for ephemeral staging tables.
         conn.execute(text(f"DROP TABLE IF EXISTS {qtbl(table_name)};"))
         
         # 2) Safety net: drop any sibling tables in `sales` that match the same name
-        #    or start with the same prefix (rare, but covers partial artifacts).
         rows = conn.execute(
             text("""
             SELECT schemaname, tablename
@@ -39,8 +37,12 @@ def activity_salesIngestor_cleanup(settings: dict):
         # Drop each found table with identifier-quoting
         for r in rows:
             fq = f"\"{r['schemaname']}\".\"{r['tablename']}\""
-            logger.info(msg=f"[LOG] Dropping residual table {fq}")
-            conn.exec_driver_sql(f"DROP TABLE IF EXISTS {fq};")
+            try:
+                logger.info(msg=f"[LOG] Dropping residual table {fq}")
+                conn.exec_driver_sql(f"DROP TABLE IF EXISTS {fq} CASCADE;")
+            except Exception as e:
+                logger.warning(msg=f"[WARN] Failed to drop table {fq}: {str(e)}")
+
 
         # 3) Optional: also try current search_path (harmless if not present)
         conn.exec_driver_sql(f"DROP TABLE IF EXISTS \"{table_name}\";")

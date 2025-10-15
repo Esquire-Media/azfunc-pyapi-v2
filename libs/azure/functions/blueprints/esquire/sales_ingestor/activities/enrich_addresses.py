@@ -286,7 +286,7 @@ def upsert_address_attributes(cleaned: pd.DataFrame):
     ]
     ATTR = Table('attributes', MetaData(), autoload_with=_ENGINE, schema='sales')
     stmt = pg_insert(ATTR).values(rows)
-    stmt = stmt.on_conflict_do_nothing(index_elements=['entity_type_id', 'name'])
+    stmt = stmt.on_conflict_do_nothing(index_elements=['entity_type_id', 'name', 'data_type'])
 
     with _ENGINE.begin() as conn:
         conn.execute(stmt)
@@ -308,7 +308,6 @@ def upsert_address_attributes(cleaned: pd.DataFrame):
           'names': ATTRIBUTE_NAMES
         }).mappings().all()
     attr_map = {r['name']: r['id'] for r in rows}
-    print(attr_map)
 
     # 4) Build the list of EAV rows
     cleaned["address_id"]    = cleaned["address_id"].astype(str)

@@ -55,7 +55,7 @@ def activity_salesIngestor_eavPrelude(settings: dict):
     insert_sales_batch_attributes AS (
         INSERT INTO attributes (id, entity_type_id, name, data_type, description)
         SELECT * FROM sales_batch_attributes
-        ON CONFLICT (entity_type_id, name) DO NOTHING
+        ON CONFLICT (entity_type_id, name, data_type) DO NOTHING
         RETURNING id, name
     ),
     sb_attribute_info AS (
@@ -143,7 +143,7 @@ def activity_salesIngestor_eavPrelude(settings: dict):
         SELECT * FROM transaction_attributes
         UNION ALL
         SELECT * FROM line_item_attributes
-        ON CONFLICT (entity_type_id, name) DO NOTHING
+        ON CONFLICT (entity_type_id, name, data_type) DO NOTHING
         RETURNING id, name, entity_type_id, data_type
     ),
 

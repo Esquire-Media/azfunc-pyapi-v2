@@ -60,13 +60,42 @@ def activity_salesIngestor_eavTransformChunk(settings: dict):
     ),
 
     attribute_info AS (
-        SELECT id AS attribute_id, name AS attribute_name, entity_type_id, data_type
-        FROM attributes
-        WHERE entity_type_id IN (
-            (SELECT entity_type_id FROM entity_types WHERE name = 'transaction'),
-            (SELECT entity_type_id FROM entity_types WHERE name = 'line_item')
-        )
+    WITH column_types AS (
+        SELECT
+        c.column_name,
+        CASE
+            WHEN format_type(a.atttypid, a.atttypmod) IN ('character varying','text') THEN 'string'
+            WHEN format_type(a.atttypid, a.atttypmod) IN ('numeric','integer','bigint','real','double precision') THEN 'numeric'
+            WHEN format_type(a.atttypid, a.atttypmod) = 'boolean' THEN 'boolean'
+            WHEN format_type(a.atttypid, a.atttypmod) LIKE 'timestamp%' THEN 'timestamptz'
+            WHEN format_type(a.atttypid, a.atttypmod) IN ('json','jsonb') THEN 'jsonb'
+            ELSE 'string'
+        END::attr_data_type AS col_attr_type
+        FROM information_schema.columns c
+        JOIN pg_class cls
+        ON cls.relname = '{settings["staging_table"]}'
+        AND cls.relnamespace = 'sales'::regnamespace
+        JOIN pg_attribute a
+        ON a.attrelid = cls.oid
+        AND a.attname  = c.column_name
+        AND a.attnum > 0 AND NOT a.attisdropped
+        WHERE c.table_schema = 'sales'
+        AND c.table_name  = '{settings["staging_table"]}'
+    )
+    SELECT a.id AS attribute_id,
+            a.name AS attribute_name,
+            a.entity_type_id,
+            a.data_type
+    FROM attributes a
+    JOIN column_types ct
+        ON ct.column_name = a.name
+    AND ct.col_attr_type = a.data_type
+    WHERE a.entity_type_id IN (
+        (SELECT entity_type_id FROM entity_types WHERE name = 'transaction'),
+        (SELECT entity_type_id FROM entity_types WHERE name = 'line_item')
+    )
     ),
+
 
     unpivoted_txn AS (
         SELECT

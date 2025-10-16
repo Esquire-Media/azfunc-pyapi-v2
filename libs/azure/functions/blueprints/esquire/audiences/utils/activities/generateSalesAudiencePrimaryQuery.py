@@ -283,7 +283,7 @@ LEFT JOIN sales.entities addr_e
     SELECT
       {select_clause}
     FROM typed
-    WHERE {ingress['audience']['dataFilter']}
+    WHERE {ingress['audience']['dataFilter'].replace('%', '%%')}
     """.strip()
 
     return final_sql

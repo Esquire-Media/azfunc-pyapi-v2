@@ -103,10 +103,12 @@ def orchestrator_esquireAudiences_processingSteps(
         source_urls = (
             processes[step - 1].get("results", []) if step else ingress["results"]
         )
+        import logging
+        logging.warning(f"Step {step}: source_urls: {source_urls}")
         if not source_urls:
             raise Exception(
-                "No data to process from previous step. [{}]: {} -> {}".format(
-                    step - 1, inputType, process["outputType"]
+                "No data to process from previous step. [{} - {}]: {} -> {}".format(
+                    step - 1, process["kind"], inputType, process["outputType"]
                 )
             )
 

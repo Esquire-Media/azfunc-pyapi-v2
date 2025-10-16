@@ -28,9 +28,8 @@ def orchestrator_esquireAudiencesSteps_addresses2neighbors(
             "city": part["city"],
             "state": part["state"],
             "zip": part["zip"],
-            "n_per_side": ingress.get('customCoding',{}).get("neighbors_query",{}).get("n_per_side", 20),
-            "same_side_only": ingress.get('customCoding',{}).get("neighbors_query",{}).get("same_side_only", False),
-            "limit": ingress.get('customCoding',{}).get("neighbors_query",{}).get("limit", -1),
+            "n_per_side": ingress.get('process',{}).get("housesPerSide",20),
+            "same_side_only": ingress.get('process',{}).get("bothSides",True),
             "source_urls": ingress.get('source_urls',[]),
         }))
 

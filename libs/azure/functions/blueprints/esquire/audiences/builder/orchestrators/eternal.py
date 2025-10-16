@@ -476,6 +476,7 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
                     "audience_id": ingress.get("audience", {}).get("id"),
                 }
             )
+<<<<<<< Updated upstream
             to = [t for t in os.getenv("NOTIFICATION_RECIPIENTS", "").split(";") if t]
             if len(to):
                 # -------- Enhanced email contents --------
@@ -499,6 +500,30 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
                         "content_type": "html",
                     },
                 )
+=======
+
+            # -------- Enhanced email contents --------
+            audience_id = (ingress.get("audience") or {}).get("id")
+            subject_suffix, html_body = _format_error_html(
+                instance_id=context.instance_id,
+                audience_id=audience_id,
+                exception=e,
+                now_utc=now,
+            )
+            subject = f"esquire-auto-audience Failure — {subject_suffix}"
+
+            # Existing notification behavior (HTML, with instance id and formatted error)
+            # yield context.call_activity(
+            #     "activity_microsoftGraph_sendEmail",
+            #     {
+            #         "from_id": "74891a5a-d0e9-43a4-a7c1-a9c04f6483c8",
+            #         "to_addresses": ["matt@esquireadvertising.com"],
+            #         "subject": subject,
+            #         "message": html_body,
+            #         "content_type": "html",
+            #     },
+            # )
+>>>>>>> Stashed changes
             # Re-raise to preserve Durable semantics / retries / diagnostics
             raise e
 

@@ -111,12 +111,18 @@ def find_neighbors_for_street(
     if data.empty or addresses.empty:
         return pd.DataFrame()
 
-    start_indices = data["street_number"].searchsorted(
-        addresses["base_street_num"] - N * increment, side="left"
-    )
-    end_indices = data["street_number"].searchsorted(
-        addresses["base_street_num"] + N * increment, side="right"
-    )
+    # Ensure sorted data index aligns with numeric order
+    idx_map = pd.Series(data.index, index=data["street_number"])
+
+    start_indices = []
+    end_indices = []
+    for base_num in addresses["base_street_num"]:
+        base_idx = idx_map.searchsorted(base_num)
+        start_indices.append(max(0, base_idx - N))
+        end_indices.append(min(len(data), base_idx + N))
+    start_indices = np.array(start_indices)
+    end_indices = np.array(end_indices)
+
 
     if len(start_indices) == 0 or len(end_indices) == 0:
         return pd.DataFrame()

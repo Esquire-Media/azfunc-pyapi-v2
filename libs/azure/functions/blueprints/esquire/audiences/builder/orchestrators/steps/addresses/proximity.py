@@ -16,6 +16,10 @@ def orchestrator_esquireAudiencesSteps_ownedLocationRadius(
         "activity_esquireAudiencesNeighbors_findTenantOwnedLocations",
         ingress
     )
+    if not ingress["owned_locations"] or not len(ingress["owned_locations"]):
+        raise Exception(
+            "No market owned locations found; unable to complete Proximity step."
+        )
 
     # Step 2: Fan out radius filtering for each sales blob
     filter_tasks = [

@@ -18,7 +18,7 @@ def activity_rooftopPolys_writeCache(polys: List[dict]):
     # Define the upsert query (for WKB insertion)
     upsert_query = """
     INSERT INTO utils.google_rooftop_cache (query, boundary, last_updated) 
-    VALUES (%s, ST_GeomFromText(%s), %s)
+    VALUES (%s, public.ST_GeomFromText(%s), %s)
     ON CONFLICT (query) 
     DO UPDATE SET
     boundary = EXCLUDED.boundary,

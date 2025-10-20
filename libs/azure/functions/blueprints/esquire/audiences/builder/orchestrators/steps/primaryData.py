@@ -1,14 +1,47 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/primaryData.py
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
-from azure.storage.blob import BlobServiceClient
 from libs.azure.functions.blueprints.esquire.audiences.builder.config import (
     MAPPING_DATASOURCE,
 )
-from libs.azure.functions.blueprints.esquire.audiences.builder.utils import extract_tenant_id_from_datafilter, extract_fields_from_dataFilter, extract_daysback_from_dataFilter
-import os
+from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
+    extract_tenant_id_from_datafilter,
+    extract_fields_from_dataFilter,
+    extract_daysback_from_dataFilter,
+)
+import hashlib
+
 # import logging
 bp = Blueprint()
+
+
+def _compute_storage_handle_from_conn_str(conn_str: str) -> str:
+    """
+    Deterministically derive a stable storage handle from a connection string (or an env-var key).
+
+    - If the string contains 'AccountName=', extract it.
+    - Otherwise, fall back to a stable hex digest of the provided string.
+
+    This avoids reading environment variables or instantiating SDK clients in the orchestrator,
+    which would violate Durable Functions determinism requirements.
+    """
+    account_name = None
+    marker = "AccountName="
+    if marker in conn_str:
+        # Typical format: "DefaultEndpointsProtocol=...;AccountName=foo;AccountKey=...;EndpointSuffix=core.windows.net"
+        # Split on ';' to find the AccountName component.
+        for part in conn_str.split(";"):
+            part = part.strip()
+            if part.startswith(marker):
+                account_name = part[len(marker) :].strip()
+                break
+
+    if not account_name:
+        # Use a stable deterministic digest of whatever was provided.
+        digest = hashlib.sha256(conn_str.encode("utf-8")).hexdigest()[:16]
+        account_name = digest
+
+    return f"sa_{account_name}"
 
 
 @bp.orchestration_trigger(context_name="context")
@@ -62,59 +95,59 @@ def orchestrator_esquireAudiences_primaryData(
 
     # Check if the audience has a data source
     if ingress["audience"].get("dataSource"):
-        # Generate a primary data set based on the data source type
-        match MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]]["dbType"]:
+        ds_id = ingress["audience"]["dataSource"]["id"]
+        ds_cfg = MAPPING_DATASOURCE[ds_id]
+
+        match ds_cfg["dbType"]:
             case "synapse":
-                blob_storage = BlobServiceClient.from_connection_string(
-                    os.environ.get(
-                        ingress["working"]["conn_str"],
-                        ingress["working"]["conn_str"],
-                    )
+                # Build the query deterministically
+                select_clause = ds_cfg["query"].get("select", "*")
+                schema_prefix = ""
+                table_cfg = ds_cfg["table"]
+                if table_cfg.get("schema"):
+                    schema_prefix = f"[{table_cfg['schema']}]."
+                table_name = f"[{table_cfg['name']}]"
+                where_clause = ingress["audience"]["dataFilter"]
+
+                ingress["query"] = " ".join(
+                    [
+                        "SELECT",
+                        select_clause,
+                        "FROM",
+                        f"{schema_prefix}{table_name}",
+                        "WHERE",
+                        where_clause,
+                    ]
                 )
-                ingress["query"] = "SELECT {} FROM {}{} WHERE {}".format(
-                    MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
-                        "query"
-                    ].get("select", "*"),
-                    (
-                        "[{}].".format(
-                            MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
-                                "table"
-                            ]["schema"]
-                        )
-                        if MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
-                            "table"
-                        ].get("schema", None)
-                        else ""
-                    ),
-                    "["
-                    + MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
-                        "table"
-                    ]["name"]
-                    + "]",
-                    ingress["audience"]["dataFilter"],
-                )
-                if filter_fn := MAPPING_DATASOURCE[
-                    ingress["audience"]["dataSource"]["id"]
-                ]["query"].get("filter"):
+
+                # Optional TTL-based filter from config (pure function)
+                if filter_fn := ds_cfg["query"].get("filter"):
                     ingress["query"] += filter_fn(
                         ingress["audience"]["TTL_Length"],
                         ingress["audience"]["TTL_Unit"],
                     )
+
+                # Compute a deterministic storage handle without env or SDK calls
+                handle = ingress["working"].get(
+                    "data_source",
+                    _compute_storage_handle_from_conn_str(
+                        ingress["working"]["conn_str"]
+                    ),
+                )
+
+                # Ship to Synapse activity (I/O occurs in activity, not orchestrator)
                 ingress["results"] = yield context.call_activity(
                     "synapse_activity_cetas",
                     {
                         "instance_id": ingress["instance_id"],
-                        **MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]],
+                        **ds_cfg,
                         "destination": {
                             "conn_str": ingress["working"]["conn_str"],
                             "container_name": ingress["working"]["container_name"],
                             "blob_prefix": "{}/-1".format(
-                                ingress["working"]["blob_prefix"],
+                                ingress["working"]["blob_prefix"]
                             ),
-                            "handle": ingress["working"].get(
-                                "data_source",
-                                "sa_{}".format(blob_storage.account_name),
-                            ),
+                            "handle": handle,
                             "format": (
                                 "CSV_HEADER"
                                 if ingress["audience"]["dataSource"]["dataType"]
@@ -122,77 +155,50 @@ def orchestrator_esquireAudiences_primaryData(
                                 else "CSV"
                             ),
                         },
-                        "query": ingress["query"],
+                        "query": ingress["query"], 
                         "return_urls": True,
                     },
                 )
+
             case "postgres":
-                # logging.warning("[LOG] Taking postgres branch")
-                # get query to handle anything hooking into the sales data (because of EAV setup)
-                if MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]].get("isEAV", False):
-                    # logging.warning("[LOG] Taking EAV sales branch")
-                    # logging.warning("[LOG] Calling generateSalesAudiencePrimaryQuery activity")
+                # Build query deterministically (no SDK/env access here)
+                if ds_cfg.get("isEAV", False):
+                    # Generate EAV sales query in an activity (safe: passes only deterministic inputs)
                     ingress["query"] = yield context.call_activity(
                         "activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery",
                         {
                             **ingress,
-                            **MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]],
-                            "tenant_id": extract_tenant_id_from_datafilter(ingress["audience"]["dataFilter"]),
-                            "fields": list(set(extract_fields_from_dataFilter(ingress["audience"]["dataFilter"]))),
+                            **ds_cfg,
+                            "tenant_id": extract_tenant_id_from_datafilter(
+                                ingress["audience"]["dataFilter"]
+                            ),
+                            "fields": extract_fields_from_dataFilter(
+                                ingress["audience"]["dataFilter"]
+                            ),
+                            # Use orchestration-provided time (deterministic)
                             "utc_now": str(context.current_utc_datetime),
-                            "days_back": extract_daysback_from_dataFilter(ingress["audience"]["dataFilter"])
-                            }
-                    )
-                    # logging.warning(f"generateSalesAudiencePrimaryQuery returned query: {ingress['query']!r}")
-                    # logging.warning(f"[LOG] Getting ready to send to blob.\nConn_str: {ingress['working']['conn_str']}\nContainer name':{ingress['working']['container_name']}")
-
-                    ingress["results"] = yield context.call_sub_orchestrator(
-                        "orchestrator_azurePostgres_queryToBlob",
-                        {
-                            "source": {
-                                "bind": MAPPING_DATASOURCE[
-                                    ingress["audience"]["dataSource"]["id"]
-                                ]["bind"],
-                                "query": ingress["query"],
-                            },
-                            "destination": {
-                                "conn_str": ingress["working"]["conn_str"],
-                                "container_name": ingress["working"]["container_name"],
-                                "blob_prefix": "{}/-1".format(
-                                    ingress["working"]["blob_prefix"]
-                                ),
-                                "format": "CSV",
-                            },
+                            "days_back": extract_daysback_from_dataFilter(
+                                ingress["audience"]["dataFilter"]
+                            ),
                         },
                     )
-
                 else:
-                    ingress["query"] = "SELECT * FROM {}{} WHERE {}".format(
-                        (
-                            '"{}".'.format(
-                                MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
-                                    "table"
-                                ]["schema"]
-                            )
-                            if MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
-                                "table"
-                            ].get("schema", None)
-                            else ""
-                        ),
-                        '"'
-                        + MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
-                            "table"
-                        ]["name"]
-                        + '"',
-                        ingress["audience"]["dataFilter"],
+                    schema_prefix = ""
+                    table_cfg = ds_cfg["table"]
+                    if table_cfg.get("schema"):
+                        schema_prefix = f"\"{table_cfg['schema']}\"."
+                    table_name = f"\"{table_cfg['name']}\""
+                    where_clause = ingress["audience"]["dataFilter"]
+                    ingress["query"] = (
+                        f"SELECT * FROM {schema_prefix}{table_name} WHERE {where_clause}"
                     )
+
+                # Execute the query to blob once (fix duplicated call)
                 ingress["results"] = yield context.call_sub_orchestrator(
                     "orchestrator_azurePostgres_queryToBlob",
                     {
                         "source": {
-                            "bind": MAPPING_DATASOURCE[
-                                ingress["audience"]["dataSource"]["id"]
-                            ]["bind"],
+                            "bind": ds_cfg["bind"],
                             "query": ingress["query"],
                         },
                         "destination": {
@@ -205,7 +211,8 @@ def orchestrator_esquireAudiences_primaryData(
                         },
                     },
                 )
-                # Check the data type and format polygons if necessary
+
+                # If polygons, format them via activities deterministically
                 match ingress["audience"]["dataSource"]["dataType"]:
                     case "polygons":
                         ingress["results"] = yield context.task_all(

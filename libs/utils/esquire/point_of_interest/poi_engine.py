@@ -49,9 +49,9 @@ class POIEngine:
                 ON cha.chain_id = chain.chain_id
             WHERE 
                 h3_index IN ('{h3_ids}')
-                AND ST_Within(
+                AND public.ST_Within(
                     fsq.point,
-                    ST_SetSRID(ST_GeomFromText('{polygon_wkt}'), 4326)
+                    public.ST_SetSRID(public.ST_GeomFromText('{polygon_wkt}'), 4326)
                 )
         """
         if categories is not None:
@@ -81,9 +81,9 @@ class POIEngine:
                 WHERE 
                     h3_index IN ('{h3_ids}')
                     AND cat.category_id IN (SELECT id FROM cat_tree)
-                    AND ST_Within(
+                    AND public.ST_Within(
                         fsq.point::geometry(point),
-                        ST_SetSRID(ST_GeomFromText('{polygon_wkt}'), 4326)
+                        public.ST_SetSRID(public.ST_GeomFromText('{polygon_wkt}'), 4326)
                     )
             """
 
@@ -98,15 +98,15 @@ class POIEngine:
                 f"""
                     SELECT
                         id,
-                        ST_AsText(ST_Centroid(ST_Collect(ST_GeomFromGeoJSON(feature->'geometry')))) AS centroid_wkt
+                        public.ST_AsText(public.ST_Centroid(public.ST_Collect(public.ST_GeomFromGeoJSON(feature->'geometry')))) AS centroid_wkt
                     FROM 
                         keystone."TargetingGeoFrame",
                         jsonb_array_elements(polygon->'features') AS feature
                     WHERE 
                         source = '' AND
-		                ST_Within(
-                            ST_Centroid(ST_GeomFromGeoJSON(feature->'geometry')), 
-                            ST_SetSRID(ST_GeomFromText('{polygon_wkt}'), 4326)
+		                public.ST_Within(
+                            public.ST_Centroid(public.ST_GeomFromGeoJSON(feature->'geometry')), 
+                            public.ST_SetSRID(public.ST_GeomFromText('{polygon_wkt}'), 4326)
                         )
                     GROUP BY
                         id

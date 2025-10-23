@@ -1,382 +1,404 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/activities/fetchAudience.py
 
 from azure.durable_functions import Blueprint
-from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
-    jsonlogic_to_sql,
-)
+from sqlalchemy import create_engine, text
 # import logging
-from datetime import datetime, timedelta, timezone
-
+from datetime import datetime as dt, timedelta, timezone
+import re
 bp = Blueprint()
 
 
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: dict):
     """
-    Build a wide-form SQL string (PostgreSQL) without *_attrs JSON blobs.
-    - Pivots requested fields for BOTH transaction and line_item.
-    - Pulls tenant_id from the parent sales_batch (via t.batch_id) and prefers that.
-    - Always adds the 6 billing address columns.
+    Execution strategy (high-level):
+    1) Resolve "what to look for" exactly once (entity type ids + attribute ids).
+    2) Build the smallest possible set of candidate transactions as early as possible.
+    3) Extract only the address entity ids referenced by those candidates and dedupe.
+    4) Pivot the address text in one pass scoped to the deduped ids.
+
+    Materialization strategy:
+    • MATERIALIZED only where the result is tiny and/or reused across later scans.
+    • Leave large, single-use CTEs non-materialized so the planner can inline/push down.
+
+    Confirm indexing (will improve IO minimization):
+    • sales.entity_types(name) UNIQUE or at least indexed
+    • sales.attributes(entity_type_id, name) UNIQUE or indexed
+    • sales.entities(id) PK, (entity_type_id, parent_entity_id) composite index
+    • sales.entity_attribute_values(attribute_id, entity_id) composite index
+    • sales.entity_attribute_values(attribute_id, value_ts)
+    • sales.entity_attribute_values(attribute_id, value_numeric)
+    • sales.entity_attribute_values(attribute_id, value_string)
+    • sales.entity_attribute_values(attribute_id, value_boolean)
     """
-    """
-    Wide-form SQL (PostgreSQL) without *_attrs JSON blobs.
-    - Pivots requested fields for BOTH transaction and line_item.
-    - Pulls tenant_id from the parent sales_batch (prefers batch).
-    - Includes address columns from either billing or shipping per ingress['address_source'].
-    - Applies optional audience filter via jsonlogic_to_sql on the final wide result.
-    """
-    tenant_id = ingress['tenant_id']
-
-    # ---------- helpers ----------
-    def _sql_lit(val: str) -> str:
-        return str(val).replace("'", "''")
-
-    def _ident(val: str) -> str:
-        return '"' + str(val).replace('"', '""') + '"'
-
-    def _mk_value_expr(prefix: str = "eav") -> str:
-        return (
-            "CASE a.data_type "
-            " WHEN 'string'      THEN {p}.value_string "
-            " WHEN 'numeric'     THEN ({p}.value_numeric)::text "
-            " WHEN 'boolean'     THEN ({p}.value_boolean)::text "
-            " WHEN 'timestamptz' THEN ({p}.value_ts)::text "
-            " WHEN 'jsonb'       THEN ({p}.value_jsonb)::text "
-            " END"
-        ).format(p=prefix)
-
-    # do not create coalescences or the like for address based information. just keep it in the final where
-    fields = list(field for field in ingress.get("fields") if field not in ["days_back", "zipcode", "state_abbreviation", "city_name", "plus4_code", "latitude", "longitude"] or [])
-
-    depth = (ingress.get("depth") or "line_item").lower()
-    if depth not in ("transaction", "line_item"):
-        raise ValueError("ingress['depth'] must be 'transaction' or 'line_item'")
-
-    # address source: "billing" or "shipping"
-    addr_source = (ingress.get("address_source") or "billing").lower()
-    if addr_source not in ("billing", "shipping"):
-        raise ValueError("ingress['address_source'] must be 'billing' or 'shipping'")
-    addr_attr_name = f"{addr_source}_address_id"  # e.g. billing_address_id / shipping_address_id
-
-    tenant_lit = _sql_lit(tenant_id)
-    addr_attr_name_lit = _sql_lit(addr_attr_name)
-
-    # get 30 days prior to run (based on orchestrator context utc datetime for replay)
+    tenant_id = ingress["tenant_id"]
+    sql_filter = ingress["audience"]["dataFilter"]
+    utc_now = ingress["utc_now"]
     days_back = ingress.get("days_back", 30)
-    utc_now = ingress.get("utc_now")
-    # logging.warning(f"[LOG] utc_now: {utc_now}")
-    since_dt = datetime.strptime(utc_now, "%Y-%m-%d %H:%M:%S.%f%z") - timedelta(days=days_back)
-    # logging.warning(f"[LOG] since_dt: {since_dt}")
-    since_utc_lit = _sql_lit(since_dt.isoformat())
-    # logging.warning(f"[LOG] since_utc_lit: {since_utc_lit}")
+    since_dt = dt.strptime(utc_now, "%Y-%m-%d %H:%M:%S.%f%z") - timedelta(days=days_back)
+    since_iso = since_dt.isoformat()
 
-    # ---------- dynamic LATERALs for tx & li ----------
-    def _build_attrs_lateral(alias: str, entity_ref: str) -> str:
-        if not fields:
-            return ""
-        key_list = ", ".join("'" + _sql_lit(f) + "'" for f in fields)
-        val_expr = _mk_value_expr("eav")
+    # Extract filters
+    def extract_filters(sql_filter: str):
+        pattern = re.compile(r'\(?\s*"(?P<field>[^"]+)"\s*(?P<op>=|!=|>|<|>=|<=|LIKE|ILIKE)\s*(?P<val>\'?[^()\'"]+\'?)\s*\)?')
+        results = []
+        for match in pattern.finditer(sql_filter):
+            field = match.group("field")
+            op = match.group("op")
+            val = match.group("val").strip("'")
+            if field != "days_back":
+                results.append({"field": field, "op": op, "value": val})
+        return results
 
-        cols = []
-        for f in fields:
-            cols.append(
-                f"MAX(CASE COALESCE(chm.mapped_header, a.name) "
-                f"        WHEN '{_sql_lit(f)}' THEN {val_expr} END) AS {_ident(f)}"
-            )
-        cols_sql = ",\n      ".join(cols)
+    filters = extract_filters(sql_filter)
+    import logging
+    logging.warning(f"[LOG] Filters: {filters}")
 
-        return f"""
-LEFT JOIN LATERAL (
-  SELECT
-      {cols_sql}
-  FROM sales.entity_attribute_values eav
-  JOIN sales.attributes a ON a.id = eav.attribute_id
-  LEFT JOIN sales.client_header_map chm
-    ON chm.attribute_id = a.id AND chm.tenant_id = '{tenant_lit}'
-  WHERE eav.entity_id = {entity_ref}
-    AND COALESCE(chm.mapped_header, a.name) IN ({key_list})
-) {alias} ON TRUE
-""".rstrip()
+    # Query attribute scopes for this tenant
+    attr_names = list(set(f["field"] for f in filters if f["field"] != "tenant_id"))
+    if attr_names:
+        attr_name_sql = ", ".join(f"'{a}'" for a in attr_names)
+        logging.warning(f"[LOG] attr_names: {attr_names}")
+        logging.warning(f"[LOG] attr_name_sql: {attr_name_sql}")
 
-    tx_join_sql = _build_attrs_lateral("txw", "t.id")
-    li_join_sql = _build_attrs_lateral("liw", "li.line_item_id")
+        scope_query = text(f"""
+            SELECT DISTINCT
+                COALESCE(chm.mapped_header, a.name) AS attr_name,
+                et.name AS entity_type
+            FROM sales.attributes a
+            JOIN sales.entity_types et ON a.entity_type_id = et.entity_type_id
+            LEFT JOIN sales.client_header_map chm
+            ON chm.attribute_id = a.id AND chm.tenant_id = '{tenant_id}'
+            WHERE COALESCE(chm.mapped_header, a.name) IN ({attr_name_sql})
+        """)
 
-    # ---------- batch (sales_batch) tenant_id ----------
-    batch_val = _mk_value_expr("eav")
-    batch_join_sql = f"""
-LEFT JOIN LATERAL (
-  SELECT
-      MAX(CASE COALESCE(chm.mapped_header, a.name)
-            WHEN 'tenant_id' THEN {batch_val} END) AS tenant_id
-  FROM sales.entity_attribute_values eav
-  JOIN sales.attributes a ON a.id = eav.attribute_id
-  LEFT JOIN sales.client_header_map chm
-    ON chm.attribute_id = a.id AND chm.tenant_id = '{tenant_lit}'
-  WHERE eav.entity_id = t.batch_id
-    AND COALESCE(chm.mapped_header, a.name) IN ('tenant_id')
-) batchw ON TRUE
-""".rstrip()
+        # Execute scope_query using a sqlalchemy connection
+        import os
+        with create_engine(
+            os.environ["DATABIND_SQL_KEYSTONE"].replace("psycopg2", "psycopg"),      # postgresql+psycopg2://…
+            pool_pre_ping=True, 
+            pool_size=10,
+            max_overflow=20, 
+            future=True,
+        ).begin() as conn:
+            rows = conn.execute(scope_query)
 
-    # ---------- address lateral (fixed set) ----------
-    addr_fields = [
-        ("delivery_line_1"              , "delivery_line_1"),
-        ("delivery_line_2"              , "delivery_line_2"),
-        ("city_name"                    , "city_name"),
-        ("state_abbreviation"           , "state_abbreviation"),
-        ("zipcode"                      , "zipcode"),
-        ("plus4_code"                   , "plus4_code"),
-        ("latitude"                     , "latitude"),
-        ("longitude"                    , "longitude"),
-        ("street_name"                  , "street_name"),
-        ("primary_number"               , "primary_number")
+        scope_map = {}
+        for attr_name, entity_type in rows:
+            if attr_name not in scope_map:
+                scope_map[attr_name] = entity_type  # prefer first match
+
+    # Build params CTE
+    # params: runtime inputs (tiny; inline constants or bind parameters in app layer)
+    param_rows = [
+        ("sales_batch", "tenant_id", "=", tenant_id),
+        ("transaction", "sale_date", ">=", since_iso),
     ]
-    
-    addr_names_in = ", ".join("'" + _sql_lit(k) + "'" for k, _ in addr_fields)
-    addr_val = _mk_value_expr("eav")
-    addr_cols = []
-    for k, alias in addr_fields:
-        addr_cols.append(
-            f"MAX(CASE a.name WHEN '{_sql_lit(k)}' THEN {addr_val} END) AS {_ident(alias)}"
-        )
-    addr_cols_sql = ",\n      ".join(addr_cols)
+    for f in filters:
+        attr = f["field"]
+        if attr == "tenant_id":
+            continue
+        entity_type = scope_map.get(attr, "transaction")  # fallback
+        param_rows.append((entity_type, attr, f["op"], f["value"]))
 
-    addr_join_sql = f"""
-LEFT JOIN LATERAL (
-  SELECT
-      {addr_cols_sql}
-  FROM sales.entity_attribute_values eav
-  JOIN sales.attributes a ON a.id = eav.attribute_id
-  WHERE eav.entity_id = addr_e.id
-    AND a.name IN ({addr_names_in})
-) addrw ON TRUE
-""".rstrip()
-
-    # ---------- SELECT list ----------
-    select_bits = []
-    for f in fields:
-        col = _ident(f)
-        if f == "tenant_id":
-            select_bits.append(f"COALESCE(batchw.tenant_id, txw.{col}, liw.{col}) AS {col}")
-        else:
-            if depth == "transaction":
-                select_bits.append(f"COALESCE(txw.{col}, liw.{col}) AS {col}")
-            else:
-                select_bits.append(f"COALESCE(liw.{col}, txw.{col}) AS {col}")
-
-    # Always include address columns
-    select_bits.append("addrw.*")
-    inner_select_sql = ",\n  ".join(select_bits)
-
-    # ---------- the wide SELECT ----------
-    wide_sql = f"""
-WITH etypes AS (
-  SELECT
-    (SELECT entity_type_id FROM sales.entity_types WHERE name = 'sales_batch') AS sales_batch_type_id,
-    (SELECT entity_type_id FROM sales.entity_types WHERE name = 'transaction') AS transaction_type_id,
-    (SELECT entity_type_id FROM sales.entity_types WHERE name = 'line_item')  AS line_item_type_id,
-    (SELECT entity_type_id FROM sales.entity_types WHERE name = 'address')    AS address_type_id
-),
-batches AS (
-  SELECT e.id
-  FROM sales.entities e
-  CROSS JOIN etypes t
-  WHERE e.entity_type_id = t.sales_batch_type_id
-    AND EXISTS (
-      SELECT 1
-      FROM sales.entity_attribute_values eav
-      WHERE eav.entity_id = e.id
-        AND eav.value_string = '{tenant_lit}'
+    param_sql_rows = ",\n    ".join(
+        f"('{etype}', '{attr}', '{op}', '{val}')" for etype, attr, op, val in param_rows
     )
+
+    logging.warning(f"param_sql_rows: {param_sql_rows}")
+
+    # 5. Compose query
+    query = f"""
+WITH
+/* params: runtime inputs (tiny; inline constants or bind parameters in app layer) */
+params(entity_type_name, attribute_name, comparator, value) AS (
+  VALUES
+    {param_sql_rows}
 ),
-tx AS (
-  SELECT e.id,
-         e.parent_entity_id AS batch_id
-  FROM sales.entities e
-  CROSS JOIN etypes t
-  WHERE e.entity_type_id = t.transaction_type_id
-    AND e.parent_entity_id IN (SELECT id FROM batches)
-    AND EXISTS (
-      SELECT 1
-      FROM sales.entity_attribute_values eav
-      JOIN sales.attributes a ON a.id = eav.attribute_id
-      LEFT JOIN sales.client_header_map chm
-        ON chm.attribute_id = a.id AND chm.tenant_id = '{tenant_lit}'
-      WHERE eav.entity_id = e.id
-        AND COALESCE(chm.mapped_header, a.name) = 'sale_date'
-        AND eav.value_ts > '{since_utc_lit}'::timestamptz
-    )
+/* tenant_param: optional tenant scope (single-row; reused)
+   MATERIALIZED because it's tiny and referenced in attr_resolved. */
+tenant_param AS MATERIALIZED (
+  SELECT value AS tenant_id
+  FROM params
+  WHERE entity_type_name = 'sales_batch'
+    AND attribute_name = 'tenant_id'
+  LIMIT 1
 ),
-line_items AS (
-  SELECT li.id AS line_item_id, li.parent_entity_id AS transaction_id
-  FROM sales.entities li
-  CROSS JOIN etypes t
-  WHERE li.entity_type_id = t.line_item_type_id
-    AND li.parent_entity_id IN (SELECT id FROM tx)
+/* type_ids: map entity type names → ids (reused several times)
+   MATERIALIZED to avoid re-scanning sales.entity_types. */
+type_ids AS MATERIALIZED (
+  SELECT
+    (ARRAY_AGG(entity_type_id) FILTER (WHERE name = 'address'))[1] AS address_id,
+    (ARRAY_AGG(entity_type_id) FILTER (WHERE name = 'line_item'))[1] AS line_item_id,
+    (ARRAY_AGG(entity_type_id) FILTER (WHERE name = 'transaction'))[1] AS transaction_id,
+    (ARRAY_AGG(entity_type_id) FILTER (WHERE name = 'sales_batch'))[1] AS sales_batch_id
+  FROM sales.entity_types
 ),
-addr_ids AS (
-  SELECT li.line_item_id AS line_item_id, eav.value_string AS addr_id
-  FROM line_items li
-  JOIN sales.entity_attribute_values eav ON eav.entity_id = li.line_item_id
-  JOIN sales.attributes a ON a.id = eav.attribute_id
-  WHERE a.name = '{addr_attr_name_lit}'
+/* Decide which attributes we will either filter by or project. */
+required_from_params AS (
+  SELECT DISTINCT p.entity_type_name, p.attribute_name
+  FROM params p
+),
+required_for_path_and_projection AS (
+  SELECT * FROM (VALUES
+    ('line_item', 'billing_address_id'),
+    ('transaction', 'billing_address_id'),
+    ('address', 'delivery_line_1'),
+    ('address', 'delivery_line_2'),
+    ('address', 'city_name'),
+    ('address', 'state_abbreviation'),
+    ('address', 'zipcode'),
+    ('address', 'plus4_code'),
+    ('address', 'street_name'),
+    ('address', 'primary_number'),
+    ('address', 'latitude'),
+    ('address', 'longitude')
+  ) AS v(entity_type_name, attribute_name)
+),
+/* needed_pairs: union of filter + projection attribute references (small) */
+needed_pairs AS (
+  SELECT entity_type_name, attribute_name FROM required_from_params
+  UNION ALL
+  SELECT entity_type_name, attribute_name FROM required_for_path_and_projection
+),
+/* needed_attrs: carry additional names used for tenant header mapping */
+needed_attrs(entity_type_name, attribute_name, default_attr_name, mapped_header) AS (
+  SELECT
+    np.entity_type_name,
+    np.attribute_name,
+    np.attribute_name AS default_attr_name,
+    np.attribute_name AS mapped_header
+  FROM needed_pairs np
+),
+/* attr_resolved: finalize attribute_id + data_type with tenant-aware overrides (reused)
+   MATERIALIZED to pin tiny lookup results (saves rejoining attributes + header map). */
+attr_resolved AS MATERIALIZED (
+  SELECT
+    na.entity_type_name,
+    na.attribute_name,
+    COALESCE(cm.attribute_id, a.id) AS attribute_id,
+    lower(a.data_type::text) AS data_type
+  FROM needed_attrs na
+  LEFT JOIN tenant_param tp ON TRUE
+  LEFT JOIN sales.client_header_map cm
+    ON tp.tenant_id IS NOT NULL
+   AND cm.tenant_id = tp.tenant_id
+   AND cm.mapped_header = na.mapped_header
+  LEFT JOIN sales.entity_types et
+    ON et.name = na.entity_type_name
+  LEFT JOIN sales.attributes a
+    ON a.entity_type_id = et.entity_type_id
+   AND a.name = na.default_attr_name
+),
+/* filter_params: bind params → exact entity_type_id/attribute_id (tiny; reused) */
+filter_params AS MATERIALIZED (
+  SELECT
+    row_number() OVER () AS param_id,
+    p.entity_type_name,
+    p.attribute_name,
+    lower(p.comparator) AS comparator,
+    p.value,
+    et.entity_type_id,
+    ar.attribute_id,
+    ar.data_type
+  FROM params p
+  LEFT JOIN sales.entity_types et
+    ON et.name = p.entity_type_name
+  LEFT JOIN attr_resolved ar
+    ON ar.entity_type_name = p.entity_type_name
+   AND ar.attribute_name = p.attribute_name
+),
+/* filter_params_tx: only gating params that apply at transaction/sales_batch level (reused) */
+filter_params_tx AS MATERIALIZED (
+  SELECT * FROM filter_params
+  WHERE entity_type_name IN ('transaction','sales_batch')
+),
+/* param_matches: per-param bitmap of tx_ids that satisfy that param (likely inlined)
+   Not MATERIALIZED to let the planner push predicates and avoid unnecessary spooling. */
+param_matches AS (
+  /* transaction-scoped params */
+  SELECT DISTINCT
+    fp.param_id,
+    ev.entity_id AS tx_id
+  FROM filter_params_tx fp
+  JOIN sales.entity_attribute_values ev
+    ON ev.attribute_id = fp.attribute_id
+   AND (
+     CASE fp.data_type
+       WHEN 'string' THEN
+         CASE fp.comparator
+           WHEN '=' THEN ev.value_string = fp.value
+           WHEN '!=' THEN ev.value_string <> fp.value
+           WHEN 'LIKE' THEN ev.value_string LIKE fp.value
+           WHEN 'ILIKE' THEN ev.value_string ILIKE fp.value
+           ELSE FALSE
+         END
+       WHEN 'timestamptz' THEN
+         CASE fp.comparator
+           WHEN '=' THEN ev.value_ts = fp.value::timestamptz
+           WHEN '!=' THEN ev.value_ts <> fp.value::timestamptz
+           WHEN '>' THEN ev.value_ts > fp.value::timestamptz
+           WHEN '<' THEN ev.value_ts < fp.value::timestamptz
+           WHEN '>=' THEN ev.value_ts >= fp.value::timestamptz
+           WHEN '<=' THEN ev.value_ts <= fp.value::timestamptz
+           ELSE FALSE
+         END
+       WHEN 'numeric' THEN
+         CASE fp.comparator
+           WHEN '=' THEN ev.value_numeric = fp.value::numeric
+           WHEN '!=' THEN ev.value_numeric <> fp.value::numeric
+           WHEN '>' THEN ev.value_numeric > fp.value::numeric
+           WHEN '<' THEN ev.value_numeric < fp.value::numeric
+           WHEN '>=' THEN ev.value_numeric >= fp.value::numeric
+           WHEN '<=' THEN ev.value_numeric <= fp.value::numeric
+           ELSE FALSE
+         END
+       ELSE FALSE
+     END
+   )
+  WHERE fp.entity_type_name = 'transaction'
+
+  UNION ALL
+
+  /* sales-batch–scoped params → expand matching batches to their child transactions */
+  SELECT DISTINCT
+    fp.param_id,
+    t.id AS tx_id
+  FROM filter_params_tx fp
+  JOIN sales.entity_attribute_values ev
+    ON ev.attribute_id = fp.attribute_id
+   AND (
+     CASE fp.data_type
+       WHEN 'string' THEN
+         CASE fp.comparator
+           WHEN '=' THEN ev.value_string = fp.value
+           WHEN '!=' THEN ev.value_string <> fp.value
+           ELSE FALSE
+         END
+       WHEN 'timestamptz' THEN
+         CASE fp.comparator
+           WHEN '=' THEN ev.value_ts = fp.value::timestamptz
+           WHEN '!=' THEN ev.value_ts <> fp.value::timestamptz
+           WHEN '>' THEN ev.value_ts > fp.value::timestamptz
+           WHEN '<' THEN ev.value_ts < fp.value::timestamptz
+           WHEN '>=' THEN ev.value_ts >= fp.value::timestamptz
+           WHEN '<=' THEN ev.value_ts <= fp.value::timestamptz
+           ELSE FALSE
+         END
+       WHEN 'numeric' THEN
+         CASE fp.comparator
+           WHEN '=' THEN ev.value_numeric = fp.value::numeric
+           WHEN '!=' THEN ev.value_numeric <> fp.value::numeric
+           WHEN '>' THEN ev.value_numeric > fp.value::numeric
+           WHEN '<' THEN ev.value_numeric < fp.value::numeric
+           WHEN '>=' THEN ev.value_numeric >= fp.value::numeric
+           WHEN '<=' THEN ev.value_numeric <= fp.value::numeric
+           ELSE FALSE
+         END
+       ELSE FALSE
+     END
+   )
+  JOIN type_ids ti ON TRUE
+  JOIN sales.entities t
+    ON t.parent_entity_id = ev.entity_id
+   AND t.entity_type_id = ti.transaction_id
+  WHERE fp.entity_type_name = 'sales_batch'
+),
+/* param_card: scalar with number of gating params (tiny; reused in HAVING) */
+param_card AS MATERIALIZED (
+  SELECT COUNT(*) AS n_params
+  FROM filter_params_tx
+),
+/* candidate_tx: tx that satisfy ALL gating params (reused; sharply reduces working set)
+   MATERIALIZED because it’s referenced multiple times downstream (tx + line_item branches). */
+candidate_tx AS MATERIALIZED (
+  SELECT pm.tx_id
+  FROM param_matches pm
+  GROUP BY pm.tx_id
+  HAVING COUNT(*) = (SELECT n_params FROM param_card)
+),
+/* billing_attrs: attribute_ids for billing_address_id (tx + line_item)
+   MATERIALIZED to reuse across the tx and line_item address fetches. */
+billing_attrs AS MATERIALIZED (
+  SELECT attribute_id, entity_type_name
+  FROM attr_resolved
+  WHERE attribute_name = 'billing_address_id'
+    AND entity_type_name IN ('line_item','transaction')
+),
+/* addr_rows: resolve raw address-id strings referenced by candidates (no dedupe yet)
+   Non-materialized: lets planner push the candidate_tx filter and avoid large intermediate storage. */
+addr_rows AS (
+  /* tx-level */
+  SELECT v.value_string AS addr_text
+  FROM billing_attrs ba
+  JOIN attr_resolved ar
+    ON ar.attribute_id = ba.attribute_id
+   AND ba.entity_type_name = 'transaction'
+  JOIN candidate_tx ct ON TRUE
+  JOIN sales.entity_attribute_values v
+    ON v.entity_id = ct.tx_id
+   AND v.attribute_id = ar.attribute_id
+
+  UNION ALL
+
+  /* line_item-level */
+  SELECT v.value_string AS addr_text
+  FROM billing_attrs ba
+  JOIN attr_resolved ar
+    ON ar.attribute_id = ba.attribute_id
+   AND ba.entity_type_name = 'line_item'
+  JOIN type_ids ti ON TRUE
+  JOIN candidate_tx ct ON TRUE
+  JOIN sales.entities li
+    ON li.parent_entity_id = ct.tx_id
+   AND li.entity_type_id = ti.line_item_id
+  JOIN sales.entity_attribute_values v
+    ON v.entity_id = li.id
+   AND v.attribute_id = ar.attribute_id
+),
+/* addresses: validate → cast → dedupe to one row per address entity (reused)
+   MATERIALIZED to provide a small, reusable id list for the final pivot. */
+addresses AS MATERIALIZED (
+  SELECT DISTINCT e.id AS address_id
+  FROM addr_rows r
+  JOIN sales.entities e ON e.id = r.addr_text::uuid
+  JOIN type_ids ti ON e.entity_type_id = ti.address_id
+),
+/* addr_text: single-pass pivot of address text fields (IO saver)
+   Non-materialized; planner can push the IN (...) semi-join and aggregate only over the small id set. */
+addr_text AS (
+  SELECT
+    v.entity_id AS address_id,
+    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'delivery_line_1') AS address,
+    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'delivery_line_2') AS delivery_line_2,
+    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'city_name') AS city,
+    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'state_abbreviation') AS state,
+    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'zipcode') AS "zipCode",
+    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'plus4_code') AS "plus4Code",
+    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'street_name') AS street_name,
+    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'primary_number') AS primary_number,
+    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'latitude') AS latitude,
+    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'longitude') AS longitude
+  FROM sales.entity_attribute_values v
+  JOIN attr_resolved ar
+    ON ar.attribute_id = v.attribute_id
+   AND ar.entity_type_name = 'address'
+  WHERE v.entity_id IN (SELECT address_id FROM addresses) -- <<< scope aggregation to deduped ids
+  GROUP BY v.entity_id
 )
+/* final projection: addresses as a neat, typed rowset */
 SELECT
-  {inner_select_sql}
-FROM line_items li
-JOIN tx t ON t.id = li.transaction_id
-LEFT JOIN addr_ids ai ON ai.line_item_id = li.line_item_id
-LEFT JOIN sales.entities addr_e
-  ON addr_e.entity_type_id = (SELECT address_type_id FROM etypes)
- AND addr_e.id::text = ai.addr_id
-
-{tx_join_sql}
-
-{li_join_sql}
-
-{batch_join_sql}
-
-{addr_join_sql}
+  at.address,
+  at.delivery_line_2,
+  at.city,
+  at.state,
+  at."zipCode",
+  at."plus4Code",
+  at.street_name,
+  at.primary_number,
+  at.latitude::float,
+  at.longitude::float
+FROM addr_text at
 """.strip()
 
-    ingress['audience']['dataFilter'] = remove_days_back_clause(ingress['audience']['dataFilter'])
-    # ---------- OUTER FILTER ----------
-    # build the select list with aliases but no duplicates
-    address_alias_map = {
-        "delivery_line_1": "address",
-        "city_name": "city",
-        "state_abbreviation": "state",
-        "plus4_code": "plus4Code",
-        "zipcode": "zipCode",
-    }
-
-    # figure out all columns in typed CTE (fields + address columns)
-    # fields already comes from ingress
-    all_columns = list(fields) + [
-        "delivery_line_1",
-        "delivery_line_2",
-        "city_name",
-        "state_abbreviation",
-        "zipcode",
-        "plus4_code",
-        "latitude",
-        "longitude",
-        "street_name",
-        "primary_number"
-    ]
-
-    # build select clause
-    select_cols = []
-    for col in all_columns:
-        alias = address_alias_map.get(col)
-        if alias:
-            select_cols.append(f'typed."{col}" AS "{alias}"')
-        else:
-            select_cols.append(f'typed."{col}"')
-
-    # join into SQL
-    select_clause = ",\n  ".join(select_cols)
-
-    final_sql = f"""
-    WITH base AS (
-    {wide_sql}
-    ){build_typed_cte_from_filter(ingress['audience']['dataFilter'])}
-    SELECT
-      {select_clause}
-    FROM typed
-    WHERE {ingress['audience']['dataFilter'].replace('%', '%%')}
-    """.strip()
-
-    return final_sql
-
-import re
-
-def build_typed_cte_from_filter(data_filter: str) -> str:
-    """
-    Infer casts from a dataFilter clause and build a typed CTE
-    that only selects the casted/filter columns + address fields.
-    """
-
-    # Regex: find ("col" OP value...) patterns
-    pattern = r'"\s*([^"]+)\s*"\s*(=|!=|<>|>=|<=|>|<|IN|LIKE)\s*(\([^)]+\)|[^)ANDOR]+)'
-    matches = re.findall(pattern, data_filter)
-
-    casts = []
-    seen = set()
-
-    for col, op, val in matches:
-        if col in seen:
-            continue
-        seen.add(col)
-
-        val = val.strip()
-
-        # Decide cast type
-        if val.startswith("'") or op.upper() == "IN":
-            expr = f'    base."{col}"'
-        elif val.lower() in ("true", "false"):
-            expr = f'    base."{col}"::boolean AS "{col}"'
-        elif re.match(r"'?\d{4}-\d{2}-\d{2}.*'?", val):  # date-like
-            expr = f'    base."{col}"::timestamptz AS "{col}"'
-        elif re.match(r"^-?\d+(\.\d+)?$", val):          # number
-            expr = f'    base."{col}"::numeric AS "{col}"'
-        else:
-            expr = f'    base."{col}"'
-
-        casts.append(expr)
-
-    # Always include address columns
-    addr_fields = [
-        "delivery_line_1", "delivery_line_2", "city_name", "state_abbreviation",
-        "zipcode", "plus4_code", "latitude", "longitude", "street_name", "primary_number"
-    ]
-    for col in addr_fields:
-        if col not in seen:  # avoid double inclusion
-            casts.append(f'    base."{col}"')
-
-    return (
-        ", typed AS (\n"
-        "  SELECT\n"
-        + ",\n".join(casts) +
-        "\n  FROM base\n)"
-    )
-
-
-def remove_days_back_clause(data_filter: str) -> str:
-    import re
-    # Define a pattern for any comparison to "days_back"
-    operator_pattern = r'(=|!=|<>|>=|<=|<|>)'
-    clause_pattern = rf'\(*\s*"days_back"\s*{operator_pattern}\s*\d+\s*\)*'
-
-    # This function handles replacing and rebalancing
-    def balanced_removal(text):
-        # Remove logical connectors + clause
-        full_pattern = rf'''
-            # Middle
-            (\s+(AND|OR)\s+{clause_pattern})|
-            # Start
-            (^({clause_pattern})\s+(AND|OR)\s+)|
-            # End
-            (\s+(AND|OR)\s+{clause_pattern}$)|
-            # Only clause
-            (^({clause_pattern})$)
-        '''
-        cleaned = re.sub(full_pattern, '', text, flags=re.IGNORECASE | re.VERBOSE).strip()
-
-        # Final fallback: remove bare clause if missed
-        cleaned = re.sub(clause_pattern, '', cleaned, flags=re.IGNORECASE).strip()
-
-        # Remove dangling operators at start/end
-        cleaned = re.sub(r'^(AND|OR)\s+', '', cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r'\s+(AND|OR)$', '', cleaned, flags=re.IGNORECASE)
-
-        # Fix unbalanced parentheses
-        open_parens = cleaned.count('(')
-        close_parens = cleaned.count(')')
-        if open_parens > close_parens:
-            cleaned += ')' * (open_parens - close_parens)
-        elif close_parens > open_parens:
-            cleaned = '(' * (close_parens - open_parens) + cleaned
-
-        return cleaned
-
-    return balanced_removal(data_filter)
+    return query.replace('%', '%%')

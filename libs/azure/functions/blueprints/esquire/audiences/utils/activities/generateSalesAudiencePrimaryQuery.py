@@ -230,7 +230,7 @@ param_matches AS (
            WHEN '=' THEN ev.value_string = fp.value
            WHEN '!=' THEN ev.value_string <> fp.value
            WHEN 'LIKE' THEN ev.value_string LIKE fp.value
-            WHEN 'ILIKE' THEN ev.value_string ILIKE fp.value
+           WHEN 'ILIKE' THEN ev.value_string ILIKE fp.value
            ELSE FALSE
          END
        WHEN 'timestamptz' THEN
@@ -401,4 +401,4 @@ SELECT
 FROM addr_text at
 """.strip()
 
-    return query
+    return query.replace('%', '%%')

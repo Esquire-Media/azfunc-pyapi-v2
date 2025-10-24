@@ -241,10 +241,10 @@ param_matches AS (
          CASE fp.comparator
            WHEN '=' THEN ev.value_string = fp.value
            WHEN '!=' THEN ev.value_string <> fp.value
-           WHEN 'LIKE' THEN ev.value_string LIKE fp.value
-           WHEN 'ILIKE' THEN ev.value_string ILIKE fp.value
-           WHEN 'IN' THEN ev.value_string = ANY(string_to_array(fp.value, ','))
-           WHEN 'NOT IN' THEN NOT (ev.value_string = ANY(string_to_array(fp.value, ',')))
+           WHEN 'like' THEN ev.value_string LIKE fp.value
+           WHEN 'ilike' THEN ev.value_string ILIKE fp.value
+           WHEN 'in' THEN ev.value_string = ANY(string_to_array(fp.value, ','))
+           WHEN 'not in' THEN NOT (ev.value_string = ANY(string_to_array(fp.value, ',')))
            ELSE FALSE
          END
        WHEN 'timestamptz' THEN
@@ -255,8 +255,8 @@ param_matches AS (
            WHEN '<' THEN ev.value_ts < fp.value::timestamptz
            WHEN '>=' THEN ev.value_ts >= fp.value::timestamptz
            WHEN '<=' THEN ev.value_ts <= fp.value::timestamptz
-           WHEN 'IN' THEN ev.value_ts = ANY(string_to_array(fp.value, ',')::timestamptz[])
-           WHEN 'NOT IN' THEN NOT (ev.value_ts = ANY(string_to_array(fp.value, ',')::timestamptz[]))
+           WHEN 'in' THEN ev.value_ts = ANY(string_to_array(fp.value, ',')::timestamptz[])
+           WHEN 'not in' THEN NOT (ev.value_ts = ANY(string_to_array(fp.value, ',')::timestamptz[]))
            ELSE FALSE
          END
        WHEN 'numeric' THEN
@@ -267,8 +267,8 @@ param_matches AS (
            WHEN '<' THEN ev.value_numeric < fp.value::numeric
            WHEN '>=' THEN ev.value_numeric >= fp.value::numeric
            WHEN '<=' THEN ev.value_numeric <= fp.value::numeric
-           WHEN 'IN' THEN ev.value_numeric = ANY(string_to_array(fp.value, ',')::numeric[])
-           WHEN 'NOT IN' THEN NOT (ev.value_numeric = ANY(string_to_array(fp.value, ',')::numeric[]))
+           WHEN 'in' THEN ev.value_numeric = ANY(string_to_array(fp.value, ',')::numeric[])
+           WHEN 'not in' THEN NOT (ev.value_numeric = ANY(string_to_array(fp.value, ',')::numeric[]))
            ELSE FALSE
          END
        ELSE FALSE
@@ -291,10 +291,10 @@ param_matches AS (
          CASE fp.comparator
            WHEN '=' THEN ev.value_string = fp.value
            WHEN '!=' THEN ev.value_string <> fp.value
-           WHEN 'LIKE' THEN ev.value_string LIKE fp.value
-           WHEN 'ILIKE' THEN ev.value_string ILIKE fp.value
-           WHEN 'IN' THEN ev.value_string = ANY(string_to_array(fp.value, ','))
-           WHEN 'NOT IN' THEN NOT (ev.value_string = ANY(string_to_array(fp.value, ',')))
+           WHEN 'like' THEN ev.value_string LIKE fp.value
+           WHEN 'ilike' THEN ev.value_string ILIKE fp.value
+           WHEN 'in' THEN ev.value_string = ANY(string_to_array(fp.value, ','))
+           WHEN 'not in' THEN NOT (ev.value_string = ANY(string_to_array(fp.value, ',')))
            ELSE FALSE
          END
        WHEN 'timestamptz' THEN
@@ -305,8 +305,8 @@ param_matches AS (
            WHEN '<' THEN ev.value_ts < fp.value::timestamptz
            WHEN '>=' THEN ev.value_ts >= fp.value::timestamptz
            WHEN '<=' THEN ev.value_ts <= fp.value::timestamptz
-           WHEN 'IN' THEN ev.value_ts = ANY(string_to_array(fp.value, ',')::timestamptz[])
-           WHEN 'NOT IN' THEN NOT (ev.value_ts = ANY(string_to_array(fp.value, ',')::timestamptz[]))
+           WHEN 'in' THEN ev.value_ts = ANY(string_to_array(fp.value, ',')::timestamptz[])
+           WHEN 'not in' THEN NOT (ev.value_ts = ANY(string_to_array(fp.value, ',')::timestamptz[]))
            ELSE FALSE
          END
        WHEN 'numeric' THEN
@@ -317,8 +317,8 @@ param_matches AS (
            WHEN '<' THEN ev.value_numeric < fp.value::numeric
            WHEN '>=' THEN ev.value_numeric >= fp.value::numeric
            WHEN '<=' THEN ev.value_numeric <= fp.value::numeric
-           WHEN 'IN' THEN ev.value_numeric = ANY(string_to_array(fp.value, ',')::numeric[])
-           WHEN 'NOT IN' THEN NOT (ev.value_numeric = ANY(string_to_array(fp.value, ',')::numeric[]))
+           WHEN 'in' THEN ev.value_numeric = ANY(string_to_array(fp.value, ',')::numeric[])
+           WHEN 'not in' THEN NOT (ev.value_numeric = ANY(string_to_array(fp.value, ',')::numeric[]))
            ELSE FALSE
          END
        ELSE FALSE

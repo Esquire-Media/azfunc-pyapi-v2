@@ -281,6 +281,8 @@ param_matches AS (
          CASE fp.comparator
            WHEN '=' THEN ev.value_string = fp.value
            WHEN '!=' THEN ev.value_string <> fp.value
+           WHEN 'LIKE' THEN ev.value_string LIKE fp.value
+           WHEN 'ILIKE' THEN ev.value_string ILIKE fp.value
            ELSE FALSE
          END
        WHEN 'timestamptz' THEN

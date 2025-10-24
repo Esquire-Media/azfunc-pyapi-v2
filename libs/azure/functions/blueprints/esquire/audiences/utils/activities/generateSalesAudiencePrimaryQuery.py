@@ -38,52 +38,28 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
     since_dt = dt.strptime(utc_now, "%Y-%m-%d %H:%M:%S.%f%z") - timedelta(days=days_back)
     since_iso = since_dt.isoformat()
 
+    # Extract filters
     def extract_filters(sql_filter: str):
-        """
-        Parses a flat SQL WHERE clause into structured filters.
-        Supports =, !=, >, <, >=, <=, LIKE, ILIKE, IN, NOT IN.
-        Returns:
-            [
-                {"field": "store_location", "op": "IN", "value": ["A","B","C"]},
-                {"field": "brand", "op": "=", "value": "Sealy"},
-                ...
-            ]
-        """
-        pattern = re.compile(
-            r'\(?\s*"(?P<field>[^"]+)"\s*'
-            r'(?P<op>=|!=|>|<|>=|<=|LIKE|ILIKE|IN|NOT IN)\s*'
-            r'(?P<val>\([^)]+\)|\'[^\'()]+\'|[^()\'"\s]+)\s*\)?',
-            re.IGNORECASE
-        )
-
+        pattern = re.compile(r'\(?\s*"(?P<field>[^"]+)"\s*(?P<op>=|!=|>|<|>=|<=|LIKE|ILIKE)\s*(?P<val>\'?[^()\'"]+\'?)\s*\)?')
         results = []
         for match in pattern.finditer(sql_filter):
             field = match.group("field")
-            op = match.group("op").upper()
-            val = match.group("val").strip()
-
-            if field == "days_back":
-                continue
-
-            # Handle IN / NOT IN lists
-            if op in ("IN", "NOT IN") and val.startswith("(") and val.endswith(")"):
-                raw_items = val[1:-1].strip()
-                # split respecting quotes and commas
-                items = [v.strip().strip("'").strip('"') for v in raw_items.split(",") if v.strip()]
-                results.append({"field": field, "op": op, "value": items})
-            else:
-                val = val.strip("'").strip('"')
+            op = match.group("op")
+            val = match.group("val").strip("'")
+            if field != "days_back":
                 results.append({"field": field, "op": op, "value": val})
-
         return results
 
     filters = extract_filters(sql_filter)
-
+    import logging
+    logging.warning(f"[LOG] Filters: {filters}")
 
     # Query attribute scopes for this tenant
     attr_names = list(set(f["field"] for f in filters if f["field"] != "tenant_id"))
     if attr_names:
         attr_name_sql = ", ".join(f"'{a}'" for a in attr_names)
+        logging.warning(f"[LOG] attr_names: {attr_names}")
+        logging.warning(f"[LOG] attr_name_sql: {attr_name_sql}")
 
         scope_query = text(f"""
             SELECT DISTINCT
@@ -115,34 +91,27 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
     # Build params CTE
     # params: runtime inputs (tiny; inline constants or bind parameters in app layer)
     param_rows = [
-        ("sales_batch", "tenant_id", "=", tenant_id, 0),
-        ("transaction", "sale_date", ">=", since_iso, 0),
+        ("sales_batch", "tenant_id", "=", tenant_id),
+        ("transaction", "sale_date", ">=", since_iso),
     ]
-    in2equal = {"IN": "=", "NOT IN": "!="}
-    group_counter = 0
     for f in filters:
         attr = f["field"]
         if attr == "tenant_id":
             continue
-        entity_type = scope_map.get(attr, "transaction")
-        if f["op"] in ("IN", "NOT IN") and isinstance(f["value"], list):
-            group_counter += 1
-            for v in f["value"]:
-                param_rows.append((entity_type, attr, in2equal[f["op"]], v, group_counter))
-        else:
-            group_counter += 1
-            param_rows.append((entity_type, attr, f["op"], f["value"], group_counter))
+        entity_type = scope_map.get(attr, "transaction")  # fallback
+        param_rows.append((entity_type, attr, f["op"], f["value"]))
 
     param_sql_rows = ",\n    ".join(
-        f"('{etype}', '{attr}', '{op}', '{val}', '{gid}')" for etype, attr, op, val, gid in param_rows
+        f"('{etype}', '{attr}', '{op}', '{val}')" for etype, attr, op, val in param_rows
     )
 
+    logging.warning(f"param_sql_rows: {param_sql_rows}")
 
     # 5. Compose query
     query = f"""
 WITH
 /* params: runtime inputs (tiny; inline constants or bind parameters in app layer) */
-params(entity_type_name, attribute_name, comparator, value, group_id) AS (
+params(entity_type_name, attribute_name, comparator, value) AS (
   VALUES
     {param_sql_rows}
 ),
@@ -237,7 +206,6 @@ filter_params AS MATERIALIZED (
     p.attribute_name,
     lower(p.comparator) AS comparator,
     p.value,
-    p.group_id,
     et.entity_type_id,
     ar.attribute_id,
     ar.data_type
@@ -259,7 +227,6 @@ param_matches AS (
   /* transaction-scoped params */
   SELECT DISTINCT
     fp.param_id,
-    fp.group_id,
     ev.entity_id AS tx_id
   FROM filter_params_tx fp
   JOIN sales.entity_attribute_values ev
@@ -304,7 +271,6 @@ param_matches AS (
   /* sales-batch–scoped params → expand matching batches to their child transactions */
   SELECT DISTINCT
     fp.param_id,
-    fp.group_id,
     t.id AS tx_id
   FROM filter_params_tx fp
   JOIN sales.entity_attribute_values ev
@@ -354,17 +320,10 @@ param_card AS MATERIALIZED (
 /* candidate_tx: tx that satisfy ALL gating params (reused; sharply reduces working set)
    MATERIALIZED because it’s referenced multiple times downstream (tx + line_item branches). */
 candidate_tx AS MATERIALIZED (
-  SELECT tx_id
-  FROM (
-    SELECT
-      pm.tx_id,
-      pm.group_id,
-      COUNT(DISTINCT pm.param_id) > 0 AS matched
-    FROM param_matches pm
-    GROUP BY pm.tx_id, pm.group_id
-  ) g
-  GROUP BY g.tx_id
-  HAVING BOOL_AND(g.matched)  -- all groups satisfied (AND)
+  SELECT pm.tx_id
+  FROM param_matches pm
+  GROUP BY pm.tx_id
+  HAVING COUNT(*) = (SELECT n_params FROM param_card)
 ),
 /* billing_attrs: attribute_ids for billing_address_id (tx + line_item)
    MATERIALIZED to reuse across the tx and line_item address fetches. */

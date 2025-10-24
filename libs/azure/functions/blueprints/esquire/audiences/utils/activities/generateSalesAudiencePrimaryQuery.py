@@ -99,6 +99,10 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
         if attr == "tenant_id":
             continue
         entity_type = scope_map.get(attr, "transaction")  # fallback
+        if f["op"] in ("IN", "NOT IN") and isinstance(f["value"], list):
+            param_rows.append((entity_type, attr, f["op"], "{" + ",".join(f["value"]) + "}"))
+        else:
+            param_rows.append((entity_type, attr, f["op"], f["value"]))
         param_rows.append((entity_type, attr, f["op"], f["value"]))
 
     param_sql_rows = ",\n    ".join(
@@ -239,6 +243,8 @@ param_matches AS (
            WHEN '!=' THEN ev.value_string <> fp.value
            WHEN 'LIKE' THEN ev.value_string LIKE fp.value
            WHEN 'ILIKE' THEN ev.value_string ILIKE fp.value
+           WHEN 'IN' THEN ev.value_string = ANY(string_to_array(fp.value, ','))
+           WHEN 'NOT IN' THEN NOT (ev.value_string = ANY(string_to_array(fp.value, ',')))
            ELSE FALSE
          END
        WHEN 'timestamptz' THEN
@@ -249,6 +255,8 @@ param_matches AS (
            WHEN '<' THEN ev.value_ts < fp.value::timestamptz
            WHEN '>=' THEN ev.value_ts >= fp.value::timestamptz
            WHEN '<=' THEN ev.value_ts <= fp.value::timestamptz
+           WHEN 'IN' THEN ev.value_ts = ANY(string_to_array(fp.value, ',')::timestamptz[])
+           WHEN 'NOT IN' THEN NOT (ev.value_ts = ANY(string_to_array(fp.value, ',')::timestamptz[]))
            ELSE FALSE
          END
        WHEN 'numeric' THEN
@@ -259,6 +267,8 @@ param_matches AS (
            WHEN '<' THEN ev.value_numeric < fp.value::numeric
            WHEN '>=' THEN ev.value_numeric >= fp.value::numeric
            WHEN '<=' THEN ev.value_numeric <= fp.value::numeric
+           WHEN 'IN' THEN ev.value_numeric = ANY(string_to_array(fp.value, ',')::numeric[])
+           WHEN 'NOT IN' THEN NOT (ev.value_numeric = ANY(string_to_array(fp.value, ',')::numeric[]))
            ELSE FALSE
          END
        ELSE FALSE
@@ -283,6 +293,8 @@ param_matches AS (
            WHEN '!=' THEN ev.value_string <> fp.value
            WHEN 'LIKE' THEN ev.value_string LIKE fp.value
            WHEN 'ILIKE' THEN ev.value_string ILIKE fp.value
+           WHEN 'IN' THEN ev.value_string = ANY(string_to_array(fp.value, ','))
+           WHEN 'NOT IN' THEN NOT (ev.value_string = ANY(string_to_array(fp.value, ',')))
            ELSE FALSE
          END
        WHEN 'timestamptz' THEN
@@ -293,6 +305,8 @@ param_matches AS (
            WHEN '<' THEN ev.value_ts < fp.value::timestamptz
            WHEN '>=' THEN ev.value_ts >= fp.value::timestamptz
            WHEN '<=' THEN ev.value_ts <= fp.value::timestamptz
+           WHEN 'IN' THEN ev.value_ts = ANY(string_to_array(fp.value, ',')::timestamptz[])
+           WHEN 'NOT IN' THEN NOT (ev.value_ts = ANY(string_to_array(fp.value, ',')::timestamptz[]))
            ELSE FALSE
          END
        WHEN 'numeric' THEN
@@ -303,6 +317,8 @@ param_matches AS (
            WHEN '<' THEN ev.value_numeric < fp.value::numeric
            WHEN '>=' THEN ev.value_numeric >= fp.value::numeric
            WHEN '<=' THEN ev.value_numeric <= fp.value::numeric
+           WHEN 'IN' THEN ev.value_numeric = ANY(string_to_array(fp.value, ',')::numeric[])
+           WHEN 'NOT IN' THEN NOT (ev.value_numeric = ANY(string_to_array(fp.value, ',')::numeric[]))
            ELSE FALSE
          END
        ELSE FALSE

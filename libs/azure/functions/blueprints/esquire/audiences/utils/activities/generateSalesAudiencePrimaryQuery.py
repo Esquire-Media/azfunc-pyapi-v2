@@ -173,22 +173,30 @@ needed_attrs(entity_type_name, attribute_name, default_attr_name, mapped_header)
 /* attr_resolved: finalize attribute_id + data_type with tenant-aware overrides (reused)
    MATERIALIZED to pin tiny lookup results (saves rejoining attributes + header map). */
 attr_resolved AS MATERIALIZED (
-  SELECT
+  SELECT DISTINCT ON (na.entity_type_name, na.attribute_name)
     na.entity_type_name,
     na.attribute_name,
     COALESCE(cm.attribute_id, a.id) AS attribute_id,
-    lower(a.data_type::text) AS data_type
+    lower(
+      COALESCE(
+        (SELECT a2.data_type::text
+         FROM sales.attributes a2
+         WHERE a2.id = cm.attribute_id),
+        a.data_type::text
+      )
+    ) AS data_type
   FROM needed_attrs na
   LEFT JOIN tenant_param tp ON TRUE
   LEFT JOIN sales.client_header_map cm
-    ON tp.tenant_id IS NOT NULL
-   AND cm.tenant_id = tp.tenant_id
+    ON cm.tenant_id = tp.tenant_id
    AND cm.mapped_header = na.mapped_header
   LEFT JOIN sales.entity_types et
     ON et.name = na.entity_type_name
   LEFT JOIN sales.attributes a
     ON a.entity_type_id = et.entity_type_id
    AND a.name = na.default_attr_name
+  ORDER BY na.entity_type_name, na.attribute_name,
+           CASE WHEN cm.attribute_id IS NOT NULL THEN 1 ELSE 2 END
 ),
 /* filter_params: bind params → exact entity_type_id/attribute_id (tiny; reused) */
 filter_params AS MATERIALIZED (

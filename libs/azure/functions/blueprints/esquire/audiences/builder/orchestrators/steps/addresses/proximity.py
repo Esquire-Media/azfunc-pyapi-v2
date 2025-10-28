@@ -1,6 +1,5 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
-import pandas as pd
-# import logging
+
 bp = Blueprint()
 
 

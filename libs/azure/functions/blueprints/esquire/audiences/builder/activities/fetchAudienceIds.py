@@ -23,9 +23,17 @@ def activity_esquireAudienceBuilder_fetchAudienceIds(ingress: dict):
     """
     provider = from_bind("keystone")
     audience = provider.models["keystone"]["Audience"]
+    output = []
+    
     session: Session = provider.connect()
-
-    query = select(audience.id).where(audience.status == True)
-    results = session.execute(query).all()
-
-    return list(map(lambda row: row.id, results))
+    try:
+        query = select(audience.id).where(audience.status == True)
+        results = session.execute(query).all()
+        output = list(map(lambda row: row.id, results))
+    finally:
+        try:
+            session.close()
+        except Exception:
+            # Best-effort close; avoid raising from cleanup.
+            pass
+    return output

@@ -110,12 +110,11 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
                 "dataFilter": data_filter_sql,
                 "processing": getattr(aud, "processing", None),
             }
-
-        logging.warning(f"[LOG] ingress after fetch audience: {ingress}")
-        return ingress
+        # logging.warning(f"[LOG] ingress after fetch audience: {ingress}")
     finally:
         try:
             session.close()
         except Exception:
             # Best-effort close; avoid raising from cleanup.
             pass
+    return ingress

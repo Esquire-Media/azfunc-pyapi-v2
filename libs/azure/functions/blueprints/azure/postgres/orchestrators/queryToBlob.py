@@ -15,7 +15,7 @@ def orchestrator_azurePostgres_queryToBlob(context: DurableOrchestrationContext)
     #         "blob_prefix": "blob/prefix",
     #         "format": "CSV",
     #     },
-    #     "limit": 1000
+    #     "limit": 10000
     # }
     ingress: dict = context.get_input() or {}
 
@@ -25,13 +25,13 @@ def orchestrator_azurePostgres_queryToBlob(context: DurableOrchestrationContext)
     )
 
     # Ensure a sane, positive limit
-    raw_limit = ingress.get("limit", 1000)
+    raw_limit = ingress.get("limit", 50000)
     try:
         limit = int(raw_limit)
     except (TypeError, ValueError):
-        limit = 1000
+        limit = 50000
     if limit <= 0:
-        limit = 1000
+        limit = 50000
 
     dest = ingress["destination"]
     prefix = dest["blob_prefix"]

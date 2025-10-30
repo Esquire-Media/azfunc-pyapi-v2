@@ -7,7 +7,7 @@ import pandas as pd
 bp = Blueprint()
 
 @bp.activity_trigger(input_name="ingress")
-def activity_azurePostgres_resultToBlob(ingress: dict) -> dict:
+def activity_azurePostgres_resultToBlob(ingress: dict) -> str:
     # ingress = {
     #     "source": {
     #         "bind": "BIND_HANDLE",
@@ -50,9 +50,4 @@ def activity_azurePostgres_resultToBlob(ingress: dict) -> dict:
     # overwrite=True ensures idempotence on activity retries
     output_blob.upload_blob(df.to_csv(index=False), overwrite=True)
 
-    sas_url = get_blob_sas(output_blob)
-    return {
-        "offset": offset,
-        "blob_name": blob_name,
-        "url": sas_url,
-    }
+    return get_blob_sas(output_blob)

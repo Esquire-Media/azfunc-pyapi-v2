@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional, TypedDict
 from azure.durable_functions import (
     Blueprint,
     DurableOrchestrationContext,
-    RetryOptions,
 )
 
 bp = Blueprint()

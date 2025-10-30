@@ -7,7 +7,7 @@ if not from_bind("keystone"):
         "Structured",
         "sql",
         url=os.environ["DATABIND_SQL_KEYSTONE"],
-        schemas=["keystone"],
+        schemas=["keystone", "sales"],
         pool_size=1000,
         max_overflow=100,
     )
@@ -28,26 +28,6 @@ if not from_bind("audiences"):
         "sql",
         url=os.environ["DATABIND_SQL_AUDIENCES"],
         schemas=["dbo"],
-        pool_size=1000,
-        max_overflow=100,
-    )
-if not from_bind("foursquare"):
-    register_binding(
-        "foursquare",
-        "Structured",
-        "sql",
-        url=os.environ["DATABIND_SQL_FOURSQUARE"],
-        schemas=["dbo"],
-        pool_size=1000,
-        max_overflow=100,
-    )
-if not from_bind("sales"):
-    register_binding(
-        "sales",
-        "Structured",
-        "sql",
-        url=os.environ["DATABIND_SQL_KEYSTONE"],
-        schemas=["sales"],
         pool_size=1000,
         max_overflow=100,
     )
@@ -98,7 +78,7 @@ MAPPING_DATASOURCE = {
     # Esquire sales - not ready to be used yet
     "clwjn2q4t0057rw04kbhlog0s": {
         "dbType": "postgres",
-        "bind": "sales",
+        "bind": "keystone",
         "table": {
             "schema": "sales",
             "name": "entities",

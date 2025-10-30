@@ -1,14 +1,14 @@
 from libs.data import register_binding, from_bind
 import os
 
-if not from_bind("xandr_dashboard"):
-    register_binding(
-        "xandr_dashboard",
-        "Structured",
-        "sql",
-        url=os.environ["DATABIND_SQL_XANDR"],
-        schemas=["dashboard"],
-    )
+# if not from_bind("xandr_dashboard"):
+#     register_binding(
+#         "xandr_dashboard",
+#         "Structured",
+#         "sql",
+#         url=os.environ["DATABIND_SQL_XANDR"],
+#         schemas=["dashboard"],
+#     )
 
 CETAS = {
     "network_analytics": """

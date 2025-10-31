@@ -517,7 +517,7 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
     external_event_task = context.wait_for_external_event("restart")
     winner = yield context.task_any([timer_task, external_event_task])
     if winner == external_event_task:
-        timer_task.cancel()
+        timer_task.cancel() # type: ignore
         settings = json.loads(winner.result)
         if "history" not in settings:
             settings["history"] = history

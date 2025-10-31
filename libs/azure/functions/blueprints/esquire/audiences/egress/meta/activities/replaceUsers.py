@@ -61,7 +61,6 @@ def activity_esquireAudienceMeta_customAudience_replaceUsers(ingress: dict):
     #   * Page deterministically: OFFSET/FETCH
     paged_sql = f"""
         {base_sql}
-        ORDER BY deviceid
         OFFSET {offset} ROWS
         FETCH NEXT {limit} ROWS ONLY;
     """

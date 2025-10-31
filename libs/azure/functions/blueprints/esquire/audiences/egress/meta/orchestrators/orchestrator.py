@@ -201,6 +201,7 @@ def meta_customaudience_orchestrator(context: DurableOrchestrationContext):
                                 HEADER_ROW = TRUE
                             ) WITH (deviceid VARCHAR(80)) AS [data]
                             WHERE LEN(deviceid) = 36
+                            ORDER BY LOWER(LTRIM(RTRIM(deviceid)))
                         """,
                     },
                     "batch": session_payload,

@@ -363,7 +363,7 @@ CROSS JOIN LATERAL sales.query_eav(
   state_abbreviation text,
   zipcode text,
   plus4_code text
-);
+)
 """.strip()
 
     # Escape % for SQLAlchemy text() compatibility (keeps behavior consistent with prior code paths).

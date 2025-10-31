@@ -405,7 +405,7 @@ CROSS JOIN LATERAL sales.query_eav(
   zipcode text,
   plus4_code text
   primary_number text,
-  street_name text
+  street_name text,
   latitude text,
   longitude text
 )

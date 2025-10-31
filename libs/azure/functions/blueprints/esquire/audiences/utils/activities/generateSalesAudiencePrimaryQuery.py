@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any, Dict, List, Union, Optional
 
 from azure.durable_functions import Blueprint
@@ -14,7 +15,7 @@ Json = Union[Dict[str, Any], List[Any], str, int, float, bool, None]
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: dict) -> str:
     """
-    Build the primary SQL for the Sales Audience using the new `sales.query_eav(...)` pattern and
+    Build the primary SQL for the Sales Audience using the `sales.query_eav(...)` pattern and
     JSONLogic-style filters.
 
     Updates per requirements:
@@ -27,11 +28,26 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
       If not present anywhere, we do **not** apply a date filter.
     - Address-scoped vars: city, state_abbreviation, zipcode
     - Transaction-scoped vars: store_location, brand, category, description, default_sale_amount
-    - Custom example support:
-        {"and":[{"==":[{"var":"custom.field"},"Sealy"]},{">":[{"var":"custom.numeric_value"},0]}]}
-      → mapped to:
-        custom.field         → transaction 'brand'
-        custom.numeric_value → transaction 'default_sale_amount'
+    - Custom dynamic attribute/value support:
+        The attribute **name** comes from `custom.field`, and the **value** used in comparisons
+        comes from either `custom.numeric_value` or `custom.text_value`.
+
+        Examples:
+          {"and":[
+            {"==":[{"var":"custom.field"},"brand"]},
+            {"in":[{"var":"custom.text_value"},["Sealy","Serta"]]}
+          ]}
+            → filters: brand IN ["Sealy","Serta"]
+
+          {"and":[
+            {"==":[{"var":"custom.field"},"default_sale_amount"]},
+            {">":[{"var":"custom.numeric_value"},0]}
+          ]}
+            → filters: default_sale_amount > 0
+
+        Notes:
+        - We ignore invalid attribute names (must match ^[A-Za-z_][A-Za-z0-9_]*$) with a warning.
+        - If multiple custom value constraints exist, they are ANDed together for the chosen field.
 
     Supported simple JSONLogic atoms: ==, !=, >, <, >=, <=, in
     Supported shapes for atoms:
@@ -90,8 +106,6 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
                     if isinstance(v, str):
                         return v
             elif "or" in node and isinstance(node["or"], list):
-                # If multiple tenants are specified via OR, we cannot select a single const for resolve_attribute_name.
-                # Prefer the first string equality we find.
                 for child in node["or"]:
                     v = extract_tenant_id(child)
                     if isinstance(v, str):
@@ -129,7 +143,16 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
                         return int(left)
         return None
 
+    # -----------------------------
+    # Custom dynamic attribute/value accumulation
+    # -----------------------------
+    identifier_re = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+    custom_attr_name: Optional[str] = None
+    custom_value_exprs: List[Dict[str, Any]] = []
+
     def handle_atom(op: str, left: Any, right: Any) -> None:
+        nonlocal custom_attr_name  # we assign to this in the function
+
         # Allowed ops
         if op not in {"==", "!=", ">", "<", ">=", "<=", "in"}:
             return
@@ -158,6 +181,25 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
         if var_name == "days_back":
             return
 
+        # --- Custom dynamic field/value handling ---
+        if var_name == "custom.field":
+            # Only accept equality to a string as the attribute name.
+            if norm_op == "==" and isinstance(const, str) and const.strip():
+                if identifier_re.fullmatch(const.strip()):
+                    custom_attr_name = const.strip()
+                else:
+                    logging.warning(
+                        "[AudiencePrimaryQuery] Ignoring custom.field with invalid attribute name: %r", const
+                    )
+            return
+
+        if var_name in {"custom.numeric_value", "custom.text_value"}:
+            # Treat these as value-side comparisons for the dynamic attribute chosen via custom.field.
+            # We just record the operator/constant pair; later we attach them to the resolved attribute.
+            custom_value_exprs.append({norm_op: const})
+            return
+
+        # --- Default collection for regular vars ---
         add_constraint(var_name, {norm_op: const})
 
     def walk(node: Any) -> None:
@@ -177,7 +219,7 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
                     return
         # Non-dict or unsupported shapes are ignored.
 
-    # Walk once to populate `collected` for non-special vars.
+    # Walk once to populate `collected` for non-special vars and custom dynamic pieces.
     walk(json_logic)
 
     # Resolve tenant preference: JSONLogic > ingress
@@ -214,11 +256,6 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
         "description": "description",
         "default_sale_amount": "default_sale_amount",
     }
-    # Custom mapping per example:
-    custom_to_transaction_attr = {
-        "custom.field": "brand",
-        "custom.numeric_value": "default_sale_amount",
-    }
 
     # -----------------------------
     # Build JSON for address filters (appended via || to base)
@@ -247,19 +284,19 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
             continue
         txn_attr_exprs[db_attr] = exprs[0] if len(exprs) == 1 else {"and": exprs}
 
-    # Custom.* mapped to transaction attributes
-    for custom_var, mapped_attr in custom_to_transaction_attr.items():
-        exprs = collected.get(custom_var, [])
-        if not exprs:
-            continue
-        if mapped_attr in txn_attr_exprs:
-            existing = txn_attr_exprs[mapped_attr]
+    # Attach custom dynamic field/value if present
+    if custom_attr_name and custom_value_exprs:
+        exprs = custom_value_exprs
+        if custom_attr_name in txn_attr_exprs:
+            existing = txn_attr_exprs[custom_attr_name]
             if isinstance(existing, dict) and "and" in existing:
                 existing["and"].extend(exprs)
             else:
-                txn_attr_exprs[mapped_attr] = {"and": ([existing] if isinstance(existing, dict) else [existing]) + exprs}
+                txn_attr_exprs[custom_attr_name] = {
+                    "and": ([existing] if isinstance(existing, dict) else [existing]) + exprs
+                }
         else:
-            txn_attr_exprs[mapped_attr] = exprs[0] if len(exprs) == 1 else {"and": exprs}
+            txn_attr_exprs[custom_attr_name] = exprs[0] if len(exprs) == 1 else {"and": exprs}
 
     # Render KV pairs for jsonb_build_object:
     #   sales.resolve_attribute_name(c.tenant_id, '<attr>'), '<json>'::jsonb

@@ -381,7 +381,11 @@ SELECT
   NULLIF(a.city_name, 'NONE')          AS city,
   NULLIF(a.state_abbreviation, 'NONE') AS state,
   NULLIF(a.zipcode, 'NONE')            AS "zipCode",
-  NULLIF(a.plus4_code, 'NONE')         AS "plus4Code"
+  NULLIF(a.plus4_code, 'NONE')         AS "plus4Code",
+  NULLIF(a.primary_number, 'NONE')     AS "primary_number",
+  NULLIF(a.street_name, 'NONE')        AS "street_name",
+  NULLIF(a.latitude, 'NONE')::float    AS latitude,
+  NULLIF(a.longitude, 'NONE')::float   AS longitude
 FROM (
   SELECT COALESCE(jsonb_agg(billing_address_id), '[]'::jsonb) AS ids
   FROM line_item_addresses
@@ -391,7 +395,7 @@ CROSS JOIN LATERAL sales.query_eav(
   jsonb_build_object(
     'entity_id', jsonb_build_object('in', ai.ids)
   ){addr_filter_concat_sql},
-  ARRAY['delivery_line_1','delivery_line_2','city_name','state_abbreviation','zipcode','plus4_code']
+  ARRAY['delivery_line_1','delivery_line_2','city_name','state_abbreviation','zipcode','plus4_code','primary_number','street_name','latitude','longitude']
 ) AS a(
   entity_id uuid,
   delivery_line_1 text,
@@ -400,6 +404,10 @@ CROSS JOIN LATERAL sales.query_eav(
   state_abbreviation text,
   zipcode text,
   plus4_code text
+  primary_number text,
+  street_name text
+  latitude text,
+  longitude text
 )
 """.strip()
 

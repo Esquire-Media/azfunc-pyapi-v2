@@ -382,8 +382,8 @@ SELECT
   NULLIF(a.state_abbreviation, 'NONE') AS state,
   NULLIF(a.zipcode, 'NONE')            AS "zipCode",
   NULLIF(a.plus4_code, 'NONE')         AS "plus4Code",
-  NULLIF(a.primary_number, 'NONE')     AS "primary_number",
-  NULLIF(a.street_name, 'NONE')        AS "street_name",
+  NULLIF(a.primary_number, 'NONE')     AS primary_number,
+  NULLIF(a.street_name, 'NONE')        AS street_name,
   NULLIF(a.latitude, 'NONE')::float    AS latitude,
   NULLIF(a.longitude, 'NONE')::float   AS longitude
 FROM (
@@ -403,7 +403,7 @@ CROSS JOIN LATERAL sales.query_eav(
   city_name text,
   state_abbreviation text,
   zipcode text,
-  plus4_code text
+  plus4_code text,
   primary_number text,
   street_name text,
   latitude text,

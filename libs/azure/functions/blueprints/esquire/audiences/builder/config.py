@@ -44,17 +44,15 @@ MAPPING_DATASOURCE = {
     },
     # Deepsync mover - can use for testing
     "clwjn2q4s0056rw04ra44j8k9": {
-        "dbType": "synapse",
-        "bind": "audiences",
+        "dbType": "postgres",
+        "bind": "keystone",
         "table": {
-            "schema": "dbo",
+            "schema": "utils",
             "name": "movers",
         },
         "query": {
-            "select": "address, city, state, zipcode as zipCode",
-            "filter": lambda length, unit: " AND CONVERT(DATE, [date], 126) >= DATEADD({}, {}, GETDATE())".format(
-                unit[0], 0 - length
-            ),
+            "select": "add1 AS address, city, st AS state, zip as zipCode",
+            "filter": lambda length, unit: f" AND keycode >= NOW() - INTERVAL {length} {unit[0]}"
         },
     },
     # Esquire audiences
@@ -84,15 +82,6 @@ MAPPING_DATASOURCE = {
             "name": "entities",
         },
         "isEAV":True
-    },
-    # Foursquare POI - can use for testing
-    "clwjn2q4t0058rw04fx6qanbh": {
-        "dbType": "synapse",
-        "bind": "foursquare",
-        "table": {
-            "schema": "dbo",
-            "name": "poi",
-        },
     },
     # OSM Building footprints - not set up in Synapse
     "clwjn2q4t0059rw04qxcw5q3h": {

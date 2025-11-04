@@ -1,430 +1,415 @@
-# File: /libs/azure/functions/blueprints/esquire/audiences/builder/activities/fetchAudience.py
+from __future__ import annotations
+
+import json
+import logging
+import re
+from typing import Any, Dict, List, Union, Optional
 
 from azure.durable_functions import Blueprint
-from sqlalchemy import create_engine, text
-# import logging
-from datetime import datetime as dt, timedelta, timezone
-import re
+
 bp = Blueprint()
+
+Json = Union[Dict[str, Any], List[Any], str, int, float, bool, None]
 
 
 @bp.activity_trigger(input_name="ingress")
-def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: dict):
+def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: dict) -> str:
     """
-    Execution strategy (high-level):
-    1) Resolve "what to look for" exactly once (entity type ids + attribute ids).
-    2) Build the smallest possible set of candidate transactions as early as possible.
-    3) Extract only the address entity ids referenced by those candidates and dedupe.
-    4) Pivot the address text in one pass scoped to the deduped ids.
+    Build the primary SQL for the Sales Audience using the `sales.query_eav(...)` pattern and
+    JSONLogic-style filters.
 
-    Materialization strategy:
-    • MATERIALIZED only where the result is tiny and/or reused across later scans.
-    • Leave large, single-use CTEs non-materialized so the planner can inline/push down.
+    Updates per requirements:
+    - Prefer the tenant specified inside ingress["audience"]["dataFilter"] (JSONLogic) if present.
+      Only fall back to ingress["tenant_id"] when JSONLogic does not provide a tenant.
+      If neither is present, we raise a clear error.
+    - ingress["audience"]["dataFilter"] may be a JSON string or an object (both supported).
+    - `days_back` is optional. If present (either in JSONLogic or ingress fallback), we add:
+          sale_date >= NOW() - INTERVAL '<days_back> DAY'
+      If not present anywhere, we do **not** apply a date filter.
+    - Address-scoped vars: city, state_abbreviation, zipcode
+    - Transaction-scoped vars: store_location, brand, category, description, default_sale_amount
+    - Custom dynamic attribute/value support:
+        The attribute **name** comes from `custom.field`, and the **value** used in comparisons
+        comes from either `custom.numeric_value` or `custom.text_value`.
 
-    Confirm indexing (will improve IO minimization):
-    • sales.entity_types(name) UNIQUE or at least indexed
-    • sales.attributes(entity_type_id, name) UNIQUE or indexed
-    • sales.entities(id) PK, (entity_type_id, parent_entity_id) composite index
-    • sales.entity_attribute_values(attribute_id, entity_id) composite index
-    • sales.entity_attribute_values(attribute_id, value_ts)
-    • sales.entity_attribute_values(attribute_id, value_numeric)
-    • sales.entity_attribute_values(attribute_id, value_string)
-    • sales.entity_attribute_values(attribute_id, value_boolean)
+        Examples:
+          {"and":[
+            {"==":[{"var":"custom.field"},"brand"]},
+            {"in":[{"var":"custom.text_value"},["Sealy","Serta"]]}
+          ]}
+            → filters: brand IN ["Sealy","Serta"]
+
+          {"and":[
+            {"==":[{"var":"custom.field"},"default_sale_amount"]},
+            {">":[{"var":"custom.numeric_value"},0]}
+          ]}
+            → filters: default_sale_amount > 0
+
+        Notes:
+        - We ignore invalid attribute names (must match ^[A-Za-z_][A-Za-z0-9_]*$) with a warning.
+        - If multiple custom value constraints exist, they are ANDed together for the chosen field.
+
+    Supported simple JSONLogic atoms: ==, !=, >, <, >=, <=, in
+    Supported shapes for atoms:
+      { "<op>": [ {"var":"name"}, <const> ] }
+      { "<op>": [ <const>, {"var":"name"} ] }  # normalized by inverting order-sensitive ops
+
+    The generated SQL mirrors the provided "new query" and injects predicates dynamically.
     """
-    tenant_id = ingress["tenant_id"]
-    sql_filter = ingress["audience"]["dataFilter"]
-    utc_now = ingress["utc_now"]
-    days_back = ingress.get("days_back", 30)
-    since_dt = dt.strptime(utc_now, "%Y-%m-%d %H:%M:%S.%f%z") - timedelta(days=days_back)
-    since_iso = since_dt.isoformat()
 
-    # Extract filters
-    def extract_filters(sql_filter: str):
-        pattern = re.compile(r'\(?\s*"(?P<field>[^"]+)"\s*(?P<op>=|!=|>|<|>=|<=|LIKE|ILIKE)\s*(?P<val>\'?[^()\'"]+\'?)\s*\)?')
-        results = []
-        for match in pattern.finditer(sql_filter):
-            field = match.group("field")
-            op = match.group("op")
-            val = match.group("val").strip("'")
-            if field != "days_back":
-                results.append({"field": field, "op": op, "value": val})
-        return results
+    # -----------------------------
+    # Parse JSONLogic (string or object)
+    # -----------------------------
+    raw_logic: Any = (ingress.get("audience") or {}).get("dataFilterRaw") or {}
+    if isinstance(raw_logic, str):
+        try:
+            json_logic: Json = json.loads(raw_logic)
+        except Exception as e:
+            logging.warning(
+                "[AudiencePrimaryQuery] dataFilterRaw is a string but not valid JSON; "
+                "defaulting to empty JSONLogic. Error: %s",
+                e,
+            )
+            json_logic = {}
+    else:
+        json_logic = raw_logic
 
-    filters = extract_filters(sql_filter)
-    import logging
-    logging.warning(f"[LOG] Filters: {filters}")
+    # Optional ingress fallback for days_back (used only if JSONLogic omits it)
+    ingress_days_back: Optional[int]
+    try:
+        ingress_days_back = int(ingress.get("days_back", "")) if ingress.get("days_back") is not None else None
+    except Exception:
+        ingress_days_back = None
 
-    # Query attribute scopes for this tenant
-    attr_names = list(set(f["field"] for f in filters if f["field"] != "tenant_id"))
-    if attr_names:
-        attr_name_sql = ", ".join(f"'{a}'" for a in attr_names)
-        logging.warning(f"[LOG] attr_names: {attr_names}")
-        logging.warning(f"[LOG] attr_name_sql: {attr_name_sql}")
+    # -----------------------------
+    # JSONLogic helpers
+    # -----------------------------
+    def is_var(node: Any, name: Optional[str] = None) -> bool:
+        if isinstance(node, dict) and "var" in node:
+            return True if name is None else (node.get("var") == name)
+        return False
 
-        scope_query = text(f"""
-            SELECT DISTINCT
-                COALESCE(chm.mapped_header, a.name) AS attr_name,
-                et.name AS entity_type
-            FROM sales.attributes a
-            JOIN sales.entity_types et ON a.entity_type_id = et.entity_type_id
-            LEFT JOIN sales.client_header_map chm
-            ON chm.attribute_id = a.id AND chm.tenant_id = '{tenant_id}'
-            WHERE COALESCE(chm.mapped_header, a.name) IN ({attr_name_sql})
-        """)
+    invert_op = {"<": ">", "<=": ">=", ">": "<", ">=": "<=", "==": "==", "!=": "!="}
 
-        # Execute scope_query using a sqlalchemy connection
-        import os
-        with create_engine(
-            os.environ["DATABIND_SQL_KEYSTONE"].replace("psycopg2", "psycopg"),      # postgresql+psycopg2://…
-            pool_pre_ping=True, 
-            pool_size=10,
-            max_overflow=20, 
-            future=True,
-        ).begin() as conn:
-            rows = conn.execute(scope_query)
+    # Collect constraints for non-special vars
+    collected: Dict[str, List[Dict[str, Any]]] = {}
 
-        scope_map = {}
-        for attr_name, entity_type in rows:
-            if attr_name not in scope_map:
-                scope_map[attr_name] = entity_type  # prefer first match
+    def add_constraint(var_name: str, expr: Dict[str, Any]) -> None:
+        collected.setdefault(var_name, []).append(expr)
 
-    # Build params CTE
-    # params: runtime inputs (tiny; inline constants or bind parameters in app layer)
-    param_rows = [
-        ("sales_batch", "tenant_id", "=", tenant_id),
-        ("transaction", "sale_date", ">=", since_iso),
-    ]
-    for f in filters:
-        attr = f["field"]
-        if attr == "tenant_id":
-            continue
-        entity_type = scope_map.get(attr, "transaction")  # fallback
-        if f["op"] in ("IN", "NOT IN") and isinstance(f["value"], list):
-            param_rows.append((entity_type, attr, f["op"], "{" + ",".join(f["value"]) + "}"))
+    # Extract a single-tenant string value from JSONLogic if present as equality
+    def extract_tenant_id(node: Any) -> Optional[str]:
+        if isinstance(node, dict):
+            if "and" in node and isinstance(node["and"], list):
+                for child in node["and"]:
+                    v = extract_tenant_id(child)
+                    if isinstance(v, str):
+                        return v
+            elif "or" in node and isinstance(node["or"], list):
+                for child in node["or"]:
+                    v = extract_tenant_id(child)
+                    if isinstance(v, str):
+                        return v
+            elif len(node) == 1:
+                (op, val), = node.items()
+                if op == "==" and isinstance(val, list) and len(val) == 2:
+                    left, right = val
+                    if is_var(left, "tenant_id") and isinstance(right, str):
+                        return right
+                    if is_var(right, "tenant_id") and isinstance(left, str):
+                        return left
+        return None
+
+    # Extract days_back numeric (treat any comparator as a target window)
+    def extract_days_back(node: Any) -> Optional[int]:
+        if isinstance(node, dict):
+            if "and" in node and isinstance(node["and"], list):
+                for child in node["and"]:
+                    v = extract_days_back(child)
+                    if isinstance(v, int):
+                        return v
+            elif "or" in node and isinstance(node["or"], list):
+                for child in node["or"]:
+                    v = extract_days_back(child)
+                    if isinstance(v, int):
+                        return v
+            elif len(node) == 1:
+                (op, val), = node.items()
+                if op in {"==", ">=", "<=", ">", "<"} and isinstance(val, list) and len(val) == 2:
+                    left, right = val
+                    if is_var(left, "days_back") and isinstance(right, (int, float)):
+                        return int(right)
+                    if is_var(right, "days_back") and isinstance(left, (int, float)):
+                        return int(left)
+        return None
+
+    # -----------------------------
+    # Custom dynamic attribute/value accumulation
+    # -----------------------------
+    identifier_re = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+    custom_attr_name: Optional[str] = None
+    custom_value_exprs: List[Dict[str, Any]] = []
+
+    def handle_atom(op: str, left: Any, right: Any) -> None:
+        nonlocal custom_attr_name  # we assign to this in the function
+
+        # Allowed ops
+        if op not in {"==", "!=", ">", "<", ">=", "<=", "in"}:
+            return
+
+        # Normalize so variable is on the left (var <op> const)
+        if is_var(left) and not is_var(right):
+            var_name = left["var"]
+            const = right
+            norm_op = op
+        elif is_var(right) and not is_var(left):
+            var_name = right["var"]
+            const = left
+            norm_op = invert_op.get(op, op)
+            if op == "in":
+                # JSONLogic 'in' is (needle IN haystack). If var is haystack, ambiguous → skip.
+                return
         else:
-            param_rows.append((entity_type, attr, f["op"], f["value"]))
-        param_rows.append((entity_type, attr, f["op"], f["value"]))
+            # both const or both vars → skip
+            return
 
-    param_sql_rows = ",\n    ".join(
-        f"('{etype}', '{attr}', '{op}', '{val}')" for etype, attr, op, val in param_rows
-    )
+        # We'll source tenant from JSONLogic specially; don't store here.
+        if var_name == "tenant_id":
+            return
 
-    logging.warning(f"param_sql_rows: {param_sql_rows}")
+        # days_back is handled specially (optional date filter); don't store here.
+        if var_name == "days_back":
+            return
 
-    # 5. Compose query
+        # --- Custom dynamic field/value handling ---
+        if var_name == "custom.field":
+            # Only accept equality to a string as the attribute name.
+            if norm_op == "==" and isinstance(const, str) and const.strip():
+                if identifier_re.fullmatch(const.strip()):
+                    custom_attr_name = const.strip()
+                else:
+                    logging.warning(
+                        "[AudiencePrimaryQuery] Ignoring custom.field with invalid attribute name: %r", const
+                    )
+            return
+
+        if var_name in {"custom.numeric_value", "custom.text_value"}:
+            # Treat these as value-side comparisons for the dynamic attribute chosen via custom.field.
+            # We just record the operator/constant pair; later we attach them to the resolved attribute.
+            custom_value_exprs.append({norm_op: const})
+            return
+
+        # --- Default collection for regular vars ---
+        add_constraint(var_name, {norm_op: const})
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            if "and" in node and isinstance(node["and"], list):
+                for child in node["and"]:
+                    walk(child)
+                return
+            if "or" in node and isinstance(node["or"], list):
+                for child in node["or"]:
+                    walk(child)
+                return
+            if len(node) == 1:
+                (op, val), = node.items()
+                if isinstance(val, list) and len(val) == 2:
+                    handle_atom(op, val[0], val[1])
+                    return
+        # Non-dict or unsupported shapes are ignored.
+
+    # Walk once to populate `collected` for non-special vars and custom dynamic pieces.
+    walk(json_logic)
+
+    # Resolve tenant preference: JSONLogic > ingress
+    tenant_from_logic = extract_tenant_id(json_logic)
+    if tenant_from_logic is not None:
+        tenant_id = tenant_from_logic
+    else:
+        # Only use ingress["tenant_id"] if JSONLogic tenant is absent
+        tenant_id = ingress.get("tenant_id")
+
+    if not tenant_id:
+        # Without a tenant, we cannot resolve attribute names or scope sales_batches.
+        raise ValueError(
+            "Missing tenant_id: not provided in JSONLogic and ingress['tenant_id'] is absent."
+        )
+
+    # Resolve days_back (may be None → no date predicate)
+    days_back = extract_days_back(json_logic)
+    if days_back is None:
+        days_back = ingress_days_back  # still possibly None
+
+    # -----------------------------
+    # Map vars to DB attributes
+    # -----------------------------
+    address_vars = {
+        "city": "city_name",
+        "state_abbreviation": "state_abbreviation",
+        "zipcode": "zipcode",
+    }
+    transaction_vars = {
+        "store_location": "store_location",
+        "brand": "brand",
+        "category": "category",
+        "description": "description",
+        "default_sale_amount": "default_sale_amount",
+    }
+
+    # -----------------------------
+    # Build JSON for address filters (appended via || to base)
+    # -----------------------------
+    address_filter_obj: Dict[str, Any] = {}
+    for var, db_attr in address_vars.items():
+        exprs = collected.get(var, [])
+        if not exprs:
+            continue
+        address_filter_obj[db_attr] = exprs[0] if len(exprs) == 1 else {"and": exprs}
+
+    addr_filter_concat_sql = ""
+    if address_filter_obj:
+        addr_filter_json = json.dumps(address_filter_obj)
+        addr_filter_concat_sql = f" || '{addr_filter_json}'::jsonb"
+
+    # -----------------------------
+    # Build JSON for transaction filters (excluding sale_date/parent link)
+    # -----------------------------
+    txn_attr_exprs: Dict[str, Any] = {}
+
+    # Explicit transaction vars
+    for var, db_attr in transaction_vars.items():
+        exprs = collected.get(var, [])
+        if not exprs:
+            continue
+        txn_attr_exprs[db_attr] = exprs[0] if len(exprs) == 1 else {"and": exprs}
+
+    # Attach custom dynamic field/value if present
+    if custom_attr_name and custom_value_exprs:
+        exprs = custom_value_exprs
+        if custom_attr_name in txn_attr_exprs:
+            existing = txn_attr_exprs[custom_attr_name]
+            if isinstance(existing, dict) and "and" in existing:
+                existing["and"].extend(exprs)
+            else:
+                txn_attr_exprs[custom_attr_name] = {
+                    "and": ([existing] if isinstance(existing, dict) else [existing]) + exprs
+                }
+        else:
+            txn_attr_exprs[custom_attr_name] = exprs[0] if len(exprs) == 1 else {"and": exprs}
+
+    # Render KV pairs for jsonb_build_object:
+    #   sales.resolve_attribute_name(c.tenant_id, '<attr>'), '<json>'::jsonb
+    txn_kv_pairs_sql_parts: List[str] = []
+    for db_attr, logic_obj in txn_attr_exprs.items():
+        expr_json = json.dumps(logic_obj)
+        txn_kv_pairs_sql_parts.append(
+            f"sales.resolve_attribute_name(c.tenant_id, '{db_attr}'), '{expr_json}'::jsonb"
+        )
+
+    # Optional sale_date pair (only if days_back present)
+    sale_date_pair_sql = ""
+    if isinstance(days_back, int) and days_back >= 0:
+        sale_date_pair_sql = (
+            "sales.resolve_attribute_name(c.tenant_id, 'sale_date'), "
+            f"jsonb_build_object('>=', NOW() - INTERVAL '{int(days_back)} DAY')"
+        )
+
+    all_kv_pairs: List[str] = []
+    if sale_date_pair_sql:
+        all_kv_pairs.append(sale_date_pair_sql)
+    all_kv_pairs.extend(txn_kv_pairs_sql_parts)
+
+    txn_filter_kvs_sql = ""
+    if all_kv_pairs:
+        txn_filter_kvs_sql = ",\n      " + ",\n      ".join(all_kv_pairs)
+
+    # -----------------------------
+    # Final SQL
+    # -----------------------------
     query = f"""
 WITH
-/* params: runtime inputs (tiny; inline constants or bind parameters in app layer) */
-params(entity_type_name, attribute_name, comparator, value) AS (
-  VALUES
-    {param_sql_rows}
-),
-/* tenant_param: optional tenant scope (single-row; reused)
-   MATERIALIZED because it's tiny and referenced in attr_resolved. */
-tenant_param AS MATERIALIZED (
-  SELECT value AS tenant_id
-  FROM params
-  WHERE entity_type_name = 'sales_batch'
-    AND attribute_name = 'tenant_id'
-  LIMIT 1
-),
-/* type_ids: map entity type names → ids (reused several times)
-   MATERIALIZED to avoid re-scanning sales.entity_types. */
-type_ids AS MATERIALIZED (
+-- Centralize constants so they're easy to change.
+const AS (
   SELECT
-    (ARRAY_AGG(entity_type_id) FILTER (WHERE name = 'address'))[1] AS address_id,
-    (ARRAY_AGG(entity_type_id) FILTER (WHERE name = 'line_item'))[1] AS line_item_id,
-    (ARRAY_AGG(entity_type_id) FILTER (WHERE name = 'transaction'))[1] AS transaction_id,
-    (ARRAY_AGG(entity_type_id) FILTER (WHERE name = 'sales_batch'))[1] AS sales_batch_id
-  FROM sales.entity_types
+    '{tenant_id}'::text AS tenant_id
 ),
-/* Decide which attributes we will either filter by or project. */
-required_from_params AS (
-  SELECT DISTINCT p.entity_type_name, p.attribute_name
-  FROM params p
+-- Sales batches scoped to the tenant (prefer JSONLogic tenant, else ingress).
+sales_batches AS (
+  SELECT t.entity_id
+  FROM const c
+  CROSS JOIN sales.query_eav(
+    'sales_batch',
+    jsonb_build_object('tenant_id', jsonb_build_object('==', c.tenant_id))
+  ) AS t(entity_id uuid)
 ),
-required_for_path_and_projection AS (
-  SELECT * FROM (VALUES
-    ('line_item', 'billing_address_id'),
-    ('transaction', 'billing_address_id'),
-    ('address', 'delivery_line_1'),
-    ('address', 'delivery_line_2'),
-    ('address', 'city_name'),
-    ('address', 'state_abbreviation'),
-    ('address', 'zipcode'),
-    ('address', 'plus4_code'),
-    ('address', 'street_name'),
-    ('address', 'primary_number'),
-    ('address', 'latitude'),
-    ('address', 'longitude')
-  ) AS v(entity_type_name, attribute_name)
+-- Transactions under those batches, filtered by optional date window and any txn-level predicates.
+transactions AS (
+  SELECT t.entity_id
+  FROM (
+    SELECT COALESCE(jsonb_agg(entity_id), '[]'::jsonb) AS ids
+    FROM sales_batches
+  ) b
+  CROSS JOIN const c
+  CROSS JOIN sales.query_eav(
+    'transaction',
+    jsonb_build_object(
+      'parent_entity_id', jsonb_build_object('in', b.ids)
+      {txn_filter_kvs_sql}
+    )
+  ) AS t(entity_id uuid)
 ),
-/* needed_pairs: union of filter + projection attribute references (small) */
-needed_pairs AS (
-  SELECT entity_type_name, attribute_name FROM required_from_params
-  UNION ALL
-  SELECT entity_type_name, attribute_name FROM required_for_path_and_projection
-),
-/* needed_attrs: carry additional names used for tenant header mapping */
-needed_attrs(entity_type_name, attribute_name, default_attr_name, mapped_header) AS (
-  SELECT
-    np.entity_type_name,
-    np.attribute_name,
-    np.attribute_name AS default_attr_name,
-    np.attribute_name AS mapped_header
-  FROM needed_pairs np
-),
-/* attr_resolved: finalize attribute_id + data_type with tenant-aware overrides (reused)
-   MATERIALIZED to pin tiny lookup results (saves rejoining attributes + header map). */
-attr_resolved AS MATERIALIZED (
-  SELECT DISTINCT ON (na.entity_type_name, na.attribute_name)
-    na.entity_type_name,
-    na.attribute_name,
-    COALESCE(cm.attribute_id, a.id) AS attribute_id,
-    lower(
-      COALESCE(
-        (SELECT a2.data_type::text
-         FROM sales.attributes a2
-         WHERE a2.id = cm.attribute_id),
-        a.data_type::text
-      )
-    ) AS data_type
-  FROM needed_attrs na
-  LEFT JOIN tenant_param tp ON TRUE
-  LEFT JOIN sales.client_header_map cm
-    ON cm.tenant_id = tp.tenant_id
-   AND cm.mapped_header = na.mapped_header
-  LEFT JOIN sales.entity_types et
-    ON et.name = na.entity_type_name
-  LEFT JOIN sales.attributes a
-    ON a.entity_type_id = et.entity_type_id
-   AND a.name = na.default_attr_name
-  ORDER BY na.entity_type_name, na.attribute_name,
-           CASE WHEN cm.attribute_id IS NOT NULL THEN 1 ELSE 2 END
-),
-/* filter_params: bind params → exact entity_type_id/attribute_id (tiny; reused) */
-filter_params AS MATERIALIZED (
-  SELECT
-    row_number() OVER () AS param_id,
-    p.entity_type_name,
-    p.attribute_name,
-    lower(p.comparator) AS comparator,
-    p.value,
-    et.entity_type_id,
-    ar.attribute_id,
-    ar.data_type
-  FROM params p
-  LEFT JOIN sales.entity_types et
-    ON et.name = p.entity_type_name
-  LEFT JOIN attr_resolved ar
-    ON ar.entity_type_name = p.entity_type_name
-   AND ar.attribute_name = p.attribute_name
-),
-/* filter_params_tx: only gating params that apply at transaction/sales_batch level (reused) */
-filter_params_tx AS MATERIALIZED (
-  SELECT * FROM filter_params
-  WHERE entity_type_name IN ('transaction','sales_batch')
-),
-/* param_matches: per-param bitmap of tx_ids that satisfy that param (likely inlined)
-   Not MATERIALIZED to let the planner push predicates and avoid unnecessary spooling. */
-param_matches AS (
-  /* transaction-scoped params */
-  SELECT DISTINCT
-    fp.param_id,
-    ev.entity_id AS tx_id
-  FROM filter_params_tx fp
-  JOIN sales.entity_attribute_values ev
-    ON ev.attribute_id = fp.attribute_id
-   AND (
-     CASE fp.data_type
-       WHEN 'string' THEN
-         CASE fp.comparator
-           WHEN '=' THEN ev.value_string = fp.value
-           WHEN '!=' THEN ev.value_string <> fp.value
-           WHEN 'like' THEN ev.value_string LIKE fp.value
-           WHEN 'ilike' THEN ev.value_string ILIKE fp.value
-           WHEN 'in' THEN ev.value_string = ANY(string_to_array(fp.value, ','))
-           WHEN 'not in' THEN NOT (ev.value_string = ANY(string_to_array(fp.value, ',')))
-           ELSE FALSE
-         END
-       WHEN 'timestamptz' THEN
-         CASE fp.comparator
-           WHEN '=' THEN ev.value_ts = fp.value::timestamptz
-           WHEN '!=' THEN ev.value_ts <> fp.value::timestamptz
-           WHEN '>' THEN ev.value_ts > fp.value::timestamptz
-           WHEN '<' THEN ev.value_ts < fp.value::timestamptz
-           WHEN '>=' THEN ev.value_ts >= fp.value::timestamptz
-           WHEN '<=' THEN ev.value_ts <= fp.value::timestamptz
-           WHEN 'in' THEN ev.value_ts = ANY(string_to_array(fp.value, ',')::timestamptz[])
-           WHEN 'not in' THEN NOT (ev.value_ts = ANY(string_to_array(fp.value, ',')::timestamptz[]))
-           ELSE FALSE
-         END
-       WHEN 'numeric' THEN
-         CASE fp.comparator
-           WHEN '=' THEN ev.value_numeric = fp.value::numeric
-           WHEN '!=' THEN ev.value_numeric <> fp.value::numeric
-           WHEN '>' THEN ev.value_numeric > fp.value::numeric
-           WHEN '<' THEN ev.value_numeric < fp.value::numeric
-           WHEN '>=' THEN ev.value_numeric >= fp.value::numeric
-           WHEN '<=' THEN ev.value_numeric <= fp.value::numeric
-           WHEN 'in' THEN ev.value_numeric = ANY(string_to_array(fp.value, ',')::numeric[])
-           WHEN 'not in' THEN NOT (ev.value_numeric = ANY(string_to_array(fp.value, ',')::numeric[]))
-           ELSE FALSE
-         END
-       ELSE FALSE
-     END
-   )
-  WHERE fp.entity_type_name = 'transaction'
-
-  UNION ALL
-
-  /* sales-batch–scoped params → expand matching batches to their child transactions */
-  SELECT DISTINCT
-    fp.param_id,
-    t.id AS tx_id
-  FROM filter_params_tx fp
-  JOIN sales.entity_attribute_values ev
-    ON ev.attribute_id = fp.attribute_id
-   AND (
-     CASE fp.data_type
-       WHEN 'string' THEN
-         CASE fp.comparator
-           WHEN '=' THEN ev.value_string = fp.value
-           WHEN '!=' THEN ev.value_string <> fp.value
-           WHEN 'like' THEN ev.value_string LIKE fp.value
-           WHEN 'ilike' THEN ev.value_string ILIKE fp.value
-           WHEN 'in' THEN ev.value_string = ANY(string_to_array(fp.value, ','))
-           WHEN 'not in' THEN NOT (ev.value_string = ANY(string_to_array(fp.value, ',')))
-           ELSE FALSE
-         END
-       WHEN 'timestamptz' THEN
-         CASE fp.comparator
-           WHEN '=' THEN ev.value_ts = fp.value::timestamptz
-           WHEN '!=' THEN ev.value_ts <> fp.value::timestamptz
-           WHEN '>' THEN ev.value_ts > fp.value::timestamptz
-           WHEN '<' THEN ev.value_ts < fp.value::timestamptz
-           WHEN '>=' THEN ev.value_ts >= fp.value::timestamptz
-           WHEN '<=' THEN ev.value_ts <= fp.value::timestamptz
-           WHEN 'in' THEN ev.value_ts = ANY(string_to_array(fp.value, ',')::timestamptz[])
-           WHEN 'not in' THEN NOT (ev.value_ts = ANY(string_to_array(fp.value, ',')::timestamptz[]))
-           ELSE FALSE
-         END
-       WHEN 'numeric' THEN
-         CASE fp.comparator
-           WHEN '=' THEN ev.value_numeric = fp.value::numeric
-           WHEN '!=' THEN ev.value_numeric <> fp.value::numeric
-           WHEN '>' THEN ev.value_numeric > fp.value::numeric
-           WHEN '<' THEN ev.value_numeric < fp.value::numeric
-           WHEN '>=' THEN ev.value_numeric >= fp.value::numeric
-           WHEN '<=' THEN ev.value_numeric <= fp.value::numeric
-           WHEN 'in' THEN ev.value_numeric = ANY(string_to_array(fp.value, ',')::numeric[])
-           WHEN 'not in' THEN NOT (ev.value_numeric = ANY(string_to_array(fp.value, ',')::numeric[]))
-           ELSE FALSE
-         END
-       ELSE FALSE
-     END
-   )
-  JOIN type_ids ti ON TRUE
-  JOIN sales.entities t
-    ON t.parent_entity_id = ev.entity_id
-   AND t.entity_type_id = ti.transaction_id
-  WHERE fp.entity_type_name = 'sales_batch'
-),
-/* param_card: scalar with number of gating params (tiny; reused in HAVING) */
-param_card AS MATERIALIZED (
-  SELECT COUNT(*) AS n_params
-  FROM filter_params_tx
-),
-/* candidate_tx: tx that satisfy ALL gating params (reused; sharply reduces working set)
-   MATERIALIZED because it’s referenced multiple times downstream (tx + line_item branches). */
-candidate_tx AS MATERIALIZED (
-  SELECT pm.tx_id
-  FROM param_matches pm
-  GROUP BY pm.tx_id
-  HAVING COUNT(*) = (SELECT n_params FROM param_card)
-),
-/* billing_attrs: attribute_ids for billing_address_id (tx + line_item)
-   MATERIALIZED to reuse across the tx and line_item address fetches. */
-billing_attrs AS MATERIALIZED (
-  SELECT attribute_id, entity_type_name
-  FROM attr_resolved
-  WHERE attribute_name = 'billing_address_id'
-    AND entity_type_name IN ('line_item','transaction')
-),
-/* addr_rows: resolve raw address-id strings referenced by candidates (no dedupe yet)
-   Non-materialized: lets planner push the candidate_tx filter and avoid large intermediate storage. */
-addr_rows AS (
-  /* tx-level */
-  SELECT v.value_string AS addr_text
-  FROM billing_attrs ba
-  JOIN attr_resolved ar
-    ON ar.attribute_id = ba.attribute_id
-   AND ba.entity_type_name = 'transaction'
-  JOIN candidate_tx ct ON TRUE
-  JOIN sales.entity_attribute_values v
-    ON v.entity_id = ct.tx_id
-   AND v.attribute_id = ar.attribute_id
-
-  UNION ALL
-
-  /* line_item-level */
-  SELECT v.value_string AS addr_text
-  FROM billing_attrs ba
-  JOIN attr_resolved ar
-    ON ar.attribute_id = ba.attribute_id
-   AND ba.entity_type_name = 'line_item'
-  JOIN type_ids ti ON TRUE
-  JOIN candidate_tx ct ON TRUE
-  JOIN sales.entities li
-    ON li.parent_entity_id = ct.tx_id
-   AND li.entity_type_id = ti.line_item_id
-  JOIN sales.entity_attribute_values v
-    ON v.entity_id = li.id
-   AND v.attribute_id = ar.attribute_id
-),
-/* addresses: validate → cast → dedupe to one row per address entity (reused)
-   MATERIALIZED to provide a small, reusable id list for the final pivot. */
-addresses AS MATERIALIZED (
-  SELECT DISTINCT e.id AS address_id
-  FROM addr_rows r
-  JOIN sales.entities e ON e.id = r.addr_text::uuid
-  JOIN type_ids ti ON e.entity_type_id = ti.address_id
-),
-/* addr_text: single-pass pivot of address text fields (IO saver)
-   Non-materialized; planner can push the IN (...) semi-join and aggregate only over the small id set. */
-addr_text AS (
-  SELECT
-    v.entity_id AS address_id,
-    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'delivery_line_1') AS address,
-    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'delivery_line_2') AS delivery_line_2,
-    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'city_name') AS city,
-    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'state_abbreviation') AS state,
-    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'zipcode') AS "zipCode",
-    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'plus4_code') AS "plus4Code",
-    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'street_name') AS street_name,
-    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'primary_number') AS primary_number,
-    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'latitude') AS latitude,
-    MAX(v.value_string) FILTER (WHERE ar.attribute_name = 'longitude') AS longitude
-  FROM sales.entity_attribute_values v
-  JOIN attr_resolved ar
-    ON ar.attribute_id = v.attribute_id
-   AND ar.entity_type_name = 'address'
-  WHERE v.entity_id IN (SELECT address_id FROM addresses) -- <<< scope aggregation to deduped ids
-  GROUP BY v.entity_id
+-- Collect distinct billing address ids from line items tied to those transactions.
+line_item_addresses AS (
+  SELECT DISTINCT li.billing_address_id
+  FROM (
+    SELECT COALESCE(jsonb_agg(entity_id), '[]'::jsonb) AS ids
+    FROM transactions
+  ) ti
+  CROSS JOIN sales.query_eav(
+    'line_item',
+    jsonb_build_object(
+      'parent_entity_id', jsonb_build_object('in', ti.ids)
+    ),
+    ARRAY['billing_address_id']
+  ) AS li(entity_id uuid, billing_address_id text)
 )
-/* final projection: addresses as a neat, typed rowset */
+-- Final address projection with consistent NULLIF handling and aliases.
 SELECT
-  at.address,
-  at.delivery_line_2,
-  at.city,
-  at.state,
-  at."zipCode",
-  at."plus4Code",
-  at.street_name,
-  at.primary_number,
-  at.latitude::float,
-  at.longitude::float
-FROM addr_text at
+  NULLIF(a.delivery_line_1, 'NONE')    AS address,
+  NULLIF(a.delivery_line_2, 'NONE')    AS delivery_line_2,
+  NULLIF(a.city_name, 'NONE')          AS city,
+  NULLIF(a.state_abbreviation, 'NONE') AS state,
+  NULLIF(a.zipcode, 'NONE')            AS "zipCode",
+  NULLIF(a.plus4_code, 'NONE')         AS "plus4Code",
+  NULLIF(a.primary_number, 'NONE')     AS primary_number,
+  NULLIF(a.street_name, 'NONE')        AS street_name,
+  NULLIF(a.latitude, 'NONE')::float    AS latitude,
+  NULLIF(a.longitude, 'NONE')::float   AS longitude
+FROM (
+  SELECT COALESCE(jsonb_agg(billing_address_id), '[]'::jsonb) AS ids
+  FROM line_item_addresses
+) ai
+CROSS JOIN LATERAL sales.query_eav(
+  'address',
+  jsonb_build_object(
+    'entity_id', jsonb_build_object('in', ai.ids)
+  ){addr_filter_concat_sql},
+  ARRAY['delivery_line_1','delivery_line_2','city_name','state_abbreviation','zipcode','plus4_code','primary_number','street_name','latitude','longitude']
+) AS a(
+  entity_id uuid,
+  delivery_line_1 text,
+  delivery_line_2 text,
+  city_name text,
+  state_abbreviation text,
+  zipcode text,
+  plus4_code text,
+  primary_number text,
+  street_name text,
+  latitude text,
+  longitude text
+)
 """.strip()
 
-    return query.replace('%', '%%')
+    # Escape % for SQLAlchemy text() compatibility (keeps behavior consistent with prior code paths).
+    return query.replace("%", "%%")

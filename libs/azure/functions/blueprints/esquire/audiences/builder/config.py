@@ -7,7 +7,7 @@ if not from_bind("keystone"):
         "Structured",
         "sql",
         url=os.environ["DATABIND_SQL_KEYSTONE"],
-        schemas=["keystone"],
+        schemas=["keystone", "sales"],
         pool_size=1000,
         max_overflow=100,
     )
@@ -31,26 +31,6 @@ if not from_bind("audiences"):
         pool_size=1000,
         max_overflow=100,
     )
-if not from_bind("foursquare"):
-    register_binding(
-        "foursquare",
-        "Structured",
-        "sql",
-        url=os.environ["DATABIND_SQL_FOURSQUARE"],
-        schemas=["dbo"],
-        pool_size=1000,
-        max_overflow=100,
-    )
-if not from_bind("sales"):
-    register_binding(
-        "sales",
-        "Structured",
-        "sql",
-        url=os.environ["DATABIND_SQL_KEYSTONE"],
-        schemas=["sales"],
-        pool_size=1000,
-        max_overflow=100,
-    )
 
 MAPPING_DATASOURCE = {
     # Attom estated data - can use for testing
@@ -64,17 +44,15 @@ MAPPING_DATASOURCE = {
     },
     # Deepsync mover - can use for testing
     "clwjn2q4s0056rw04ra44j8k9": {
-        "dbType": "synapse",
-        "bind": "audiences",
+        "dbType": "postgres",
+        "bind": "keystone",
         "table": {
-            "schema": "dbo",
+            "schema": "utils",
             "name": "movers",
         },
         "query": {
-            "select": "address, city, state, zipcode as zipCode",
-            "filter": lambda length, unit: " AND CONVERT(DATE, [date], 126) >= DATEADD({}, {}, GETDATE())".format(
-                unit[0], 0 - length
-            ),
+            "select": "add1 AS address, city, st AS state, zip as zipCode",
+            "filter": lambda length, unit: f" AND keycode >= NOW() - INTERVAL {length} {unit[0]}"
         },
     },
     # Esquire audiences
@@ -98,21 +76,12 @@ MAPPING_DATASOURCE = {
     # Esquire sales - not ready to be used yet
     "clwjn2q4t0057rw04kbhlog0s": {
         "dbType": "postgres",
-        "bind": "sales",
+        "bind": "keystone",
         "table": {
             "schema": "sales",
             "name": "entities",
         },
         "isEAV":True
-    },
-    # Foursquare POI - can use for testing
-    "clwjn2q4t0058rw04fx6qanbh": {
-        "dbType": "synapse",
-        "bind": "foursquare",
-        "table": {
-            "schema": "dbo",
-            "name": "poi",
-        },
     },
     # OSM Building footprints - not set up in Synapse
     "clwjn2q4t0059rw04qxcw5q3h": {

@@ -6,6 +6,13 @@ from azure.durable_functions import (
 from azure.functions import HttpRequest, HttpResponse
 import os
 
+_TERMINAL_STATUSES = {
+    OrchestrationRuntimeStatus.Completed,
+    OrchestrationRuntimeStatus.Failed,
+    OrchestrationRuntimeStatus.Canceled,
+    OrchestrationRuntimeStatus.Terminated,
+}
+
 bp = Blueprint()
 
 
@@ -59,16 +66,7 @@ async def starter_http_esquire_audience(
         force = bool(req.params.get("force"))
         if req.method == "POST":
             if force:
-                # Hard reset the instance regardless of its state
-                if status.runtime_status in (
-                    OrchestrationRuntimeStatus.Running,
-                    OrchestrationRuntimeStatus.Pending,
-                ):
-                    try:
-                        await client.terminate(audience, "force restart")
-                    except Exception:
-                        pass
-                if status.runtime_status:
+                if status.runtime_status in _TERMINAL_STATUSES:
                     try:
                         await client.purge_instance_history(audience)
                     except Exception:
@@ -90,7 +88,7 @@ async def starter_http_esquire_audience(
                         settings,
                     )
                 else:
-                    if status.runtime_status:
+                    if status.runtime_status in _TERMINAL_STATUSES:
                         await client.purge_instance_history(audience)
                     await client.start_new(
                         orchestration_function_name="orchestrator_esquire_audience",

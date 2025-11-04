@@ -1,5 +1,3 @@
-# File: /libs/azure/functions/blueprints/esquire/audiences/egress/xandr/activities/fetchAudience.py
-
 from __future__ import annotations
 
 from azure.durable_functions import Blueprint

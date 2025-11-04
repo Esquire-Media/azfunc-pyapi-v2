@@ -36,7 +36,7 @@ def meta_customaudience_orchestrator(context: DurableOrchestrationContext):
       * REPLACE uses Meta's usersreplace endpoint with stable session_id + batch_seq.
       * Replays are safe: activities return cached results; loops & sorts are deterministic.
     """
-    batch_size = 10_000
+    batch_size = 5_000
 
     # ---- 0) Validate ingress deterministically ----
     ingress: Dict[str, Any] = context.get_input() or {}
@@ -142,7 +142,7 @@ def meta_customaudience_orchestrator(context: DurableOrchestrationContext):
         {
             "bind": "audiences",
             "query": """
-                SELECT COUNT(DISTINCT deviceid) AS [count]
+                SELECT COUNT(DISTINCT LOWER(LTRIM(RTRIM(deviceid)))) AS [count]
                 FROM OPENROWSET(
                     BULK '{}/{}/*',
                     DATA_SOURCE = '{}',
@@ -192,7 +192,7 @@ def meta_customaudience_orchestrator(context: DurableOrchestrationContext):
                     "sql": {
                         "bind": "audiences",
                         "query": """
-                            SELECT DISTINCT deviceid
+                            SELECT DISTINCT LOWER(LTRIM(RTRIM(deviceid)))
                             FROM OPENROWSET(
                                 BULK '{}/{}/*',
                                 DATA_SOURCE = '{}',
@@ -201,6 +201,7 @@ def meta_customaudience_orchestrator(context: DurableOrchestrationContext):
                                 HEADER_ROW = TRUE
                             ) WITH (deviceid VARCHAR(80)) AS [data]
                             WHERE LEN(deviceid) = 36
+                            ORDER BY LOWER(LTRIM(RTRIM(deviceid)))
                         """,
                     },
                     "batch": session_payload,

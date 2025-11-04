@@ -33,6 +33,7 @@ async def starter_timer_esquire_audiences(
     session: Session = provider.connect()
     query = select(audience.id).where(audience.status == True)
     results = session.execute(query).all()
+    session.close()
 
     await asyncio.gather(*(starter(client, row.id, settings) for row in results))
 

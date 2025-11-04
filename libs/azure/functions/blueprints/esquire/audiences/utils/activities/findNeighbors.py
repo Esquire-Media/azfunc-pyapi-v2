@@ -1,13 +1,10 @@
-
 from azure.durable_functions import Blueprint
-import os
 from libs.utils.esquire.neighbors.logic_async import load_estated_data_partitioned_blob, find_neighbors_for_street
 from io import StringIO
 from azure.storage.blob import BlobClient
 import csv
-from azure.storage.blob import BlobServiceClient
 import pandas as pd
-# import logging
+import logging
 
 bp = Blueprint()
 
@@ -62,20 +59,22 @@ async def activity_esquireAudiencesNeighbors_findNeighbors(ingress: dict):
 
     # Run neighbor matching
     group_results = []
-    for street_name, street_addresses in pd.DataFrame(addresses).groupby("street_name"):
-        street_data = estated_data[
-            estated_data["street_name"] == str(street_name).upper()
-        ]
-        if street_data.empty:
-            continue
-        street_data = street_data
+    try:
+        for street_name, street_addresses in pd.DataFrame(addresses).groupby("street_name"):
+            street_data = estated_data[
+                estated_data["street_name"] == str(street_name).upper()
+            ]
+            if street_data.empty:
+                continue
+            street_data = street_data
 
-        neighbors = find_neighbors_for_street(
-            street_data, street_addresses.rename(columns={'primary_number':'street_number'}, errors='ignore'), n_per_side, same_side_only
-        )
-        if not neighbors.empty:
-            group_results.append(neighbors)
-
+            neighbors = find_neighbors_for_street(
+                street_data, street_addresses.rename(columns={'primary_number':'street_number'}, errors='ignore'), n_per_side, same_side_only
+            )
+            if not neighbors.empty:
+                group_results.append(neighbors)
+    except:
+        logging.error(f"Problem reading: {url}")
     if group_results:
         # logging.warning("[LOG] Got group results")
         return pd.concat(group_results, ignore_index=True)[['address', 'city', 'state', 'zipCode', 'plus4Code']].to_dict(orient="records")

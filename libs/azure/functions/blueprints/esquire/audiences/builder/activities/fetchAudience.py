@@ -10,9 +10,11 @@ from libs.data import from_bind
 from sqlalchemy import select
 from sqlalchemy.orm import Session, lazyload
 import logging
+import os
 from typing import Any, Dict, List, Union, Optional
 
 from libs.data.structured.sqlalchemy.utils import _find_relationship_key
+from libs.data import register_binding, from_bind
 
 bp = Blueprint()
 
@@ -44,6 +46,16 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
         dict: A dictionary containing the audience data along with the initial ingress data.
               The shape and ordering of derived fields are deterministic.
     """
+    if not from_bind("keystone"):
+        register_binding(
+            "keystone",
+            "Structured",
+            "sql",
+            url=os.environ["DATABIND_SQL_KEYSTONE"],
+            schemas=["keystone", "sales"],
+            pool_size=1000,
+            max_overflow=100,
+        )
     provider = from_bind("keystone")
 
     Audience = provider.models["keystone"]["Audience"]

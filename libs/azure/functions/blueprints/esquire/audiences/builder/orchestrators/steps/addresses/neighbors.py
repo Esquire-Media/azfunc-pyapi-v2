@@ -5,6 +5,8 @@ import pandas as pd
 # import logging
 bp = Blueprint()
 
+MAX_CONCURRENT_TASKS = 20 
+
 
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_esquireAudiencesSteps_addresses2neighbors(
@@ -21,19 +23,23 @@ def orchestrator_esquireAudiencesSteps_addresses2neighbors(
 
     # Step 2: Query 
     # logging.warning(f"[LOG] Setting {len(partition_keys)} tasks")
+    # Step 2: Query 
     tasks = []
     for part in partition_keys:
-        # logging.warning(f"[LOG] Partition {part}")
         tasks.append(context.call_activity("activity_esquireAudiencesNeighbors_findNeighbors", {
             "city": part["city"],
             "state": part["state"],
             "zip": part["zip"],
-            "n_per_side": ingress.get('process',{}).get("housesPerSide",20),
-            "same_side_only": ingress.get('process',{}).get("bothSides",True),
-            "source_urls": ingress.get('source_urls',[]),
+            "n_per_side": ingress.get('process', {}).get("housesPerSide", 20),
+            "same_side_only": ingress.get('process', {}).get("bothSides", True),
+            "source_urls": ingress.get('source_urls', []),
         }))
 
-    results = yield context.task_all(tasks)
+    # Throttle execution by chunking the tasks
+    all_results = []
+    for batch in chunked(tasks, MAX_CONCURRENT_TASKS):
+        batch_result  = yield context.task_all(batch)
+        all_results.extend(batch_result)
 
     # Step 3: fan-out to write each records batch to blob
     write_tasks = [
@@ -47,9 +53,13 @@ def orchestrator_esquireAudiencesSteps_addresses2neighbors(
                 "preflight": True,
             },
         )
-        for recs in results
+        for recs in all_results
     ]
 
     out_urls = yield context.task_all(write_tasks) 
 
     return out_urls
+
+def chunked(iterable, size):
+    for i in range(0, len(iterable), size):
+        yield iterable[i:i + size]

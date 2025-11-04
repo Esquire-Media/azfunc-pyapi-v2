@@ -219,4 +219,7 @@ def extract_daysback_from_dataFilter(sql):
     )
     val = match.group(1) or match.group(2) if match else None
 
-    return float(val)
+    if val is not None:
+        return float(val)
+    else:
+        raise LookupError("days_back variable not found in dataFilter")

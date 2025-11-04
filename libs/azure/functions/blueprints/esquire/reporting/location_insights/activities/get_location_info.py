@@ -22,7 +22,7 @@ def activity_locationInsights_getLocationInfo(settings: dict):
             WITH centroids AS (
                 SELECT
                     id,
-                    public.ST_Centroid(public.ST_Collect(public.ST_GeomFromGeoJSON(feature->'geometry'))) AS centroid
+                    ST_Centroid(ST_Collect(ST_GeomFromGeoJSON(feature->'geometry'))) AS centroid
                 FROM 
                     keystone."TargetingGeoFrame",
                     jsonb_array_elements(polygon->'features') AS feature
@@ -38,8 +38,8 @@ def activity_locationInsights_getLocationInfo(settings: dict):
                 G.state AS "State",
                 G."zipCode" AS "Zip",
                 G.polygon->'features'->0->'geometry' AS "Geometry",
-                public.ST_Y(C.centroid) AS "Latitude",
-                public.ST_X(C.centroid) AS "Longitude"
+                ST_Y(C.centroid) AS "Latitude",
+                ST_X(C.centroid) AS "Longitude"
             FROM keystone."TargetingGeoFrame" AS G
             JOIN centroids AS C
                 ON C.id = G.id

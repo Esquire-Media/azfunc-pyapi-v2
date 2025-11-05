@@ -55,30 +55,25 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
                 }
         )
         
-        # 3. Address validation (fan-out / fan-in)
-        
-        yield context.call_activity_with_retry(
-            "activity_salesIngestor_enrichAddresses",
-            retry,
+        # 3. Address validation (fan-out / fan-in via sub-orchestrator)
+        yield context.call_sub_orchestrator(
+            "suborchestrator_salesIngestor_enrichAddresses",
             {
                 'scope':'billing',
                 "staging_table":table_name,
                 **settings
-                }
-            )
+            }
+        )
 
-        yield context.call_activity_with_retry(
-            "activity_salesIngestor_enrichAddresses",
-            retry,
+        yield context.call_sub_orchestrator(
+            "suborchestrator_salesIngestor_enrichAddresses",
             {
                 'scope':'shipping',
                 "staging_table":table_name,
                 **settings
-                }
-        )
+        })
 
         # 4. Do the big sql query moving staging data into the EAV tables
-        
         yield context.call_sub_orchestrator(
             "suborchestrator_salesIngestor_eav",
             {
@@ -142,6 +137,3 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         "purge_instance_history",
         {"instance_id": context.instance_id},
     )
-
-
-

@@ -6,6 +6,7 @@ from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
     extract_tenant_id_from_datafilter,
 )
 import orjson as json
+
 # import logging
 
 bp = Blueprint()
@@ -85,13 +86,11 @@ def orchestrator_esquireAudiences_processingSteps(
         # logging.warning("[LOG] No processing steps found, returning ingress unchanged.")
         return ingress
 
-    ingress["base_prefix"]   = str(ingress["working"]["blob_prefix"]).strip("/")
+    ingress["base_prefix"] = str(ingress["working"]["blob_prefix"]).strip("/")
     # logging.warning(f"[LOG] base prefix: {ingress['base_prefix']}")
 
     # Loop through each processing step
-    for step, process in enumerate(
-        processes := processing.get("steps",[])
-    ):
+    for step, process in enumerate(processes := processing.get("steps", [])):
         # logging.warning(f"[LOG] Step: {step} - {process['kind']}")
         process["outputType"] = processing_step_output_types(process["kind"])
         # Determine the input type and source URLs for the current step
@@ -104,6 +103,7 @@ def orchestrator_esquireAudiences_processingSteps(
             processes[step - 1].get("results", []) if step else ingress["results"]
         )
         import logging
+
         logging.warning(f"Step {step}: source_urls: {source_urls}")
         if not source_urls:
             raise Exception(
@@ -118,21 +118,23 @@ def orchestrator_esquireAudiences_processingSteps(
             "working": {
                 **ingress["working"],
                 "blob_prefix": "{}/{}/working".format(
-                    ingress['base_prefix'],
+                    ingress["base_prefix"],
                     step,
                 ),
             },
             "destination": {
                 **ingress["working"],
                 "blob_prefix": "{}/{}".format(
-                    ingress['base_prefix'],
+                    ingress["base_prefix"],
                     step,
                 ),
             },
             "transform": [inputType, process["outputType"]],
             "source_urls": source_urls,
             "process": process,
-            "tenant_id": extract_tenant_id_from_datafilter(ingress["audience"]["dataFilter"])
+            "tenant_id": extract_tenant_id_from_datafilter(
+                ingress["audience"]["dataFilter"]
+            ),
         }
 
         # Process the data based on the input and output types
@@ -155,7 +157,7 @@ def orchestrator_esquireAudiences_processingSteps(
                         elif egress["process"].get("kind", "") == "Proximity":
                             process["results"] = yield context.call_sub_orchestrator(
                                 "orchestrator_esquireAudiencesSteps_ownedLocationRadius",
-                                egress
+                                egress,
                             )
                         else:
                             # logging.warning("[LOG] No Neighbor Logic used")
@@ -216,7 +218,21 @@ def orchestrator_esquireAudiences_processingSteps(
                     case "device_ids":  # polygons -> deviceids
                         process["results"] = yield context.call_sub_orchestrator(
                             "orchestrator_esquireAudiencesSteps_polygon2deviceids",
-                            egress,
+                            {
+                                **egress,
+                                "custom_code": {
+                                    "request": {
+                                        "dateStart": {
+                                            "date_add": [
+                                                "now",
+                                                0 - ingress["audience"]["TTL_Length"],
+                                                ingress["audience"]["TTL_Unit"],
+                                            ]
+                                        },
+                                        "dateEnd": {"date_add": ["now", -2, "days"]},
+                                    },
+                                },
+                            },
                         )
                     case "polygons":  # polygons -> polygons
                         # No specific processing required
@@ -235,8 +251,6 @@ def orchestrator_esquireAudiences_processingSteps(
     # Return the updated ingress data after all processing steps
     return ingress
 
+
 def processing_step_output_types(step_kind):
-    return {
-        "Proximity":"addresses",
-        "Neighbors":"addresses"
-    }[step_kind]
+    return {"Proximity": "addresses", "Neighbors": "addresses"}[step_kind]

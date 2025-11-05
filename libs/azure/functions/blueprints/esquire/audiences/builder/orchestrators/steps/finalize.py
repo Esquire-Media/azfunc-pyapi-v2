@@ -1,8 +1,6 @@
-# File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/finalize.py
-
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
-import orjson as json
 # import logging
+
 bp = Blueprint()
 
 
@@ -67,11 +65,11 @@ def orchestrator_esquireAudiences_finalize(
     # logging.warning(f"[LOG] has_steps: {has_steps}")
 
     inputType = (
-        steps[-1]["outputType"] if has_steps else ingress["audience"]["dataSource"]["dataType"]
+        steps[-1]["outputType"]
+        if has_steps
+        else ingress["audience"]["dataSource"]["dataType"]
     )
-    source_urls = (
-        steps[-1].get("results", []) if has_steps else ingress["results"]
-    )
+    source_urls = steps[-1].get("results", []) if has_steps else ingress["results"]
 
     # logging.warning(f"[LOG] source_urls: {source_urls}")
 
@@ -110,7 +108,22 @@ def orchestrator_esquireAudiences_finalize(
         case "polygons":  # polygons -> deviceids
             source_urls = yield context.call_sub_orchestrator(
                 "orchestrator_esquireAudiencesSteps_polygon2deviceids",
-                {**egress, "source_urls": source_urls},
+                {
+                    **egress,
+                    "source_urls": source_urls,
+                    "custom_coding": {
+                        "request": {
+                            "dateStart": {
+                                "date_add": [
+                                    "now",
+                                    0 - ingress["audience"]["TTL_Length"],
+                                    ingress["audience"]["TTL_Unit"],
+                                ]
+                            },
+                            "dateEnd": {"date_add": ["now", -2, "days"]},
+                        },
+                    },
+                },
             )
 
     # logging.info("[LOG] Did final conversion to deviceids")
@@ -124,22 +137,20 @@ def orchestrator_esquireAudiences_finalize(
             for source_url in source_urls
         ]
     )
-    
+
     # logging.info("[LOG] Getting MAID count")
     # Count results
-    counts = yield context.task_all([
-        context.call_activity(
-            "activity_esquireAudiencesUtils_getMaidCount",
-            source_url
-        )
-        for source_url in ingress["results"]
-    ])
+    counts = yield context.task_all(
+        [
+            context.call_activity(
+                "activity_esquireAudiencesUtils_getMaidCount", source_url
+            )
+            for source_url in ingress["results"]
+        ]
+    )
     # logging.info("[LOG] Putting audience")
     ingress["audience"]["count"] = sum(counts)
-    yield context.call_activity(
-        "activity_esquireAudiencesBuilder_putAudience",
-        ingress
-    )
+    yield context.call_activity("activity_esquireAudiencesBuilder_putAudience", ingress)
     # logging.info("[LOG] Done finalizing.")
     # Return the updated ingress data
     return ingress

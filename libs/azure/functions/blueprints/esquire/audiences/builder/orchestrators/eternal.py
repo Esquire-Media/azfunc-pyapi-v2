@@ -403,7 +403,8 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
                 build,
             )
             if type(res) == dict:
-                raise RuntimeError(res['error'])
+                if 'error' in res.keys():
+                    raise RuntimeError(res['error'])
 
             # Summarize the newly produced run (from storage)
             post_prefix = yield context.call_activity(

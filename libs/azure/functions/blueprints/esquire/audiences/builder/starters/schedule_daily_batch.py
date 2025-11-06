@@ -1,6 +1,7 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationClient
 from azure.functions import TimerRequest
 from libs.data import from_bind
+from libs.azure.functions.blueprints.esquire.audiences.builder.utils import enforce_bindings
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 import asyncio, os
@@ -27,7 +28,7 @@ async def starter_timer_esquire_audiences(
             "blob_prefix": "audiences",
         },
     }
-
+    enforce_bindings()
     provider = from_bind("keystone")
     audience = provider.models["keystone"]["Audience"]
     session: Session = provider.connect()

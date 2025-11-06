@@ -398,10 +398,13 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
                 }
             )
 
-            yield context.call_sub_orchestrator(
+            res = yield context.call_sub_orchestrator(
                 "orchestrator_esquireAudiences_uploader",
                 build,
             )
+            if type(res) == dict:
+                if 'error' in res.keys():
+                    raise RuntimeError(res['error'])
 
             # Summarize the newly produced run (from storage)
             post_prefix = yield context.call_activity(

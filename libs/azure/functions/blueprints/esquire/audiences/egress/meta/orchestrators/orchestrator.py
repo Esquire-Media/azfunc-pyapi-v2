@@ -74,6 +74,9 @@ def meta_customaudience_orchestrator(context: DurableOrchestrationContext):
         )
     else:
         custom_audience = yield context.call_activity(ACT_GET_CA, ingress)
+        if type(custom_audience) == dict:
+            if "error" in custom_audience.keys():
+                return custom_audience
 
     # If name/description drifted, update deterministically.
     if (
@@ -81,6 +84,9 @@ def meta_customaudience_orchestrator(context: DurableOrchestrationContext):
         or (custom_audience.get("description") or "") != ingress["audience"]["id"]
     ):
         custom_audience = yield context.call_activity(ACT_UPDATE_CA, ingress)
+        if type(custom_audience) == dict:
+            if "error" in custom_audience.keys():
+                return custom_audience
 
     # ---- 3) If audience is "Updating", deterministically try to close stuck sessions ----
     op = custom_audience.get("operation_status") or {}
@@ -122,6 +128,9 @@ def meta_customaudience_orchestrator(context: DurableOrchestrationContext):
 
         # Re-fetch status after attempting closures (deterministic)
         custom_audience = yield context.call_activity(ACT_GET_CA, ingress)
+        if type(custom_audience) == dict:
+            if "error" in custom_audience.keys():
+                return custom_audience
 
     # Ensure we have the Meta Audience ID on ingress from create/get
     ingress["audience"]["audience"] = custom_audience["id"]

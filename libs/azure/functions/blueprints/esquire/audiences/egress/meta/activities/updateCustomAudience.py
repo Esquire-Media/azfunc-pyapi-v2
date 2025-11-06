@@ -18,21 +18,27 @@ def activity_esquireAudienceMeta_customAudience_update(ingress: dict):
     Determinism:
       * Pure 'api_update' with deterministic params; DF handles replay.
     """
-    return (
-        CustomAudience(
-            fbid=ingress["audience"]["audience"],
-            api=initialize_facebook_api(ingress),
+    try:
+        res = (
+            CustomAudience(
+                fbid=ingress["audience"]["audience"],
+                api=initialize_facebook_api(ingress),
+            )
+            .api_update(
+                fields=[
+                    CustomAudience.Field.name,
+                    CustomAudience.Field.description,
+                    CustomAudience.Field.operation_status,
+                ],
+                params={
+                    "name": ingress["audience"]["name"],
+                    "description": ingress["audience"]["id"],
+                },
+            )
+            .export_all_data()
         )
-        .api_update(
-            fields=[
-                CustomAudience.Field.name,
-                CustomAudience.Field.description,
-                CustomAudience.Field.operation_status,
-            ],
-            params={
-                "name": ingress["audience"]["name"],
-                "description": ingress["audience"]["id"],
-            },
-        )
-        .export_all_data()
-    )
+        return res
+    except Exception as e:
+        return {
+            'error': f"updateCustomAudience Error {e.http_status()} : {e.api_error_message()}"
+        }

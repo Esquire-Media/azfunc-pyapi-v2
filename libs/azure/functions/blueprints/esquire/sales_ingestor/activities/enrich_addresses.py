@@ -240,7 +240,7 @@ def process_batch_fast(
 
     # Ensure the "{scope}_address_id" exists (as in original activity):contentReference[oaicite:4]{index=4}
     col_name = f"{scope}_address_id"
-    with safe_engine_connect(_engine()) as conn:
+    with _engine().begin() as conn:
         conn.execute(text(
             f"""
                 ALTER TABLE {staging_table}
@@ -281,57 +281,60 @@ def process_batch_fast(
     batch = raw_df.copy()
     batch['address_id'] = cleaned['address_id'].values
     records = batch.to_dict('records')
+    sub_chunk_size = 100
 
-    # 3) VALUES(...) + params for set-based UPDATE
-    vals_sql = []
-    params   = {}
-    for i, rec in enumerate(records, start=1):
-        phs = []
-        # street is required
-        street_col = addr_map.get('street')
-        params[f"street_{i}"] = rec.get(street_col, "") if street_col else None
-        phs.append(f":street_{i}")
+    for i in range(0, len(records), sub_chunk_size):
+        chunk = records[i:i + sub_chunk_size]
 
-        for key in ("city","state","zipcode"):
+        vals_sql = []
+        params = {}
+
+        for j, rec in enumerate(chunk, start=1):
+            phs = []
+            street_col = addr_map.get('street')
+            params[f"street_{j}"] = rec.get(street_col, "") if street_col else None
+            phs.append(f":street_{j}")
+
+            for key in ("city", "state", "zipcode"):
+                col = addr_map.get(key)
+                params[f"{key}_{j}"] = rec.get(col) if col else None
+                phs.append(f":{key}_{j}")
+
+            params[f"address_id_{j}"] = str(rec["address_id"])
+            phs.append(f":address_id_{j}")
+
+            vals_sql.append(f"({', '.join(phs)})")
+
+        if not vals_sql:
+            continue
+
+        values_clause = ",\n    ".join(vals_sql)
+
+        where_parts = []
+        if addr_map.get("street"):
+            where_parts.append(f'st."{addr_map["street"]}" = m.street')
+        for key in ("city", "state", "zipcode"):
             col = addr_map.get(key)
-            params[f"{key}_{i}"] = rec.get(col) if col else None
-            phs.append(f":{key}_{i}")
+            if col:
+                where_parts.append(f'st."{col}" = m.{key}')
+        where_sql = " AND ".join(where_parts) if where_parts else "TRUE"
 
-        params[f"address_id_{i}"] = str(rec['address_id'])
-        phs.append(f":address_id_{i}")
+        sql = f"""
+        WITH mapping (street, city, state, zipcode, address_id) AS (
+        VALUES
+        {values_clause}
+        )
+        UPDATE {staging_table} AS st
+        SET "{col_name}" = m.address_id::uuid
+        FROM mapping AS m
+        WHERE {where_sql};
+        """
 
-        vals_sql.append(f"({', '.join(phs)})")
-
-    if not vals_sql:
-        return f"{scope} enrichment complete (empty batch)"
-
-    values_clause = ",\n    ".join(vals_sql)
-
-    where_parts = []
-    if addr_map.get("street"):
-        where_parts.append(f'st."{addr_map["street"]}" = m.street')
-    for key in ("city","state","zipcode"):
-        col = addr_map.get(key)
-        if col:
-            where_parts.append(f'st."{col}" = m.{key}')
-    where_sql = " AND ".join(where_parts) if where_parts else "TRUE"
-
-    sql = f"""
-    WITH mapping (street, city, state, zipcode, address_id) AS (
-      VALUES
-      {values_clause}
-    )
-    UPDATE {staging_table} AS st
-       SET "{col_name}" = m.address_id::uuid
-      FROM mapping AS m
-     WHERE {where_sql};
-    """
+        with _engine().begin() as conn:
+            conn.execute(text(sql), params)
 
     eng = _engine()
     meta = MetaData()
-
-    with eng.begin() as conn:
-        conn.execute(text(sql), params)
 
     # 6) upsert into entities (same as original):contentReference[oaicite:9]{index=9}
     _ENT    = Table("entities",       meta, autoload_with=eng, schema='sales')

@@ -66,11 +66,25 @@ def activity_salesIngestor_planAddressBatches(settings: dict):
 
     # Ensure the "{scope}_address_id" exists (as in original activity):contentReference[oaicite:4]{index=4}
     col_name = f"{scope}_address_id"
+    logging.warning(f"""
+                ALTER TABLE {qtbl(settings["staging_table"])}
+                ADD COLUMN IF NOT EXISTS "{col_name}" UUID;
+            """)
     with safe_engine_connect(_engine()) as conn:
         conn.execute(text(
-            f'ALTER TABLE {qtbl(staging)} '
-            f'ADD COLUMN IF NOT EXISTS "{col_name}" UUID;'
+            f"""
+                ALTER TABLE {qtbl(settings["staging_table"])}
+                ADD COLUMN IF NOT EXISTS "{col_name}" UUID;
+            """
         ))
+        # ensure that the schema change is reflected in case of replica or differing connection
+        conn.execute(text(f"""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'sales'
+            AND table_name = '{staging.split('.')[-1]}'
+            AND column_name = '{col_name}';
+        """)).fetchone()
 
     # Build column list (skip blanks) — matches original stream_batches intent:contentReference[oaicite:5]{index=5}
     cols = [addr_map[k] for k in ["street","addr2","city","state","zipcode"] if (addr_map.get(k,'') != '')]
@@ -180,8 +194,10 @@ def activity_salesIngestor_enrichAddresses(settings: dict):
     col_name = f"{scope}_address_id"
     with eng.begin() as conn:
         conn.execute(text(
-            f'ALTER TABLE {qtbl(settings["staging_table"])} '
-            f'ADD COLUMN IF NOT EXISTS "{col_name}" UUID;'
+            f"""
+                ALTER TABLE {qtbl(settings["staging_table"])}
+                ADD COLUMN IF NOT EXISTS "{col_name}" UUID;
+            """
         ))
 
     cols = [addr_map[k] for k in ["street","addr2","city","state","zipcode"] if (addr_map.get(k,'') != '')]
@@ -221,6 +237,16 @@ def process_batch_fast(
     now called by parallel batch activities. Idempotent via address_id.
     """
     col_name = f"{scope}_address_id"
+
+    # Ensure the "{scope}_address_id" exists (as in original activity):contentReference[oaicite:4]{index=4}
+    col_name = f"{scope}_address_id"
+    with safe_engine_connect(_engine()) as conn:
+        conn.execute(text(
+            f"""
+                ALTER TABLE {staging_table}
+                ADD COLUMN IF NOT EXISTS "{col_name}" UUID;
+            """
+        ))
 
     # Ensure required columns exist in the batch frame
     for k in ['street', 'city', 'state', 'zipcode']:

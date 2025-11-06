@@ -56,4 +56,6 @@ def suborchestrator_salesIngestor_enrichAddresses(context: DurableOrchestrationC
         results.extend(batch_results)
         i += parallelism
 
+    logger.warning(f"{settings['scope']} enrichment complete.")
+
     return results

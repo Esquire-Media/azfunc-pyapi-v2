@@ -6,7 +6,9 @@ import pandas as pd
 import os
 from math import ceil
 import logging
-
+from sqlalchemy.exc import OperationalError
+from functools import lru_cache
+import time
 from libs.utils.smarty import bulk_validate
 from libs.utils.text import format_zipcode
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.generate_ids import (
@@ -22,14 +24,30 @@ bp = Blueprint()
 
 ADDRESS_TYPE_ID = uuid.UUID("fe694dd2-2dc4-452f-910c-7023438bb0ac")
 
+# Cache the engine for reuse within the function app process
+@lru_cache()
 def _engine():
     return create_engine(
-        os.environ["DATABIND_SQL_KEYSTONE"].replace("psycopg2", "psycopg"),      # postgresql+psycopg2://…
-        pool_pre_ping=True, 
+        os.environ["DATABIND_SQL_KEYSTONE"].replace("psycopg2", "psycopg"),
+        pool_pre_ping=True,
         pool_size=10,
-        max_overflow=20, 
+        max_overflow=20,
         future=True,
     )
+
+# Retry wrapper for transient connection errors (e.g. DNS failures)
+def safe_engine_connect(engine, retries=3, delay=2):
+    for attempt in range(retries):
+        try:
+            return engine.connect()
+        except OperationalError as e:
+            if "Temporary failure in name resolution" in str(e) or "could not translate host name" in str(e):
+                if attempt < retries - 1:
+                    time.sleep(delay * (2 ** attempt))  # exponential backoff
+                else:
+                    raise
+            else:
+                raise
 
 # ---------------------------------------------------------------------------------
 # (New) Activity: plan distinct-address batches with stable ORDER BY + OFFSET/LIMIT
@@ -48,8 +66,7 @@ def activity_salesIngestor_planAddressBatches(settings: dict):
 
     # Ensure the "{scope}_address_id" exists (as in original activity):contentReference[oaicite:4]{index=4}
     col_name = f"{scope}_address_id"
-    eng = _engine()
-    with eng.begin() as conn:
+    with safe_engine_connect(_engine()) as conn:
         conn.execute(text(
             f'ALTER TABLE {qtbl(staging)} '
             f'ADD COLUMN IF NOT EXISTS "{col_name}" UUID;'
@@ -66,7 +83,7 @@ def activity_salesIngestor_planAddressBatches(settings: dict):
     order_by    = ", ".join(quoted_cols)  # stable ordering over the same raw columns
 
     # Total distinct rows
-    with eng.connect() as conn:
+    with safe_engine_connect(_engine()) as conn:
         total = conn.execute(text(f"""
             SELECT COUNT(*) FROM (SELECT DISTINCT {select_list}
                                     FROM {qtbl(staging)}) t
@@ -84,7 +101,7 @@ def activity_salesIngestor_planAddressBatches(settings: dict):
     logger.info(f"[LOG] Address plan scope={scope}, cols={cols}, total={total}, batches={num_batches}")
 
     # After calculating total distinct addresses
-    min_p, max_p = 2, 50
+    min_p, max_p = 2, 10
     if total < 5000:
         suggested_parallelism = min_p
     elif total < 50000:

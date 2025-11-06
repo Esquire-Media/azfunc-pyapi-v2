@@ -69,4 +69,7 @@ def orchestrator_esquireAudiences_uploader(
             )
 
     # Wait for both to complete (order preserved)
-    yield context.task_all(tasks)
+    all_results = yield context.task_all(tasks)
+
+    if any(type(res) == dict for res in all_results):
+        return [res for res in all_results if type(res) == dict][0]

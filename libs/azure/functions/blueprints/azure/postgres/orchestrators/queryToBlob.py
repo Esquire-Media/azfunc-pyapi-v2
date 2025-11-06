@@ -1,9 +1,6 @@
-# File: /libs/azure/functions/blueprints/azure/postgres/queryToBlob.py
-
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 
 bp = Blueprint()
-import logging
 
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_azurePostgres_queryToBlob(context: DurableOrchestrationContext):
@@ -17,22 +14,50 @@ def orchestrator_azurePostgres_queryToBlob(context: DurableOrchestrationContext)
     #         "container_name": "your-azure-blob-container",
     #         "blob_prefix": "blob/prefix",
     #         "format": "CSV",
-    #     }
+    #     },
+    #     "limit": 10000
     # }
-    logging.warning('[LOG] Getting Record Count')
-    ingress = context.get_input()
+    ingress: dict = context.get_input() or {}
+
     count = yield context.call_activity(
-        "activity_azurePostgres_getRecordCount", ingress["source"]
+        "activity_azurePostgres_getRecordCount",
+        ingress["source"],
     )
-    logging.warning('[LOG] Sending Result to Blob')
-    limit = ingress.get("limit", 1000)
-    urls = yield context.task_all(
-        [
+
+    # Ensure a sane, positive limit
+    raw_limit = ingress.get("limit", 50000)
+    try:
+        limit = int(raw_limit)
+    except (TypeError, ValueError):
+        limit = 50000
+    if limit <= 0:
+        limit = 50000
+
+    dest = ingress["destination"]
+    prefix = dest["blob_prefix"]
+    ext = dest["format"].lower()
+
+    # Build deterministic work items with precomputed blob names
+    tasks = []
+    for offset in range(0, count, limit):
+        blob_name = f"{prefix}/offset-{offset}.{ext}"
+        payload = {
+            "source": ingress["source"],
+            "destination": {**dest, "blob_name": blob_name},
+            "limit": limit,
+            "offset": offset,
+        }
+        tasks.append(
             context.call_activity(
                 "activity_azurePostgres_resultToBlob",
-                {**ingress, "limit": limit, "offset": i},
+                payload,
             )
-            for i in range(0, count, limit)
-        ]
-    )
-    return urls
+        )
+
+    if not tasks:
+        # No rows matched, nothing to upload
+        return []
+
+    # Each activity returns: {"offset", "blob_name", "url"}
+    results = yield context.task_all(tasks)
+    return results

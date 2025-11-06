@@ -16,18 +16,24 @@ def activity_esquireAudienceMeta_customAudience_get(ingress: dict):
     Retrieves a Facebook Custom Audience by id.
     Returns the audience with name/description/operation_status/id for deterministic orchestration.
     """
-    return (
-        CustomAudience(
-            fbid=ingress["audience"]["audience"],
-            api=initialize_facebook_api(ingress),
+    try:
+        res = (
+            CustomAudience(
+                fbid=ingress["audience"]["audience"],
+                api=initialize_facebook_api(ingress),
+            )
+            .api_get(
+                fields=[
+                    CustomAudience.Field.id,
+                    CustomAudience.Field.name,
+                    CustomAudience.Field.description,
+                    CustomAudience.Field.operation_status,
+                ]
+            )
+            .export_all_data()
         )
-        .api_get(
-            fields=[
-                CustomAudience.Field.id,
-                CustomAudience.Field.name,
-                CustomAudience.Field.description,
-                CustomAudience.Field.operation_status,
-            ]
-        )
-        .export_all_data()
-    )
+        return res
+    except Exception as e:
+        return {
+            'error': f"getCustomAudience Error {e.http_status()} : {e.api_error_message()}"
+        }

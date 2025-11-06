@@ -398,10 +398,13 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
                 }
             )
 
-            yield context.call_sub_orchestrator(
+            res = yield context.call_sub_orchestrator(
                 "orchestrator_esquireAudiences_uploader",
                 build,
             )
+            if type(res) == dict:
+                if 'error' in res.keys():
+                    raise RuntimeError(res['error'])
 
             # Summarize the newly produced run (from storage)
             post_prefix = yield context.call_activity(
@@ -517,7 +520,7 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
     external_event_task = context.wait_for_external_event("restart")
     winner = yield context.task_any([timer_task, external_event_task])
     if winner == external_event_task:
-        timer_task.cancel()
+        timer_task.cancel() # type: ignore
         settings = json.loads(winner.result)
         if "history" not in settings:
             settings["history"] = history

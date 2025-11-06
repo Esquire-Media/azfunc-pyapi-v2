@@ -36,6 +36,11 @@ def orchestrator_rooftopPolys(
         pd.concat([pd.DataFrame(cache) for cache in cached_polys]).reindex().to_dict()
     )
 
+    try:
+        cached_poly_set = set(cached_polys.get("query", []).values())
+    except:
+        cached_poly_set = set()
+
     ## sending just one thing for now
     new_polys = yield context.task_all(
         [
@@ -45,7 +50,7 @@ def orchestrator_rooftopPolys(
                 input_=batch,
             )
             for batch in batcher(
-                list(set(addresses) - set(cached_polys.get("query", []).values())),
+                list(set(addresses) - cached_poly_set),
                 50,
             )
         ]

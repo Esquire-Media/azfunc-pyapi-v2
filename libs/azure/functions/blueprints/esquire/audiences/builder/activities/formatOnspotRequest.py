@@ -1,5 +1,3 @@
-# File: /libs/azure/functions/blueprints/esquire/audiences/builder/activities/formatOnspotRequest.py
-
 from azure.durable_functions import Blueprint
 from azure.storage.blob import (
     BlobClient,

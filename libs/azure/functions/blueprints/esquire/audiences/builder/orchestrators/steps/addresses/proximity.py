@@ -1,6 +1,5 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
-import pandas as pd
-# import logging
+
 bp = Blueprint()
 
 
@@ -16,6 +15,10 @@ def orchestrator_esquireAudiencesSteps_ownedLocationRadius(
         "activity_esquireAudiencesNeighbors_findTenantOwnedLocations",
         ingress
     )
+    if not ingress["owned_locations"] or not len(ingress["owned_locations"]):
+        raise Exception(
+            "No market owned locations found; unable to complete Proximity step."
+        )
 
     # Step 2: Fan out radius filtering for each sales blob
     filter_tasks = [
@@ -30,6 +33,10 @@ def orchestrator_esquireAudiencesSteps_ownedLocationRadius(
         for url in ingress["source_urls"]
     ]
     results = yield context.task_all(filter_tasks)
+    if not results or not len(results):
+        raise Exception(
+            f"No addresses found within {ingress.get('radius_miles', 10)} miles of market owned locations; unable to complete Proximity step."
+        )
 
     # Step 3: Fan out writing blobs
     write_tasks = [

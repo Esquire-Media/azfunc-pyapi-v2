@@ -1,382 +1,415 @@
-# File: /libs/azure/functions/blueprints/esquire/audiences/builder/activities/fetchAudience.py
+from __future__ import annotations
+
+import json
+import logging
+import re
+from typing import Any, Dict, List, Union, Optional
 
 from azure.durable_functions import Blueprint
-from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
-    jsonlogic_to_sql,
-)
-# import logging
-from datetime import datetime, timedelta, timezone
 
 bp = Blueprint()
 
+Json = Union[Dict[str, Any], List[Any], str, int, float, bool, None]
+
 
 @bp.activity_trigger(input_name="ingress")
-def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: dict):
+def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: dict) -> str:
     """
-    Build a wide-form SQL string (PostgreSQL) without *_attrs JSON blobs.
-    - Pivots requested fields for BOTH transaction and line_item.
-    - Pulls tenant_id from the parent sales_batch (via t.batch_id) and prefers that.
-    - Always adds the 6 billing address columns.
+    Build the primary SQL for the Sales Audience using the `sales.query_eav(...)` pattern and
+    JSONLogic-style filters.
+
+    Updates per requirements:
+    - Prefer the tenant specified inside ingress["audience"]["dataFilter"] (JSONLogic) if present.
+      Only fall back to ingress["tenant_id"] when JSONLogic does not provide a tenant.
+      If neither is present, we raise a clear error.
+    - ingress["audience"]["dataFilter"] may be a JSON string or an object (both supported).
+    - `days_back` is optional. If present (either in JSONLogic or ingress fallback), we add:
+          sale_date >= NOW() - INTERVAL '<days_back> DAY'
+      If not present anywhere, we do **not** apply a date filter.
+    - Address-scoped vars: city, state_abbreviation, zipcode
+    - Transaction-scoped vars: store_location, brand, category, description, default_sale_amount
+    - Custom dynamic attribute/value support:
+        The attribute **name** comes from `custom.field`, and the **value** used in comparisons
+        comes from either `custom.numeric_value` or `custom.text_value`.
+
+        Examples:
+          {"and":[
+            {"==":[{"var":"custom.field"},"brand"]},
+            {"in":[{"var":"custom.text_value"},["Sealy","Serta"]]}
+          ]}
+            → filters: brand IN ["Sealy","Serta"]
+
+          {"and":[
+            {"==":[{"var":"custom.field"},"default_sale_amount"]},
+            {">":[{"var":"custom.numeric_value"},0]}
+          ]}
+            → filters: default_sale_amount > 0
+
+        Notes:
+        - We ignore invalid attribute names (must match ^[A-Za-z_][A-Za-z0-9_]*$) with a warning.
+        - If multiple custom value constraints exist, they are ANDed together for the chosen field.
+
+    Supported simple JSONLogic atoms: ==, !=, >, <, >=, <=, in
+    Supported shapes for atoms:
+      { "<op>": [ {"var":"name"}, <const> ] }
+      { "<op>": [ <const>, {"var":"name"} ] }  # normalized by inverting order-sensitive ops
+
+    The generated SQL mirrors the provided "new query" and injects predicates dynamically.
     """
-    """
-    Wide-form SQL (PostgreSQL) without *_attrs JSON blobs.
-    - Pivots requested fields for BOTH transaction and line_item.
-    - Pulls tenant_id from the parent sales_batch (prefers batch).
-    - Includes address columns from either billing or shipping per ingress['address_source'].
-    - Applies optional audience filter via jsonlogic_to_sql on the final wide result.
-    """
-    tenant_id = ingress['tenant_id']
 
-    # ---------- helpers ----------
-    def _sql_lit(val: str) -> str:
-        return str(val).replace("'", "''")
-
-    def _ident(val: str) -> str:
-        return '"' + str(val).replace('"', '""') + '"'
-
-    def _mk_value_expr(prefix: str = "eav") -> str:
-        return (
-            "CASE a.data_type "
-            " WHEN 'string'      THEN {p}.value_string "
-            " WHEN 'numeric'     THEN ({p}.value_numeric)::text "
-            " WHEN 'boolean'     THEN ({p}.value_boolean)::text "
-            " WHEN 'timestamptz' THEN ({p}.value_ts)::text "
-            " WHEN 'jsonb'       THEN ({p}.value_jsonb)::text "
-            " END"
-        ).format(p=prefix)
-
-    # do not create coalescences or the like for address based information. just keep it in the final where
-    fields = list(field for field in ingress.get("fields") if field not in ["days_back", "zipcode", "state_abbreviation", "city_name", "plus4_code", "latitude", "longitude"] or [])
-
-    depth = (ingress.get("depth") or "line_item").lower()
-    if depth not in ("transaction", "line_item"):
-        raise ValueError("ingress['depth'] must be 'transaction' or 'line_item'")
-
-    # address source: "billing" or "shipping"
-    addr_source = (ingress.get("address_source") or "billing").lower()
-    if addr_source not in ("billing", "shipping"):
-        raise ValueError("ingress['address_source'] must be 'billing' or 'shipping'")
-    addr_attr_name = f"{addr_source}_address_id"  # e.g. billing_address_id / shipping_address_id
-
-    tenant_lit = _sql_lit(tenant_id)
-    addr_attr_name_lit = _sql_lit(addr_attr_name)
-
-    # get 30 days prior to run (based on orchestrator context utc datetime for replay)
-    days_back = ingress.get("days_back", 30)
-    utc_now = ingress.get("utc_now")
-    # logging.warning(f"[LOG] utc_now: {utc_now}")
-    since_dt = datetime.strptime(utc_now, "%Y-%m-%d %H:%M:%S.%f%z") - timedelta(days=days_back)
-    # logging.warning(f"[LOG] since_dt: {since_dt}")
-    since_utc_lit = _sql_lit(since_dt.isoformat())
-    # logging.warning(f"[LOG] since_utc_lit: {since_utc_lit}")
-
-    # ---------- dynamic LATERALs for tx & li ----------
-    def _build_attrs_lateral(alias: str, entity_ref: str) -> str:
-        if not fields:
-            return ""
-        key_list = ", ".join("'" + _sql_lit(f) + "'" for f in fields)
-        val_expr = _mk_value_expr("eav")
-
-        cols = []
-        for f in fields:
-            cols.append(
-                f"MAX(CASE COALESCE(chm.mapped_header, a.name) "
-                f"        WHEN '{_sql_lit(f)}' THEN {val_expr} END) AS {_ident(f)}"
+    # -----------------------------
+    # Parse JSONLogic (string or object)
+    # -----------------------------
+    raw_logic: Any = (ingress.get("audience") or {}).get("dataFilterRaw") or {}
+    if isinstance(raw_logic, str):
+        try:
+            json_logic: Json = json.loads(raw_logic)
+        except Exception as e:
+            logging.warning(
+                "[AudiencePrimaryQuery] dataFilterRaw is a string but not valid JSON; "
+                "defaulting to empty JSONLogic. Error: %s",
+                e,
             )
-        cols_sql = ",\n      ".join(cols)
+            json_logic = {}
+    else:
+        json_logic = raw_logic
 
-        return f"""
-LEFT JOIN LATERAL (
-  SELECT
-      {cols_sql}
-  FROM sales.entity_attribute_values eav
-  JOIN sales.attributes a ON a.id = eav.attribute_id
-  LEFT JOIN sales.client_header_map chm
-    ON chm.attribute_id = a.id AND chm.tenant_id = '{tenant_lit}'
-  WHERE eav.entity_id = {entity_ref}
-    AND COALESCE(chm.mapped_header, a.name) IN ({key_list})
-) {alias} ON TRUE
-""".rstrip()
+    # Optional ingress fallback for days_back (used only if JSONLogic omits it)
+    ingress_days_back: Optional[int]
+    try:
+        ingress_days_back = int(ingress.get("days_back", "")) if ingress.get("days_back") is not None else None
+    except Exception:
+        ingress_days_back = None
 
-    tx_join_sql = _build_attrs_lateral("txw", "t.id")
-    li_join_sql = _build_attrs_lateral("liw", "li.line_item_id")
+    # -----------------------------
+    # JSONLogic helpers
+    # -----------------------------
+    def is_var(node: Any, name: Optional[str] = None) -> bool:
+        if isinstance(node, dict) and "var" in node:
+            return True if name is None else (node.get("var") == name)
+        return False
 
-    # ---------- batch (sales_batch) tenant_id ----------
-    batch_val = _mk_value_expr("eav")
-    batch_join_sql = f"""
-LEFT JOIN LATERAL (
-  SELECT
-      MAX(CASE COALESCE(chm.mapped_header, a.name)
-            WHEN 'tenant_id' THEN {batch_val} END) AS tenant_id
-  FROM sales.entity_attribute_values eav
-  JOIN sales.attributes a ON a.id = eav.attribute_id
-  LEFT JOIN sales.client_header_map chm
-    ON chm.attribute_id = a.id AND chm.tenant_id = '{tenant_lit}'
-  WHERE eav.entity_id = t.batch_id
-    AND COALESCE(chm.mapped_header, a.name) IN ('tenant_id')
-) batchw ON TRUE
-""".rstrip()
+    invert_op = {"<": ">", "<=": ">=", ">": "<", ">=": "<=", "==": "==", "!=": "!="}
 
-    # ---------- address lateral (fixed set) ----------
-    addr_fields = [
-        ("delivery_line_1"              , "delivery_line_1"),
-        ("delivery_line_2"              , "delivery_line_2"),
-        ("city_name"                    , "city_name"),
-        ("state_abbreviation"           , "state_abbreviation"),
-        ("zipcode"                      , "zipcode"),
-        ("plus4_code"                   , "plus4_code"),
-        ("latitude"                     , "latitude"),
-        ("longitude"                    , "longitude"),
-        ("street_name"                  , "street_name"),
-        ("primary_number"               , "primary_number")
-    ]
-    
-    addr_names_in = ", ".join("'" + _sql_lit(k) + "'" for k, _ in addr_fields)
-    addr_val = _mk_value_expr("eav")
-    addr_cols = []
-    for k, alias in addr_fields:
-        addr_cols.append(
-            f"MAX(CASE a.name WHEN '{_sql_lit(k)}' THEN {addr_val} END) AS {_ident(alias)}"
-        )
-    addr_cols_sql = ",\n      ".join(addr_cols)
+    # Collect constraints for non-special vars
+    collected: Dict[str, List[Dict[str, Any]]] = {}
 
-    addr_join_sql = f"""
-LEFT JOIN LATERAL (
-  SELECT
-      {addr_cols_sql}
-  FROM sales.entity_attribute_values eav
-  JOIN sales.attributes a ON a.id = eav.attribute_id
-  WHERE eav.entity_id = addr_e.id
-    AND a.name IN ({addr_names_in})
-) addrw ON TRUE
-""".rstrip()
+    def add_constraint(var_name: str, expr: Dict[str, Any]) -> None:
+        collected.setdefault(var_name, []).append(expr)
 
-    # ---------- SELECT list ----------
-    select_bits = []
-    for f in fields:
-        col = _ident(f)
-        if f == "tenant_id":
-            select_bits.append(f"COALESCE(batchw.tenant_id, txw.{col}, liw.{col}) AS {col}")
+    # Extract a single-tenant string value from JSONLogic if present as equality
+    def extract_tenant_id(node: Any) -> Optional[str]:
+        if isinstance(node, dict):
+            if "and" in node and isinstance(node["and"], list):
+                for child in node["and"]:
+                    v = extract_tenant_id(child)
+                    if isinstance(v, str):
+                        return v
+            elif "or" in node and isinstance(node["or"], list):
+                for child in node["or"]:
+                    v = extract_tenant_id(child)
+                    if isinstance(v, str):
+                        return v
+            elif len(node) == 1:
+                (op, val), = node.items()
+                if op == "==" and isinstance(val, list) and len(val) == 2:
+                    left, right = val
+                    if is_var(left, "tenant_id") and isinstance(right, str):
+                        return right
+                    if is_var(right, "tenant_id") and isinstance(left, str):
+                        return left
+        return None
+
+    # Extract days_back numeric (treat any comparator as a target window)
+    def extract_days_back(node: Any) -> Optional[int]:
+        if isinstance(node, dict):
+            if "and" in node and isinstance(node["and"], list):
+                for child in node["and"]:
+                    v = extract_days_back(child)
+                    if isinstance(v, int):
+                        return v
+            elif "or" in node and isinstance(node["or"], list):
+                for child in node["or"]:
+                    v = extract_days_back(child)
+                    if isinstance(v, int):
+                        return v
+            elif len(node) == 1:
+                (op, val), = node.items()
+                if op in {"==", ">=", "<=", ">", "<"} and isinstance(val, list) and len(val) == 2:
+                    left, right = val
+                    if is_var(left, "days_back") and isinstance(right, (int, float)):
+                        return int(right)
+                    if is_var(right, "days_back") and isinstance(left, (int, float)):
+                        return int(left)
+        return None
+
+    # -----------------------------
+    # Custom dynamic attribute/value accumulation
+    # -----------------------------
+    identifier_re = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+    custom_attr_name: Optional[str] = None
+    custom_value_exprs: List[Dict[str, Any]] = []
+
+    def handle_atom(op: str, left: Any, right: Any) -> None:
+        nonlocal custom_attr_name  # we assign to this in the function
+
+        # Allowed ops
+        if op not in {"==", "!=", ">", "<", ">=", "<=", "in"}:
+            return
+
+        # Normalize so variable is on the left (var <op> const)
+        if is_var(left) and not is_var(right):
+            var_name = left["var"]
+            const = right
+            norm_op = op
+        elif is_var(right) and not is_var(left):
+            var_name = right["var"]
+            const = left
+            norm_op = invert_op.get(op, op)
+            if op == "in":
+                # JSONLogic 'in' is (needle IN haystack). If var is haystack, ambiguous → skip.
+                return
         else:
-            if depth == "transaction":
-                select_bits.append(f"COALESCE(txw.{col}, liw.{col}) AS {col}")
-            else:
-                select_bits.append(f"COALESCE(liw.{col}, txw.{col}) AS {col}")
+            # both const or both vars → skip
+            return
 
-    # Always include address columns
-    select_bits.append("addrw.*")
-    inner_select_sql = ",\n  ".join(select_bits)
+        # We'll source tenant from JSONLogic specially; don't store here.
+        if var_name == "tenant_id":
+            return
 
-    # ---------- the wide SELECT ----------
-    wide_sql = f"""
-WITH etypes AS (
-  SELECT
-    (SELECT entity_type_id FROM sales.entity_types WHERE name = 'sales_batch') AS sales_batch_type_id,
-    (SELECT entity_type_id FROM sales.entity_types WHERE name = 'transaction') AS transaction_type_id,
-    (SELECT entity_type_id FROM sales.entity_types WHERE name = 'line_item')  AS line_item_type_id,
-    (SELECT entity_type_id FROM sales.entity_types WHERE name = 'address')    AS address_type_id
-),
-batches AS (
-  SELECT e.id
-  FROM sales.entities e
-  CROSS JOIN etypes t
-  WHERE e.entity_type_id = t.sales_batch_type_id
-    AND EXISTS (
-      SELECT 1
-      FROM sales.entity_attribute_values eav
-      WHERE eav.entity_id = e.id
-        AND eav.value_string = '{tenant_lit}'
-    )
-),
-tx AS (
-  SELECT e.id,
-         e.parent_entity_id AS batch_id
-  FROM sales.entities e
-  CROSS JOIN etypes t
-  WHERE e.entity_type_id = t.transaction_type_id
-    AND e.parent_entity_id IN (SELECT id FROM batches)
-    AND EXISTS (
-      SELECT 1
-      FROM sales.entity_attribute_values eav
-      JOIN sales.attributes a ON a.id = eav.attribute_id
-      LEFT JOIN sales.client_header_map chm
-        ON chm.attribute_id = a.id AND chm.tenant_id = '{tenant_lit}'
-      WHERE eav.entity_id = e.id
-        AND COALESCE(chm.mapped_header, a.name) = 'sale_date'
-        AND eav.value_ts > '{since_utc_lit}'::timestamptz
-    )
-),
-line_items AS (
-  SELECT li.id AS line_item_id, li.parent_entity_id AS transaction_id
-  FROM sales.entities li
-  CROSS JOIN etypes t
-  WHERE li.entity_type_id = t.line_item_type_id
-    AND li.parent_entity_id IN (SELECT id FROM tx)
-),
-addr_ids AS (
-  SELECT li.line_item_id AS line_item_id, eav.value_string AS addr_id
-  FROM line_items li
-  JOIN sales.entity_attribute_values eav ON eav.entity_id = li.line_item_id
-  JOIN sales.attributes a ON a.id = eav.attribute_id
-  WHERE a.name = '{addr_attr_name_lit}'
-)
-SELECT
-  {inner_select_sql}
-FROM line_items li
-JOIN tx t ON t.id = li.transaction_id
-LEFT JOIN addr_ids ai ON ai.line_item_id = li.line_item_id
-LEFT JOIN sales.entities addr_e
-  ON addr_e.entity_type_id = (SELECT address_type_id FROM etypes)
- AND addr_e.id::text = ai.addr_id
+        # days_back is handled specially (optional date filter); don't store here.
+        if var_name == "days_back":
+            return
 
-{tx_join_sql}
+        # --- Custom dynamic field/value handling ---
+        if var_name == "custom.field":
+            # Only accept equality to a string as the attribute name.
+            if norm_op == "==" and isinstance(const, str) and const.strip():
+                if identifier_re.fullmatch(const.strip()):
+                    custom_attr_name = const.strip()
+                else:
+                    logging.warning(
+                        "[AudiencePrimaryQuery] Ignoring custom.field with invalid attribute name: %r", const
+                    )
+            return
 
-{li_join_sql}
+        if var_name in {"custom.numeric_value", "custom.text_value"}:
+            # Treat these as value-side comparisons for the dynamic attribute chosen via custom.field.
+            # We just record the operator/constant pair; later we attach them to the resolved attribute.
+            custom_value_exprs.append({norm_op: const})
+            return
 
-{batch_join_sql}
+        # --- Default collection for regular vars ---
+        add_constraint(var_name, {norm_op: const})
 
-{addr_join_sql}
-""".strip()
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            if "and" in node and isinstance(node["and"], list):
+                for child in node["and"]:
+                    walk(child)
+                return
+            if "or" in node and isinstance(node["or"], list):
+                for child in node["or"]:
+                    walk(child)
+                return
+            if len(node) == 1:
+                (op, val), = node.items()
+                if isinstance(val, list) and len(val) == 2:
+                    handle_atom(op, val[0], val[1])
+                    return
+        # Non-dict or unsupported shapes are ignored.
 
-    ingress['audience']['dataFilter'] = remove_days_back_clause(ingress['audience']['dataFilter'])
-    # ---------- OUTER FILTER ----------
-    # build the select list with aliases but no duplicates
-    address_alias_map = {
-        "delivery_line_1": "address",
-        "city_name": "city",
-        "state_abbreviation": "state",
-        "plus4_code": "plus4Code",
-        "zipcode": "zipCode",
+    # Walk once to populate `collected` for non-special vars and custom dynamic pieces.
+    walk(json_logic)
+
+    # Resolve tenant preference: JSONLogic > ingress
+    tenant_from_logic = extract_tenant_id(json_logic)
+    if tenant_from_logic is not None:
+        tenant_id = tenant_from_logic
+    else:
+        # Only use ingress["tenant_id"] if JSONLogic tenant is absent
+        tenant_id = ingress.get("tenant_id")
+
+    if not tenant_id:
+        # Without a tenant, we cannot resolve attribute names or scope sales_batches.
+        raise ValueError(
+            "Missing tenant_id: not provided in JSONLogic and ingress['tenant_id'] is absent."
+        )
+
+    # Resolve days_back (may be None → no date predicate)
+    days_back = extract_days_back(json_logic)
+    if days_back is None:
+        days_back = ingress_days_back  # still possibly None
+
+    # -----------------------------
+    # Map vars to DB attributes
+    # -----------------------------
+    address_vars = {
+        "city": "city_name",
+        "state_abbreviation": "state_abbreviation",
+        "zipcode": "zipcode",
+    }
+    transaction_vars = {
+        "store_location": "store_location",
+        "brand": "brand",
+        "category": "category",
+        "description": "description",
+        "default_sale_amount": "default_sale_amount",
     }
 
-    # figure out all columns in typed CTE (fields + address columns)
-    # fields already comes from ingress
-    all_columns = list(fields) + [
-        "delivery_line_1",
-        "delivery_line_2",
-        "city_name",
-        "state_abbreviation",
-        "zipcode",
-        "plus4_code",
-        "latitude",
-        "longitude",
-        "street_name",
-        "primary_number"
-    ]
-
-    # build select clause
-    select_cols = []
-    for col in all_columns:
-        alias = address_alias_map.get(col)
-        if alias:
-            select_cols.append(f'typed."{col}" AS "{alias}"')
-        else:
-            select_cols.append(f'typed."{col}"')
-
-    # join into SQL
-    select_clause = ",\n  ".join(select_cols)
-
-    final_sql = f"""
-    WITH base AS (
-    {wide_sql}
-    ){build_typed_cte_from_filter(ingress['audience']['dataFilter'])}
-    SELECT
-      {select_clause}
-    FROM typed
-    WHERE {ingress['audience']['dataFilter']}
-    """.strip()
-
-    return final_sql
-
-import re
-
-def build_typed_cte_from_filter(data_filter: str) -> str:
-    """
-    Infer casts from a dataFilter clause and build a typed CTE
-    that only selects the casted/filter columns + address fields.
-    """
-
-    # Regex: find ("col" OP value...) patterns
-    pattern = r'"\s*([^"]+)\s*"\s*(=|!=|<>|>=|<=|>|<|IN|LIKE)\s*(\([^)]+\)|[^)ANDOR]+)'
-    matches = re.findall(pattern, data_filter)
-
-    casts = []
-    seen = set()
-
-    for col, op, val in matches:
-        if col in seen:
+    # -----------------------------
+    # Build JSON for address filters (appended via || to base)
+    # -----------------------------
+    address_filter_obj: Dict[str, Any] = {}
+    for var, db_attr in address_vars.items():
+        exprs = collected.get(var, [])
+        if not exprs:
             continue
-        seen.add(col)
+        address_filter_obj[db_attr] = exprs[0] if len(exprs) == 1 else {"and": exprs}
 
-        val = val.strip()
+    addr_filter_concat_sql = ""
+    if address_filter_obj:
+        addr_filter_json = json.dumps(address_filter_obj)
+        addr_filter_concat_sql = f" || '{addr_filter_json}'::jsonb"
 
-        # Decide cast type
-        if val.startswith("'") or op.upper() == "IN":
-            expr = f'    base."{col}"'
-        elif val.lower() in ("true", "false"):
-            expr = f'    base."{col}"::boolean AS "{col}"'
-        elif re.match(r"'?\d{4}-\d{2}-\d{2}.*'?", val):  # date-like
-            expr = f'    base."{col}"::timestamptz AS "{col}"'
-        elif re.match(r"^-?\d+(\.\d+)?$", val):          # number
-            expr = f'    base."{col}"::numeric AS "{col}"'
+    # -----------------------------
+    # Build JSON for transaction filters (excluding sale_date/parent link)
+    # -----------------------------
+    txn_attr_exprs: Dict[str, Any] = {}
+
+    # Explicit transaction vars
+    for var, db_attr in transaction_vars.items():
+        exprs = collected.get(var, [])
+        if not exprs:
+            continue
+        txn_attr_exprs[db_attr] = exprs[0] if len(exprs) == 1 else {"and": exprs}
+
+    # Attach custom dynamic field/value if present
+    if custom_attr_name and custom_value_exprs:
+        exprs = custom_value_exprs
+        if custom_attr_name in txn_attr_exprs:
+            existing = txn_attr_exprs[custom_attr_name]
+            if isinstance(existing, dict) and "and" in existing:
+                existing["and"].extend(exprs)
+            else:
+                txn_attr_exprs[custom_attr_name] = {
+                    "and": ([existing] if isinstance(existing, dict) else [existing]) + exprs
+                }
         else:
-            expr = f'    base."{col}"'
+            txn_attr_exprs[custom_attr_name] = exprs[0] if len(exprs) == 1 else {"and": exprs}
 
-        casts.append(expr)
+    # Render KV pairs for jsonb_build_object:
+    #   sales.resolve_attribute_name(c.tenant_id, '<attr>'), '<json>'::jsonb
+    txn_kv_pairs_sql_parts: List[str] = []
+    for db_attr, logic_obj in txn_attr_exprs.items():
+        expr_json = json.dumps(logic_obj)
+        txn_kv_pairs_sql_parts.append(
+            f"sales.resolve_attribute_name(c.tenant_id, '{db_attr}'), '{expr_json}'::jsonb"
+        )
 
-    # Always include address columns
-    addr_fields = [
-        "delivery_line_1", "delivery_line_2", "city_name", "state_abbreviation",
-        "zipcode", "plus4_code", "latitude", "longitude", "street_name", "primary_number"
-    ]
-    for col in addr_fields:
-        if col not in seen:  # avoid double inclusion
-            casts.append(f'    base."{col}"')
+    # Optional sale_date pair (only if days_back present)
+    sale_date_pair_sql = ""
+    if isinstance(days_back, int) and days_back >= 0:
+        sale_date_pair_sql = (
+            "sales.resolve_attribute_name(c.tenant_id, 'sale_date'), "
+            f"jsonb_build_object('>=', NOW() - INTERVAL '{int(days_back)} DAY')"
+        )
 
-    return (
-        ", typed AS (\n"
-        "  SELECT\n"
-        + ",\n".join(casts) +
-        "\n  FROM base\n)"
+    all_kv_pairs: List[str] = []
+    if sale_date_pair_sql:
+        all_kv_pairs.append(sale_date_pair_sql)
+    all_kv_pairs.extend(txn_kv_pairs_sql_parts)
+
+    txn_filter_kvs_sql = ""
+    if all_kv_pairs:
+        txn_filter_kvs_sql = ",\n      " + ",\n      ".join(all_kv_pairs)
+
+    # -----------------------------
+    # Final SQL
+    # -----------------------------
+    query = f"""
+WITH
+-- Centralize constants so they're easy to change.
+const AS (
+  SELECT
+    '{tenant_id}'::text AS tenant_id
+),
+-- Sales batches scoped to the tenant (prefer JSONLogic tenant, else ingress).
+sales_batches AS (
+  SELECT t.entity_id
+  FROM const c
+  CROSS JOIN sales.query_eav(
+    'sales_batch',
+    jsonb_build_object('tenant_id', jsonb_build_object('==', c.tenant_id))
+  ) AS t(entity_id uuid)
+),
+-- Transactions under those batches, filtered by optional date window and any txn-level predicates.
+transactions AS (
+  SELECT t.entity_id
+  FROM (
+    SELECT COALESCE(jsonb_agg(entity_id), '[]'::jsonb) AS ids
+    FROM sales_batches
+  ) b
+  CROSS JOIN const c
+  CROSS JOIN sales.query_eav(
+    'transaction',
+    jsonb_build_object(
+      'parent_entity_id', jsonb_build_object('in', b.ids)
+      {txn_filter_kvs_sql}
     )
+  ) AS t(entity_id uuid)
+),
+-- Collect distinct billing address ids from line items tied to those transactions.
+line_item_addresses AS (
+  SELECT DISTINCT li.billing_address_id
+  FROM (
+    SELECT COALESCE(jsonb_agg(entity_id), '[]'::jsonb) AS ids
+    FROM transactions
+  ) ti
+  CROSS JOIN sales.query_eav(
+    'line_item',
+    jsonb_build_object(
+      'parent_entity_id', jsonb_build_object('in', ti.ids)
+    ),
+    ARRAY['billing_address_id']
+  ) AS li(entity_id uuid, billing_address_id text)
+)
+-- Final address projection with consistent NULLIF handling and aliases.
+SELECT
+  NULLIF(a.delivery_line_1, 'NONE')    AS address,
+  NULLIF(a.delivery_line_2, 'NONE')    AS delivery_line_2,
+  NULLIF(a.city_name, 'NONE')          AS city,
+  NULLIF(a.state_abbreviation, 'NONE') AS state,
+  NULLIF(a.zipcode, 'NONE')            AS "zipCode",
+  NULLIF(a.plus4_code, 'NONE')         AS "plus4Code",
+  NULLIF(a.primary_number, 'NONE')     AS primary_number,
+  NULLIF(a.street_name, 'NONE')        AS street_name,
+  NULLIF(a.latitude, 'NONE')::float    AS latitude,
+  NULLIF(a.longitude, 'NONE')::float   AS longitude
+FROM (
+  SELECT COALESCE(jsonb_agg(billing_address_id), '[]'::jsonb) AS ids
+  FROM line_item_addresses
+) ai
+CROSS JOIN LATERAL sales.query_eav(
+  'address',
+  jsonb_build_object(
+    'entity_id', jsonb_build_object('in', ai.ids)
+  ){addr_filter_concat_sql},
+  ARRAY['delivery_line_1','delivery_line_2','city_name','state_abbreviation','zipcode','plus4_code','primary_number','street_name','latitude','longitude']
+) AS a(
+  entity_id uuid,
+  delivery_line_1 text,
+  delivery_line_2 text,
+  city_name text,
+  state_abbreviation text,
+  zipcode text,
+  plus4_code text,
+  primary_number text,
+  street_name text,
+  latitude text,
+  longitude text
+)
+""".strip()
 
-
-def remove_days_back_clause(data_filter: str) -> str:
-    import re
-    # Define a pattern for any comparison to "days_back"
-    operator_pattern = r'(=|!=|<>|>=|<=|<|>)'
-    clause_pattern = rf'\(*\s*"days_back"\s*{operator_pattern}\s*\d+\s*\)*'
-
-    # This function handles replacing and rebalancing
-    def balanced_removal(text):
-        # Remove logical connectors + clause
-        full_pattern = rf'''
-            # Middle
-            (\s+(AND|OR)\s+{clause_pattern})|
-            # Start
-            (^({clause_pattern})\s+(AND|OR)\s+)|
-            # End
-            (\s+(AND|OR)\s+{clause_pattern}$)|
-            # Only clause
-            (^({clause_pattern})$)
-        '''
-        cleaned = re.sub(full_pattern, '', text, flags=re.IGNORECASE | re.VERBOSE).strip()
-
-        # Final fallback: remove bare clause if missed
-        cleaned = re.sub(clause_pattern, '', cleaned, flags=re.IGNORECASE).strip()
-
-        # Remove dangling operators at start/end
-        cleaned = re.sub(r'^(AND|OR)\s+', '', cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r'\s+(AND|OR)$', '', cleaned, flags=re.IGNORECASE)
-
-        # Fix unbalanced parentheses
-        open_parens = cleaned.count('(')
-        close_parens = cleaned.count(')')
-        if open_parens > close_parens:
-            cleaned += ')' * (open_parens - close_parens)
-        elif close_parens > open_parens:
-            cleaned = '(' * (close_parens - open_parens) + cleaned
-
-        return cleaned
-
-    return balanced_removal(data_filter)
+    # Escape % for SQLAlchemy text() compatibility (keeps behavior consistent with prior code paths).
+    return query.replace("%", "%%")

@@ -47,7 +47,16 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
         dict: A dictionary containing the audience data along with the initial ingress data.
               The shape and ordering of derived fields are deterministic.
     """
-    enforce_bindings()
+    if not from_bind("keystone"):
+        register_binding(
+            "keystone",
+            "Structured",
+            "sql",
+            url=os.environ["DATABIND_SQL_KEYSTONE"],
+            schemas=["keystone"],
+            pool_size=1000,
+            max_overflow=100,
+        )
     provider = from_bind("keystone")
 
     Audience = provider.models["keystone"]["Audience"]

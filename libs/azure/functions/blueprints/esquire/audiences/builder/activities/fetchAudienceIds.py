@@ -5,6 +5,7 @@ from libs.data import register_binding, from_bind
 import os
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from libs.azure.functions.blueprints.esquire.audiences.builder.utils import enforce_bindings
 
 bp = Blueprint()
 

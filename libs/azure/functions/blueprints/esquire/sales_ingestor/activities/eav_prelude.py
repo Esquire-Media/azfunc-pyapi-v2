@@ -20,6 +20,8 @@ def activity_salesIngestor_eavPrelude(settings: dict):
     fields_map    = settings['fields']
     order_col     = fields_map['order_info']['order_num']
 
+    trim_whitespace_in_staging_table(staging_table)
+
     sql = f"""
 
     -- 1) Create or get the sales_batch entity
@@ -227,3 +229,23 @@ def activity_salesIngestor_eavPrelude(settings: dict):
         conn.execute(stmt)
         logger.info("[LOG] EAV Prelude complete")
         return "ok"
+
+def trim_whitespace_in_staging_table(table_name):
+    with db() as conn:
+        # Fetch all varchar/text columns
+        result = conn.execute(text(f"""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = :table_name
+              AND data_type IN ('character varying', 'text')
+        """), {"table_name": table_name})
+        
+        columns = [row[0] for row in result]
+
+        for column in columns:
+            conn.execute(text(f"""
+                UPDATE {table_name}
+                SET {column} = TRIM({column})
+                WHERE {column} IS NOT NULL
+            """))
+        conn.commit()

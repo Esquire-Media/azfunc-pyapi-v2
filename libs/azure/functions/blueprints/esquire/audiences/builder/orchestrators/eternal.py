@@ -505,8 +505,8 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
             # Re-raise to preserve Durable semantics / retries / diagnostics
             raise e
 
-    # Publish the next daily tick and sleep
-    next_tick = croniter("0 0 * * *", now).get_next(datetime.datetime)
+    # Publish the next tick and sleep
+    next_tick = croniter(ingress["audience"]["rebuildSchedule"], now).get_next(datetime.datetime)
     context.set_custom_status(
         {
             "state": "Sleeping",

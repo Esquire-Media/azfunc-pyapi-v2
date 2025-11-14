@@ -1,4 +1,5 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
+
 # import logging
 
 bp = Blueprint()
@@ -132,7 +133,11 @@ def orchestrator_esquireAudiences_finalize(
         [
             context.call_activity(
                 "activity_esquireAudienceBuilder_finalize",
-                {"source": source_url, "destination": egress["destination"]},
+                {
+                    "audience": ingress["audience"],
+                    "source": source_url,
+                    "destination": egress["destination"],
+                },
             )
             for source_url in source_urls
         ]

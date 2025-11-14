@@ -85,10 +85,11 @@ def _build_postgres_query(ds_cfg: Dict[str, Any], where_clause: str) -> str:
     Deterministically build a Postgres SELECT query string for non-EAV sources.
     """
     table_cfg = ds_cfg.get("table", {})
+    proj_conf = ds_cfg.get("query", {})
     schema = table_cfg.get("schema")
     schema_prefix = f"\"{schema}\"." if schema else ""
     table_name = f"\"{table_cfg.get('name', '').strip()}\""
-    return f"SELECT * FROM {schema_prefix}{table_name} WHERE {where_clause}"
+    return f"SELECT {proj_conf.get('select', '*')} FROM {schema_prefix}{table_name} WHERE {where_clause}"
 
 
 def _stable_sorted_urls(urls: List[str]) -> List[str]:

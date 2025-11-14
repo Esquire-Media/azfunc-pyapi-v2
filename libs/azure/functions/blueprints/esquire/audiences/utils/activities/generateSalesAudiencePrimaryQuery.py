@@ -299,19 +299,19 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
             txn_attr_exprs[custom_attr_name] = exprs[0] if len(exprs) == 1 else {"and": exprs}
 
     # Render KV pairs for jsonb_build_object:
-    #   sales.resolve_attribute_id(c.tenant_id, '<attr>'), '<json>'::jsonb
+    #   sales.resolve_attribute_ids(c.tenant_id, '<attr>'), '<json>'::jsonb
     txn_kv_pairs_sql_parts: List[str] = []
     for db_attr, logic_obj in txn_attr_exprs.items():
         expr_json = json.dumps(logic_obj)
         txn_kv_pairs_sql_parts.append(
-            f"sales.resolve_attribute_id(c.tenant_id, '{db_attr}'), '{expr_json}'::jsonb"
+            f"sales.resolve_attribute_ids(c.tenant_id, '{db_attr}'), '{expr_json}'::jsonb"
         )
 
     # Optional sale_date pair (only if days_back present)
     sale_date_pair_sql = ""
     if isinstance(days_back, int) and days_back >= 0:
         sale_date_pair_sql = (
-            "sales.resolve_attribute_id(c.tenant_id, 'sale_date'), "
+            "sales.resolve_attribute_ids(c.tenant_id, 'sale_date'), "
             f"jsonb_build_object('>=', NOW() - INTERVAL '{int(days_back)} DAY')"
         )
 
@@ -354,8 +354,7 @@ transactions AS (
   CROSS JOIN sales.query_eav(
     'transaction',
     jsonb_build_object(
-      'parent_entity_id', jsonb_build_object('in', b.ids)
-      {txn_filter_kvs_sql}
+      'parent_entity_id', jsonb_build_object('in', b.ids){txn_filter_kvs_sql}
     )
   ) AS t(entity_id uuid)
 ),

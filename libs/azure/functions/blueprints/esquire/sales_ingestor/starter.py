@@ -48,7 +48,7 @@ async def starter_salesIngestor(req: HttpRequest, client: DurableOrchestrationCl
         return HttpResponse(status_code=401, body=f"TokenValidationError: {e}")
     
     # extract user information from bearer token metadata
-    payload['user'] = headers['oid']
+    payload['uploader'] = headers.get("preferred_username")
     
     # start a new orchestration
     instance_id = await client.start_new(

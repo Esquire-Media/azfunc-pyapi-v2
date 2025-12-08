@@ -4,8 +4,8 @@ import logging
 from typing import Any, Dict, Optional, TypedDict
 
 from azure.durable_functions import Blueprint
-from libs.data import from_bind
-from libs.azure.functions.blueprints.esquire.audiences.builder.utils import enforce_bindings
+from libs.data import register_binding, from_bind
+import os
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
@@ -84,7 +84,16 @@ def activity_esquireAudiencesBuilder_putAudience(ingress: Dict[str, Any]) -> Dic
     """
     payload: Ingress = _parse_ingress(ingress)
 
-    enforce_bindings()
+    if not from_bind("keystone"):
+        register_binding(
+            "keystone",
+            "Structured",
+            "sql",
+            url=os.environ["DATABIND_SQL_KEYSTONE"],
+            schemas=["keystone"],
+            pool_size=1000,
+            max_overflow=100,
+        )
     provider = from_bind("keystone")
     Audience = provider.models["keystone"]["Audience"]  # SQLAlchemy mapped class
 

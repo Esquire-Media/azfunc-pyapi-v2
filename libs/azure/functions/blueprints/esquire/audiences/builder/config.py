@@ -51,7 +51,7 @@ MAPPING_DATASOURCE = {
             "name": "movers",
         },
         "query": {
-            "select": "add1 AS address, city, st AS state, zip as zipCode",
+            "select": "add1 AS address, city, st AS state, zip AS \"zipCode\"",
             "filter": lambda length, unit: f" AND keycode >= NOW() - INTERVAL {length} {unit[0]}"
         },
     },

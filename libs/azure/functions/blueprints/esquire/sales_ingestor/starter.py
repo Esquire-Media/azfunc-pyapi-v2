@@ -77,7 +77,7 @@ def validate_schema(settings):
     # required metadata information
     for metadata in [
         "tenant_id",
-        "upload_id",
+        "blob_id",
         "uploader",
         "upload_timestamp"
         ]:

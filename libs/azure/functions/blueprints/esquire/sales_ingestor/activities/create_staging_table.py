@@ -17,7 +17,7 @@ bp = Blueprint()
 def activity_salesIngestor_createStagingTable(settings: dict):
     logger.info(msg=f"[LOG] Creating Staging Table {qtbl(settings['table_name'])}")
 
-    blob_path = settings['metadata']['upload_id']
+    blob_path = settings['metadata']['blob_id']
     conn_str = os.environ['SALES_INGEST_CONN_STR']
     chunk_size = 10 * 1024 * 1024
     container = 'ingest'

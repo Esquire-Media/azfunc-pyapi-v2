@@ -21,7 +21,7 @@ bp = Blueprint()
 def activity_salesIngestor_streamArrow(settings: dict):
     logger.info(msg=f"[LOG] Streaming blob to staging table {qtbl(settings['table_name'])}")
 
-    blob_path = settings['metadata']['upload_id']
+    blob_path = settings['metadata']['blob_id']
     conn_str = os.environ['SALES_INGEST_CONN_STR']
     chunk_size = 10 * 1024 * 1024
     container = 'ingest'

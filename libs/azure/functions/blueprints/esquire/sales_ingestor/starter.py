@@ -77,7 +77,7 @@ def validate_schema(settings):
     # required metadata information
     for metadata in [
         "tenant_id",
-        "blob_id",
+        "blob_id"
         ]:
         if not settings['metadata'].get(metadata,""):
             return {"status": "error", "error": f"Missing {metadata} metadata"}

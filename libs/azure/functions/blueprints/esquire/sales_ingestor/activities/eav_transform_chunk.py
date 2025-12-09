@@ -105,8 +105,9 @@ def activity_salesIngestor_eavTransformChunk(settings: dict):
             MIN(to_jsonb(lid) ->> ai.attribute_name) AS column_value
         FROM line_item_data AS lid
         JOIN attribute_info AS ai
-          ON ai.entity_type_id = (SELECT entity_type_id FROM entity_types WHERE name = 'transaction')
-         AND to_jsonb(lid) ? ai.attribute_name
+        ON ai.entity_type_id = (SELECT entity_type_id FROM entity_types WHERE name = 'transaction')
+        AND to_jsonb(lid) ? ai.attribute_name
+        AND ai.attribute_name <> 'shipping_address_id'
         GROUP BY lid.transaction_entity_id, ai.attribute_id, ai.data_type
     ),
     unpivoted_line AS (
@@ -117,8 +118,9 @@ def activity_salesIngestor_eavTransformChunk(settings: dict):
             to_jsonb(lid) ->> ai.attribute_name AS column_value
         FROM line_item_data AS lid
         JOIN attribute_info AS ai
-          ON ai.entity_type_id = (SELECT entity_type_id FROM entity_types WHERE name = 'line_item')
-         AND to_jsonb(lid) ? ai.attribute_name
+        ON ai.entity_type_id = (SELECT entity_type_id FROM entity_types WHERE name = 'line_item')
+        AND to_jsonb(lid) ? ai.attribute_name
+        AND ai.attribute_name <> 'billing_address_id'
     ),
     attribute_values AS (
         SELECT DISTINCT ON (entity_id, attribute_id)

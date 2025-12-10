@@ -43,6 +43,10 @@ class Observations:
         data['EarliestDate'] = data['Date'].apply(lambda x: get_date_by_week_offset(x, 0))
         data['LatestDate'] = data['Date'].apply(lambda x: get_date_by_week_offset(x, 6))
         data['RefDate'] = data['Date'].apply(lambda x: get_date_by_week_offset(x, 3))
+        # enforce datetime format
+        data['EarliestDate'] = pd.to_datetime(data['EarliestDate'])
+        data['LatestDate'] = pd.to_datetime(data['LatestDate'])
+        data['RefDate'] = pd.to_datetime(data['RefDate'])
 
         # format as a weekly count (used for most of the summary stats)
         self.obs = data.pivot_table(

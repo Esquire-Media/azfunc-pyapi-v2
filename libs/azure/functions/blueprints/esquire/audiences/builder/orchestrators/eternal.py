@@ -305,17 +305,6 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
             ran_at = datetime.datetime(1970, 1, 1)
         ran_at_iso = _safe_iso(ran_at)
 
-        # Count result files in newest folder
-        paths = yield context.call_activity(
-            "activity_esquireAudiencesUtils_newestAudienceBlobPaths",
-            {
-                "conn_str": ingress["destination"]["conn_str"],
-                "container_name": ingress["destination"]["container_name"],
-                "audience_id": ingress["audience"]["id"],
-            },
-        )
-        file_count = len(paths) if isinstance(paths, list) else None
-
         # Count distinct MAIDs in that folder (Synapse OPENROWSET)
         device_count = None
         try:
@@ -348,7 +337,6 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
         latest_summary = {
             "ran_at": ran_at_iso,
             "prefix": audience_blob_prefix,
-            "file_count": file_count,
             "device_count": device_count,
         }
 
@@ -416,28 +404,9 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
                 },
             )
 
-            # Try to count files quickly
-            post_paths = yield context.call_activity(
-                "activity_esquireAudiencesUtils_newestAudienceBlobPaths",
-                {
-                    "conn_str": build["destination"]["conn_str"],
-                    "container_name": build["destination"]["container_name"],
-                    "audience_id": build["audience"]["id"],
-                },
-            )
-            post_file_count = len(post_paths) if isinstance(post_paths, list) else None
-
             post_summary = {
                 "ran_at": _safe_iso(now),
                 "prefix": post_prefix,
-                "file_count": {
-                    "actual": post_file_count,
-                    "expected": (
-                        len(build.get("results") or [])
-                        if isinstance(build.get("results"), list)
-                        else None
-                    ),
-                },
                 "device_count": (build.get("audience", {}) or {}).get("count"),
                 "targets": targets,
                 "query_hash": _hash_query(build.get("query")),
@@ -467,7 +436,6 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
                     "ran_at": _safe_iso(now),
                     "error": str(e),
                     "prefix": None,
-                    "file_count": None,
                     "device_count": None,
                 },
             )

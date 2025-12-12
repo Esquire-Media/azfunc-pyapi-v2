@@ -1,5 +1,3 @@
-# File: /libs/azure/functions/blueprints/esquire/audiences/builder/activities/fetchAudience.py
-
 from __future__ import annotations
 
 from azure.durable_functions import Blueprint
@@ -109,6 +107,7 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
             return {
                 **ingress,
                 "advertiser": {
+                    "freewheel": getattr(adv, "freewheel", None),
                     "meta": getattr(adv, "meta", None),
                     "xandr": getattr(adv, "xandr", None),
                 },

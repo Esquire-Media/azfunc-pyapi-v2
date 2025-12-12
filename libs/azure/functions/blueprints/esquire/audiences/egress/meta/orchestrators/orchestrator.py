@@ -1,5 +1,3 @@
-# File path: /libs/azure/functions/blueprints/esquire/audiences/egress/meta/orchestrator.py
-
 from __future__ import annotations
 
 from datetime import timedelta

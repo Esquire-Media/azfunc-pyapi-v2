@@ -36,7 +36,8 @@ def activity_faf_filter_devices_blob(ingress: dict):
     source_url = ingress["source_url"]
     destination = ingress["destination"]
     output_name = ingress["output_name"]  # deterministic (e.g. {source_key}.csv)
-    thresholds = ingress.get("thresholds", {})
+    min_count = int(ingress.get("min_count", 2))
+    top_n = ingress.get("top_n")
 
     dst_blob_name = f"{destination['blob_prefix']}/{output_name}"
 
@@ -67,8 +68,7 @@ def activity_faf_filter_devices_blob(ingress: dict):
     batch = io.StringIO(newline="")
     w = csv.writer(batch)
 
-    min_count = int(thresholds.get("min_count", 1))
-    top_n = thresholds.get("top_n")
+
 
     candidates = []  # bounded to top_n
     max_seen = 0

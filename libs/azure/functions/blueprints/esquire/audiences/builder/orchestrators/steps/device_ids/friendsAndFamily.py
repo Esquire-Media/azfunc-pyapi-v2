@@ -100,7 +100,8 @@ def orchestrator_esquireAudiencesSteps_addresses2friendsandfamily_deviceids(
                     "blob_prefix": f"{ingress['destination']['blob_prefix']}/1",
                 },
                 "output_name": f"{source_key}.csv",
-                "thresholds": ingress["process"].get("thresholds", {}),
+                "min_count": ingress.get('process', {}).get("thresholds", {}),
+                "top_n_per_loc": ingress.get('process', {}).get("thresholds", {})
             },
         )
 

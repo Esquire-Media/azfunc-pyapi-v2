@@ -67,34 +67,49 @@ def activity_faf_filter_devices_blob(ingress: dict):
     batch = io.StringIO(newline="")
     w = csv.writer(batch)
 
-    min_count = int(thresholds.get("min_count", 2))
-    max_devices = thresholds.get("max_devices_per_source")  # optional
+    min_count = int(thresholds.get("min_count", 1))
+    top_n = thresholds.get("top_n")
 
-    kept = 0
+    candidates = []  # bounded to top_n
+    max_seen = 0
 
     for row in reader:
         try:
             deviceid = row.get("deviceid")
             count = int(row.get("count", 0))
-
             if not deviceid:
                 continue
             if count < min_count:
                 continue
+
+
         except Exception:
             continue
 
+        max_seen = max(max_seen, count)
+
+        # Insert into top-N list (descending by count)
+        if top_n:
+            inserted = False
+            for i, (_, c) in enumerate(candidates):
+                if count > c:
+                    candidates.insert(i, (deviceid, count))
+                    inserted = True
+                    break
+            if not inserted:
+                candidates.append((deviceid, count))
+
+            # trim
+            if len(candidates) > top_n:
+                candidates.pop()
+        else:
+            candidates.append((deviceid, count))
+
+    # Write output
+    for deviceid, _ in candidates:
         w.writerow([deviceid])
-        kept += 1
+        written += 1
 
-        if max_devices and kept >= max_devices:
-            break
-
-
-        if batch.tell() > 256_000:  # flush ~256KB
-            dst.append_block(batch.getvalue().encode("utf-8"))
-            batch = io.StringIO(newline="")
-            w = csv.writer(batch)
 
     if batch.tell() > 0:
         dst.append_block(batch.getvalue().encode("utf-8"))

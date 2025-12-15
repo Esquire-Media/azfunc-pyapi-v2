@@ -38,10 +38,6 @@ def activity_faf_filter_devices_blob(ingress: dict):
     output_name = ingress["output_name"]  # deterministic (e.g. {source_key}.csv)
     thresholds = ingress.get("thresholds", {})
 
-    min_visits = int(thresholds.get("min_visits", 1))
-    min_distinct_days = int(thresholds.get("min_distinct_days", 1))
-    min_dwell = float(thresholds.get("min_dwell_minutes", 0))
-
     dst_blob_name = f"{destination['blob_prefix']}/{output_name}"
 
     src = BlobClient.from_blob_url(source_url)

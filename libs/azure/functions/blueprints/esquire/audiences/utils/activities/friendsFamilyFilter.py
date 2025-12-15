@@ -71,24 +71,29 @@ def activity_faf_filter_devices_blob(ingress: dict):
     batch = io.StringIO(newline="")
     w = csv.writer(batch)
 
+    min_count = int(thresholds.get("min_count", 2))
+    max_devices = thresholds.get("max_devices_per_source")  # optional
+
+    kept = 0
+
     for row in reader:
         try:
-            if "visits" in row and int(row["visits"]) < min_visits:
-                continue
-            if "distinct_days" in row and int(row["distinct_days"]) < min_distinct_days:
-                continue
-            if "avg_dwell_minutes" in row and float(row["avg_dwell_minutes"]) < min_dwell:
-                continue
-
             deviceid = row.get("deviceid")
+            count = int(row.get("count", 0))
+
             if not deviceid:
+                continue
+            if count < min_count:
                 continue
         except Exception:
             continue
 
-
         w.writerow([deviceid])
-        written += 1
+        kept += 1
+
+        if max_devices and kept >= max_devices:
+            break
+
 
         if batch.tell() > 256_000:  # flush ~256KB
             dst.append_block(batch.getvalue().encode("utf-8"))

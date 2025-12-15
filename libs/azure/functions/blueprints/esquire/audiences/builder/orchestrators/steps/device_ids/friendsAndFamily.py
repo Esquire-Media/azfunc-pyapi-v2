@@ -57,7 +57,7 @@ def orchestrator_esquireAudiencesSteps_addresses2friendsandfamily_deviceids(
                     "onspot_orchestrator",
                     retry,
                     {
-                        "endpoint": "/save/geoframe/all/devices",
+                        "endpoint": "/save/geoframe/all/countgroupedbydevice",
                         "request": fc,
                         "conn_str": ingress["working"]["conn_str"],
                         "container_name": ingress["working"]["container_name"],

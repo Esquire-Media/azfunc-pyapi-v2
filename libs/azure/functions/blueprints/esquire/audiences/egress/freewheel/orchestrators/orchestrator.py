@@ -200,7 +200,24 @@ def freewheel_segment_orchestrator(
     max_append_block_bytes = ingress.get("max_append_block_bytes")
     delete_after_upload = ingress.get("delete_after_upload", True)
 
-    s3_paths: List[str] = []
+    segment_blob_spec = _build_segment_blob_spec(
+        audience_id=audience_id,
+        storage=storage_cfg,
+        context=context,
+    )
+
+    _set_status(
+        context,
+        phase="initializing_segment_blob",
+        audience_id=audience_id,
+        segment_blob_name=segment_blob_spec["blob_name"],
+        blob_count=total_blobs,
+    )
+
+    yield context.call_activity(
+        "activity_esquireAudienceFreewheel_initSegmentBlob",
+        {"segment_blob": segment_blob_spec},
+    )
 
     _set_status(
         context,
@@ -212,30 +229,12 @@ def freewheel_segment_orchestrator(
         continent=continent,
         s3_bucket=beeswax["bucket"],
         s3_region=beeswax["region"],
+        segment_blob_name=segment_blob_spec["blob_name"],
     )
 
+    # Append all source blobs into the single staging append blob
     for blob_index, blob_name in enumerate(blob_names):
         source_blob_spec = _build_source_blob_spec(storage_cfg, blob_name)
-        segment_blob_spec = _build_segment_blob_spec(
-            audience_id=audience_id,
-            storage=storage_cfg,
-            context=context,
-        )
-
-        _set_status(
-            context,
-            phase="initializing_segment_blob",
-            audience_id=audience_id,
-            blob_index=blob_index,
-            blob_total=total_blobs,
-            source_blob_name=source_blob_spec["blob_name"],
-            segment_blob_name=segment_blob_spec["blob_name"],
-        )
-
-        yield context.call_activity(
-            "activity_esquireAudienceFreewheel_initSegmentBlob",
-            {"segment_blob": segment_blob_spec},
-        )
 
         generate_input: Dict[str, Any] = {
             "audience": audience_cfg,
@@ -260,33 +259,24 @@ def freewheel_segment_orchestrator(
             generate_input,
         )
 
-        _set_status(
-            context,
-            phase="uploading_segment_to_s3",
-            audience_id=audience_id,
-            blob_index=blob_index,
-            blob_total=total_blobs,
-            segment_blob_name=segment_blob_spec["blob_name"],
-        )
+    # Upload the single staged segment file to S3 once
+    _set_status(
+        context,
+        phase="uploading_segment_to_s3",
+        audience_id=audience_id,
+        segment_blob_name=segment_blob_spec["blob_name"],
+    )
 
-        s3_path: str = yield context.call_activity(
-            "activity_esquireAudienceFreewheel_uploadSegmentToS3",
-            {
-                "segment_blob": segment_blob_spec,
-                "destination": aws_destination,
-                "delete_after_upload": delete_after_upload,
-            },
-        )
-        s3_paths.append(s3_path)
+    s3_path: str = yield context.call_activity(
+        "activity_esquireAudienceFreewheel_uploadSegmentToS3",
+        {
+            "segment_blob": segment_blob_spec,
+            "destination": aws_destination,
+            "delete_after_upload": delete_after_upload,
+        },
+    )
 
-        _set_status(
-            context,
-            phase="segment_uploaded_to_s3",
-            audience_id=audience_id,
-            blob_index=blob_index,
-            blob_total=total_blobs,
-            s3_path=s3_path,
-        )
+    s3_paths: List[str] = [s3_path]
 
     _set_status(
         context,
@@ -294,6 +284,7 @@ def freewheel_segment_orchestrator(
         audience_id=audience_id,
         segment_file_count=len(s3_paths),
         continent=continent,
+        s3_path=s3_path,
     )
 
     base_segment_upload_input: Dict[str, Any] = {"segment_files": s3_paths}

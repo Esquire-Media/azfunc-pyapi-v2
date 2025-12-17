@@ -1,13 +1,22 @@
-# File: /libs/azure/functions/blueprints/esquire/audiences/egress/xandr/activities/generateAvro.py
+from __future__ import annotations
 
+import csv
+import io
+import logging
+import os
+import uuid
+from typing import Any, Iterable, Iterator, Mapping, Sequence
+
+import fastavro
+import fsspec
 from azure.durable_functions import Blueprint
 from azure.storage.blob import BlobClient
-import fastavro, os, pandas as pd, uuid, fsspec
 
 bp = Blueprint()
+logger = logging.getLogger(__name__)
 
 # Define the schema as a global variable
-SCHEMA = {
+SCHEMA: dict[str, Any] = {
     "namespace": "xandr.avro",
     "name": "user",
     "type": "record",
@@ -16,63 +25,6 @@ SCHEMA = {
             "name": "uid",
             "doc": "User ID. Can be one of anid, ifa, xfa, external_id, device_id type.",
             "type": [
-                # {
-                #     "name": "anid",
-                #     "type": "long",
-                #     "doc": "Xandr user ID.",
-                # },
-                # {
-                #     "name": "ifa",
-                #     "type": "record",
-                #     "doc": "Identifier for Advertising record by iabtechlab.com",
-                #     "fields": [
-                #         {"name": "id", "type": "string", "doc": "IFA in UUID format."},
-                #         {"name": "type", "type": "string", "doc": "IFA type."},
-                #     ],
-                # },
-                # {
-                #     "name": "xfa",
-                #     "type": "record",
-                #     "doc": "Xandr synthetic ID record.",
-                #     "fields": [
-                #         {
-                #             "name": "device_model_id",
-                #             "type": "int",
-                #             "doc": "Device atlas device model.",
-                #             "default": 0,
-                #         },
-                #         {
-                #             "name": "device_make_id",
-                #             "type": "int",
-                #             "doc": "Device atlas device make.",
-                #             "default": 0,
-                #         },
-                #         {
-                #             "name": "ip",
-                #             "type": "string",
-                #             "default": "",
-                #             "doc": "Residential IP address.",
-                #         },
-                #     ],
-                # },
-                # {
-                #     "name": "external_id",
-                #     "type": "record",
-                #     "doc": "External ID record.",
-                #     "fields": [
-                #         {
-                #             "name": "id",
-                #             "type": "string",
-                #             "doc": "External ID provided by member.",
-                #         },
-                #         {
-                #             "name": "member_id",
-                #             "type": "int",
-                #             "doc": "Owner member ID.",
-                #             "default": 0,
-                #         },
-                #     ],
-                # },
                 {
                     "name": "device_id",
                     "type": "record",
@@ -116,12 +68,6 @@ SCHEMA = {
                             "doc": "Segment ID. Alternatively, pair of code and member_id can be used.",
                             "default": 0,
                         },
-                        # {
-                        #     "name": "code",
-                        #     "type": "string",
-                        #     "doc": "Segment code. Requires segment.member_id.",
-                        #     "default": "",
-                        # },
                         {
                             "name": "member_id",
                             "type": "int",
@@ -140,12 +86,6 @@ SCHEMA = {
                             "doc": "Defines when segment becomes 'live'. Timestamp in seconds from epoch. 0 enables segment immediately",
                             "default": 0,
                         },
-                        # {
-                        #     "name": "value",
-                        #     "type": "int",
-                        #     "doc": "User provided value associated with the segment.",
-                        #     "default": 0,
-                        # },
                     ],
                 },
             },
@@ -153,69 +93,212 @@ SCHEMA = {
     ],
 }
 
+# Parse once at import time (saves repeated work and keeps memory stable)
+PARSED_SCHEMA = fastavro.parse_schema(SCHEMA)
+
+# Domains are constant and tiny; keep as a tuple to avoid per-row allocations
+DEVICE_DOMAINS: tuple[str, str] = ("aaid", "idfa")
+
+
+class _ChunkIteratorRawIO(io.RawIOBase):
+    """
+    Minimal raw binary stream adapter around an iterator of bytes chunks.
+    Lets us wrap Azure Blob's downloader.chunks() in BufferedReader/TextIOWrapper,
+    enabling true streaming CSV parsing with low memory use.
+    """
+
+    def __init__(self, chunks: Iterable[bytes]) -> None:
+        super().__init__()
+        self._it = iter(chunks)
+        self._cur = b""
+        self._pos = 0
+
+    def readable(self) -> bool:  # pragma: no cover
+        return True
+
+    def readinto(self, b: bytearray | memoryview) -> int:
+        mv = memoryview(b)
+        total = 0
+
+        while total < len(mv):
+            if self._pos >= len(self._cur):
+                try:
+                    self._cur = next(self._it)
+                    self._pos = 0
+                except StopIteration:
+                    break
+                if not self._cur:
+                    continue
+
+            n = min(len(self._cur) - self._pos, len(mv) - total)
+            mv[total : total + n] = self._cur[self._pos : self._pos + n]
+            self._pos += n
+            total += n
+
+        return total
+
+
+def _source_blob_from_ingress(ingress: Mapping[str, Any]) -> BlobClient:
+    source = ingress.get("source")
+    if isinstance(source, str):
+        return BlobClient.from_blob_url(source)
+
+    if not isinstance(source, Mapping):
+        raise ValueError("ingress['source'] must be a blob url string or a mapping")
+
+    conn_str_env = source.get("conn_str")
+    container_name = source.get("container_name")
+    blob_name = source.get("blob_name")
+
+    if not isinstance(conn_str_env, str) or not conn_str_env:
+        raise ValueError("ingress['source']['conn_str'] must be an env var name string")
+    if not isinstance(container_name, str) or not container_name:
+        raise ValueError("ingress['source']['container_name'] must be a non-empty string")
+    if not isinstance(blob_name, str) or not blob_name:
+        raise ValueError("ingress['source']['blob_name'] must be a non-empty string")
+
+    conn_str = os.environ[conn_str_env]
+    return BlobClient.from_connection_string(
+        conn_str=conn_str,
+        container_name=container_name,
+        blob_name=blob_name,
+    )
+
+
+def _find_header_index(headers: Sequence[str], wanted: str) -> int:
+    wanted_lc = wanted.strip().lower()
+    for idx, name in enumerate(headers):
+        if name.strip().lower() == wanted_lc:
+            return idx
+    return -1
+
+
+def _iter_avro_records_from_csv_stream(
+    text_stream: io.TextIOBase,
+    *,
+    segment_id: int,
+    member_id: int,
+    expiration_minutes: int,
+) -> Iterator[dict[str, Any]]:
+    reader = csv.reader(text_stream)
+    headers = next(reader, None)
+    if headers is None:
+        return  # empty file
+
+    deviceid_idx = _find_header_index(headers, "deviceid")
+    if deviceid_idx < 0:
+        raise ValueError("CSV missing required header column: deviceid")
+
+    # Reuse the same segment object to minimize per-record allocations.
+    segment = {
+        "id": segment_id,
+        "member_id": member_id,
+        "expiration": expiration_minutes,
+        "timestamp": 0,
+    }
+    segments = (segment,)  # tuple is fine for Avro arrays
+
+    for row in reader:
+        if deviceid_idx >= len(row):
+            continue
+        device_id = row[deviceid_idx].strip()
+        if not device_id:
+            continue
+
+        # Emit two records per device_id without building any list in memory.
+        for domain in DEVICE_DOMAINS:
+            yield {
+                "uid": {"id": device_id, "domain": domain},
+                "segments": segments,
+            }
+
 
 @bp.activity_trigger(input_name="ingress")
-def activity_esquireAudienceXandr_generateAvro(ingress: dict):
-    # ingress = {
-    #     "audience" : {
-    #         "segment": "asdfasdf"
-    #         "expiration": 1440
-    #     }
-    #     "source": {
-    #         "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
-    #         "container_name": os.environ["ESQUIRE_AUDIENCE_CONTAINER_NAME"],
-    #         "blob_name": blob_name,
-    #     },
-    #     "destination": {
-    #         "conn_str": "AzureWebJobsStorage",
-    #         "container_name": os.environ["TASK_HUB_NAME"] + "-largemessages",
-    #         "blob_prefix": f"{context.instance_id}/",
-    #     },
-    # }
+def activity_esquireAudienceXandr_generateAvro(ingress) -> str:
+    # Parse and validate small control values up front
+    audience = ingress.get("audience")
+    if not isinstance(audience, Mapping):
+        raise ValueError("ingress['audience'] must be a mapping")
 
-    if isinstance(ingress["source"], str):
-        source_blob = BlobClient.from_blob_url(ingress["source"])
-    else:
-        source_blob = BlobClient.from_connection_string(
-            conn_str=os.environ[ingress["source"]["conn_str"]],
-            container_name=ingress["source"]["container_name"],
-            blob_name=ingress["source"]["blob_name"],
-        )
-    df = pd.read_csv(source_blob.download_blob())
+    segment_raw = audience.get("segment")
+    expiration_raw = audience.get("expiration")
+
+    try:
+        segment_id = int(segment_raw)  # type: ignore[arg-type]
+    except Exception as e:
+        raise ValueError("ingress['audience']['segment'] must be int-like") from e
+
+    try:
+        expiration_minutes = int(expiration_raw)  # type: ignore[arg-type]
+    except Exception as e:
+        raise ValueError("ingress['audience']['expiration'] must be int-like") from e
+
+    try:
+        member_id = int(os.environ["XANDR_MEMBER_ID"])
+    except Exception as e:
+        raise ValueError("Env var XANDR_MEMBER_ID must be set to an int") from e
+
+    destination = ingress.get("destination")
+    if not isinstance(destination, Mapping):
+        raise ValueError("ingress['destination'] must be a mapping")
+
+    bucket = destination.get("bucket")
+    access_key = destination.get("access_key")
+    secret_key = destination.get("secret_key")
+    if not isinstance(bucket, str) or not bucket:
+        raise ValueError("ingress['destination']['bucket'] must be a non-empty string")
+    if not isinstance(access_key, str) or not access_key:
+        raise ValueError("ingress['destination']['access_key'] must be a non-empty string")
+    if not isinstance(secret_key, str) or not secret_key:
+        raise ValueError("ingress['destination']['secret_key'] must be a non-empty string")
+
+    # Source: stream the blob download (max_concurrency=1 reduces buffering/memory)
+    source_blob = _source_blob_from_ingress(ingress)
+    downloader = source_blob.download_blob(max_concurrency=1)
+
+    # Adapt downloader chunks -> buffered binary -> text stream for csv.reader
+    raw = _ChunkIteratorRawIO(downloader.chunks())
+    buffered = io.BufferedReader(raw, buffer_size=1024 * 1024)  # 1 MiB
+    text_stream = io.TextIOWrapper(buffered, encoding="utf-8-sig", newline="")
 
     fs = fsspec.filesystem(
         "s3",
-        key=ingress["destination"]["access_key"],
-        secret=ingress["destination"]["secret_key"],
+        key=access_key,
+        secret=secret_key,
     )
 
-    with fs.open(
-        "s3://{}/submitted/{}.avro".format(
-            ingress["destination"]["bucket"], uuid.uuid4().hex
-        ),
-        "wb",
-    ) as out:
-        fastavro.writer(
-            out,
-            SCHEMA,
-            [
-                {
-                    "uid": {
-                        "id": device_id,
-                        "domain": device_type,
-                    },
-                    "segments": [
-                        {
-                            "id": int(ingress["audience"]["segment"]),
-                            "member_id": int(os.environ["XANDR_MEMBER_ID"]),
-                            "expiration": int(ingress["audience"]["expiration"]),
-                            "timestamp": 0,
-                        }
-                    ],
-                }
-                for device_id in df["deviceid"].to_list()
-                for device_type in ["aaid", "idfa"]
-            ],
-        )
+    out_key = f"submitted/{uuid.uuid4().hex}.avro"
+    out_uri = f"s3://{bucket}/{out_key}"
+
+    # For s3fs/fsspec writes, a smaller block_size reduces peak buffering memory.
+    # 5 MiB aligns with common S3 multipart minimum part sizes.
+    block_size = 5 * 1024 * 1024
+
+    logger.info("Generating Avro to %s", out_uri)
+
+    try:
+        with text_stream:
+            records_iter = _iter_avro_records_from_csv_stream(
+                text_stream,
+                segment_id=segment_id,
+                member_id=member_id,
+                expiration_minutes=expiration_minutes,
+            )
+
+            with fs.open(out_uri, "wb", block_size=block_size) as out:
+                fastavro.writer(
+                    out,
+                    PARSED_SCHEMA,
+                    records_iter,
+                    validator=False,
+                    # keep blocks small to avoid buffering many records at once
+                    sync_interval=16_000,
+                )
+    finally:
+        # Ensure underlying buffers are released even if exceptions occur.
+        try:
+            text_stream.detach()
+        except Exception:
+            pass
 
     return ""

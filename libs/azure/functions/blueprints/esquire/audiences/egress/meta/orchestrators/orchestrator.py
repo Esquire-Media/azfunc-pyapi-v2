@@ -1,5 +1,3 @@
-# File path: /libs/azure/functions/blueprints/esquire/audiences/egress/meta/orchestrator.py
-
 from __future__ import annotations
 
 from datetime import timedelta
@@ -36,7 +34,7 @@ def meta_customaudience_orchestrator(context: DurableOrchestrationContext):
       * REPLACE uses Meta's usersreplace endpoint with stable session_id + batch_seq.
       * Replays are safe: activities return cached results; loops & sorts are deterministic.
     """
-    batch_size = 5_000
+    batch_size = 10_000
 
     # ---- 0) Validate ingress deterministically ----
     ingress: Dict[str, Any] = context.get_input() or {}

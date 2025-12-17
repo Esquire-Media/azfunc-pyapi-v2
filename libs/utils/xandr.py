@@ -1,4 +1,3 @@
-#File Path: libs/utils/xandr.py
 from io import BytesIO
 import fastavro
 import pandas as pd

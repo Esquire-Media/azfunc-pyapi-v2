@@ -57,7 +57,7 @@ def activity_locationInsights_getLocationInfo(settings: dict):
     # return the cleaned addresses as a list of component dictionaries, each with an index attribute
     if len(locations) == 0:
         raise Exception(
-            f"Location with ESQ_ID '{settings['locationID']}' was not found in dbo.Locations"
+            f"Location with ESQ_ID '{settings['locationID']}' was not found in keystone.TargetingGeoFrame"
         )
     blob_client: BlobClient = BlobClient.from_connection_string(
         conn_str=os.environ[settings["runtime_container"]["conn_str"]],

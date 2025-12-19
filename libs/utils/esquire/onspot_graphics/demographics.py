@@ -52,10 +52,10 @@ class Demographics:
         )
         self.df["children"] = self.df.apply(
             lambda x: "has_children"
-            if x["presence_of_children"] == 1
-            else "no_children"
-            if x["presence_of_children"] == 0
-            else "NA",
+            if x["presence_of_children"] > 0
+            else "no_children",
+            # if x["presence_of_children"] == 0
+            # else "NA",
             axis=1,
         )
         self.df["veteran"] = self.df.apply(

@@ -8,7 +8,7 @@ from libs.utils.esquire.onspot_graphics.observations import Observations
 from libs.utils.esquire.onspot_graphics.slider import SliderGraph
 from pptx import Presentation
 import os, pandas as pd, re
-from libs.utils.pptx_helpers import duplicate_slide
+from libs.utils.pptx_helpers import duplicate_slide, get_shape, remove_shape
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()
@@ -158,13 +158,13 @@ def execute_graphics_replacements(
     add_custom_image(
         file=obs.foot_traffic_graph(return_bytes=True),
         slide=traffic_slide,
-        placeholder=traffic_slide.shapes[5],
+        placeholder=get_shape(traffic_slide, "Market Traffic"),
     )
     # time distribution graph
     add_custom_image(
         file=obs.time_distribution_graph(return_bytes=True),
         slide=traffic_slide,
-        placeholder=traffic_slide.shapes[31],
+        placeholder=get_shape(traffic_slide, "Traffic Distribution"),
     )
     # trend score slider
     add_custom_image(
@@ -173,7 +173,7 @@ def execute_graphics_replacements(
             labels=["", "Decreasing", "", "Neutral", "", "Increasing", ""],
         ).export(return_bytes=True),
         slide=traffic_slide,
-        placeholder=traffic_slide.shapes[28],
+        placeholder=get_shape(traffic_slide, "Overall Trend_SliderPlaceholder"),
     )
     # stability score slider
     add_custom_image(
@@ -182,7 +182,7 @@ def execute_graphics_replacements(
             labels=["", "Volatile", "", "Moderate", "", "Consistent", ""],
         ).export(return_bytes=True),
         slide=traffic_slide,
-        placeholder=traffic_slide.shapes[27],
+        placeholder=get_shape(traffic_slide, "Consistency_SliderPlaceholder"),
     )
     # recent performance slider
     add_custom_image(
@@ -191,49 +191,46 @@ def execute_graphics_replacements(
             labels=["", "Below Average", "", "Average", "", "Above Average", ""],
         ).export(return_bytes=True),
         slide=traffic_slide,
-        placeholder=traffic_slide.shapes[29],
+        placeholder=get_shape(traffic_slide, "Recent Activity_SliderPlaceholder"),
     )
-    # remove slider placeholders (important to do this last and in decreasing order to not mess up other shape indexes)
-    traffic_slide.shapes.element.remove(traffic_slide.shapes[32].element)
-    traffic_slide.shapes.element.remove(traffic_slide.shapes[31].element)
-    traffic_slide.shapes.element.remove(traffic_slide.shapes[30].element)
+    # remove the placeholders
+    remove_slider_placeholders(traffic_slide)
 
-    # __DEMOS SLIDE__
-    # gender pie graph
+    # --- DEMOGRAPHICS SLIDE ---
     add_custom_image(
         file=demos.gender_graph(return_bytes=True),
         slide=demos_slide,
-        placeholder=demos_slide.shapes[4],
+        placeholder=get_shape(demos_slide, "GenderChart"),
     )
-    # marital status pie graph
+
     add_custom_image(
         file=demos.marriage_graph(return_bytes=True),
         slide=demos_slide,
-        placeholder=demos_slide.shapes[8],
+        placeholder=get_shape(demos_slide, "MarriageChart"),
     )
-    # dwelling type pie graph
+
     add_custom_image(
         file=demos.dwelling_graph(return_bytes=True),
         slide=demos_slide,
-        placeholder=demos_slide.shapes[9],
+        placeholder=get_shape(demos_slide, "DwellingChart"),
     )
-    # presence of children pie graph
+
     add_custom_image(
         file=demos.children_graph(return_bytes=True),
         slide=demos_slide,
-        placeholder=demos_slide.shapes[7],
+        placeholder=get_shape(demos_slide, "ChildrenChart"),
     )
-    # age bar graph
+
     add_custom_image(
         file=demos.age_graph(return_bytes=True),
         slide=demos_slide,
-        placeholder=demos_slide.shapes[6],
+        placeholder=get_shape(demos_slide, "AgeChart"),
     )
-    # income bar graph
+
     add_custom_image(
         file=demos.income_graph(return_bytes=True),
         slide=demos_slide,
-        placeholder=demos_slide.shapes[5],
+        placeholder=get_shape(demos_slide, "IncomeChart"),
     )
 
     # # --HEATMAP SLIDE--
@@ -321,3 +318,9 @@ def remove_slides_by_index(prs, removal_indices):
         del prs.slides._sldIdLst[i]
 
     return prs
+
+# remove slider placeholders (important to do this last and in decreasing order to not mess up other shape indexes)
+def remove_slider_placeholders(slide):
+    for shape in list(slide.shapes):
+        if shape.name.endswith("SliderPlaceholder"):
+            remove_shape(shape)

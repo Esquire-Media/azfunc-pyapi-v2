@@ -79,5 +79,5 @@ async def activity_esquireAudiencesNeighbors_findNeighbors(ingress: dict):
         # logging.warning("[LOG] Got group results")
         return pd.concat(group_results, ignore_index=True)[['address', 'city', 'state', 'zipCode', 'plus4Code']].to_dict(orient="records")
     else:
-        logging.warning("[LOG] No group results")
+        # logging.warning("[LOG] No group results")
         return []

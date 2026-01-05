@@ -163,10 +163,16 @@ def orchestrator_esquireAudiences_processingSteps(
                             # logging.warning("[LOG] No Neighbor Logic used")
                             pass
                     case "device_ids":  # addresses -> deviceids
-                        process["results"] = yield context.call_sub_orchestrator(
-                            "orchestrator_esquireAudiencesSteps_addresses2deviceids",
-                            egress,
-                        )
+                        if egress["process"].get("kind", "") == "FriendsAndFamily":
+                            process["results"] = yield context.call_sub_orchestrator(
+                                "orchestrator_esquireAudiencesSteps_addresses2friendsandfamily_deviceids",
+                                egress,
+                            )
+                        else:
+                            process["results"] = yield context.call_sub_orchestrator(
+                                "orchestrator_esquireAudiencesSteps_addresses2deviceids",
+                                egress,
+                            )
                     case "polygons":  # addresses -> polygons
                         process["results"] = yield context.task_all(
                             [

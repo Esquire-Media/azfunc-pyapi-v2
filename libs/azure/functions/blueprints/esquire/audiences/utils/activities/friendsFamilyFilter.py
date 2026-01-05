@@ -1,0 +1,125 @@
+from azure.durable_functions import Blueprint
+from azure.storage.blob import BlobClient
+from azure.core.exceptions import ResourceNotFoundError
+import csv
+import io
+import logging
+
+bp = Blueprint()
+
+
+class _ChunksIO(io.RawIOBase):
+    def __init__(self, chunks_iter):
+        self._iter = iter(chunks_iter)
+        self._buf = b""
+        self._closed = False
+
+    def readable(self):
+        return True
+
+    def readinto(self, b):
+        if self._closed:
+            return 0
+        while len(self._buf) < len(b):
+            try:
+                self._buf += next(self._iter)
+            except StopIteration:
+                break
+        n = min(len(b), len(self._buf))
+        b[:n] = self._buf[:n]
+        self._buf = self._buf[n:]
+        return n
+
+
+@bp.activity_trigger(input_name="ingress")
+def activity_faf_filter_devices_blob(ingress: dict):
+    source_url = ingress["source_url"]
+    destination = ingress["destination"]
+    output_name = ingress["output_name"]  # deterministic (e.g. {source_key}.csv)
+    min_count = int(ingress.get("min_count", 2))
+    top_n = ingress.get("top_n")
+
+    dst_blob_name = f"{destination['blob_prefix']}/{output_name}"
+
+    src = BlobClient.from_blob_url(source_url)
+    downloader = src.download_blob()
+    raw = _ChunksIO(downloader.chunks())
+    text = io.TextIOWrapper(io.BufferedReader(raw), encoding="utf-8", newline="")
+
+    reader = csv.DictReader(text)
+
+    dst = BlobClient.from_connection_string(
+        conn_str=destination["conn_str"],
+        container_name=destination["container_name"],
+        blob_name=dst_blob_name,
+    )
+
+    # idempotent overwrite for append blob
+    try:
+        dst.delete_blob()
+    except Exception:
+        pass
+    dst.create_append_blob()
+
+    # write header once
+    dst.append_block(b"deviceid\n")
+
+    written = 0
+    batch = io.StringIO(newline="")
+    w = csv.writer(batch)
+
+
+
+    candidates = []  # bounded to top_n
+    max_seen = 0
+
+    for row in reader:
+        try:
+            deviceid = row.get("deviceid")
+            count = int(row.get("count", 0))
+            if not deviceid:
+                continue
+            if count < min_count:
+                continue
+
+
+        except Exception:
+            continue
+
+        max_seen = max(max_seen, count)
+
+        # Insert into top-N list (descending by count)
+        if top_n:
+            inserted = False
+            for i, (_, c) in enumerate(candidates):
+                if count > c:
+                    candidates.insert(i, (deviceid, count))
+                    inserted = True
+                    break
+            if not inserted:
+                candidates.append((deviceid, count))
+
+            # trim
+            if len(candidates) > top_n:
+                candidates.pop()
+        else:
+            candidates.append((deviceid, count))
+
+    # Write output
+    for deviceid, _ in candidates:
+        w.writerow([deviceid])
+        written += 1
+
+
+    if batch.tell() > 0:
+        dst.append_block(batch.getvalue().encode("utf-8"))
+
+    if written == 0:
+        # empty audience shard: keep behavior consistent with other steps (return None)
+        try:
+            dst.delete_blob()
+        except Exception:
+            pass
+        return None
+
+    return dst.url

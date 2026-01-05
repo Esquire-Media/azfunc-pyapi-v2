@@ -51,8 +51,8 @@ async def activity_esquireAudiencesNeighbors_findNeighbors(ingress: dict):
             f"estated_partition_testing/state={state}/zip_code={zip_code}/city={city_path}/"
         )
     except Exception as e:
-        # logging.warning("[LOG] Failed to load estated")
-        return None
+        logging.warning("[LOG] Failed to load estated")
+        return []
     
     if estated_data.empty:
         return []
@@ -79,5 +79,5 @@ async def activity_esquireAudiencesNeighbors_findNeighbors(ingress: dict):
         # logging.warning("[LOG] Got group results")
         return pd.concat(group_results, ignore_index=True)[['address', 'city', 'state', 'zipCode', 'plus4Code']].to_dict(orient="records")
     else:
-        # logging.warning("[LOG] No group results")
-        return None
+        logging.warning("[LOG] No group results")
+        return []

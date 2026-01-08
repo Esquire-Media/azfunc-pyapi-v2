@@ -15,6 +15,7 @@ async def starter_timer_esquire_audiences(
     timer: TimerRequest,
     client: DurableOrchestrationClient,
 ):
+    return
     settings = {
         "working": {
             "conn_str": "AzureWebJobsStorage",

@@ -56,6 +56,8 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
             max_overflow=100,
         )
     provider = from_bind("keystone")
+    if provider is None:
+        logging.warning("provider did not instatiate properly")
 
     Audience = provider.models["keystone"]["Audience"]
     Advertiser = provider.models["keystone"]["Advertiser"]
@@ -88,7 +90,7 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
             tds = getattr(aud, rel_Audience__TargetingDataSource, None)
 
             # Canonicalize dataFilter before converting to SQL to prevent order-induced differences.
-            data_filter_raw: Optional[Union[Dict[str, Any], List[Any]]] = getattr(aud, "dataFilter", None)
+            data_filter_raw: Optional[Union[Dict[str, Any], List[Any]]] = {"and":[{"==":[{"var":"tenant_id"},"cm1ryyj03005xpgrkt1t04z61"]},{"==":[{"var":"days_back"},274]},{"in":[{"var":"store_location"},["Rancho San Diego SleepMor"]]}]}
             try:
                 data_filter_sql = (
                     jsonlogic_to_sql(_canonicalize_jsonlogic(data_filter_raw))
@@ -121,7 +123,7 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
                 },
                 "dataFilter": data_filter_sql,
                 "dataFilterRaw": data_filter_raw,
-                "processing": getattr(aud, "processing", None),
+                "processing": {"steps": [{"kind": "FriendsAndFamily", "top_n": False, "min_count": 2}], "version": 2}# getattr(aud, "processing", None),
             }
         # logging.warning(f"[LOG] ingress after fetch audience: {ingress}")
     finally:

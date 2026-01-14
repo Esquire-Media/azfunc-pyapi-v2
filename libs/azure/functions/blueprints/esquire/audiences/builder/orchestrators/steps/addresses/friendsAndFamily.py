@@ -118,11 +118,9 @@ def orchestrator_esquireAudiencesSteps_addresses2friendsandfamily_deviceids(
                 {
                     "source_url": url,
                     "thresholds": thresholds,
-                    "destination": {
-                        "conn_str": ingress["destination"]["conn_str"],
-                        "container_name": ingress["destination"]["container_name"],
-                        "blob_name": f"{ingress['destination']['blob_prefix'].strip('/')}/1/{source_key}/part-{i:05d}.csv",
-                    },
+                    "container": ingress["destination"]["container_name"],
+                    "blob_prefix": f"{ingress['destination']['blob_prefix']}",
+                    "conn_str": "AzureWebJobsStorage",
                 },
             )
             for i, url in enumerate(count_urls)

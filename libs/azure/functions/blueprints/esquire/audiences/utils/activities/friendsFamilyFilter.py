@@ -90,9 +90,9 @@ def activity_faf_filter_count_blob_to_deviceids(ingress: dict) -> Optional[str]:
     return export_dataframe(
         df=df,
         destination={
-            "conn_str": destination["conn_str"],
-            "container_name": destination["container_name"],
-            "blob_name": destination["blob_name"],
+            "conn_str": ingress.get("conn_str", "AzureWebJobsStorage"),
+            "container_name": ingress["container_name"],
+            "blob_prefix": ingress["blob_prefix"].strip("/"),
             "format": "csv",
         },
     )

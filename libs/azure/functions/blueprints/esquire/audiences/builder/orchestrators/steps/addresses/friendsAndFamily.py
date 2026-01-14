@@ -118,7 +118,7 @@ def orchestrator_esquireAudiencesSteps_addresses2friendsandfamily_deviceids(
                 {
                     "source_url": url,
                     "thresholds": thresholds,
-                    "container": ingress["destination"]["container_name"],
+                    "container_name": ingress["destination"]["container_name"],
                     "blob_prefix": f"{ingress['destination']['blob_prefix']}",
                     "conn_str": "AzureWebJobsStorage",
                 },

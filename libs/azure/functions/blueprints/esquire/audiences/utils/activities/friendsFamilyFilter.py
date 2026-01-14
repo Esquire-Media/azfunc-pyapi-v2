@@ -33,15 +33,11 @@ class _ChunksIO(io.RawIOBase):
 @bp.activity_trigger(input_name="ingress")
 def activity_faf_filter_count_blob_to_deviceids(ingress: dict) -> Optional[str]:
     source_url = ingress["source_url"]
-    destination = ingress["destination"]
     thresholds = ingress.get("thresholds", {}) or {}
 
     min_count = int(thresholds.get("min_count", 2))
     top_n_raw = thresholds.get("top_n", None)
     top_n = int(top_n_raw) if top_n_raw not in (None, False, 0, "0") else None
-
-    if "blob_name" not in destination:
-        raise KeyError("destination.blob_name is required")
 
     src = init_blob_client(blob_url=source_url)
     downloader = src.download_blob()

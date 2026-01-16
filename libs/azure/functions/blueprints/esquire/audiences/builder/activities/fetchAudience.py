@@ -123,7 +123,7 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
                 },
                 "dataFilter": data_filter_sql,
                 "dataFilterRaw": data_filter_raw,
-                "processing": {"steps": [{"kind": "FriendsAndFamily", "top_n": False, "min_count": 2}], "version": 2}# getattr(aud, "processing", None),
+                "processing": getattr(aud, "processing", None),
             }
         # logging.warning(f"[LOG] ingress after fetch audience: {ingress}")
     finally:

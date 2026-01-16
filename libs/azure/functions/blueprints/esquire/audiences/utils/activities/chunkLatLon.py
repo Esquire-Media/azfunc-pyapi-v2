@@ -1,9 +1,8 @@
+# File: libs/azure/functions/blueprints/esquire/audiences/utils/activities/chunkLatLon.py
+
 from azure.durable_functions import Blueprint
-from azure.storage.blob import BlobClient
-from azure.core.exceptions import ResourceNotFoundError
-import csv
-import io
-import logging
+import csv, io, logging
+from libs.utils.azure_storage import init_blob_client, get_blob_sas
 
 bp = Blueprint()
 
@@ -12,14 +11,11 @@ class _ChunksIO(io.RawIOBase):
     def __init__(self, chunks_iter):
         self._iter = iter(chunks_iter)
         self._buf = b""
-        self._closed = False
 
     def readable(self):
         return True
 
     def readinto(self, b):
-        if self._closed:
-            return 0
         while len(self._buf) < len(b):
             try:
                 self._buf += next(self._iter)
@@ -32,22 +28,22 @@ class _ChunksIO(io.RawIOBase):
 
 
 @bp.activity_trigger(input_name="ingress")
-def activity_split_addresses_latlon_csv(ingress: dict):
+def activity_faf_chunk_sales_latlon_csv(ingress: dict):
     source_url = ingress["source_url"]
     destination = ingress["destination"]
-    rows_per_chunk = int(ingress.get("rows_per_chunk", 500))
+    rows_per_chunk = int(ingress.get("rows_per_chunk", 100))
     required_fields = set(ingress.get("required_fields", []))
 
-    src = BlobClient.from_blob_url(source_url)
+    src = init_blob_client(blob_url=source_url)
     downloader = src.download_blob()
     raw = _ChunksIO(downloader.chunks())
-    text = io.TextIOWrapper(io.BufferedReader(raw), encoding="utf-8", newline="")
+    text = io.TextIOWrapper(io.BufferedReader(raw), encoding="utf-8-sig", newline="")
 
     reader = csv.DictReader(text)
-    headers = reader.fieldnames or []
+    headers = [h.strip() for h in (reader.fieldnames or [])]
 
-    if required_fields and not required_fields.issubset(headers):
-        logging.warning("Split: missing required fields: %s", required_fields - set(headers))
+    if required_fields and not required_fields.issubset(set(headers)):
+        logging.warning("faf_chunk: missing required fields: %s", required_fields - set(headers))
         return []
 
     chunk_urls = []
@@ -67,13 +63,13 @@ def activity_split_addresses_latlon_csv(ingress: dict):
         w.writeheader()
         w.writerows(buf)
 
-        dst = BlobClient.from_connection_string(
+        dst = init_blob_client(
             conn_str=destination["conn_str"],
             container_name=destination["container_name"],
             blob_name=blob_name,
         )
         dst.upload_blob(out.getvalue().encode("utf-8"), overwrite=True)
-        chunk_urls.append(dst.url)
+        chunk_urls.append(get_blob_sas(dst))
         buf = []
 
     for row in reader:

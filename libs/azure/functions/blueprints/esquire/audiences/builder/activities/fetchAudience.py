@@ -90,7 +90,7 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
             tds = getattr(aud, rel_Audience__TargetingDataSource, None)
 
             # Canonicalize dataFilter before converting to SQL to prevent order-induced differences.
-            data_filter_raw: Optional[Union[Dict[str, Any], List[Any]]] = {"and":[{"==":[{"var":"tenant_id"},"cm1ryyj03005xpgrkt1t04z61"]},{"==":[{"var":"days_back"},274]},{"in":[{"var":"store_location"},["Rancho San Diego SleepMor"]]}]}
+            data_filter_raw: Optional[Union[Dict[str, Any], List[Any]]] = getattr(aud, "dataFilter", None)
             try:
                 data_filter_sql = (
                     jsonlogic_to_sql(_canonicalize_jsonlogic(data_filter_raw))

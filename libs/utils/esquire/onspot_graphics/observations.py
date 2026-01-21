@@ -29,7 +29,9 @@ class Observations:
         # determine the timezone where this location exists
         # local_timezone = get_local_timezone(latitude=data['lat'].median(), longitude=data['lng'].median())
         # data['Datetime'] = data['timestamp'].apply(lambda x: dt.fromtimestamp(x/1000, tz=local_timezone))
-        data["Datetime"] = pd.to_datetime(data["Date"] + " " + data["Time"], format="ISO8601", dayfirst=False)
+        # data["Datetime"] = pd.to_datetime(data["Date"] + " " + data["Time"], format="ISO8601", dayfirst=False)
+        dt_str = data["Date"].astype(str).str.strip() + " " + data["Time"].astype(str).str.strip()
+        data["Datetime"] = _parse_iso_datetime_utc(dt_str)
         
         # get date and time from the timestamp
         data['Date'] = data['Datetime'].apply(lambda x: x.date())
@@ -127,25 +129,20 @@ class Observations:
         fig = plt.figure(figsize=(7.5,3))
         ax = plt.subplot(111)
 
-        # Ensure Week -> RefDate mapping
-        week_to_date_map = dict(zip(self.obs['Week'], self.obs['RefDate']))
+        self.obs["x"] = self.obs.index  # 0..N-1
 
         # invisible plot to get x-axis with week numbers
-        g = sns.lineplot(data=self.obs, x='Week', y='traffic_pct', visible=False)
+        g = sns.lineplot(data=self.obs, x='x', y='traffic_pct', visible=False, ax=ax)
         ax.axhline(y=0, xmin=0, xmax=1, color='gray', linestyle='--')
         ax.set_xlabel('Week')
         ax.set_ylabel('')
-        ax.xaxis.set_major_locator(MultipleLocator(1)) # ensure every week number is shown
+        ax.xaxis.set_major_locator(MultipleLocator(1)) # ensure every week number is showm
 
-        # Adjust x-axis ticks
-        ax.xaxis.set_major_locator(MultipleLocator(1))  # Weekly interval
-        ax.set_xticklabels(
-            [""] + [week_to_date_map.get(w, "").strftime('%b %d') for w in self.obs['Week'].unique()], #handle the off-by-one difference
-            rotation=45, 
-            ha='right', 
-            rotation_mode='anchor', 
-            fontsize=9
-            )
+        # bottom ticks: one per week, labeled by date
+        ax.set_xticks(self.obs["x"])
+        ax.set_xticklabels(self.obs["RefDate"].dt.strftime("%b %d"), rotation=45, ha="right", fontsize=9)
+        ax.set_xlabel("Week")
+        ax.set_ylabel("")
 
         # invvisible plot for 1st-of-month ticks on upper x-axis
         ax2 = ax.twiny()
@@ -178,7 +175,7 @@ class Observations:
         bounds = max(abs(self.obs['traffic_pct'].min()), abs(self.obs['traffic_pct'].max())) # make sure 0 is in the center of the y-axis
         plt.ylim(-bounds*1.1, bounds*1.1)
         g.yaxis.set_major_formatter(mtick.FuncFormatter(ytick_formatter))
-        
+
         plt.tight_layout()
         if return_bytes:
             buffer = BytesIO()

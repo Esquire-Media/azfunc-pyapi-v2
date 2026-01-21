@@ -1,5 +1,3 @@
-#  file path:libs/azure/functions/blueprints/esquire/audiences/egress/xandr/orchestrators/orchestrator.py
-
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 import os, uuid
 

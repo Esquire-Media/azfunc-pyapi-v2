@@ -8,7 +8,7 @@ from libs.utils.esquire.onspot_graphics.observations import Observations
 from libs.utils.esquire.onspot_graphics.slider import SliderGraph
 from pptx import Presentation
 import os, pandas as pd, re
-from libs.utils.pptx_helpers import duplicate_slide
+from libs.utils.pptx_helpers import duplicate_slide, get_shape, remove_shape
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()
@@ -70,24 +70,6 @@ def activity_locationInsights_buildReport(settings: dict):
         )
         observations = Observations(observations_data)
 
-        # load demographics data from blob
-        demographics_data = pd.read_csv(
-            get_blob_sas(
-                BlobClient.from_connection_string(
-                    conn_str=os.environ[settings["runtime_container"]["conn_str"]],
-                    container_name=settings["runtime_container"]["container_name"],
-                    blob_name=[
-                        *ContainerClient.from_connection_string(
-                            conn_str=os.environ[settings["runtime_container"]["conn_str"]],
-                            container_name=settings["runtime_container"]["container_name"],
-                        ).list_blobs(
-                            name_starts_with=f"{location['demographics_blob']}/"
-                        )
-                    ][0]["name"],
-                )
-            )
-        )
-        demographics = Demographics(demographics_data)
 
     # # load template presentation
     # template = Presentation(
@@ -106,10 +88,81 @@ def activity_locationInsights_buildReport(settings: dict):
             new_slides.append(template.slides[-1])  # Always get the last slide (newly added)
 
         # Ensure replacements happen only in duplicated slides
-        replace_text_in_slides(slides=new_slides, location_info=info, observations=observations, demographics=demographics)
+        replace_text_in_slides(slides=new_slides, location_info=info, observations=observations)
 
         execute_graphics_replacements(
             obs=observations, 
+            demos=None, 
+            template=template, 
+            resources_client=resources_container, 
+            settings=settings, 
+            slides=new_slides
+            )
+        
+        del observations
+        # load demographics data from blob
+        demographics_data = pd.read_csv(
+            get_blob_sas(
+                BlobClient.from_connection_string(
+                    conn_str=os.environ[settings["runtime_container"]["conn_str"]],
+                    container_name=settings["runtime_container"]["container_name"],
+                    blob_name=[
+                        *ContainerClient.from_connection_string(
+                            conn_str=os.environ[settings["runtime_container"]["conn_str"]],
+                            container_name=settings["runtime_container"]["container_name"],
+                        ).list_blobs(
+                            name_starts_with=f"{location['demographics_blob']}/"
+                        )
+                    ][0]["name"],
+                )
+            ),
+            usecols = [
+                "location (venue)",
+                "state",
+                "city",
+                "zip",
+                "zip4",
+                "hashed device id",
+                "number of instances (count seen at location)",
+                "estimated_age 18-24",
+                "estimated_age 25-29",
+                "estimated_age 30-34",
+                "estimated_age 35-39",
+                "estimated_age 40-44",
+                "estimated_age 45-49",
+                "estimated_age 50-54",
+                "estimated_age 55-59",
+                "estimated_age 60-64",
+                "estimated_age 65-69",
+                "estimated_age 70+",
+                "household_income under $15000",
+                "household_income $15000 - $24999",
+                "household_income $25000 - $34999",
+                "household_income $35000 - $49999",
+                "household_income $50000 - $74999",
+                "household_income $75000 - $99999",
+                "household_income $100000 - $149999",
+                "household_income $150000 - $199999",
+                "household_income $200000 - $249999",
+                "household_income $250000+",
+                "completed high school",
+                "some college",
+                "completed college",
+                "attended vocational/technical school",
+                "completed graduate school",
+                "male",
+                "female",
+                "dwelling_type single family",
+                "dwelling_type apt/multi-family",
+                "married",
+                "presence_of_children",
+                "presence_of_veteran"
+            ]
+        )
+        demographics = Demographics(demographics_data)
+
+        execute_graphics_replacements(
+            obs=None, 
             demos=demographics, 
             template=template, 
             resources_client=resources_container, 
@@ -145,6 +198,7 @@ def execute_graphics_replacements(
     settings: dict,
     slides
 ):
+    
     """
     Create and export the device observations graphics.
     """
@@ -153,88 +207,87 @@ def execute_graphics_replacements(
     # heatmap_slide = template.slides[3]
     # creative_slide = template.slides[4]
 
-    # __TRAFFIC SLIDE__
-    # foot traffic line graph
-    add_custom_image(
-        file=obs.foot_traffic_graph(return_bytes=True),
-        slide=traffic_slide,
-        placeholder=traffic_slide.shapes[5],
-    )
-    # time distribution graph
-    add_custom_image(
-        file=obs.time_distribution_graph(return_bytes=True),
-        slide=traffic_slide,
-        placeholder=traffic_slide.shapes[31],
-    )
-    # trend score slider
-    add_custom_image(
-        file=SliderGraph(
-            val=obs.trend_score(),
-            labels=["", "Decreasing", "", "Neutral", "", "Increasing", ""],
-        ).export(return_bytes=True),
-        slide=traffic_slide,
-        placeholder=traffic_slide.shapes[28],
-    )
-    # stability score slider
-    add_custom_image(
-        file=SliderGraph(
-            obs.stability_score(),
-            labels=["", "Volatile", "", "Moderate", "", "Consistent", ""],
-        ).export(return_bytes=True),
-        slide=traffic_slide,
-        placeholder=traffic_slide.shapes[27],
-    )
-    # recent performance slider
-    add_custom_image(
-        file=SliderGraph(
-            val=obs.recent_score(),
-            labels=["", "Below Average", "", "Average", "", "Above Average", ""],
-        ).export(return_bytes=True),
-        slide=traffic_slide,
-        placeholder=traffic_slide.shapes[29],
-    )
-    # remove slider placeholders (important to do this last and in decreasing order to not mess up other shape indexes)
-    traffic_slide.shapes.element.remove(traffic_slide.shapes[32].element)
-    traffic_slide.shapes.element.remove(traffic_slide.shapes[31].element)
-    traffic_slide.shapes.element.remove(traffic_slide.shapes[30].element)
+    if obs is not None:
+        # __TRAFFIC SLIDE__
+        # foot traffic line graph
+        add_custom_image(
+            file=obs.foot_traffic_graph(return_bytes=True),
+            slide=traffic_slide,
+            placeholder=get_shape(traffic_slide, "Market Traffic"),
+        )
+        # time distribution graph
+        add_custom_image(
+            file=obs.time_distribution_graph(return_bytes=True),
+            slide=traffic_slide,
+            placeholder=get_shape(traffic_slide, "Traffic Distribution"),
+        )
+        # trend score slider
+        add_custom_image(
+            file=SliderGraph(
+                val=obs.trend_score(),
+                labels=["", "Decreasing", "", "Neutral", "", "Increasing", ""],
+            ).export(return_bytes=True),
+            slide=traffic_slide,
+            placeholder=get_shape(traffic_slide, "Overall Trend_SliderPlaceholder"),
+        )
+        # stability score slider
+        add_custom_image(
+            file=SliderGraph(
+                obs.stability_score(),
+                labels=["", "Volatile", "", "Moderate", "", "Consistent", ""],
+            ).export(return_bytes=True),
+            slide=traffic_slide,
+            placeholder=get_shape(traffic_slide, "Consistency_SliderPlaceholder"),
+        )
+        # recent performance slider
+        add_custom_image(
+            file=SliderGraph(
+                val=obs.recent_score(),
+                labels=["", "Below Average", "", "Average", "", "Above Average", ""],
+            ).export(return_bytes=True),
+            slide=traffic_slide,
+            placeholder=get_shape(traffic_slide, "Recent Activity_SliderPlaceholder"),
+        )
+        # remove the placeholders
+        remove_slider_placeholders(traffic_slide)
 
-    # __DEMOS SLIDE__
-    # gender pie graph
-    add_custom_image(
-        file=demos.gender_graph(return_bytes=True),
-        slide=demos_slide,
-        placeholder=demos_slide.shapes[4],
-    )
-    # marital status pie graph
-    add_custom_image(
-        file=demos.marriage_graph(return_bytes=True),
-        slide=demos_slide,
-        placeholder=demos_slide.shapes[8],
-    )
-    # dwelling type pie graph
-    add_custom_image(
-        file=demos.dwelling_graph(return_bytes=True),
-        slide=demos_slide,
-        placeholder=demos_slide.shapes[9],
-    )
-    # presence of children pie graph
-    add_custom_image(
-        file=demos.children_graph(return_bytes=True),
-        slide=demos_slide,
-        placeholder=demos_slide.shapes[7],
-    )
-    # age bar graph
-    add_custom_image(
-        file=demos.age_graph(return_bytes=True),
-        slide=demos_slide,
-        placeholder=demos_slide.shapes[6],
-    )
-    # income bar graph
-    add_custom_image(
-        file=demos.income_graph(return_bytes=True),
-        slide=demos_slide,
-        placeholder=demos_slide.shapes[5],
-    )
+    if demos is not None:
+        # --- DEMOGRAPHICS SLIDE ---
+        add_custom_image(
+            file=demos.gender_graph(return_bytes=True),
+            slide=demos_slide,
+            placeholder=get_shape(demos_slide, "GenderChart"),
+        )
+
+        add_custom_image(
+            file=demos.marriage_graph(return_bytes=True),
+            slide=demos_slide,
+            placeholder=get_shape(demos_slide, "MarriageChart"),
+        )
+
+        add_custom_image(
+            file=demos.dwelling_graph(return_bytes=True),
+            slide=demos_slide,
+            placeholder=get_shape(demos_slide, "DwellingChart"),
+        )
+
+        add_custom_image(
+            file=demos.children_graph(return_bytes=True),
+            slide=demos_slide,
+            placeholder=get_shape(demos_slide, "ChildrenChart"),
+        )
+
+        add_custom_image(
+            file=demos.age_graph(return_bytes=True),
+            slide=demos_slide,
+            placeholder=get_shape(demos_slide, "AgeChart"),
+        )
+
+        add_custom_image(
+            file=demos.income_graph(return_bytes=True),
+            slide=demos_slide,
+            placeholder=get_shape(demos_slide, "IncomeChart"),
+        )
 
     # # --HEATMAP SLIDE--
     # # heatmap scatter plot
@@ -280,7 +333,7 @@ def execute_graphics_replacements(
     #         )
 
 
-def replace_text_in_slides(slides, location_info, observations, demographics):
+def replace_text_in_slides(slides, location_info, observations):
     """Replace placeholders with real data only in the duplicated slides."""
     # bullet points and text data
     latest_week = observations.get_latest_week()
@@ -321,3 +374,9 @@ def remove_slides_by_index(prs, removal_indices):
         del prs.slides._sldIdLst[i]
 
     return prs
+
+# remove slider placeholders (important to do this last and in decreasing order to not mess up other shape indexes)
+def remove_slider_placeholders(slide):
+    for shape in list(slide.shapes):
+        if shape.name.endswith("SliderPlaceholder"):
+            remove_shape(shape)

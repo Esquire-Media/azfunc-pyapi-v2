@@ -41,10 +41,16 @@ class Observations:
         data = data.drop_duplicates(subset=['deviceid','Date'])
 
         # get other dates in week
-        data['Week'] = data['Date'].apply(get_week)
-        data['EarliestDate'] = data['Date'].apply(lambda x: get_date_by_week_offset(x, 0))
-        data['LatestDate'] = data['Date'].apply(lambda x: get_date_by_week_offset(x, 6))
-        data['RefDate'] = data['Date'].apply(lambda x: get_date_by_week_offset(x, 3))
+        base = pd.to_datetime(data['Date'], errors='coerce', utc=True)
+
+        # normalize to midnight, strip tz
+        base = base.dt.tz_convert(None).dt.normalize()
+
+        data['Week'] = base.dt.isocalendar().week
+
+        data['EarliestDate'] = base - pd.to_timedelta(base.dt.weekday, unit='D')
+        data['LatestDate'] = data['EarliestDate'] + pd.to_timedelta(6, unit='D')
+        data['RefDate'] = data['EarliestDate'] + pd.to_timedelta(3, unit='D')
         # enforce datetime format
         data['EarliestDate'] = pd.to_datetime(data['EarliestDate'])
         data['LatestDate'] = pd.to_datetime(data['LatestDate'])
@@ -146,7 +152,12 @@ class Observations:
 
         # invvisible plot for 1st-of-month ticks on upper x-axis
         ax2 = ax.twiny()
-        sns.lineplot(data=self.obs, x='RefDate', y='traffic_pct', visible=False)
+        sns.lineplot(
+            x=self.obs['RefDate'],
+            y=self.obs['traffic_pct'],
+            data=self.obs,
+            visible=False
+        )
         ax2.xaxis.set_major_locator(mdates.DayLocator(bymonthday=[1]))
         ax2.set_xticklabels('')
         ax2.set_xlabel('')

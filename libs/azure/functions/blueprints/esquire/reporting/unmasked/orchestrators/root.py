@@ -1,3 +1,4 @@
+import traceback
 from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 import logging, os
 
@@ -39,18 +40,26 @@ def orchestrator_pixelPush_root(context: DurableOrchestrationContext):
         ])
 
     except Exception as e:
-        # if any errors are caught, post an error card to teams tagging Isaac
+        full_trace = traceback.format_exc()
+        html_body = f"""
+            <html>
+                <body>
+                    <h2 style="color:red;">Unmasked Failure</h2>
+                    <p><strong>{type(e).__name__}:</strong> {str(e)}</p>
+                    <p><strong>Trace:</strong> {full_trace}</p>
+                </body>
+            </html>
+            """
         yield context.call_activity(
-            "activity_microsoftGraph_postErrorCard",
+            "activity_microsoftGraph_sendEmail",
             {
-                "function_name": "esquire-unmasked-push",
-                "instance_id": context.instance_id,
-                "owners":["8489ce7c-e89f-4710-9d34-1442684ce7fe"],
-                "error": f"{type(e).__name__} : {e}"[:1000],
-                "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
+                "from_id": "57d355d1-eeb7-45a0-a260-00daceea9f5f",
+                "to_addresses": ["matt@esquireadvertising.com"],
+                "subject": "esquire-unmasked-push Failure",
+                "message": html_body,
+                "content_type": "html",
             },
         )
-        logging.warning("Error card sent")
         raise e
 
     # Call sub-orchestrator to purge the instance history

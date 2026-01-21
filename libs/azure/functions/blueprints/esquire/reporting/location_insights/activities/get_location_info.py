@@ -22,7 +22,11 @@ def activity_locationInsights_getLocationInfo(settings: dict):
             WITH centroids AS (
                 SELECT
                     id,
-                    ST_Centroid(ST_Collect(ST_GeomFromGeoJSON(feature->'geometry'))) AS centroid
+                    public.ST_Centroid(
+                        public.ST_Collect(
+                            public.ST_GeomFromGeoJSON(feature->'geometry')
+                        )
+                    ) AS centroid
                 FROM 
                     keystone."TargetingGeoFrame",
                     jsonb_array_elements(polygon->'features') AS feature
@@ -38,8 +42,8 @@ def activity_locationInsights_getLocationInfo(settings: dict):
                 G.state AS "State",
                 G."zipCode" AS "Zip",
                 G.polygon->'features'->0->'geometry' AS "Geometry",
-                ST_Y(C.centroid) AS "Latitude",
-                ST_X(C.centroid) AS "Longitude"
+                public.ST_Y(C.centroid) AS "Latitude",
+                public.ST_X(C.centroid) AS "Longitude"
             FROM keystone."TargetingGeoFrame" AS G
             JOIN centroids AS C
                 ON C.id = G.id
@@ -53,7 +57,7 @@ def activity_locationInsights_getLocationInfo(settings: dict):
     # return the cleaned addresses as a list of component dictionaries, each with an index attribute
     if len(locations) == 0:
         raise Exception(
-            f"Location with ESQ_ID '{settings['locationID']}' was not found in dbo.Locations"
+            f"Location with ESQ_ID '{settings['locationID']}' was not found in keystone.TargetingGeoFrame"
         )
     blob_client: BlobClient = BlobClient.from_connection_string(
         conn_str=os.environ[settings["runtime_container"]["conn_str"]],

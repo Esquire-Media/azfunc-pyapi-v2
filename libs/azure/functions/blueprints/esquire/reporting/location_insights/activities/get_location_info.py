@@ -15,10 +15,10 @@ def activity_locationInsights_getLocationInfo(settings: dict):
     # connect to Locations table using a SQLAlchemy ORM session
     provider = from_bind("keystone")
     session: Session = provider.connect()
+    con = session.connection()
 
     # query for location info which matches the passed ESQ_ID(s)
-    locations = pd.read_sql(
-        f"""
+    query = f"""
             WITH centroids AS (
                 SELECT
                     id,
@@ -49,9 +49,18 @@ def activity_locationInsights_getLocationInfo(settings: dict):
                 ON C.id = G.id
             WHERE
                 G."ESQID" = '{settings["locationID"]}'
-        """,
-        session.connection()
-    )
+        """
+    
+    try:
+        locations = pd.read_sql(
+            query,
+            con=con
+        )
+    except:
+        locations = pd.read_sql(
+            query,
+            con=con.connection
+        )
     locations['Geometry'] = locations['Geometry'].apply(lambda x: orjson.dumps(x).decode('utf-8'))
     
     # return the cleaned addresses as a list of component dictionaries, each with an index attribute

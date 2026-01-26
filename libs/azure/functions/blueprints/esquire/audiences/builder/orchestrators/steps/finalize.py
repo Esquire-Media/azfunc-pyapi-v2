@@ -1,12 +1,13 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 from typing import Any, Dict, List
-
+import os
 import logging
 
 bp = Blueprint()
 
 # Deterministic default (can be overridden via ingress for tuning).
-_DEFAULT_MAX_PARALLEL = 100
+_DEFAULT_MAX_PARALLEL = 50
+MAX_FINAL_BLOBS = int(os.getenv("FINALIZE_MAX_BLOBS", "200"))
 
 def _chunk(items: List[Any], size: int) -> List[List[Any]]:
     if size <= 0:
@@ -68,7 +69,7 @@ def orchestrator_esquireAudiences_finalize(
     steps = processing.get("steps", []) if processing else []
     has_steps = bool(steps)
     logging.warning(f"[LOG] FINALIZE INFO")
-    logging.warning(f"[LOG] ingress: {ingress}")
+    # logging.warning(f"[LOG] ingress: {ingress}")
     logging.warning(f"[LOG] processing: {processing}")
     logging.warning(f"[LOG] steps: {steps}")
     logging.warning(f"[LOG] has_steps: {has_steps}")
@@ -135,26 +136,44 @@ def orchestrator_esquireAudiences_finalize(
                 },
             )
 
-    # Fan-out finalize in bounded batches (prevents huge list allocations + history bloat)
-    finalized_urls: List[str] = []
-    ii = 0
-    for batch in _chunk(list(source_urls), _DEFAULT_MAX_PARALLEL):
-        logging.warning(f"[LOG] Running finalize activity for batch {ii}.")
-        ii += 1
-        batch_results = yield context.task_all(
+    # batch them if we need to
+    N = len(source_urls)
+    if N <= MAX_FINAL_BLOBS:
+        finalized_urls = yield context.task_all(
             [
                 context.call_activity(
                     "activity_esquireAudienceBuilder_finalize",
                     {
-                        # NOTE: do NOT pass ingress["audience"] (unused in activity, can be huge)
-                        "source": source_url,
+                        "source": [source_url],
                         "destination": egress["destination"],
                     },
                 )
-                for source_url in batch
+                for source_url in source_urls
             ]
         )
-        finalized_urls.extend(batch_results)
+    else:
+        # batch them together into a maximum of 200 blobs
+        num_outputs = MAX_FINAL_BLOBS
+        per_output = (N + num_outputs - 1) // num_outputs  # ceil division
+
+        finalized_urls = []
+        for i in range(num_outputs):
+            start = i * per_output
+            end = min(start + per_output, N)
+            batch = source_urls[start:end]
+
+            if not batch:
+                break
+
+            result = yield context.call_activity(
+                "activity_esquireAudienceBuilder_finalize",
+                {
+                    "batch_index": i,
+                    "source": batch,
+                    "destination": egress["destination"],
+                },
+            )
+            finalized_urls.append(result)
     
     ingress["results"] = finalized_urls
     logging.warning("[LOG] Got finalized urls.")

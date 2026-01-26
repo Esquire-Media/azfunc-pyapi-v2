@@ -1,9 +1,8 @@
 import csv
 import logging
 import os
-import tempfile
 from datetime import datetime
-from typing import Any, Dict, Iterable, Iterator, Optional, Set
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Set, Union
 
 from azure.durable_functions import Blueprint
 from azure.storage.blob import (
@@ -19,6 +18,9 @@ bp = Blueprint()
 
 # Constant for the "anonymous" UUID you want to ignore
 _ANONYMOUS_UUID = "00000000-0000-0000-0000-000000000000"
+
+# Append blob block size limit is 4 MiB. Keep headroom.
+_APPEND_FLUSH_BYTES = 3_500_000
 
 
 def _get_input_blob(source: Any) -> BlobClient:
@@ -36,17 +38,44 @@ def _get_input_blob(source: Any) -> BlobClient:
     )
 
 
-def _get_output_blob(ingress: Dict[str, Any], input_blob: BlobClient) -> BlobClient:
+def _get_output_blob_name(
+    ingress: Dict[str, Any],
+    first_input_blob: BlobClient,
+    sources_count: int,
+) -> str:
     """
-    Build a BlobClient for the destination blob based on the 'destination'
-    entry in ingress and the input blob name.
+    Preserve existing naming for single-source finalize:
+      {destination.blob_prefix}/{basename(input_blob.blob_name)}
+
+    For folded batches (multi-source), generate a deterministic batch name:
+      {destination.blob_prefix}/final_{batch_index:05d}.csv
+
+    batch_index is expected to be provided by the orchestrator for folded batches.
     """
     destination = ingress["destination"]
-    blob_name = "{}/{}".format(
-        destination["blob_prefix"],
-        os.path.basename(input_blob.blob_name),
-    )
+    prefix = destination["blob_prefix"]
 
+    batch_index = ingress.get("batch_index", None)
+
+    if sources_count > 1 and batch_index is None:
+        raise ValueError(
+            "batch_index must be provided when finalizing multiple sources"
+        )
+
+    if batch_index is not None or sources_count > 1:
+        # If batch_index is missing but sources_count > 1, fall back to 0 to avoid collisions
+        # (better: orchestrator should always set batch_index for folding).
+        idx = int(batch_index) if batch_index is not None else 0
+        return f"{prefix}/final_{idx:05d}.csv"
+
+    return "{}/{}".format(prefix, os.path.basename(first_input_blob.blob_name))
+
+
+def _get_output_blob(ingress: Dict[str, Any], blob_name: str) -> BlobClient:
+    """
+    Build a BlobClient for the destination blob based on the 'destination' entry in ingress.
+    """
+    destination = ingress["destination"]
     return BlobClient.from_connection_string(
         conn_str=os.environ[destination["conn_str"]],
         container_name=destination["container_name"],
@@ -96,28 +125,14 @@ def _determine_device_column(
         if "device" in _normalize(col):
             return col
 
-    raise ValueError(
-        f"Unable to determine device column. Headers found: {raw_columns!r}"
-    )
+    raise ValueError(f"Unable to determine device column. Headers found: {raw_columns!r}")
 
 
-def _parse_single_value(
-    record_bytes: bytes,
-    dialect: DelimitedTextDialect,
-) -> str:
-    """
-    Parse a single-column CSV record (result of SELECT <column>) and return its value.
-    """
+def _parse_single_value(record_bytes: bytes, dialect: DelimitedTextDialect) -> str:
     text = record_bytes.decode("utf-8")
-    reader = csv.reader(
-        [text],
-        delimiter=dialect.delimiter,
-        quotechar=dialect.quotechar,
-    )
+    reader = csv.reader([text], delimiter=dialect.delimiter, quotechar=dialect.quotechar)
     row = next(reader, [])
-    if not row:
-        return ""
-    return row[0]
+    return row[0] if row else ""
 
 
 def _iter_clean_device_ids(
@@ -127,7 +142,11 @@ def _iter_clean_device_ids(
 ) -> Iterable[str]:
     """
     Stream device IDs from the blob query, cleaning, filtering, and de-duplicating
-    on the fly. Yields lowercased, valid, unique device IDs.
+    on the fly (per source blob). Yields lowercased, valid, unique device IDs.
+
+    NOTE: De-duplication is per source blob to keep memory bounded. If you need
+    global de-dupe across sources, do that in a separate scalable step (e.g. partitioned
+    on-disk de-dupe or external store), not with a single in-memory set.
     """
     query = input_blob.query_blob(
         f"SELECT {device_column} FROM BlobStorage",
@@ -159,7 +178,7 @@ def _iter_clean_device_ids(
         # No data rows at all
         return
 
-    # Detect whether the first record is a header (single column containing 'device')
+    # Detect header row (single column containing 'device')
     first_value = _parse_single_value(first_record, dialect)
     if "device" not in first_value.strip().strip('"').lower():
         # First row is actual data, not header
@@ -175,25 +194,45 @@ def _iter_clean_device_ids(
             yield maybe_device
 
 
+def _normalize_sources(ingress: Dict[str, Any]) -> List[Any]:
+    """
+    Backwards compatible:
+      - ingress["source"] can be a single source OR list of sources
+      - we always return List[source]
+    """
+    if "source" not in ingress:
+        raise ValueError("Finalize called without 'source' in ingress.")
+
+    raw = ingress["source"]
+    if isinstance(raw, list):
+        return raw
+    return [raw]
+
+
+def _append_bytes(output_blob: BlobClient, buf: bytearray) -> None:
+    if not buf:
+        return
+    output_blob.append_block(bytes(buf))
+    buf.clear()
+
+
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudienceBuilder_finalize(ingress: Dict[str, Any]) -> str:
     """
-    Finalizes the audience data by streaming, filtering, and renaming device IDs.
+    Finalizes one or more source blobs into a single standardized CSV (Append Blob)
+    with header 'deviceid', while avoiding RAM blowups.
 
-    This activity:
-    - Reads the source blob via query, projecting only the device ID column.
-    - Streams rows to avoid loading the whole CSV into memory.
-    - Converts device IDs to lowercase, removes duplicates, and filters invalid IDs.
-    - Writes the final data into a temporary file and uploads it to the destination blob.
-    - Returns a SAS URL for the destination blob.
+    Backwards-compatible behavior:
+      - ingress["source"] can be a single source or a list of sources
+      - optional ingress["batch_index"] enables deterministic naming for folded batches
+
+    Output is written as an Append Blob with streaming append, not a temp file.
     """
-    logging.info("[AudienceBuilder] Starting finalize activity.")
+    sources = _normalize_sources(ingress)
+    if not sources:
+        raise ValueError("Finalize called with empty source list.")
 
-    # Initialize the source and destination BlobClients
-    input_blob = _get_input_blob(ingress["source"])
-    output_blob = _get_output_blob(ingress, input_blob)
-
-    # Define the dialect for CSV format
+    # Dialect used by blob query (same as before)
     dialect = DelimitedTextDialect(
         delimiter=",",
         quotechar='"',
@@ -201,37 +240,54 @@ def activity_esquireAudienceBuilder_finalize(ingress: Dict[str, Any]) -> str:
         has_header=True,
     )
 
-    # Identify the device ID column from headers
-    device_column = _determine_device_column(input_blob, dialect)
+    first_input_blob = _get_input_blob(sources[0])
+    output_blob_name = _get_output_blob_name(ingress, first_input_blob, len(sources))
+    output_blob = _get_output_blob(ingress, output_blob_name)
+
     logging.info(
-        "[AudienceBuilder] Using device column '%s' from blob '%s'.",
-        device_column,
-        input_blob.blob_name,
+        "[AudienceBuilder] Finalize starting. sources=%d output=%s",
+        len(sources),
+        output_blob.blob_name,
     )
 
-    # Stream-clean device IDs into a temporary file to minimize RAM usage
-    with tempfile.TemporaryFile(mode="w+b") as tmp:
-        # Write CSV header
-        tmp.write(b"deviceid\n")
+    # Idempotency: delete existing output blob (if any), then create fresh append blob.
+    # This keeps retries/replays from accumulating duplicate lines.
+    try:
+        output_blob.delete_blob()
+    except Exception:
+        # If exists() is blocked by RBAC or transient failure, attempt create anyway.
+        # create_append_blob will fail if it truly exists; that’s better than duplicating data.
+        pass
 
-        # Stream rows
-        count = 0
+    output_blob.create_append_blob()
+
+    # Write header once
+    output_blob.append_block(b"deviceid\n")
+
+    buf = bytearray()
+    total_written = 0
+
+    for source in sources:
+        input_blob = _get_input_blob(source)
+
+        device_column = _determine_device_column(input_blob, dialect)
+
         for device_id in _iter_clean_device_ids(input_blob, dialect, device_column):
-            tmp.write(f"{device_id}\n".encode("utf-8"))
-            count += 1
+            line = f"{device_id}\n".encode("utf-8")
+            buf.extend(line)
+            total_written += 1
 
-        logging.info(
-            "[AudienceBuilder] Wrote %d unique, valid device IDs to temp file.",
-            count,
-        )
+            if len(buf) >= _APPEND_FLUSH_BYTES:
+                _append_bytes(output_blob, buf)
 
-        # Rewind and upload the file contents to the destination blob
-        tmp.seek(0)
-        logging.info(
-            "[AudienceBuilder] Uploading to output blob '%s'.",
-            output_blob.blob_name,
-        )
-        output_blob.upload_blob(tmp, overwrite=True)
+    # Flush remaining buffered lines
+    _append_bytes(output_blob, buf)
+
+    logging.info(
+        "[AudienceBuilder] Finalize wrote %d device IDs to append blob '%s'.",
+        total_written,
+        output_blob.blob_name,
+    )
 
     # Generate a SAS token for the destination blob with read permissions
     sas_token = generate_blob_sas(
@@ -243,10 +299,4 @@ def activity_esquireAudienceBuilder_finalize(ingress: Dict[str, Any]) -> str:
         expiry=datetime.utcnow() + relativedelta(days=2),
     )
 
-    sas_url = f"{unquote(output_blob.url)}?{sas_token}"
-    logging.info(
-        "[AudienceBuilder] Finalized audience written to '%s'.",
-        output_blob.blob_name,
-    )
-
-    return sas_url
+    return f"{unquote(output_blob.url)}?{sas_token}"

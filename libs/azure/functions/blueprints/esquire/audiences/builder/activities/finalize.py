@@ -354,6 +354,23 @@ def activity_esquireAudienceBuilder_finalize(ingress: Dict[str, Any]) -> str:
     # Flush remaining buffered lines
     _append_bytes(output_blob, buf)
 
+    # Commit append blob to block blob so accelerated queries work
+    final_blob = BlobClient.from_connection_string(
+        conn_str=os.environ[ingress["destination"]["conn_str"]],
+        container_name=ingress["destination"]["container_name"],
+        blob_name=output_blob.blob_name.replace(".tmp-append", ""),
+    )
+
+    final_blob.start_copy_from_url(output_blob.url)
+
+    props = final_blob.get_blob_properties()
+    if props.copy.status != "success":
+        raise RuntimeError(f"Finalize copy failed: {props.copy.status}")
+
+    output_blob.delete_blob()
+    output_blob = final_blob
+
+
     logging.info(
         "[AudienceBuilder] Finalize wrote %d device IDs to append blob '%s'.",
         total_written,

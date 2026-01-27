@@ -63,10 +63,8 @@ def _get_output_blob_name(
             "batch_index must be provided when finalizing multiple sources"
         )
 
-    if batch_index is not None or sources_count > 1:
-        # If batch_index is missing but sources_count > 1, fall back to 0 to avoid collisions
-        # (better: orchestrator should always set batch_index for folding).
-        idx = int(batch_index) if batch_index is not None else 0
+    if batch_index is not None:
+        idx = int(batch_index)
         return f"{prefix}/final_{idx:05d}.csv"
 
     return "{}/{}".format(prefix, os.path.basename(first_input_blob.blob_name))
@@ -94,6 +92,10 @@ def _determine_device_column(
     Prefers an exact 'deviceid' header (case-insensitive),
     otherwise falls back to the first header containing 'device'.
     """
+
+    if _get_blob_type(input_blob).lower() != "blockblob":
+        raise ValueError("Device column detection requires BlockBlob input")
+
     query_response = input_blob.query_blob(
         "SELECT * FROM BlobStorage",
         blob_format=dialect,
@@ -314,22 +316,22 @@ def activity_esquireAudienceBuilder_finalize(ingress: Dict[str, Any]) -> str:
     logging.info(
         "[AudienceBuilder] Finalize starting. sources=%d output=%s",
         len(sources),
-        output_blob.blob_name,
+        append_blob.blob_name,
     )
 
     # Idempotency: delete existing output blob (if any), then create fresh append blob.
     # This keeps retries/replays from accumulating duplicate lines.
     try:
-        output_blob.delete_blob()
+        append_blob.delete_blob()
     except Exception:
         # If exists() is blocked by RBAC or transient failure, attempt create anyway.
         # create_append_blob will fail if it truly exists; that’s better than duplicating data.
         pass
 
-    output_blob.create_append_blob()
+    append_blob.create_append_blob()
 
     # Write header once
-    output_blob.append_block(b"deviceid\n")
+    append_blob.append_block(b"deviceid\n")
 
     buf = bytearray()
     total_written = 0
@@ -351,16 +353,20 @@ def activity_esquireAudienceBuilder_finalize(ingress: Dict[str, Any]) -> str:
             total_written += 1
 
             if len(buf) >= _APPEND_FLUSH_BYTES:
-                _append_bytes(output_blob, buf)
+                _append_bytes(append_blob, buf)
 
     # Flush remaining buffered lines
-    _append_bytes(output_blob, buf)
+    _append_bytes(append_blob, buf)
+
+    logging.info(
+        "[AudienceBuilder] Finalize wrote %d device IDs to append blob '%s'.",
+        total_written,
+        append_blob.blob_name,
+    )
 
     # Commit append blob to block blob so accelerated queries work
     final_blob = _get_output_blob(ingress, output_blob_name)
     final_blob.start_copy_from_url(append_blob.url)
-
-    final_blob.start_copy_from_url(output_blob.url)
 
 
     for _ in range(60):
@@ -378,7 +384,7 @@ def activity_esquireAudienceBuilder_finalize(ingress: Dict[str, Any]) -> str:
 
 
     logging.info(
-        "[AudienceBuilder] Finalize wrote %d device IDs to append blob '%s'.",
+        "[AudienceBuilder] Finalize copied %d device IDs from append blob to final blob '%s'.",
         total_written,
         output_blob.blob_name,
     )

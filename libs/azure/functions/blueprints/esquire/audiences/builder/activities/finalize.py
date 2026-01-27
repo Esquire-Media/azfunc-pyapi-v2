@@ -14,6 +14,7 @@ from azure.storage.blob import (
 )
 from dateutil.relativedelta import relativedelta
 from urllib.parse import unquote
+import base64
 
 bp = Blueprint()
 
@@ -310,31 +311,36 @@ def activity_esquireAudienceBuilder_finalize(ingress: Dict[str, Any]) -> str:
 
     first_input_blob = _get_input_blob(sources[0])
     output_blob_name = _get_output_blob_name(ingress, first_input_blob, len(sources))
-    append_blob_name = f"{output_blob_name}.tmp-append"
-    append_blob = _get_output_blob(ingress, append_blob_name)
+    output_blob = _get_output_blob(ingress, output_blob_name)
 
     logging.info(
         "[AudienceBuilder] Finalize starting. sources=%d output=%s",
         len(sources),
-        append_blob.blob_name,
+        output_blob.blob_name,
     )
 
-    # Idempotency: delete existing output blob (if any), then create fresh append blob.
-    # This keeps retries/replays from accumulating duplicate lines.
+    # Idempotency: delete existing output blob if present
     try:
-        append_blob.delete_blob()
+        output_blob.delete_blob()
     except Exception:
-        # If exists() is blocked by RBAC or transient failure, attempt create anyway.
-        # create_append_blob will fail if it truly exists; that’s better than duplicating data.
         pass
 
-    append_blob.create_append_blob()
-
-    # Write header once
-    append_blob.append_block(b"deviceid\n")
-
+    block_ids: List[str] = []
+    block_index = 0
     buf = bytearray()
-    total_written = 0
+
+    def _stage_buffer() -> None:
+        nonlocal block_index
+        if not buf:
+            return
+        block_id = base64.b64encode(f"{block_index:08d}".encode("utf-8")).decode("ascii")
+        output_blob.stage_block(block_id=block_id, data=bytes(buf))
+        block_ids.append(block_id)
+        block_index += 1
+        buf.clear()
+
+    # Write header first
+    buf.extend(b"deviceid\n")
 
     for source in sources:
         input_blob = _get_input_blob(source)
@@ -344,56 +350,26 @@ def activity_esquireAudienceBuilder_finalize(ingress: Dict[str, Any]) -> str:
             device_column = _determine_device_column(input_blob, dialect)
             device_iter = _iter_clean_device_ids(input_blob, dialect, device_column)
         else:
-            # AppendBlob / PageBlob fallback: no query_blob
             device_iter = _iter_device_ids_from_download(input_blob, dialect)
 
         for device_id in device_iter:
-            line = f"{device_id}\n".encode("utf-8")
-            buf.extend(line)
-            total_written += 1
+            buf.extend(f"{device_id}\n".encode("utf-8"))
 
             if len(buf) >= _APPEND_FLUSH_BYTES:
-                _append_bytes(append_blob, buf)
+                _stage_buffer()
 
-    # Flush remaining buffered lines
-    _append_bytes(append_blob, buf)
+    # Final flush
+    _stage_buffer()
 
-    logging.info(
-        "[AudienceBuilder] Finalize wrote %d device IDs to append blob '%s'.",
-        total_written,
-        append_blob.blob_name,
-    )
-
-    # Commit append blob to block blob so accelerated queries work
-    final_blob = _get_output_blob(ingress, output_blob_name)
-
-    # Force destination to be a BlockBlob
-    final_blob.upload_blob(b"", overwrite=True)
-    # copy over the data
-    final_blob.start_copy_from_url(append_blob.url)
-
-
-    for _ in range(60):
-        props = final_blob.get_blob_properties()
-        if props.copy.status == "success":
-            break
-        if props.copy.status in ("failed", "aborted"):
-            raise RuntimeError(f"Finalize copy failed: {props.copy.status}")
-        time.sleep(1)
-    else:
-        raise TimeoutError("Finalize copy did not complete in time")
-    
-    append_blob.delete_blob()
-    output_blob = final_blob
-
+    # Commit staged blocks → creates Block Blob
+    output_blob.commit_block_list(block_ids)
 
     logging.info(
-        "[AudienceBuilder] Finalize copied %d device IDs from append blob to final blob '%s'.",
-        total_written,
+        "[AudienceBuilder] Finalize wrote %d blocks to final blob '%s'.",
+        len(block_ids),
         output_blob.blob_name,
     )
 
-    # Generate a SAS token for the destination blob with read permissions
     sas_token = generate_blob_sas(
         account_name=output_blob.account_name,
         container_name=output_blob.container_name,

@@ -3,6 +3,7 @@ import logging
 import os
 from datetime import datetime
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Set, Union
+import time
 
 from azure.durable_functions import Blueprint
 from azure.storage.blob import (
@@ -307,7 +308,8 @@ def activity_esquireAudienceBuilder_finalize(ingress: Dict[str, Any]) -> str:
 
     first_input_blob = _get_input_blob(sources[0])
     output_blob_name = _get_output_blob_name(ingress, first_input_blob, len(sources))
-    output_blob = _get_output_blob(ingress, output_blob_name)
+    append_blob_name = f"{output_blob_name}.tmp-append"
+    append_blob = _get_output_blob(ingress, append_blob_name)
 
     logging.info(
         "[AudienceBuilder] Finalize starting. sources=%d output=%s",
@@ -355,19 +357,23 @@ def activity_esquireAudienceBuilder_finalize(ingress: Dict[str, Any]) -> str:
     _append_bytes(output_blob, buf)
 
     # Commit append blob to block blob so accelerated queries work
-    final_blob = BlobClient.from_connection_string(
-        conn_str=os.environ[ingress["destination"]["conn_str"]],
-        container_name=ingress["destination"]["container_name"],
-        blob_name=output_blob.blob_name.replace(".tmp-append", ""),
-    )
+    final_blob = _get_output_blob(ingress, output_blob_name)
+    final_blob.start_copy_from_url(append_blob.url)
 
     final_blob.start_copy_from_url(output_blob.url)
 
-    props = final_blob.get_blob_properties()
-    if props.copy.status != "success":
-        raise RuntimeError(f"Finalize copy failed: {props.copy.status}")
 
-    output_blob.delete_blob()
+    for _ in range(60):
+        props = final_blob.get_blob_properties()
+        if props.copy.status == "success":
+            break
+        if props.copy.status in ("failed", "aborted"):
+            raise RuntimeError(f"Finalize copy failed: {props.copy.status}")
+        time.sleep(1)
+    else:
+        raise TimeoutError("Finalize copy did not complete in time")
+    
+    append_blob.delete_blob()
     output_blob = final_blob
 
 

@@ -1,9 +1,18 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
-
-# import logging
+from typing import Any, Dict, List
+import os
+import logging
 
 bp = Blueprint()
 
+# Deterministic default (can be overridden via ingress for tuning).
+_DEFAULT_MAX_PARALLEL = 50
+MAX_FINAL_BLOBS = int(os.getenv("FINALIZE_MAX_BLOBS", "200"))
+
+def _chunk(items: List[Any], size: int) -> List[List[Any]]:
+    if size <= 0:
+        size = _DEFAULT_MAX_PARALLEL
+    return [items[i : i + size] for i in range(0, len(items), size)]
 
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_esquireAudiences_finalize(
@@ -59,11 +68,11 @@ def orchestrator_esquireAudiences_finalize(
     processing = ingress["audience"].get("processing", {})
     steps = processing.get("steps", []) if processing else []
     has_steps = bool(steps)
-    # logging.warning(f"[LOG] FINALIZE INFO")
+    logging.warning(f"[LOG] FINALIZE INFO")
     # logging.warning(f"[LOG] ingress: {ingress}")
-    # logging.warning(f"[LOG] processing: {processing}")
-    # logging.warning(f"[LOG] steps: {steps}")
-    # logging.warning(f"[LOG] has_steps: {has_steps}")
+    logging.warning(f"[LOG] processing: {processing}")
+    logging.warning(f"[LOG] steps: {steps}")
+    logging.warning(f"[LOG] has_steps: {has_steps}")
 
     inputType = (
         steps[-1]["outputType"]
@@ -127,35 +136,66 @@ def orchestrator_esquireAudiences_finalize(
                 },
             )
 
-    # logging.info("[LOG] Did final conversion to deviceids")
-    # Finalize and store the results
-    ingress["results"] = yield context.task_all(
-        [
-            context.call_activity(
+    # batch them if we need to
+    N = len(source_urls)
+    if N <= MAX_FINAL_BLOBS:
+        finalized_urls = yield context.task_all(
+            [
+                context.call_activity(
+                    "activity_esquireAudienceBuilder_finalize",
+                    {
+                        "source": [source_url],
+                        "destination": egress["destination"],
+                    },
+                )
+                for source_url in source_urls
+            ]
+        )
+    else:
+        # batch them together into a maximum of 200 blobs
+        num_outputs = MAX_FINAL_BLOBS
+        per_output = (N + num_outputs - 1) // num_outputs  # ceil division
+
+        finalized_urls = []
+        for i in range(num_outputs):
+            start = i * per_output
+            end = min(start + per_output, N)
+            batch = source_urls[start:end]
+
+            if not batch:
+                break
+
+            result = yield context.call_activity(
                 "activity_esquireAudienceBuilder_finalize",
                 {
-                    "audience": ingress["audience"],
-                    "source": source_url,
+                    "batch_index": i,
+                    "source": batch,
                     "destination": egress["destination"],
                 },
             )
-            for source_url in source_urls
-        ]
-    )
+            finalized_urls.append(result)
+    
+    ingress["results"] = finalized_urls
+    logging.warning("[LOG] Got finalized urls.")
 
-    # logging.info("[LOG] Getting MAID count")
-    # Count results
-    counts = yield context.task_all(
-        [
-            context.call_activity(
-                "activity_esquireAudiencesUtils_getMaidCount", source_url
-            )
-            for source_url in ingress["results"]
-        ]
-    )
-    # logging.info("[LOG] Putting audience")
+    logging.warning("[LOG] Getting maid counts.")
+    # Fan-out MAID counts in bounded batches too
+    counts: List[int] = []
+    for batch in _chunk(list(ingress["results"]), _DEFAULT_MAX_PARALLEL):
+        batch_counts = yield context.task_all(
+            [
+                context.call_activity("activity_esquireAudiencesUtils_getMaidCount", url)
+                for url in batch
+            ]
+        )
+        counts.extend(batch_counts)
+
+    logging.warning("[LOG] Summing maid counts.")
     ingress["audience"]["count"] = sum(counts)
+
+    logging.warning("[LOG] Putting audience.")
     yield context.call_activity("activity_esquireAudiencesBuilder_putAudience", ingress)
+    logging.warning("[LOG] Done finalizing.")
     # logging.info("[LOG] Done finalizing.")
     # Return the updated ingress data
     return ingress

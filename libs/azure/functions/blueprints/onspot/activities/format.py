@@ -97,6 +97,6 @@ async def onspot_activity_format(ingress: dict, client: DurableOrchestrationClie
                 + sas_token
             )
 
-    logging.info(f"[LOG] {ingress['request']}")
+    # logging.info(f"[LOG] {ingress['request']}")
 
     return ingress["request"]

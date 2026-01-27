@@ -366,6 +366,10 @@ def activity_esquireAudienceBuilder_finalize(ingress: Dict[str, Any]) -> str:
 
     # Commit append blob to block blob so accelerated queries work
     final_blob = _get_output_blob(ingress, output_blob_name)
+
+    # Force destination to be a BlockBlob
+    final_blob.upload_blob(b"", overwrite=True)
+    # copy over the data
     final_blob.start_copy_from_url(append_blob.url)
 
 

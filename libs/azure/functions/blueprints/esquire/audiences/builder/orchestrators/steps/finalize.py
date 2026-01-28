@@ -144,6 +144,7 @@ def orchestrator_esquireAudiences_finalize(
                 context.call_activity(
                     "activity_esquireAudienceBuilder_finalize",
                     {
+                        "batch_index": 0,
                         "source": [source_url],
                         "destination": egress["destination"],
                     },

@@ -89,7 +89,53 @@ def orchestrator_esquireAudiences_finalize(
             "No data to process from last step. [{}]: {}".format(steps, inputType)
         )
 
-    # Reusable common input for sub-orchestrators
+    # common egress set up for any final layers needed to get to deviceids
+    conversion_egress = {
+        "working": {
+            **ingress["working"],
+            "blob_prefix": "{}/{}".format(
+                ingress["working"]["blob_prefix"],
+                len(steps),
+            ),
+        },
+        "destination": {
+            **ingress["working"],
+                        "blob_prefix": "{}/{}".format(
+                ingress["working"]["blob_prefix"],
+                len(steps)+1,
+            ),
+        },
+    }
+
+    # Perform final conversion to device IDs if necessary
+    match inputType:
+        case "addresses":  # addresses -> deviceids
+            source_urls = yield context.call_sub_orchestrator(
+                "orchestrator_esquireAudiencesSteps_addresses2deviceids",
+                {**conversion_egress, "source_urls": source_urls},
+            )
+        case "polygons":  # polygons -> deviceids
+            source_urls = yield context.call_sub_orchestrator(
+                "orchestrator_esquireAudiencesSteps_polygon2deviceids",
+                {
+                    **conversion_egress,
+                    "source_urls": source_urls,
+                    "custom_coding": {
+                        "request": {
+                            "dateStart": {
+                                "date_add": [
+                                    "now",
+                                    0 - ingress["audience"]["TTL_Length"],
+                                    ingress["audience"]["TTL_Unit"],
+                                ]
+                            },
+                            "dateEnd": {"date_add": ["now", -2, "days"]},
+                        },
+                    },
+                },
+            )
+
+    # Reusable common input for sub-orchestrators for the final set of blobs to be uploaded
     egress = {
         "working": {
             **ingress["working"],
@@ -107,34 +153,6 @@ def orchestrator_esquireAudiences_finalize(
             ),
         },
     }
-
-    # Perform final conversion to device IDs if necessary
-    match inputType:
-        case "addresses":  # addresses -> deviceids
-            source_urls = yield context.call_sub_orchestrator(
-                "orchestrator_esquireAudiencesSteps_addresses2deviceids",
-                {**egress, "source_urls": source_urls},
-            )
-        case "polygons":  # polygons -> deviceids
-            source_urls = yield context.call_sub_orchestrator(
-                "orchestrator_esquireAudiencesSteps_polygon2deviceids",
-                {
-                    **egress,
-                    "source_urls": source_urls,
-                    "custom_coding": {
-                        "request": {
-                            "dateStart": {
-                                "date_add": [
-                                    "now",
-                                    0 - ingress["audience"]["TTL_Length"],
-                                    ingress["audience"]["TTL_Unit"],
-                                ]
-                            },
-                            "dateEnd": {"date_add": ["now", -2, "days"]},
-                        },
-                    },
-                },
-            )
 
     # batch them if we need to
     N = len(source_urls)

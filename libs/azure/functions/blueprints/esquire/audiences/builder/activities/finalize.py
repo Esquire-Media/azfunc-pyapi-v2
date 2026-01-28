@@ -3,7 +3,6 @@ import logging
 import os
 from datetime import datetime
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Set, Union
-import time
 
 from azure.durable_functions import Blueprint
 from azure.storage.blob import (
@@ -213,14 +212,14 @@ def _normalize_sources(ingress: Dict[str, Any]) -> List[Any]:
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudienceBuilder_finalize(ingress: Dict[str, Any]) -> str:
     """
-    Finalizes one or more source blobs into a single standardized CSV (Append Blob)
+    Finalizes one or more source blobs into a single standardized CSV (Block Blob)
     with header 'deviceid', while avoiding RAM blowups.
 
     Backwards-compatible behavior:
       - ingress["source"] can be a single source or a list of sources
       - optional ingress["batch_index"] enables deterministic naming for folded batches
 
-    Output is written as an Append Blob with streaming append, not a temp file.
+    Output is written as an Block Blob with streaming append, not a temp file.
     """
     sources = _normalize_sources(ingress)
     if not sources:
@@ -252,16 +251,6 @@ def activity_esquireAudienceBuilder_finalize(ingress: Dict[str, Any]) -> str:
 
     block_ids: List[str] = []
     block_index = 0
-            if len(buf) >= _APPEND_FLUSH_BYTES:
-                _stage_buffer()
-
-    # Final flush
-    _stage_buffer()
-
-    # Commit staged blocks → creates Block Blob
-    output_blob.commit_block_list(block_ids)
-
-    logging.info(
     buf = bytearray()
 
     def _stage_buffer() -> None:
@@ -285,6 +274,16 @@ def activity_esquireAudienceBuilder_finalize(ingress: Dict[str, Any]) -> str:
         for device_id in _iter_clean_device_ids(input_blob, dialect, device_column):
             buf.extend(f"{device_id}\n".encode("utf-8"))
 
+            if len(buf) >= _APPEND_FLUSH_BYTES:
+                _stage_buffer()
+
+    # Final flush
+    _stage_buffer()
+
+    # Commit staged blocks → creates Block Blob
+    output_blob.commit_block_list(block_ids)
+
+    logging.info(
         "[AudienceBuilder] Finalize wrote %d blocks to final blob '%s'.",
         len(block_ids),
         output_blob.blob_name,

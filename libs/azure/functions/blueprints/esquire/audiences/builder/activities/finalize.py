@@ -94,9 +94,6 @@ def _determine_device_column(
     otherwise falls back to the first header containing 'device'.
     """
 
-    if _get_blob_type(input_blob).lower() != "blockblob":
-        raise ValueError("Device column detection requires BlockBlob input")
-
     query_response = input_blob.query_blob(
         "SELECT * FROM BlobStorage",
         blob_format=dialect,
@@ -213,78 +210,6 @@ def _normalize_sources(ingress: Dict[str, Any]) -> List[Any]:
     return [raw]
 
 
-def _append_bytes(output_blob: BlobClient, buf: bytearray) -> None:
-    if not buf:
-        return
-    output_blob.append_block(bytes(buf))
-    buf.clear()
-
-def _get_blob_type(blob: BlobClient) -> str:
-    # Returns "BlockBlob", "AppendBlob", or "PageBlob"
-    props = blob.get_blob_properties()
-    return str(getattr(props, "blob_type", "") or "")
-
-def _iter_lines_download(blob: BlobClient) -> Iterator[str]:
-    """
-    Stream blob text lines without loading whole blob into memory.
-    Handles chunks that may split lines.
-    """
-    downloader = blob.download_blob()
-    carry = b""
-
-    for chunk in downloader.chunks():
-        if not chunk:
-            continue
-        data = carry + chunk
-        parts = data.split(b"\n")
-        carry = parts.pop()  # last may be partial
-
-        for p in parts:
-            yield p.decode("utf-8", errors="ignore").rstrip("\r")
-
-    if carry:
-        yield carry.decode("utf-8", errors="ignore").rstrip("\r")
-
-def _iter_device_ids_from_download(
-    input_blob: BlobClient,
-    dialect: DelimitedTextDialect,
-) -> Iterable[str]:
-    """
-    For Append/Page blobs where query_blob isn't supported.
-    Assumes standardized single-column CSV or at least that deviceid is in the first column.
-    """
-    seen: Set[str] = set()
-    header_checked = False
-
-    def normalize_and_filter(raw: str) -> Optional[str]:
-        deviceid = raw.strip().strip('"').lower()
-        if not deviceid:
-            return None
-        if len(deviceid) != 36:
-            return None
-        if deviceid == _ANONYMOUS_UUID:
-            return None
-        if deviceid in seen:
-            return None
-        seen.add(deviceid)
-        return deviceid
-
-    for line in _iter_lines_download(input_blob):
-        if not header_checked:
-            header_checked = True
-            # If header row contains "device", skip it
-            if "device" in line.strip().strip('"').lower():
-                continue
-
-        # Parse first column robustly using csv reader
-        reader = csv.reader([line], delimiter=dialect.delimiter, quotechar=dialect.quotechar)
-        row = next(reader, [])
-        raw_value = row[0] if row else ""
-        maybe = normalize_and_filter(raw_value)
-        if maybe:
-            yield maybe
-
-
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudienceBuilder_finalize(ingress: Dict[str, Any]) -> str:
     """
@@ -344,15 +269,10 @@ def activity_esquireAudienceBuilder_finalize(ingress: Dict[str, Any]) -> str:
 
     for source in sources:
         input_blob = _get_input_blob(source)
-        blob_type = _get_blob_type(input_blob)
 
-        if blob_type.lower() == "blockblob":
-            device_column = _determine_device_column(input_blob, dialect)
-            device_iter = _iter_clean_device_ids(input_blob, dialect, device_column)
-        else:
-            device_iter = _iter_device_ids_from_download(input_blob, dialect)
+        device_column = _determine_device_column(input_blob, dialect)
 
-        for device_id in device_iter:
+        for device_id in _iter_clean_device_ids(input_blob, dialect, device_column):
             buf.extend(f"{device_id}\n".encode("utf-8"))
 
             if len(buf) >= _APPEND_FLUSH_BYTES:

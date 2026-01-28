@@ -63,11 +63,12 @@ def _get_output_blob_name(
             "batch_index must be provided when finalizing multiple sources"
         )
 
-    if batch_index is not None:
-        idx = int(batch_index)
-        return f"{prefix}/final_{idx:05d}.csv"
+    if batch_index is  None:
+        raise ValueError(f"batch_index must always be present when finalizing. Given {batch_index}" )
+    
+    idx = int(batch_index)
+    return f"{prefix}/final_{idx:05d}.csv"
 
-    return "{}/{}".format(prefix, os.path.basename(first_input_blob.blob_name))
 
 
 def _get_output_blob(ingress: Dict[str, Any], blob_name: str) -> BlobClient:

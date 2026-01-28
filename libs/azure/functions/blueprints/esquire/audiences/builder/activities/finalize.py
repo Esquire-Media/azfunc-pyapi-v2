@@ -252,6 +252,16 @@ def activity_esquireAudienceBuilder_finalize(ingress: Dict[str, Any]) -> str:
 
     block_ids: List[str] = []
     block_index = 0
+            if len(buf) >= _APPEND_FLUSH_BYTES:
+                _stage_buffer()
+
+    # Final flush
+    _stage_buffer()
+
+    # Commit staged blocks → creates Block Blob
+    output_blob.commit_block_list(block_ids)
+
+    logging.info(
     buf = bytearray()
 
     def _stage_buffer() -> None:
@@ -275,16 +285,6 @@ def activity_esquireAudienceBuilder_finalize(ingress: Dict[str, Any]) -> str:
         for device_id in _iter_clean_device_ids(input_blob, dialect, device_column):
             buf.extend(f"{device_id}\n".encode("utf-8"))
 
-            if len(buf) >= _APPEND_FLUSH_BYTES:
-                _stage_buffer()
-
-    # Final flush
-    _stage_buffer()
-
-    # Commit staged blocks → creates Block Blob
-    output_blob.commit_block_list(block_ids)
-
-    logging.info(
         "[AudienceBuilder] Finalize wrote %d blocks to final blob '%s'.",
         len(block_ids),
         output_blob.blob_name,

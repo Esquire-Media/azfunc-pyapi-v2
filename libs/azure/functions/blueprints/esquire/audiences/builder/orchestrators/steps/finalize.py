@@ -144,12 +144,12 @@ def orchestrator_esquireAudiences_finalize(
                 context.call_activity(
                     "activity_esquireAudienceBuilder_finalize",
                     {
-                        "batch_index": 0,
+                        "batch_index": i,
                         "source": [source_url],
                         "destination": egress["destination"],
                     },
                 )
-                for source_url in source_urls
+                for i, source_url in enumerate(source_urls)
             ]
         )
     else:

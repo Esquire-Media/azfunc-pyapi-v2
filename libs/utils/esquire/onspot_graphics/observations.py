@@ -604,3 +604,7 @@ def sort_by_list(column, sort_list):
     """
     correspondence = {item: idx for idx, item in enumerate(sort_list)}
     return column.map(correspondence)
+
+def _parse_iso_datetime_utc(datetime_series: pd.Series) -> pd.Series:
+    from dateutil import parser
+    return datetime_series.apply(lambda x: parser.isoparse(x).astimezone(tz=pd.Timestamp.utcnow().tz))

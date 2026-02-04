@@ -14,6 +14,7 @@ def activity_locationInsights_getLocationInfo(settings: dict):
 
     # connect to Locations table using a SQLAlchemy ORM session
     provider = from_bind("keystone")
+    engine = provider.engine
     session: Session = provider.connect()
     con = session.connection()
 
@@ -51,16 +52,28 @@ def activity_locationInsights_getLocationInfo(settings: dict):
                 G."ESQID" = '{settings["locationID"]}'
         """
     
+    # try:
+    #     locations = pd.read_sql(
+    #         query,
+    #         con=con
+    #     )
+    # except:
+    #     locations = pd.read_sql(
+    #         query,
+    #         con=con.connection
+    #     )
+
+
+    raw_conn = engine.raw_connection()
     try:
         locations = pd.read_sql(
             query,
-            con=con
+            con=raw_conn,
+            params={"esqid": settings["locationID"]},
         )
-    except:
-        locations = pd.read_sql(
-            query,
-            con=con.connection
-        )
+    finally:
+        raw_conn.close()
+        
     locations['Geometry'] = locations['Geometry'].apply(lambda x: orjson.dumps(x).decode('utf-8'))
     
     # return the cleaned addresses as a list of component dictionaries, each with an index attribute

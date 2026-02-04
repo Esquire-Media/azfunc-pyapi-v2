@@ -1,9 +1,7 @@
-import requests
 import csv
 from io import StringIO
 from azure.durable_functions import Blueprint
 from azure.storage.blob import BlobClient
-import logging
 
 bp = Blueprint()
 

@@ -135,6 +135,38 @@ def orchestrator_esquireAudiences_finalize(
                 },
             )
 
+    # common egress for the final layer of demographics filtering
+    demos_egress = {
+        "working": {
+            **ingress["working"],
+            "blob_prefix": "{}/{}".format(
+                ingress["working"]["blob_prefix"],
+                len(steps)+1,
+            ),
+        },
+        "destination": {
+            **ingress["working"],
+                        "blob_prefix": "{}/{}".format(
+                ingress["working"]["blob_prefix"],
+                len(steps)+2,
+            ),
+        },
+    }
+    # get the sets of demographics that are filtered by a set of demographics 
+    source_urls = yield context.task_all(
+        [
+            context.call_sub_orchestrator(
+                "orchestrator_esquireAudiencesSteps_deviceidsDemoFiltered",
+                {
+                    **demos_egress,
+                    "source": source_url
+                },
+            )
+            for source_url in source_urls
+        ]
+    )
+    
+
     # Reusable common input for sub-orchestrators for the final set of blobs to be uploaded
     egress = {
         "working": {

@@ -14,7 +14,7 @@
   },
   "features": {
     "ghcr.io/devcontainers/features/python:1": {
-      "version": "3.13",
+      "version": "3.11",
       "installTools": false
     },
     "ghcr.io/jlaundry/devcontainer-features/azure-functions-core-tools:1": {
@@ -22,6 +22,7 @@
 	},
 	"ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },
+  "initializeCommand": "sh -c 'ENVFILE=\"${localWorkspaceFolder}/.env\"; if [ ! -f \"$ENVFILE\" ]; then umask 000; : > \"$ENVFILE\"; chmod 666 \"$ENVFILE\"; fi'",
   "customizations": {
     "vscode": {
       "extensions": [

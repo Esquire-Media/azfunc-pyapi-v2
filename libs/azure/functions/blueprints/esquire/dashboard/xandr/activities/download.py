@@ -1,8 +1,8 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/xandr/activities/download.py
 
 from azure.durable_functions import Blueprint
-from azure.storage.blob import BlobClient
 from libs.openapi.clients.xandr import XandrAPI
+from libs.utils.azure_storage import init_blob_client
 import os, pandas as pd
 
 bp = Blueprint()
@@ -23,7 +23,7 @@ def esquire_dashboard_xandr_activity_download(ingress: dict):
     else:
         conn_str = "AzureWebJobsStorage"
     
-    blob: BlobClient = BlobClient.from_connection_string(
+    blob = init_blob_client(
         conn_str=os.environ.get(conn_str),
         container_name=ingress["container_name"],
         blob_name=ingress["outputPath"],

@@ -2,6 +2,7 @@
 
 from azure.durable_functions import Blueprint
 from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
+from libs.utils.azure_storage import get_cached_blob_client, init_blob_client
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from libs.data import from_bind
@@ -85,9 +86,9 @@ def activity_esquireAudiencesMaidsGeoframes_geoframes(ingress: dict):
     if ingress.get("destination"):
         # Configuring BlobClient for data upload
         if isinstance(ingress["destination"], str):
-            blob = BlobClient.from_blob_url(ingress["destination"])
+            blob = get_cached_blob_client(ingress["destination"])
         elif isinstance(ingress["destination"], dict):
-            blob = BlobClient.from_connection_string(
+            blob = init_blob_client(
                 conn_str=os.environ[ingress["destination"]["conn_str"]],
                 container_name=ingress["destination"]["container_name"],
                 blob_name=ingress["destination"]["blob_name"],

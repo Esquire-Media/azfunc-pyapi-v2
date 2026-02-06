@@ -1,6 +1,6 @@
 from azure.durable_functions import Blueprint
 from azure.functions import HttpRequest, HttpResponse
-from azure.storage.blob import BlobClient
+from libs.utils.azure_storage import init_blob_client
 from io import StringIO
 import orjson as json, uuid, os, pandas as pd
 
@@ -14,7 +14,7 @@ async def starter_callbackReader(req: HttpRequest):
     # export headers to blob
     if req.headers:
         headers = {k:v for k,v in req.headers.items()}
-        blob_client = BlobClient.from_connection_string(
+        blob_client = init_blob_client(
             conn_str=os.environ['AzureWebJobsStorage'],
             container_name='callbacks',
             blob_name=f"{instance_id}/headers.json"
@@ -37,7 +37,7 @@ async def starter_callbackReader(req: HttpRequest):
             except:
                 format = 'txt'
         # connect and upload blob
-        blob_client = BlobClient.from_connection_string(
+        blob_client = init_blob_client(
             conn_str=os.environ['AzureWebJobsStorage'],
             container_name='callbacks',
             blob_name=f"{instance_id}/body.{format}"

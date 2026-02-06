@@ -1,8 +1,8 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/mover_sync/activities/get_file_list.py
 
 from azure.durable_functions import Blueprint
-from azure.storage.blob import ContainerClient
 from libs.azure.key_vault import KeyVaultClient
+from libs.utils.azure_storage import get_container_client
 from libs.utils.s3 import s3_path_to_azure_path, is_fresher_than_six_months
 import boto3, os
 
@@ -42,8 +42,8 @@ def activity_moversSync_getFileList(settings: dict):
     bucket = s3.Bucket("esquire-movers")
 
     # Connect to Azure Storage and get a list of existing blob names
-    container = ContainerClient.from_connection_string(
-        conn_str=os.environ[settings["runtime_container"]["conn_str"]],
+    container = get_container_client(
+        connection_string=os.environ[settings["runtime_container"]["conn_str"]],
         container_name=settings["runtime_container"]["container_name"],
     )
     blobs_in_azure = [blob.name for blob in container.list_blobs()]

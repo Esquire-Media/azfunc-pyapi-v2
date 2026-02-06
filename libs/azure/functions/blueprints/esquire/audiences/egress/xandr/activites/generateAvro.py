@@ -11,6 +11,7 @@ import fastavro
 import fsspec
 from azure.durable_functions import Blueprint
 from azure.storage.blob import BlobClient
+from libs.utils.azure_storage import get_cached_blob_client, init_blob_client
 
 bp = Blueprint()
 logger = logging.getLogger(__name__)
@@ -141,7 +142,7 @@ class _ChunkIteratorRawIO(io.RawIOBase):
 def _source_blob_from_ingress(ingress: Mapping[str, Any]) -> BlobClient:
     source = ingress.get("source")
     if isinstance(source, str):
-        return BlobClient.from_blob_url(source)
+        return get_cached_blob_client(source)
 
     if not isinstance(source, Mapping):
         raise ValueError("ingress['source'] must be a blob url string or a mapping")
@@ -158,7 +159,7 @@ def _source_blob_from_ingress(ingress: Mapping[str, Any]) -> BlobClient:
         raise ValueError("ingress['source']['blob_name'] must be a non-empty string")
 
     conn_str = os.environ[conn_str_env]
-    return BlobClient.from_connection_string(
+    return init_blob_client(
         conn_str=conn_str,
         container_name=container_name,
         blob_name=blob_name,

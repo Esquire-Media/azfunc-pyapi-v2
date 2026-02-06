@@ -1,8 +1,8 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/mover_sync/activities/validate_address_chunks.py
 
 from azure.durable_functions import Blueprint
-from azure.storage.blob import BlobClient
 from libs.data import from_bind
+from libs.utils.azure_storage import init_blob_client
 from libs.utils.smarty import bulk_validate
 from libs.utils.text import format_zipcode, format_zip4, format_full_address
 from sqlalchemy.orm import Session
@@ -77,8 +77,8 @@ def activity_moversSync_validateAddressChunk(settings: dict):
 
     # upload validated data to a blob client
     outpath = f"{settings['chunk']['blob_type']}-geocoded/{settings['chunk']['blob_name']}/offset={('000000000'+str(settings['chunk']['offset']))[-9:]},limit={settings['chunk']['limit']}"
-    blob_client = BlobClient.from_connection_string(
-        os.environ[settings["runtime_container"]["conn_str"]],
+    blob_client = init_blob_client(
+        conn_str=os.environ[settings["runtime_container"]["conn_str"]],
         container_name=settings["runtime_container"]["container_name"],
         blob_name=outpath,
     )

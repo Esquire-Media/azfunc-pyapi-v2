@@ -6,6 +6,7 @@ from azure.storage.blob import (
     BlobSasPermissions,
     generate_blob_sas,
 )
+from libs.utils.azure_storage import get_cached_blob_client, init_blob_client
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from urllib.parse import unquote
@@ -34,11 +35,11 @@ def activity_esquireAudienceBuilder_formatPolygons(ingress: dict):
     Exception: If an error occurs during the blob operations.
     """
     # Initialize the source BlobClient
-    input_blob = BlobClient.from_blob_url(ingress["source"])
+    input_blob = get_cached_blob_client(ingress["source"])
     df = pd.read_csv(ingress["source"])
 
     # Initialize the destination BlobClient
-    output_blob = BlobClient.from_connection_string(
+    output_blob = init_blob_client(
         conn_str=os.environ[ingress["destination"]["conn_str"]],
         container_name=input_blob.container_name,
         blob_name=input_blob.blob_name + ".json",

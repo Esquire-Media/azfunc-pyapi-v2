@@ -74,8 +74,8 @@ def orchestrator_esquireAudienceMaidsAddresses_footprint(
                                 "type": "Feature",
                                 "geometry": poly,
                                 "properties": {
-                                    "name": uuid.uuid4().hex,
-                                    "fileName": uuid.uuid4().hex,
+                                    "name": context.new_uuid(),
+                                    "fileName": context.new_uuid(),
                                     "start": start.isoformat(),
                                     "end": end.isoformat(),
                                     "hash": False,

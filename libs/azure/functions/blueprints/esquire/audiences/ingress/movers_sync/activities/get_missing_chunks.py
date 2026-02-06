@@ -2,7 +2,7 @@
 
 from azure.data.tables import TableClient
 from azure.durable_functions import Blueprint
-from azure.storage.blob import ContainerClient
+from libs.utils.azure_storage import get_container_client
 from datetime import datetime as dt, timedelta
 import os, pandas as pd, re
 
@@ -38,8 +38,8 @@ def activity_moversSync_getMissingChunks(settings: dict):
         A list of dictionaries, each indicating a missing chunk of data that needs to be validated.
     """
     # connect to container and table clients
-    container_client = ContainerClient.from_connection_string(
-        conn_str=os.environ[settings["runtime_container"]["conn_str"]],
+    container_client = get_container_client(
+        connection_string=os.environ[settings["runtime_container"]["conn_str"]],
         container_name=settings["runtime_container"]["container_name"],
     )
     table_client = TableClient.from_connection_string(

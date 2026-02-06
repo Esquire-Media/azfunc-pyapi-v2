@@ -3,6 +3,7 @@
 from azure.durable_functions import Blueprint
 from libs.data import from_bind
 from libs.openapi.clients.xandr import XandrAPI
+from libs.utils.azure_storage import init_blob_client
 import orjson as json, os, pandas as pd
 
 bp = Blueprint()
@@ -20,11 +21,10 @@ def esquire_dashboard_xandr_activity_creatives(ingress: dict):
         )
         blob = None
         if ingress.get("destination", False):
-            from azure.storage.blob import BlobClient
             import uuid
 
             # Create a BlobClient to upload the data to Azure Blob Storage
-            blob = BlobClient.from_connection_string(
+            blob = init_blob_client(
                 conn_str=os.environ[
                     ingress["destination"].get("conn_str", "AzureWebJobsStorage")
                 ],

@@ -99,7 +99,7 @@ def orchestrator_moversSync_root(context: DurableOrchestrationContext):
                         "conn_str": egress["runtime_container"]["conn_str"],
                         "container_name": egress["runtime_container"]["container_name"],
                         "handle": "sa_esquiremovers",
-                        "path": f"{blob_type}-cetas/{uuid.uuid4().hex}",
+                        "path": f"{blob_type}-cetas/{context.new_uuid()}",
                         "format": "PARQUET",
                     },
                     "query": create_cetas_query(blob_type=blob_type),

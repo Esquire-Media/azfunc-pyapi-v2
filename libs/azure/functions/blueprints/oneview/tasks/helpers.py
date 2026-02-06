@@ -1,7 +1,6 @@
 # File: libs/azure/functions/blueprints/oneview/tasks/helpers.py
 
 from azure.data.tables import TableServiceClient
-from azure.storage.blob import BlobServiceClient
 from azure.durable_functions import DurableOrchestrationClient
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
@@ -12,6 +11,7 @@ from libs.azure.functions.blueprints.oneview.tasks.schemas import (
     CampaignRecordSchema,
     FlightRecordSchema,
 )
+from libs.utils.azure_storage import get_blob_service_client
 from typing import Any
 import hashlib
 import math
@@ -37,8 +37,8 @@ TABLE_CLIENTS = {
 
 
 def state(instanceId: str, value: Any = None):
-    container = BlobServiceClient.from_connection_string(
-        conn_str=os.environ["AzureWebJobsStorage"]
+    container = get_blob_service_client(
+        connection_string=os.environ["AzureWebJobsStorage"]
     ).get_container_client(container=f"{os.environ['TASK_HUB_NAME']}-largemessages")
     if not container.exists():
         container.create_container()

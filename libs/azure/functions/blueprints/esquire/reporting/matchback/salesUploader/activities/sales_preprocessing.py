@@ -1,8 +1,7 @@
 from azure.durable_functions import Blueprint
-from azure.storage.blob import BlobClient
 from datetime import timedelta
 from uuid import uuid4
-from libs.utils.azure_storage import get_blob_sas
+from libs.utils.azure_storage import get_blob_sas, init_blob_client
 from libs.utils.text import (
     format_zipcode,
     format_sales,
@@ -41,7 +40,7 @@ def activity_salesUploader_salesPreProcessing(ingress: dict):
     logging.warning("activity_salesUploader_salesPreProcessing")
 
     # connect to the ingress sales blob
-    ingress_client = BlobClient.from_connection_string(
+    ingress_client = init_blob_client(
         conn_str=os.environ[ingress["runtime_container"]["conn_str"]],
         container_name=ingress["runtime_container"]["container_name"],
         blob_name=f"{ingress['instance_id']}/01_ingress",

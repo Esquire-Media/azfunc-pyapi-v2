@@ -84,7 +84,7 @@ def xandr_segment_orchestrator(
                         "access_key": os.environ["XANDR_SEGMENTS_AWS_ACCESS_KEY"],
                         "secret_key": os.environ["XANDR_SEGMENTS_AWS_SECRET_KEY"],
                         "bucket": os.environ["XANDR_SEGMENTS_S3_BUCKET"],
-                        "object_key": "submitted/{}.avro".format(uuid.uuid4().hex),
+                        "object_key": "submitted/{}.avro".format(context.new_uuid()),
                     },
                 },
             )

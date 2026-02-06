@@ -4,6 +4,7 @@ from azure.storage.blob import (
     BlobSasPermissions,
     generate_blob_sas,
 )
+from libs.utils.azure_storage import get_cached_blob_client, init_blob_client
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
@@ -49,7 +50,7 @@ def activity_esquireAudienceBuilder_formatOnspotRequest(ingress: dict):
         end = now - relativedelta(days=2)
 
     # Initialize the source BlobClient
-    input_blob = BlobClient.from_blob_url(ingress["source_url"])
+    input_blob = get_cached_blob_client(ingress["source_url"])
     features = json.loads(input_blob.download_blob().readall())
 
     # Create the request payload with features and metadata
@@ -75,7 +76,7 @@ def activity_esquireAudienceBuilder_formatOnspotRequest(ingress: dict):
     }
 
     # Initialize the destination BlobClient
-    output_blob = BlobClient.from_connection_string(
+    output_blob = init_blob_client(
         conn_str=os.environ[ingress["working"]["conn_str"]],
         container_name=ingress["working"]["container_name"],
         blob_name="{}/{}.json".format(

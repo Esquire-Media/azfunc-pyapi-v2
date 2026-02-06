@@ -2,7 +2,7 @@ from aiopenapi3 import OpenAPI
 from aiopenapi3.extra import Cull
 from pathlib import Path
 from threading import Lock
-from typing import Dict, List, Literal, Pattern, Tuple, Union
+from typing import Dict, List, Literal, Optional, Pattern, Tuple, Union
 import gzip, httpx, io, orjson, yaml, yarl, re
 
 
@@ -52,6 +52,37 @@ class OperationSelector(type):
 class OpenAPIClient(metaclass=OperationSelector):
     cached = {}
     cache_lock = Lock()  # Lock for controlling access to cache
+
+    # Connection pool settings (class-level defaults)
+    limits = httpx.Limits(max_connections=100, max_keepalive_connections=20)
+    timeout = None  # Can be overridden per-subclass
+
+    # Singleton client instances (lazily initialized)
+    _sync_client: Optional[httpx.Client] = None
+    _async_client: Optional[httpx.AsyncClient] = None
+    _client_lock = Lock()
+
+    @classmethod
+    def get_sync_client(cls) -> httpx.Client:
+        """Get or create the singleton sync httpx.Client with connection pooling."""
+        if cls._sync_client is None:
+            with cls._client_lock:
+                if cls._sync_client is None:
+                    cls._sync_client = httpx.Client(
+                        limits=cls.limits, timeout=cls.timeout
+                    )
+        return cls._sync_client
+
+    @classmethod
+    def get_async_client(cls) -> httpx.AsyncClient:
+        """Get or create the singleton async httpx.AsyncClient with connection pooling."""
+        if cls._async_client is None:
+            with cls._client_lock:
+                if cls._async_client is None:
+                    cls._async_client = httpx.AsyncClient(
+                        limits=cls.limits, timeout=cls.timeout
+                    )
+        return cls._async_client
     
     class Loader:
         url: yarl.URL
@@ -60,7 +91,7 @@ class OpenAPIClient(metaclass=OperationSelector):
         @classmethod
         def load(cls) -> dict:
             assert isinstance(cls.url, yarl.URL)
-            data = httpx.get(str(cls.url)).content
+            data = OpenAPIClient.get_sync_client().get(str(cls.url)).content
             match cls.format:
                 case "yaml":
                     return yaml.load(io.BytesIO(data), Loader=yaml.CLoader)
@@ -102,11 +133,13 @@ class OpenAPIClient(metaclass=OperationSelector):
 
     @classmethod
     def session_sync(cls, *args, **kwargs) -> httpx.Client:
-        return httpx.Client(*args, timeout=None, **kwargs)
+        """Return the singleton sync client for connection reuse."""
+        return cls.get_sync_client()
 
     @classmethod
     def session_async(cls, *args, **kwargs) -> httpx.AsyncClient:
-        return httpx.AsyncClient(*args, timeout=None, **kwargs)
+        """Return the singleton async client for connection reuse."""
+        return cls.get_async_client()
 
     @classmethod
     def load_bytes(cls) -> bytes:

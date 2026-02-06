@@ -57,29 +57,6 @@ def _normalize_datatype_for_format(data_type: str) -> str:
     return "CSV_HEADER" if dt == "addresses" else "CSV"
 
 
-def _build_synapse_query(ds_cfg: Dict[str, Any], where_clause: str) -> str:
-    """
-    Deterministically build a Synapse SELECT query string.
-    """
-    select_clause = ds_cfg.get("query", {}).get("select", "*")
-
-    table_cfg = ds_cfg.get("table", {})
-    schema = table_cfg.get("schema")
-    schema_prefix = f"[{schema}]." if schema else ""
-    table_name = f"[{table_cfg.get('name', '').strip()}]"
-
-    parts = [
-        "SELECT",
-        select_clause,
-        "FROM",
-        f"{schema_prefix}{table_name}",
-        "WHERE",
-        where_clause,
-    ]
-    # Single-space join to avoid newline/whitespace differences across replays
-    return " ".join(parts)
-
-
 def _build_postgres_query(ds_cfg: Dict[str, Any], where_clause: str) -> str:
     """
     Deterministically build a Postgres SELECT query string for non-EAV sources.

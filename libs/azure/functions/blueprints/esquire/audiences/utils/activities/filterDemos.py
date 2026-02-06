@@ -81,10 +81,12 @@ def compile_sql_where_predicate(where_sql: str):
     expr = where_sql
     expr = re.sub(r"\bAND\b", "and", expr, flags=re.IGNORECASE)
     expr = re.sub(r"\bOR\b", "or", expr, flags=re.IGNORECASE)
-    expr = expr.replace("=", "==")
-    expr = expr.replace("<==", "<=")
-    expr = expr.replace(">==", ">=")
+
+    # Preserve != first
     expr = expr.replace("!=", "!=")
+
+    # Replace bare = with ==
+    expr = re.sub(r"(?<![<>=!])=(?!=)", "==", expr)
 
     # Replace quoted identifiers with row lookups
     expr = re.sub(
@@ -93,17 +95,20 @@ def compile_sql_where_predicate(where_sql: str):
         expr,
     )
 
-    # Normalize BIT values
-    expr = expr.replace(" = 1", " == '1'")
-    expr = expr.replace(" = 0", " == '0'")
+    # Normalize BIT comparisons
+    expr = re.sub(r"==\s*1\b", "== '1'", expr)
+    expr = re.sub(r"==\s*0\b", "== '0'", expr)
 
-    # Compile once
     code = compile(expr, "<demographics-filter>", "eval")
 
     def predicate(row: dict) -> bool:
-        return bool(eval(code, {"row": row}))
+        try:
+            return bool(eval(code, {"row": row}))
+        except Exception:
+            return False
 
     return predicate
+
 
 def stream_filter_demographics_csv(
     source_stream,

@@ -8,7 +8,7 @@ from libs.azure.functions.blueprints.esquire.audiences.builder.activities.fetchA
 
 bp = Blueprint()
 
-
+@bp.activity_trigger(input_name="ingress")
 def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
     """
     Durable-safe streaming demographics filter.

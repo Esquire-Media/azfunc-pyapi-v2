@@ -3,12 +3,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    platform: linux/amd64
+    env_file:
+      - ../.env
     volumes:
       - ../..:/workspaces:cached
     command: sleep infinity
-    depends_on:
-      - azurite
+    network_mode: service:azurite
 
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite

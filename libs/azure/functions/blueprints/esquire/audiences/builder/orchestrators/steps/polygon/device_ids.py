@@ -1,7 +1,7 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/steps/polygons/device_ids.py
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
-from azure.storage.blob import BlobClient
+from libs.utils.azure_storage import download_blob_bytes
 import uuid, orjson as json
 
 bp = Blueprint()
@@ -71,7 +71,7 @@ def orchestrator_esquireAudiencesSteps_polygon2deviceids(
                     **destination,
                     "endpoint": "/save/geoframe/all/devices",
                     "request": json.loads(
-                        BlobClient.from_blob_url(source_url).download_blob().readall()
+                        download_blob_bytes(source_url)
                     ),
                 },
             )
@@ -109,8 +109,8 @@ def orchestrator_esquireAudiencesSteps_polygon2deviceids(
                                 "type": "Files",
                                 "paths": [source_url.replace("https://", "az://")],
                                 "properties": {
-                                    "name": uuid.uuid4().hex,
-                                    "fileName": uuid.uuid4().hex + ".csv",
+                                    "name": context.new_uuid(),
+                                    "fileName": context.new_uuid() + ".csv",
                                     "hash": False,
                                     "fileFormat": {
                                         "delimiter": ",",

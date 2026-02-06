@@ -57,29 +57,6 @@ def _normalize_datatype_for_format(data_type: str) -> str:
     return "CSV_HEADER" if dt == "addresses" else "CSV"
 
 
-def _build_synapse_query(ds_cfg: Dict[str, Any], where_clause: str) -> str:
-    """
-    Deterministically build a Synapse SELECT query string.
-    """
-    select_clause = ds_cfg.get("query", {}).get("select", "*")
-
-    table_cfg = ds_cfg.get("table", {})
-    schema = table_cfg.get("schema")
-    schema_prefix = f"[{schema}]." if schema else ""
-    table_name = f"[{table_cfg.get('name', '').strip()}]"
-
-    parts = [
-        "SELECT",
-        select_clause,
-        "FROM",
-        f"{schema_prefix}{table_name}",
-        "WHERE",
-        where_clause,
-    ]
-    # Single-space join to avoid newline/whitespace differences across replays
-    return " ".join(parts)
-
-
 def _build_postgres_query(ds_cfg: Dict[str, Any], where_clause: str) -> str:
     """
     Deterministically build a Postgres SELECT query string for non-EAV sources.
@@ -166,41 +143,7 @@ def orchestrator_esquireAudiences_primaryData(
     ingress_results: Optional[List[str]] = None
 
     # 2) Deterministic branching based only on input/config
-    if db_type == "synapse":
-        # 2a) Build query purely from inputs/config
-        query = _build_synapse_query(ds_cfg, audience_filter)
-
-        # Optional TTL-based filter function — must be a pure function of provided args.
-        filter_fn: str = ds_cfg.get("query", {}).get("filter")
-        if callable(filter_fn):
-            ttl_len = audience.get("TTL_Length")
-            ttl_unit = audience.get("TTL_Unit")
-            # The function must be pure/deterministic wrt inputs; we don't call any non-deterministic API here.
-            query += filter_fn(ttl_len, ttl_unit)
-
-        ingress_query = query
-
-        # 2b) Call activity (all I/O happens outside orchestrator)
-        format_str = _normalize_datatype_for_format(data_type)
-        ingress_results = yield context.call_activity(
-            "synapse_activity_cetas",
-            {
-                # IDs and config are all deterministic inputs.
-                "instance_id": ingress.get("instance_id"),
-                **ds_cfg,
-                "destination": {
-                    "conn_str": working.get("conn_str"),
-                    "container_name": working.get("container_name"),
-                    "blob_prefix": f"{working.get('blob_prefix')}/-1",
-                    "handle": storage_handle,
-                    "format": format_str,
-                },
-                "query": ingress_query,
-                "return_urls": True,
-            },
-        )
-
-    elif db_type == "postgres":
+    if db_type == "postgres":
         is_eav: bool = bool(ds_cfg.get("isEAV", False))
 
         if is_eav:

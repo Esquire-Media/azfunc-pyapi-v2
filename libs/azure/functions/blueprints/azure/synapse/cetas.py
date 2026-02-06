@@ -1,10 +1,11 @@
 # File: libs/azure/functions/blueprints/synapse/cetas.py
 
 from azure.durable_functions import Blueprint
-from azure.storage.blob import ContainerClient, BlobSasPermissions, generate_blob_sas
+from azure.storage.blob import BlobSasPermissions, generate_blob_sas
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from libs.data import from_bind
+from libs.utils.azure_storage import get_container_client
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import text
 from urllib.parse import unquote
@@ -162,8 +163,8 @@ async def synapse_activity_cetas(ingress: dict):
 
     # Generate SAS URLs for blobs if the 'return_urls' flag is set.
     if ingress.get("return_urls", None):
-        container = ContainerClient.from_connection_string(
-            conn_str=os.getenv(
+        container = get_container_client(
+            connection_string=os.getenv(
                 ingress["destination"]["conn_str"], os.environ["AzureWebJobsStorage"]
             ),
             container_name=ingress["destination"]["container_name"],

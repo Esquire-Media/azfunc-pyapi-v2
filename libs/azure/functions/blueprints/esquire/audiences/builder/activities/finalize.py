@@ -11,6 +11,7 @@ from azure.storage.blob import (
     DelimitedTextDialect,
     generate_blob_sas,
 )
+from libs.utils.azure_storage import get_cached_blob_client, init_blob_client
 from dateutil.relativedelta import relativedelta
 from urllib.parse import unquote
 import base64
@@ -30,9 +31,9 @@ def _get_input_blob(source: Any) -> BlobClient:
     'source' can be a blob URL string or a dict with connection info.
     """
     if isinstance(source, str):
-        return BlobClient.from_blob_url(source)
+        return get_cached_blob_client(source)
 
-    return BlobClient.from_connection_string(
+    return init_blob_client(
         conn_str=os.environ[source["conn_str"]],
         container_name=source["container_name"],
         blob_name=source["blob_name"],
@@ -76,7 +77,7 @@ def _get_output_blob(ingress: Dict[str, Any], blob_name: str) -> BlobClient:
     Build a BlobClient for the destination blob based on the 'destination' entry in ingress.
     """
     destination = ingress["destination"]
-    return BlobClient.from_connection_string(
+    return init_blob_client(
         conn_str=os.environ[destination["conn_str"]],
         container_name=destination["container_name"],
         blob_name=blob_name,

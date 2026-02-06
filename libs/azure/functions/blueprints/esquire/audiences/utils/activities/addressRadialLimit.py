@@ -3,6 +3,7 @@ import csv
 from io import StringIO
 from azure.durable_functions import Blueprint
 from azure.storage.blob import BlobClient
+from libs.utils.azure_storage import download_blob_bytes
 # import logging
 from sklearn.neighbors import BallTree
 import numpy as np
@@ -55,8 +56,7 @@ def filter_by_radius(sales_records, owned_locations, radius_miles):
     return kept_records
 
 def load_csv_from_blob(blob_url: str) -> list:
-    blob = BlobClient.from_blob_url(blob_url)
-    raw_bytes = blob.download_blob().readall()
+    raw_bytes = download_blob_bytes(blob_url)
     text = raw_bytes.decode("utf-8")
 
     return list(csv.DictReader(StringIO(text)))

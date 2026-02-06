@@ -1,7 +1,7 @@
 from azure.durable_functions import Blueprint
-from azure.storage.blob import BlobClient, ContainerClient
+from azure.storage.blob import BlobClient
 from io import BytesIO
-from libs.utils.azure_storage import get_blob_sas
+from libs.utils.azure_storage import get_blob_sas, get_container_client, init_blob_client
 from libs.utils.pptx import add_custom_image, replace_text
 from libs.utils.esquire.onspot_graphics.demographics import Demographics
 from libs.utils.esquire.onspot_graphics.observations import Observations
@@ -19,13 +19,13 @@ bp = Blueprint()
 def activity_locationInsights_buildReport(settings: dict):
 
     # container for storing data and where the report will be exported
-    runtime_container = ContainerClient.from_connection_string(
-        os.environ[settings["runtime_container"]["conn_str"]],
+    runtime_container = get_container_client(
+        connection_string=os.environ[settings["runtime_container"]["conn_str"]],
         container_name=settings["runtime_container"]["container_name"],
     )
     # container that holds static assets such as PPTX templates and image files
-    resources_container = ContainerClient.from_connection_string(
-        os.environ[settings["resources_container"]["conn_str"]],
+    resources_container = get_container_client(
+        connection_string=os.environ[settings["resources_container"]["conn_str"]],
         container_name=settings["resources_container"]["container_name"],
     )
 
@@ -41,7 +41,7 @@ def activity_locationInsights_buildReport(settings: dict):
         locationID = location["locationID"]
 
         # Load location info
-        location_data = pd.read_csv(get_blob_sas(BlobClient.from_connection_string(
+        location_data = pd.read_csv(get_blob_sas(init_blob_client(
             conn_str=os.environ[settings["runtime_container"]["conn_str"]],
             container_name=settings["runtime_container"]["container_name"],
             blob_name=location["location_blob"],
@@ -54,14 +54,11 @@ def activity_locationInsights_buildReport(settings: dict):
         # load observations data from blob
         observations_data = pd.read_csv(
             get_blob_sas(
-                BlobClient.from_connection_string(
+                init_blob_client(
                     conn_str=os.environ[settings["runtime_container"]["conn_str"]],
                     container_name=settings["runtime_container"]["container_name"],
                     blob_name=[
-                        *ContainerClient.from_connection_string(
-                            conn_str=os.environ[settings["runtime_container"]["conn_str"]],
-                            container_name=settings["runtime_container"]["container_name"],
-                        ).list_blobs(
+                        *runtime_container.list_blobs(
                             name_starts_with=f"{location['observations_blob']}/"
                         )
                     ][0]["name"],

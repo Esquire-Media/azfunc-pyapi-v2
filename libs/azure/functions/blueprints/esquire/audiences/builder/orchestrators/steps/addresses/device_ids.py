@@ -51,8 +51,8 @@ def orchestrator_esquireAudiencesSteps_addresses2deviceids(
                     "endpoint": "/save/addresses/all/devices",
                     "request": {
                         "hash": False,
-                        "name": uuid.uuid4().hex,
-                        "fileName": uuid.uuid4().hex + ".csv",
+                        "name": context.new_uuid(),
+                        "fileName": context.new_uuid() + ".csv",
                         "fileFormat": {
                             "delimiter": ",",
                             "quoteEncapsulate": True,
@@ -114,8 +114,8 @@ def orchestrator_esquireAudiencesSteps_addresses2deviceids(
                                 "type": "Files",
                                 "paths": [source_url.replace("https://", "az://")],
                                 "properties": {
-                                    "name": uuid.uuid4().hex,
-                                    "fileName": uuid.uuid4().hex + ".csv",
+                                    "name": context.new_uuid(),
+                                    "fileName": context.new_uuid() + ".csv",
                                     "hash": False,
                                     "fileFormat": {
                                         "delimiter": ",",

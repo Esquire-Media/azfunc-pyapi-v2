@@ -38,8 +38,8 @@ def orchestrator_esquireAudienceMaidsAddresses_standard(
             "endpoint": "/save/addresses/all/devices",
             "request": {
                 "hash": False,
-                "name": uuid.uuid4().hex,
-                "fileName": uuid.uuid4().hex,
+                "name": context.new_uuid(),
+                "fileName": context.new_uuid(),
                 "fileFormat": {
                     "delimiter": ",",
                     "quoteEncapsulate": True,

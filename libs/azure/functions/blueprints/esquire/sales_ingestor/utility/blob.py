@@ -1,6 +1,7 @@
 import os
 import io
-from azure.storage.blob import BlobClient, ContainerClient
+from azure.storage.blob import BlobClient
+from libs.utils.azure_storage import init_blob_client
 import pyarrow.ipc as pa_ipc
 import pyarrow as pa
 

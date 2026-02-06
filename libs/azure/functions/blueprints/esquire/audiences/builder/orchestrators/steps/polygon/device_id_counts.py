@@ -1,5 +1,5 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
-from azure.storage.blob import BlobClient
+from libs.utils.azure_storage import download_blob_bytes
 import orjson as json
 
 bp = Blueprint()
@@ -44,7 +44,7 @@ def orchestrator_esquireAudiencesSteps_polygon2deviceidcounts(
                     **destination,
                     "endpoint": "/save/geoframe/all/countgroupedbydevice",
                     "request": json.loads(
-                        BlobClient.from_blob_url(source_url).download_blob().readall()
+                        download_blob_bytes(source_url)
                     ),
                 },
             )

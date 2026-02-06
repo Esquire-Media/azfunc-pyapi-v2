@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, Iterator, Mapping, Tuple, Union
+from functools import lru_cache
+from typing import Any, Dict, Iterable, Iterator, Tuple, Union
 
 import codecs
 import csv
@@ -12,6 +13,7 @@ import uuid
 import fsspec
 from azure.durable_functions import Blueprint
 from azure.storage.blob import BlobClient
+from libs.utils.azure_storage import get_cached_blob_client, init_blob_client
 
 bp = Blueprint()
 
@@ -26,10 +28,10 @@ def _build_blob_client(source: Union[str, Dict[str, Any]]) -> BlobClient:
       - a dict describing the binding configuration.
     """
     if isinstance(source, str):
-        return BlobClient.from_blob_url(source)
+        return get_cached_blob_client(source)
 
     conn_str_env_name = source["conn_str"]
-    return BlobClient.from_connection_string(
+    return init_blob_client(
         conn_str=os.environ[conn_str_env_name],
         container_name=source["container_name"],
         blob_name=source["blob_name"],
@@ -153,16 +155,17 @@ def _coerce_max_append_block_bytes(raw: Any) -> int:
     return min(val, _AZURE_APPEND_BLOB_MAX_BLOCK_BYTES)
 
 
-def _build_botocore_client(
+@lru_cache(maxsize=32)
+def _cached_botocore_client(
     service: str,
-    *,
     access_key: str,
     secret_key: str,
     session_token: str | None,
     region: str | None,
 ):
     """
-    Use botocore directly (no boto3 dependency). botocore is typically present via s3fs.
+    Create a botocore client with caching for reuse across calls.
+    Uses lru_cache to avoid creating duplicate clients with same credentials.
     """
     try:
         import botocore.session  # type: ignore
@@ -182,6 +185,27 @@ def _build_botocore_client(
         aws_secret_access_key=secret_key,
         aws_session_token=session_token,
         config=cfg,
+    )
+
+
+def _build_botocore_client(
+    service: str,
+    *,
+    access_key: str,
+    secret_key: str,
+    session_token: str | None,
+    region: str | None,
+):
+    """
+    Use botocore directly (no boto3 dependency). botocore is typically present via s3fs.
+    Delegates to cached version for connection reuse.
+    """
+    return _cached_botocore_client(
+        service,
+        access_key,
+        secret_key,
+        session_token,
+        region,
     )
 
 
@@ -262,22 +286,42 @@ def _stream_blob_to_s3(
 def _put_object_acl_bucket_owner_full_control(
     *,
     s3_url: str,
-    access_key: str,
-    secret_key: str,
-    session_token: str | None,
-    region: str | None,
+    s3_client: Any | None = None,
+    access_key: str | None = None,
+    secret_key: str | None = None,
+    session_token: str | None = None,
+    region: str | None = None,
 ):
+    """
+    Set bucket-owner-full-control ACL on an S3 object.
+
+    Args:
+        s3_url: The s3:// URL of the object
+        s3_client: Optional pre-created S3 client. If not provided, one is created
+                   using the credentials parameters.
+        access_key: AWS access key (used if s3_client not provided)
+        secret_key: AWS secret key (used if s3_client not provided)
+        session_token: AWS session token (used if s3_client not provided)
+        region: AWS region (used if s3_client not provided)
+    """
     bucket, key = _parse_s3_url(s3_url)
     if not key:
         raise ValueError(f"Cannot set ACL on empty key for URL: {s3_url!r}")
 
-    s3 = _build_botocore_client(
-        "s3",
-        access_key=access_key,
-        secret_key=secret_key,
-        session_token=session_token,
-        region=region,
-    )
+    if s3_client is not None:
+        s3 = s3_client
+    else:
+        if access_key is None or secret_key is None:
+            raise ValueError(
+                "Either s3_client or both access_key and secret_key must be provided"
+            )
+        s3 = _build_botocore_client(
+            "s3",
+            access_key=access_key,
+            secret_key=secret_key,
+            session_token=session_token,
+            region=region,
+        )
 
     s3.put_object_acl(
         Bucket=bucket,
@@ -474,14 +518,20 @@ def activity_esquireAudienceFreewheel_uploadSegmentToS3(ingress: Dict[str, Any])
             "or (4) base creds cannot sts:AssumeRole for that role."
         ) from exc
 
+    # Create a cached S3 client for ACL operation (reuses connection from _assume_role)
+    s3_client = _build_botocore_client(
+        "s3",
+        access_key=assumed["access_key"],
+        secret_key=assumed["secret_key"],
+        session_token=assumed["session_token"],
+        region=region,
+    )
+
     # Set ACL bucket-owner-full-control (required by FreeWheel step 7)
     try:
         _put_object_acl_bucket_owner_full_control(
             s3_url=s3_path,
-            access_key=assumed["access_key"],
-            secret_key=assumed["secret_key"],
-            session_token=assumed["session_token"],
-            region=region,
+            s3_client=s3_client,
         )
     except PermissionError as exc:
         raise PermissionError(

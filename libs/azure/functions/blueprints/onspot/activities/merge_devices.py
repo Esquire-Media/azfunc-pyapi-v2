@@ -2,13 +2,12 @@
 
 from azure.durable_functions import Blueprint
 from azure.storage.blob import (
-    BlobClient,
     BlobSasPermissions,
-    ContainerClient,
     ContainerSasPermissions,
     generate_blob_sas,
     generate_container_sas,
 )
+from libs.utils.azure_storage import get_container_client, init_blob_client
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import os, logging
@@ -19,8 +18,8 @@ bp: Blueprint = Blueprint()
 @bp.activity_trigger(input_name="ingress")
 def activity_onSpot_mergeDevices(ingress: dict):
     # source container
-    sources_container_client = ContainerClient.from_connection_string(
-        conn_str=os.environ[ingress["source"]["conn_str"]],
+    sources_container_client = get_container_client(
+        connection_string=os.environ[ingress["source"]["conn_str"]],
         container_name=ingress["source"]["container_name"],
     )
     # generate sas token
@@ -33,8 +32,8 @@ def activity_onSpot_mergeDevices(ingress: dict):
     )
 
     # make connection to the container
-    destination_blob_client = BlobClient.from_connection_string(
-        conn_str=os.environ[ingress["destination"]["conn_str"]],
+    destination_blob_client = init_blob_client(
+        conn_str=ingress["destination"]["conn_str"],
         container_name=ingress["destination"]["container_name"],
         blob_name=ingress["destination"]["blob_name"],
     )

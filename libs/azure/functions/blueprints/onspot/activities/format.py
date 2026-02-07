@@ -2,10 +2,10 @@
 
 from azure.durable_functions import Blueprint, DurableOrchestrationClient
 from azure.storage.blob import (
-    ContainerClient,
     ContainerSasPermissions,
     generate_container_sas,
 )
+from libs.utils.azure_storage import get_container_client
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import uuid, os
@@ -34,16 +34,15 @@ async def onspot_activity_format(ingress: dict, client: DurableOrchestrationClie
     """
 
     if ingress["endpoint"].startswith("/save/"):
-        container = ContainerClient.from_connection_string(
-            (
-                os.environ[ingress["conn_str"]]
-                if ingress.get("conn_str", None) in os.environ.keys()
-                else os.environ["AzureWebJobsStorage"]
-            ),
-            container_name=ingress.get(
-                "container_name", ingress.get("container", "general")
-            ),
+        conn_str = (
+            os.environ[ingress["conn_str"]]
+            if ingress.get("conn_str", None) in os.environ.keys()
+            else os.environ["AzureWebJobsStorage"]
         )
+        container_name = ingress.get(
+            "container_name", ingress.get("container", "general")
+        )
+        container = get_container_client(conn_str, container_name)
         if not container.exists():
             container.create_container()
         sas_token = generate_container_sas(

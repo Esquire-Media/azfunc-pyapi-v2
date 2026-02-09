@@ -60,4 +60,9 @@ def _normalized_fields_for_ddl(schema: pa.Schema):
             norm.append(pa.field(f.name, f.type.value_type, nullable=f.nullable, metadata=f.metadata))
         else:
             norm.append(f)
+
+    norm = [f'"{_escape_ident(f.name)}" {_pg_type(f)}' for f in norm]
     return norm
+
+def _escape_ident(name: str) -> str:
+    return name.replace('%', '%%')

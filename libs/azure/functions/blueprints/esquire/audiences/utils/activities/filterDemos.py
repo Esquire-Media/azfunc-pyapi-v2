@@ -23,9 +23,12 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
     destination = ingress["destination"]
 
     # 1. Compile filter
+    # use sql as in the rest of audience automation to ensure it's consistent
+    # kind of an intermediate, narrower level
     where_sql = jsonlogic_to_sql(
         _canonicalize_jsonlogic(demo_filter)
     )
+    # then turn it into pythony dict-handling goodness
     predicate = compile_sql_where_predicate(where_sql)
 
     # 2. Build destination path

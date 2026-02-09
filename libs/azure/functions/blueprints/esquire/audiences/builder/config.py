@@ -33,15 +33,6 @@ if not from_bind("audiences"):
     )
 
 MAPPING_DATASOURCE = {
-    # Attom estated data - can use for testing
-    "clwjn2q4s0055rw04ojmpvg77": {
-        "dbType": "synapse",
-        "bind": "audience",
-        "table": {
-            "schema": "dbo",
-            "name": "addresses",
-        },
-    },
     # Deepsync mover - can use for testing
     "clwjn2q4s0056rw04ra44j8k9": {
         "dbType": "postgres",
@@ -82,14 +73,5 @@ MAPPING_DATASOURCE = {
             "name": "entities",
         },
         "isEAV":True
-    },
-    # OSM Building footprints - not set up in Synapse
-    "clwjn2q4t0059rw04qxcw5q3h": {
-        "dbType": "synapse",
-        "bind": "general",
-        "table": {
-            "schema": "dbo",
-            "name": "osm",
-        },
     },
 }

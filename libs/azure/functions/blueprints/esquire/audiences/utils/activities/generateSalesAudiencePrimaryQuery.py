@@ -336,16 +336,16 @@ const AS (
 ),
 -- Sales batches scoped to the tenant (prefer JSONLogic tenant, else ingress).
 sales_batches AS (
-  SELECT t.entity_id
+  SELECT sb.entity_id
   FROM const c
   CROSS JOIN sales.query_eav(
     'sales_batch',
-    jsonb_build_object('tenant_id', jsonb_build_object('==', c.tenant_id))
-  ) AS t(entity_id uuid)
+    jsonb_build_object('["tenant_id"]', jsonb_build_object('==', c.tenant_id))
+  ) AS sb(entity_id uuid)
 ),
 -- Transactions under those batches, filtered by optional date window and any txn-level predicates.
 transactions AS (
-  SELECT t.entity_id
+  SELECT t.entity_id, t.billing_address_id
   FROM (
     SELECT COALESCE(jsonb_agg(entity_id), '[]'::jsonb) AS ids
     FROM sales_batches
@@ -355,12 +355,13 @@ transactions AS (
     'transaction',
     jsonb_build_object(
       'parent_entity_id', jsonb_build_object('in', b.ids){txn_filter_kvs_sql}
-    )
-  ) AS t(entity_id uuid)
+    ),
+    ARRAY['billing_address_id']
+  ) AS t(entity_id uuid, billing_address_id text)
 ),
 -- Collect distinct billing address ids from line items tied to those transactions.
-line_item_addresses AS (
-  SELECT DISTINCT li.billing_address_id
+line_items AS (
+  SELECT li.entity_id, li.shipping_address_id
   FROM (
     SELECT COALESCE(jsonb_agg(entity_id), '[]'::jsonb) AS ids
     FROM transactions
@@ -370,8 +371,20 @@ line_item_addresses AS (
     jsonb_build_object(
       'parent_entity_id', jsonb_build_object('in', ti.ids)
     ),
-    ARRAY['billing_address_id']
-  ) AS li(entity_id uuid, billing_address_id text)
+    ARRAY['shipping_address_id']
+  ) AS li(entity_id uuid, shipping_address_id text)
+),
+-- Union of all address_ids we care about: shipping (line_items) + billing (transactions).
+addresses AS (
+  SELECT DISTINCT billing_address_id AS address_id
+  FROM transactions
+  WHERE billing_address_id IS NOT NULL
+
+  UNION   -- de-duplicate addresses across shipping/billing
+
+  SELECT DISTINCT shipping_address_id AS address_id
+  FROM line_items
+  WHERE shipping_address_id IS NOT NULL
 )
 -- Final address projection with consistent NULLIF handling and aliases.
 SELECT
@@ -386,8 +399,8 @@ SELECT
   NULLIF(a.latitude, 'NONE')::float    AS latitude,
   NULLIF(a.longitude, 'NONE')::float   AS longitude
 FROM (
-  SELECT COALESCE(jsonb_agg(billing_address_id), '[]'::jsonb) AS ids
-  FROM line_item_addresses
+  SELECT COALESCE(jsonb_agg(addr.address_id), '[]'::jsonb) AS ids
+  FROM addresses AS addr
 ) ai
 CROSS JOIN LATERAL sales.query_eav(
   'address',

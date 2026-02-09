@@ -1,5 +1,3 @@
-#  file path:libs/azure/functions/blueprints/esquire/audiences/utils/activities/getTotalMaids.py
-
 from azure.durable_functions import Blueprint
 from azure.storage.blob import (
     BlobClient,

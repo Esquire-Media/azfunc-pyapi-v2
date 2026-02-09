@@ -1,8 +1,8 @@
 # File: libs/azure/functions/blueprints/esquire/dashboard/meta/activities/download.py
 
 from azure.durable_functions import Blueprint
-from azure.storage.blob import BlobClient
 from libs.openapi.clients.facebook import Facebook
+from libs.utils.azure_storage import init_blob_client
 import os, pandas as pd
 
 bp = Blueprint()
@@ -58,7 +58,7 @@ def esquire_dashboard_meta_activity_download(ingress: dict) -> dict:
     # Check if the report contains any data
     if list(report.keys()):
         # Set up the BlobClient using the provided connection string and parameters
-        blob: BlobClient = BlobClient.from_connection_string(
+        blob = init_blob_client(
             conn_str=os.environ[ingress["conn_str"]],
             container_name=ingress["container_name"],
             blob_name=ingress["blob_name"],

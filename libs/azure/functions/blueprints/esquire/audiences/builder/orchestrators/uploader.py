@@ -50,8 +50,9 @@ def orchestrator_esquireAudiences_uploader(
 
     # Targets in deterministic, fixed order
     targets = [
+        ("freewheel_segment_orchestrator", bool(advertiser.get("freewheel"))),
         ("meta_customaudience_orchestrator", bool(advertiser.get("meta"))),
-        ("xandr_segment_orchestrator", bool(advertiser.get("xandr"))),
+        # ("xandr_segment_orchestrator", bool(advertiser.get("xandr"))),
     ]
 
     # Always schedule exactly 2 sub-orchestrations in that order.

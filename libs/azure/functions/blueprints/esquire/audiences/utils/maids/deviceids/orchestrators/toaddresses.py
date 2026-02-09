@@ -1,7 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/maids/deviceids/orchestrators/toaddresses.py
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
-from azure.storage.blob import BlobClient
+from libs.utils.azure_storage import download_blob_bytes
 import orjson as json
 
 bp = Blueprint()
@@ -43,7 +43,7 @@ def orchestrator_esquireAudienceMaidsDeviceIds_toaddresses(
                     **ingress["working"],
                     "endpoint": "/save/files/household",
                     "request": json.loads(
-                        BlobClient.from_blob_url(ingress["source"]).download_blob().content_as_bytes()
+                        download_blob_bytes(ingress["source"])
                     ),
                 },
             )

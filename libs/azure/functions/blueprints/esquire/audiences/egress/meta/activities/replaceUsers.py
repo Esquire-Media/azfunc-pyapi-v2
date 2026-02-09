@@ -1,16 +1,20 @@
 from __future__ import annotations
 
-from typing import Any, List
+from typing import Any, Dict, List, Optional, Tuple
 
 from azure.durable_functions import Blueprint
 from facebook_business.exceptions import FacebookRequestError
 from facebook_business.adobjects.customaudience import CustomAudience
+
 from libs.azure.functions.blueprints.esquire.audiences.egress.meta.utils import (
     initialize_facebook_api,
 )
 from libs.data import from_bind
 
 bp = Blueprint()
+
+# Fetch in small chunks to avoid transient large row lists (peak memory).
+_DB_FETCH_CHUNK = 256
 
 
 def _sql_escape_single_quotes(value: Any) -> str:
@@ -21,87 +25,101 @@ def _sql_escape_single_quotes(value: Any) -> str:
     return str(value).replace("'", "''")
 
 
-@bp.activity_trigger(input_name="ingress")
-def activity_esquireAudienceMeta_customAudience_replaceUsers(ingress: dict):
+def _build_paged_sql(ingress: Dict[str, Any]) -> Tuple[str, int, int]:
     """
-    Sends a deterministic REPLACE batch to Meta using the usersreplace endpoint,
-    using a low-memory, streaming fetch from the database.
-
-    Memory-conscious design:
-      - No pandas: stream rows via DB-API/SQLAlchemy and materialize at most `batch_size` MAIDs.
-      - Normalize (LOWER/TRIM) in SQL so Python avoids per-row string ops.
-      - DISTINCT + ORDER BY in SQL yields stable page composition; OFFSET/FETCH pages deterministically.
-
-    Expected ingress:
-      - "audience": { "audience": "<Meta CA id>", ... }
-      - "sql": { "bind": "audiences", "query": "<SELECT DISTINCT deviceid ...>" }
-              NOTE: query should contain '{container}', '{prefix}', '{datasource}' *positional* '{}' slots.
-      - "batch": { "session_id": int, "estimated_num_total": int, "batch_seq": int (1-based), "last_batch_flag": bool }
-      - "batch_size": int
-      - "destination": { "container_name": str, "blob_prefix": str, "data_source": str }
-      - optional Meta credentials (or via env)
+    Builds a deterministic, paged SQL statement using caller-provided base SQL
+    and the batch_seq/batch_size window.
+    Returns: (paged_sql, offset, limit)
     """
-    # --- Derive deterministic page window ---
-    page_index_zero_based = max(int(ingress["batch"]["batch_seq"]) - 1, 0)
+    batch = ingress["batch"]
+    page_index_zero_based = max(int(batch["batch_seq"]) - 1, 0)
     limit = int(ingress["batch_size"])
     offset = page_index_zero_based * limit
 
-    # --- Build the paged, deterministic SQL (normalize in SQL; avoid pandas in Python) ---
-    # Format the caller-provided base SELECT (e.g., the OPENROWSET query) with safely-escaped pieces.
+    # Caller-provided query contains positional {} slots for:
+    #   0: container_name, 1: blob_prefix, 2: data_source
     base_sql = ingress["sql"]["query"].format(
         _sql_escape_single_quotes(ingress["destination"]["container_name"]),
         _sql_escape_single_quotes(ingress["destination"]["blob_prefix"]),
         _sql_escape_single_quotes(ingress["destination"]["data_source"]),
     )
 
-    # We wrap the base query to:
-    #   * Normalize: LOWER(LTRIM(RTRIM(deviceid))) as deviceid
-    #   * De-duplicate deterministically: DISTINCT
-    #   * Sort for stable paging: ORDER BY deviceid
-    #   * Page deterministically: OFFSET/FETCH
-    paged_sql = f"""
-        {base_sql}
-        OFFSET {offset} ROWS
-        FETCH NEXT {limit} ROWS ONLY;
+    # Ensure we don't accidentally double-terminate.
+    base_sql = base_sql.strip().rstrip(";")
+
+    # NOTE: The base SQL MUST include a deterministic ORDER BY for stable paging.
+    # OFFSET/FETCH must come *after* ORDER BY in T-SQL.
+    paged_sql = (
+        f"{base_sql}\n"
+        f"OFFSET {offset} ROWS\n"
+        f"FETCH NEXT {limit} ROWS ONLY;\n"
+    )
+    return paged_sql, offset, limit
+
+
+def _fetch_users_page_low_memory(
+    ingress: Dict[str, Any],
+) -> Tuple[Optional[List[str]], Optional[Dict[str, Any]], int, int]:
     """
+    Fetch up to `batch_size` MAIDs from SQL with minimal memory overhead.
+    Returns: (users or None, error or None, offset, limit)
+    """
+    paged_sql, offset, limit = _build_paged_sql(ingress)
 
     provider = from_bind(ingress["sql"]["bind"])
-    session = provider.connect()
+    db_session = provider.connect()
+
     users: List[str] = []
+    users_append = users.append
 
     try:
-        # Acquire a SQLAlchemy connection and stream results with the lowest footprint available.
-        conn = session.connection()
+        sa_conn = db_session.connection()
 
-        # Try to use the native DB-API cursor if exposed (e.g., pyodbc) for minimal overhead.
-        raw = getattr(conn, "connection", None)
-        cursor = getattr(raw, "cursor", None)
+        # Prefer DB-API cursor if exposed (pyodbc path) to avoid SQLAlchemy row buffering.
+        raw_conn = getattr(sa_conn, "connection", None)
+        cursor_factory = getattr(raw_conn, "cursor", None)
 
-        if callable(cursor):
-            cur = raw.cursor()
+        if callable(cursor_factory):
+            cur = raw_conn.cursor()
             try:
+                # arraysize influences how many rows the driver buffers per roundtrip.
+                try:
+                    cur.arraysize = _DB_FETCH_CHUNK
+                except Exception:
+                    pass
+
                 cur.execute(paged_sql)
-                # Even though OFFSET/FETCH limits rows, fetchmany keeps Python memory tight.
-                rows = cur.fetchmany(limit)
-                for row in rows:
-                    # Row can be a tuple or DB-API Row object; index 0 is 'deviceid'
-                    val = row[0] if isinstance(row, (tuple, list)) else getattr(row, "deviceid", None)
-                    if val:
-                        users.append(str(val))
+
+                # Fetch in small chunks to avoid large transient lists of row objects.
+                while True:
+                    chunk = cur.fetchmany(_DB_FETCH_CHUNK)
+                    if not chunk:
+                        break
+
+                    for row in chunk:
+                        # row is usually a tuple-like; first column is deviceid
+                        val = row[0] if row else None
+                        if val:
+                            users_append(str(val))
+
+                    # Defensive: enforce limit even if SQL paging misbehaves.
+                    if len(users) >= limit:
+                        break
             finally:
                 try:
                     cur.close()
                 except Exception:
                     pass
         else:
-            # Fallback: use SQLAlchemy's streaming execution to avoid buffering the result set.
-            result = conn.execution_options(stream_results=True).exec_driver_sql(paged_sql)
+            # Fallback: SQLAlchemy exec with streaming enabled.
+            result = sa_conn.execution_options(stream_results=True).exec_driver_sql(paged_sql)
             try:
                 for row in result:
-                    # SQLAlchemy Row -> position 0 is 'deviceid'
                     val = row[0]
                     if val:
-                        users.append(str(val))
+                        users_append(str(val))
+                    if len(users) >= limit:
+                        break
             finally:
                 try:
                     result.close()
@@ -109,13 +127,60 @@ def activity_esquireAudienceMeta_customAudience_replaceUsers(ingress: dict):
                     pass
 
     except Exception as e:
-        # Return structured DB error for the orchestrator to handle deterministically
-        return {"error": {"source": "sql", "message": str(e)}}
+        return None, {"error": {"source": "sql", "message": str(e)}}, offset, limit
     finally:
         try:
-            session.close()
+            db_session.close()
         except Exception:
             pass
+
+    # Ensure we never exceed `limit` even if we defensively broke late.
+    if len(users) > limit:
+        del users[limit:]
+
+    return users, None, offset, limit
+
+
+def _meta_users_replace(ingress: Dict[str, Any], users: List[str]) -> Dict[str, Any]:
+    """
+    Calls Meta usersreplace with stable session semantics using the SDK's adobject method.
+    This path is known-good in your environment (unlike api.call which was missing scheme).
+    """
+    api = initialize_facebook_api(ingress)
+    audience_id = ingress["audience"]["audience"]
+
+    # Build params with minimal extra copying.
+    params = {
+        "payload": {
+            "schema": CustomAudience.Schema.mobile_advertiser_id,
+            "data": users,
+        },
+        "session": ingress["batch"],
+    }
+
+    result = CustomAudience(fbid=audience_id, api=api).create_users_replace(params=params)
+
+    # Response is small; exporting is fine and keeps the activity output JSON-serializable.
+    return result.export_all_data()
+
+
+@bp.activity_trigger(input_name="ingress")
+def activity_esquireAudienceMeta_customAudience_replaceUsers(ingress: dict):
+    """
+    Sends a deterministic REPLACE batch to Meta using the usersreplace endpoint,
+    using a low-memory fetch from the database.
+
+    Memory reductions:
+      - Fetch DB rows in small chunks (avoid big transient row lists).
+      - Close DB resources before calling Meta.
+      - Clear the users list immediately after the request.
+    """
+    users, db_error, offset, limit = _fetch_users_page_low_memory(ingress)
+
+    if db_error is not None:
+        return db_error
+
+    assert users is not None
 
     # If this page is empty, do not call the API (prevents (#100) and ensures idempotence)
     if not users:
@@ -127,26 +192,14 @@ def activity_esquireAudienceMeta_customAudience_replaceUsers(ingress: dict):
             "limit": limit,
         }
 
-    # --- Call Meta usersreplace with stable session semantics ---
     try:
-        result = (
-            CustomAudience(
-                fbid=ingress["audience"]["audience"],
-                api=initialize_facebook_api(ingress),
-            )
-            .create_users_replace(
-                params={
-                    "payload": {
-                        "schema": CustomAudience.Schema.mobile_advertiser_id,
-                        "data": users,  # At most `batch_size` items are resident in memory.
-                    },
-                    "session": ingress["batch"],
-                }
-            )
-            .export_all_data()
-        )
-        return result
+        return _meta_users_replace(ingress, users)
     except FacebookRequestError as e:
-        # Return structured FB error (deterministic for orchestrator)
         body = e.body() if hasattr(e, "body") else {"error": {"message": str(e)}}
         return {"error": body}
+    finally:
+        # Drop the largest per-invocation structure ASAP.
+        try:
+            users.clear()
+        except Exception:
+            pass

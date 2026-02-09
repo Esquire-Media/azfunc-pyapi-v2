@@ -1,9 +1,8 @@
-import requests
 import csv
 from io import StringIO
 from azure.durable_functions import Blueprint
 from azure.storage.blob import BlobClient
-import logging
+from libs.utils.azure_storage import get_cached_blob_client
 
 bp = Blueprint()
 
@@ -22,7 +21,7 @@ def activity_esquireAudiencesNeighbors_extractPartitions(ingress: dict) -> list[
     for url in urls:
         # logging.warning(f"[LOG] url: {url}")
         try:
-            blob_client = BlobClient.from_blob_url(url)
+            blob_client = get_cached_blob_client(url)
             csv_bytes = blob_client.download_blob().readall()
         except Exception as e:
             # logging.warning(f"[LOG] Failed to read {url}: {e}")

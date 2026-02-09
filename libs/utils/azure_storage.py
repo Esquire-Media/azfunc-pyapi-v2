@@ -1,6 +1,59 @@
-from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
+from azure.storage.blob import BlobClient, BlobServiceClient, ContainerClient, BlobSasPermissions, generate_blob_sas
+from azure.core.pipeline.transport import RequestsTransport
+from functools import lru_cache
 from urllib.parse import unquote
-import datetime, os, pandas as pd, uuid
+import datetime, os, pandas as pd, uuid, requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+
+@lru_cache(maxsize=1)
+def _get_shared_session() -> requests.Session:
+    """Create a session with optimized connection pooling for Azure Blob Storage."""
+    session = requests.Session()
+
+    # Configure retry strategy
+    retry_strategy = Retry(
+        total=3,
+        backoff_factor=0.5,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["HEAD", "GET", "PUT", "POST", "DELETE", "OPTIONS"]
+    )
+
+    # Configure adapter with connection pool limits
+    adapter = HTTPAdapter(
+        pool_connections=10,       # Number of connection pools to cache
+        pool_maxsize=20,           # Max connections per host
+        max_retries=retry_strategy,
+        pool_block=False
+    )
+
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+
+    return session
+
+
+@lru_cache(maxsize=128)
+def get_cached_blob_client(blob_url: str) -> BlobClient:
+    """Returns a cached BlobClient with a shared transport for connection pooling.
+
+    All calls return the same BlobClient instance for the same URL,
+    which reuses the underlying HTTP transport and connection pool.
+    """
+    transport = RequestsTransport(
+        session=_get_shared_session(),
+        session_owner=False,  # Don't close our shared session
+        connection_timeout=60,
+        read_timeout=300
+    )
+
+    return BlobClient.from_blob_url(blob_url, transport=transport)
+
+
+def download_blob_bytes(blob_url: str) -> bytes:
+    """Download blob content using a cached client for connection reuse."""
+    return get_cached_blob_client(blob_url).download_blob().readall()
 
 
 def init_blob_client(**kwargs) -> BlobClient:
@@ -19,14 +72,22 @@ def init_blob_client(**kwargs) -> BlobClient:
     Returns:
     - BlobClient object
     """
+    transport = RequestsTransport(
+        session=_get_shared_session(),
+        session_owner=False,
+        connection_timeout=60,
+        read_timeout=300
+    )
+
     if "blob_url" in kwargs:
         # Initialize using the blob URL
-        return BlobClient.from_blob_url(kwargs["blob_url"])
+        return BlobClient.from_blob_url(kwargs["blob_url"], transport=transport)
 
     if "connection_string" in kwargs:
         # Initialize using the connection string
         return BlobClient.from_connection_string(
-            kwargs["connection_string"], kwargs["container_name"], kwargs["blob_name"]
+            kwargs["connection_string"], kwargs["container_name"], kwargs["blob_name"],
+            transport=transport
         )
 
     if "conn_str" in kwargs:
@@ -35,6 +96,7 @@ def init_blob_client(**kwargs) -> BlobClient:
             os.environ.get(kwargs["conn_str"], kwargs["conn_str"]),
             kwargs["container_name"],
             kwargs["blob_name"],
+            transport=transport
         )
 
     if "account_url" in kwargs:
@@ -45,6 +107,7 @@ def init_blob_client(**kwargs) -> BlobClient:
                 container_name=kwargs["container_name"],
                 blob_name=kwargs["blob_name"],
                 credential=kwargs["sas_token"],
+                transport=transport
             )
         if "account_key" in kwargs:
             # Initialize using account URL and account key
@@ -53,10 +116,61 @@ def init_blob_client(**kwargs) -> BlobClient:
                 container_name=kwargs["container_name"],
                 blob_name=kwargs["blob_name"],
                 credential=kwargs["account_key"],
+                transport=transport
             )
 
     raise ValueError(
         "Insufficient or incorrect parameters provided to initialize a BlobClient."
+    )
+
+
+def _create_transport():
+    """Create a shared RequestsTransport instance for connection pooling."""
+    return RequestsTransport(
+        session=_get_shared_session(),
+        session_owner=False,
+        connection_timeout=60,
+        read_timeout=300
+    )
+
+
+def get_container_client(connection_string: str, container_name: str) -> ContainerClient:
+    """Create ContainerClient with shared transport for connection pooling.
+
+    Args:
+        connection_string: Azure Storage connection string
+        container_name: Name of the container
+
+    Returns:
+        ContainerClient with shared transport
+    """
+    return ContainerClient.from_connection_string(
+        connection_string,
+        container_name=container_name,
+        transport=_create_transport()
+    )
+
+
+def get_blob_service_client(connection_string: str = None) -> BlobServiceClient:
+    """Create BlobServiceClient with shared transport for connection pooling.
+
+    Args:
+        connection_string: Optional Azure Storage connection string.
+                          If None, uses default credential.
+
+    Returns:
+        BlobServiceClient with shared transport
+    """
+    if connection_string:
+        return BlobServiceClient.from_connection_string(
+            connection_string,
+            transport=_create_transport()
+        )
+    # Use default credential when no connection string provided
+    return BlobServiceClient(
+        account_url=os.environ.get("AZURE_STORAGE_ACCOUNT_URL"),
+        credential=os.environ.get("AZURE_STORAGE_KEY"),
+        transport=_create_transport()
     )
 
 
@@ -145,6 +259,7 @@ def load_dataframe(source: str | dict | list) -> pd.DataFrame:
             conn_str=os.environ[source["conn_str"]],
             container_name=source["container_name"],
             blob_name=source["blob_name"],
+            transport=_create_transport()
         )
         # Generate SAS token for blob access
         sas_token = generate_blob_sas(
@@ -204,7 +319,7 @@ def export_dataframe(
 
     # establish output blob from a destination url
     if isinstance(destination, str):
-        blob = BlobClient.from_blob_url(destination)
+        blob = BlobClient.from_blob_url(destination, transport=_create_transport())
     # establish output blob from a blob details dictionary
     elif isinstance(destination, dict):
         to_type = destination.get("format", None)
@@ -219,6 +334,7 @@ def export_dataframe(
                     to_type if to_type else "csv",
                 ),
             ),
+            transport=_create_transport()
         )
 
     # attempt to infer file type from the blob name

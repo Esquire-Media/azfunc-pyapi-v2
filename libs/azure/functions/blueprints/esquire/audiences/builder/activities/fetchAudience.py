@@ -1,5 +1,3 @@
-# File: /libs/azure/functions/blueprints/esquire/audiences/builder/activities/fetchAudience.py
-
 from __future__ import annotations
 
 from azure.durable_functions import Blueprint
@@ -58,6 +56,8 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
             max_overflow=100,
         )
     provider = from_bind("keystone")
+    if provider is None:
+        logging.warning("provider did not instatiate properly")
 
     Audience = provider.models["keystone"]["Audience"]
     Advertiser = provider.models["keystone"]["Advertiser"]
@@ -109,6 +109,7 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
             return {
                 **ingress,
                 "advertiser": {
+                    "freewheel": getattr(adv, "freewheel", None),
                     "meta": getattr(adv, "meta", None),
                     "xandr": getattr(adv, "xandr", None),
                 },

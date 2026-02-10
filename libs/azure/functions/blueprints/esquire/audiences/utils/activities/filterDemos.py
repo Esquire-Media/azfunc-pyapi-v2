@@ -19,7 +19,7 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
     from azure.storage.blob import BlobClient
 
     source_url = ingress["source_url"]
-    demo_filter = ingress["demographicsFilter"]
+    demo_filter = ingress['audience']["demoDataFilterRaw"]
     destination = ingress["destination"]
 
     # 1. Compile filter
@@ -141,7 +141,7 @@ def stream_filter_demographics_csv(
     writer = csv.writer(output_stream)
 
     # Write header
-    writer.writerow(["device_id"])
+    writer.writerow(["deviceid"])
 
     matched = 0
     buffered = 0

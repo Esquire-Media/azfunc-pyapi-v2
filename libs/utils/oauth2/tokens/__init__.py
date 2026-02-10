@@ -3,6 +3,8 @@ from jwt.algorithms import RSAAlgorithm
 from typing import Any, Iterable
 import httpx, jwt
 
+from libs.utils.http_clients import get_httpx_client
+
 
 class TokenValidationError(Exception):
     """
@@ -86,10 +88,10 @@ class ValidateWellKnown(ValidateGeneric):
     audience : str
         The audience value expected in the token.
     http_client : callable, optional
-        HTTP client used for making requests. Defaults to httpx.Client.
+        HTTP client used for making requests. Defaults to cached httpx.Client.
     """
 
-    def __init__(self, openid_config_url, audience=str | Iterable[str] | None, http_client=httpx.Client):
+    def __init__(self, openid_config_url, audience=str | Iterable[str] | None, http_client=get_httpx_client):
         self.audience = audience
         self.http_client = http_client()
         self.openid_config = self.http_client.get(url=openid_config_url).json()

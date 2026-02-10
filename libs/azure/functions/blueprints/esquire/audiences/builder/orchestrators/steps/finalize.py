@@ -153,19 +153,13 @@ def orchestrator_esquireAudiences_finalize(
         },
     }
     # get the sets of demographics that are filtered by a set of demographics 
-    source_urls = yield context.task_all(
-        [
-            context.call_sub_orchestrator(
+    source_urls = yield context.call_sub_orchestrator(
                 "orchestrator_esquireAudiencesSteps_deviceidsDemoFiltered",
                 {
                     **demos_egress,
-                    "source": source_url
+                    "source_urls": source_urls
                 },
             )
-            for source_url in source_urls
-        ]
-    )
-    
 
     # Reusable common input for sub-orchestrators for the final set of blobs to be uploaded
     egress = {

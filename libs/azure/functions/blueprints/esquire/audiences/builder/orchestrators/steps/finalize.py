@@ -157,6 +157,7 @@ def orchestrator_esquireAudiences_finalize(
                 "orchestrator_esquireAudiencesSteps_deviceidsDemoFiltered",
                 {
                     **demos_egress,
+                    "demoDataFilterRaw":ingress.get("audience").get("demoDataFilterRaw"),
                     "source_urls": source_urls
                 },
             )

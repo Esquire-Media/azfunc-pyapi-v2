@@ -19,7 +19,7 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
     from azure.storage.blob import BlobClient
 
     source_url = ingress["source_url"]
-    demo_filter = ingress['audience']["demoDataFilterRaw"]
+    demo_filter = ingress["demoDataFilterRaw"]
     destination = ingress["destination"]
 
     # 1. Compile filter

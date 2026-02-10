@@ -122,63 +122,6 @@ def compile_sql_where_predicate(where_sql: str):
 
 
 
-def stream_filter_demographics_csv(
-    source_stream,
-    output_stream,
-    where_predicate,
-    *,
-    flush_every: int = 5000,
-) -> int:
-    """
-    Streams a demographics CSV and writes matching device_ids to output_stream.
-
-    Parameters
-    ----------
-    source_stream : file-like
-        Opened input CSV stream
-    output_stream : file-like
-        Opened writable output stream
-    where_predicate : Callable[[dict], bool]
-        Compiled predicate applied to each CSV row
-    flush_every : int
-        Flush output every N rows
-
-    Returns
-    -------
-    int
-        Number of matching device_ids written
-    """
-
-    import csv
-
-    reader = csv.DictReader(source_stream)
-    writer = csv.writer(output_stream)
-
-    # Write header
-    writer.writerow(["deviceid"])
-
-    matched = 0
-    buffered = 0
-
-    for row in reader:
-        try:
-            if where_predicate(row):
-                writer.writerow([row["hashed device id"]])
-                matched += 1
-                buffered += 1
-
-                if buffered >= flush_every:
-                    output_stream.flush()
-                    buffered = 0
-        except Exception:
-            # defensive: skip malformed rows
-            continue
-
-    if buffered:
-        output_stream.flush()
-
-    return matched
-
 import codecs
 from typing import Iterator
 

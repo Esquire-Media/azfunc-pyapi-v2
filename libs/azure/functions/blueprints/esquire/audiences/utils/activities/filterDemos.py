@@ -8,7 +8,10 @@ from libs.azure.functions.blueprints.esquire.audiences.builder.activities.fetchA
 from libs.utils.azure_storage import init_blob_client
 import os
 import csv
-import io
+from azure.storage.blob import BlobSasPermissions, generate_blob_sas
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+from urllib.parse import unquote
 
 bp = Blueprint()
 
@@ -65,7 +68,7 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
 
         for row in reader:
             if predicate(row):
-                writer.writerow([row['device_id']])
+                writer.writerow([row['hashed device id']])
                 yield buf.getvalue()
                 buf.seek(0); buf.truncate(0)
 
@@ -74,10 +77,16 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
         overwrite=True,
     )
 
-    return (
-        f"https://{destination['container_name']}.blob.core.windows.net/"
-        f"{blob_name}"
+    sas_token = generate_blob_sas(
+        account_name=dest_blob.account_name,
+        container_name=dest_blob.container_name,
+        blob_name=dest_blob.blob_name,
+        account_key=dest_blob.credential.account_key,  # type: ignore[attr-defined]
+        permission=BlobSasPermissions(read=True),
+        expiry=datetime.utcnow() + relativedelta(days=2),
     )
+
+    return f"{unquote(dest_blob.url)}?{sas_token}"
 
 def compile_sql_where_predicate(where_sql: str):
     import re

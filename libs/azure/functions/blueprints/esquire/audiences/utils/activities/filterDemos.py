@@ -66,51 +66,46 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
     )
 
 def compile_sql_where_predicate(where_sql: str):
-    """
-    Compiles a very small subset of SQL WHERE into a Python predicate.
-
-    Supported:
-    - =
-    - !=
-    - AND / OR
-    - parentheses
-    - quoted identifiers
-    - numeric + string literals
-    """
-
     import re
 
-    # Replace SQL operators with Python equivalents
     expr = where_sql
     expr = re.sub(r"\bAND\b", "and", expr, flags=re.IGNORECASE)
     expr = re.sub(r"\bOR\b", "or", expr, flags=re.IGNORECASE)
 
-    # Preserve != first
     expr = expr.replace("!=", "!=")
-
-    # Replace bare = with ==
     expr = re.sub(r"(?<![<>=!])=(?!=)", "==", expr)
 
-    # Replace quoted identifiers with row lookups
+    # Replace quoted identifiers
     expr = re.sub(
         r'"([^"]+)"',
-        lambda m: f'row.get("{m.group(1)}")',
+        lambda m: f'_val(row.get("{m.group(1)}"))',
         expr,
     )
 
-    # Normalize BIT comparisons
-    expr = re.sub(r"==\s*1\b", "== '1'", expr)
-    expr = re.sub(r"==\s*0\b", "== '0'", expr)
-
     code = compile(expr, "<demographics-filter>", "eval")
+
+    def _val(v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            v = v.strip()
+            # normalize '1', '1.0', '0', '0.0'
+            if v.replace(".", "", 1).isdigit():
+                try:
+                    i = int(float(v))
+                    return i
+                except ValueError:
+                    return v
+        return v
 
     def predicate(row: dict) -> bool:
         try:
-            return bool(eval(code, {"row": row}))
+            return bool(eval(code, {"row": row, "_val": _val}))
         except Exception:
             return False
 
     return predicate
+
 
 
 def stream_filter_demographics_csv(

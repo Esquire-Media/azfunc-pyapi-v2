@@ -50,48 +50,27 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
     downloader = source_blob.download_blob()
 
     reader = csv.DictReader(
-        io.TextIOWrapper(downloader, encoding="utf-8", newline="")
+        iter_csv_lines_from_blob(downloader)
     )
 
-    def row_generator():
-        output = io.StringIO()
-        writer = csv.writer(output)
+    def output_generator():
+        import io, csv
+
+        buf = io.StringIO()
+        writer = csv.writer(buf)
 
         writer.writerow(["deviceid"])
-        yield output.getvalue()
-        output.seek(0)
-        output.truncate(0)
-
-        matched = 0
-        buffered = 0
-        FLUSH_EVERY = 1000  # tune as needed
+        yield buf.getvalue()
+        buf.seek(0); buf.truncate(0)
 
         for row in reader:
-            try:
-                if predicate(row):
-                    writer.writerow([row["device_id"]])
-                    matched += 1
-                    buffered += 1
-
-                    if buffered >= FLUSH_EVERY:
-                        yield output.getvalue()
-                        output.seek(0)
-                        output.truncate(0)
-                        buffered = 0
-            except Exception:
-                continue
-
-        # final flush
-        if buffered:
-            yield output.getvalue()
-
-        logging.info(
-            "[DEMOS FILTER] completed",
-            extra={"matched": matched},
-        )
+            if predicate(row):
+                writer.writerow([row['device_id']])
+                yield buf.getvalue()
+                buf.seek(0); buf.truncate(0)
 
     dest_blob.upload_blob(
-        data=row_generator(),
+        data=output_generator(),
         overwrite=True,
     )
 
@@ -199,3 +178,24 @@ def stream_filter_demographics_csv(
         output_stream.flush()
 
     return matched
+
+import codecs
+from typing import Iterator
+
+def iter_csv_lines_from_blob(downloader, encoding: str = "utf-8") -> Iterator[str]:
+    decoder = codecs.getincrementaldecoder(encoding)()
+    buffer = ""
+
+    for chunk in downloader.chunks():
+        buffer += decoder.decode(chunk)
+        while True:
+            newline = buffer.find("\n")
+            if newline < 0:
+                break
+            line = buffer[: newline + 1]
+            buffer = buffer[newline + 1 :]
+            yield line
+
+    buffer += decoder.decode(b"", final=True)
+    if buffer:
+        yield buffer

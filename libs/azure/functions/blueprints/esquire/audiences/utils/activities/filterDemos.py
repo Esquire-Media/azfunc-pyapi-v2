@@ -7,6 +7,8 @@ from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
 from libs.azure.functions.blueprints.esquire.audiences.builder.activities.fetchAudience import _canonicalize_jsonlogic
 from libs.utils.azure_storage import init_blob_client
 import os
+import csv
+import io
 
 bp = Blueprint()
 
@@ -44,21 +46,53 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
         blob_name=blob_name,
     )
 
-    with source_blob.download_blob().open() as src, \
-         dest_blob.upload_blob(overwrite=True).open() as dst:
 
-        count = stream_filter_demographics_csv(
-            src,
-            dst,
-            predicate,
+    downloader = source_blob.download_blob()
+
+    reader = csv.DictReader(
+        io.TextIOWrapper(downloader, encoding="utf-8", newline="")
+    )
+
+    def row_generator():
+        output = io.StringIO()
+        writer = csv.writer(output)
+
+        writer.writerow(["deviceid"])
+        yield output.getvalue()
+        output.seek(0)
+        output.truncate(0)
+
+        matched = 0
+        buffered = 0
+        FLUSH_EVERY = 1000  # tune as needed
+
+        for row in reader:
+            try:
+                if predicate(row):
+                    writer.writerow([row["device_id"]])
+                    matched += 1
+                    buffered += 1
+
+                    if buffered >= FLUSH_EVERY:
+                        yield output.getvalue()
+                        output.seek(0)
+                        output.truncate(0)
+                        buffered = 0
+            except Exception:
+                continue
+
+        # final flush
+        if buffered:
+            yield output.getvalue()
+
+        logging.info(
+            "[DEMOS FILTER] completed",
+            extra={"matched": matched},
         )
 
-    logging.info(
-        "[DEMOS FILTER] completed",
-        extra={
-            "matched": count,
-            "output": blob_name,
-        },
+    dest_blob.upload_blob(
+        data=row_generator(),
+        overwrite=True,
     )
 
     return (
@@ -150,7 +184,7 @@ def stream_filter_demographics_csv(
     for row in reader:
         try:
             if where_predicate(row):
-                writer.writerow([row["device_id"]])
+                writer.writerow([row["hashed device id"]])
                 matched += 1
                 buffered += 1
 

@@ -5,6 +5,8 @@ from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
     jsonlogic_to_sql,
 )
 from libs.azure.functions.blueprints.esquire.audiences.builder.activities.fetchAudience import _canonicalize_jsonlogic
+from libs.utils.azure_storage import init_blob_client
+import os
 
 bp = Blueprint()
 
@@ -36,11 +38,10 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
 
     # 3. Open blob streams
     source_blob = BlobClient.from_blob_url(source_url)
-    dest_blob = BlobClient(
-        account_url=source_blob.account_url,
+    dest_blob = init_blob_client(
+        conn_str=os.environ[destination["conn_str"]],
         container_name=destination["container_name"],
         blob_name=blob_name,
-        credential=source_blob.credential,
     )
 
     with source_blob.download_blob().open() as src, \

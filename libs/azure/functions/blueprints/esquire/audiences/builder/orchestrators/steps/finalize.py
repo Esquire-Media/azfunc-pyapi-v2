@@ -136,6 +136,7 @@ def orchestrator_esquireAudiences_finalize(
             )
 
     # do a final layer of demographics filtering if it's needed
+    # if here should be fine for idempotency since it's by audience which should be the same on replays
     if ingress.get("audience").get("demographicsFilter"):
         # common egress for the final layer of demographics filtering
         demos_egress = {

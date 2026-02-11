@@ -1,8 +1,8 @@
 from azure.durable_functions import Blueprint
-from azure.storage.blob import BlobClient
+from azure.storage.blob import BlobClient, ContainerClient
 from io import BytesIO
 from libs.utils.azure_storage import get_blob_sas, get_container_client, init_blob_client
-from libs.utils.pptx import add_custom_image, replace_text
+from libs.utils.pptx import add_custom_image
 from libs.utils.esquire.onspot_graphics.demographics import Demographics
 from libs.utils.esquire.onspot_graphics.observations import Observations
 from libs.utils.esquire.onspot_graphics.slider import SliderGraph
@@ -20,12 +20,12 @@ def activity_locationInsights_buildReport(settings: dict):
 
     # container for storing data and where the report will be exported
     runtime_container = get_container_client(
-        connection_string=os.environ[settings["runtime_container"]["conn_str"]],
+        conn_str=os.environ[settings["runtime_container"]["conn_str"]],
         container_name=settings["runtime_container"]["container_name"],
     )
     # container that holds static assets such as PPTX templates and image files
     resources_container = get_container_client(
-        connection_string=os.environ[settings["resources_container"]["conn_str"]],
+        conn_str=os.environ[settings["resources_container"]["conn_str"]],
         container_name=settings["resources_container"]["container_name"],
     )
 
@@ -104,7 +104,7 @@ def activity_locationInsights_buildReport(settings: dict):
                     conn_str=os.environ[settings["runtime_container"]["conn_str"]],
                     container_name=settings["runtime_container"]["container_name"],
                     blob_name=[
-                        *ContainerClient.from_connection_string(
+                        *get_container_client(
                             conn_str=os.environ[settings["runtime_container"]["conn_str"]],
                             container_name=settings["runtime_container"]["container_name"],
                         ).list_blobs(

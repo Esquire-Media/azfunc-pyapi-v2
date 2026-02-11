@@ -7,6 +7,8 @@ from typing import Any, Dict, List, Optional
 from azure.durable_functions import Blueprint
 from azure.storage.blob import ContainerClient
 
+from libs.utils.azure_storage import get_container_client
+
 bp: Blueprint = Blueprint()
 
 
@@ -94,7 +96,7 @@ def activity_esquireAudiencesUtils_newestAudienceBlobPaths(
     most_recent_date_dir: Optional[str] = None
 
     # Pass 1: find newest ISO directory (considering even directory-marker blobs if they exist)
-    with ContainerClient.from_connection_string(
+    with get_container_client(
         conn_str=_resolve_conn_str(conn_str_raw),
         container_name=container_name,
     ) as container_client:

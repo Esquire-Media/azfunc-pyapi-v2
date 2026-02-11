@@ -19,7 +19,7 @@ bp: Blueprint = Blueprint()
 def activity_onSpot_mergeDevices(ingress: dict):
     # source container
     sources_container_client = get_container_client(
-        connection_string=os.environ[ingress["source"]["conn_str"]],
+        conn_str=os.environ[ingress["source"]["conn_str"]],
         container_name=ingress["source"]["container_name"],
     )
     # generate sas token

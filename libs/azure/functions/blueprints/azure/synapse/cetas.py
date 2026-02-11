@@ -164,7 +164,7 @@ async def synapse_activity_cetas(ingress: dict):
     # Generate SAS URLs for blobs if the 'return_urls' flag is set.
     if ingress.get("return_urls", None):
         container = get_container_client(
-            connection_string=os.getenv(
+            conn_str=os.getenv(
                 ingress["destination"]["conn_str"], os.environ["AzureWebJobsStorage"]
             ),
             container_name=ingress["destination"]["container_name"],

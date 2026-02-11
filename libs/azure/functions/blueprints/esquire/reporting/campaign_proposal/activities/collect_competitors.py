@@ -8,7 +8,7 @@ from libs.azure.key_vault import KeyVaultClient
 from libs.azure.functions.blueprints.esquire.reporting.campaign_proposal.utility.competitor_map import (
     map_competitors,
 )
-from libs.utils.azure_storage import get_blob_sas
+from libs.utils.azure_storage import get_blob_sas, get_container_client
 import ast, os, pandas as pd, re
 
 # Create a Blueprint instance for defining Azure Functions
@@ -23,7 +23,7 @@ def activity_campaignProposal_collectCompetitors(settings: dict):
         return {}
 
     # import cleaned addresses from previous step
-    container_client: ContainerClient = ContainerClient.from_connection_string(
+    container_client: ContainerClient = get_container_client(
         conn_str=os.environ[settings["runtime_container"]["conn_str"]],
         container_name=settings["runtime_container"]["container_name"],
     )

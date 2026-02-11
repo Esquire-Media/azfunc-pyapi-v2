@@ -4,6 +4,9 @@ from azure.storage.blob.aio import ContainerClient
 from io import BytesIO
 import asyncio, os
 
+from libs.utils.azure_storage import _create_transport
+
+
 async def get_all_neighbors(
     address_df: pd.DataFrame, N: int, same_side_only: bool = True, limit: int = -1
 ):
@@ -26,6 +29,7 @@ async def get_all_neighbors(
     pandas.DataFrame
         All neighbors of the input addresses.
     """
+
     async def process_group(city, state, zip_code, part_df):
         city = city.replace(" ", "_")
         try:
@@ -57,7 +61,9 @@ async def get_all_neighbors(
     # Group data by city, state, and zip_code to batch operations
     tasks = (
         process_group(city, state, zip_code, part_df)
-        for (city, state, zip_code), part_df in address_df.groupby(["city", "state", "zip_code"])
+        for (city, state, zip_code), part_df in address_df.groupby(
+            ["city", "state", "zip_code"]
+        )
     )
 
     # Using asyncio.as_completed to reduce memory consumption while processing results
@@ -66,12 +72,17 @@ async def get_all_neighbors(
         result = await coro
         if result is not None:
             results_list.append(result)
-    
+
     # Concatenate results
     if results_list:
-        return pd.concat(results_list, ignore_index=True).head(limit) if limit > 0 else pd.concat(results_list, ignore_index=True)
+        return (
+            pd.concat(results_list, ignore_index=True).head(limit)
+            if limit > 0
+            else pd.concat(results_list, ignore_index=True)
+        )
     else:
         return pd.DataFrame()
+
 
 def find_neighbors_for_street(
     data: pd.DataFrame, addresses: pd.DataFrame, N: int, same_side_only: bool
@@ -123,7 +134,6 @@ def find_neighbors_for_street(
     start_indices = np.array(start_indices)
     end_indices = np.array(end_indices)
 
-
     if len(start_indices) == 0 or len(end_indices) == 0:
         return pd.DataFrame()
 
@@ -166,7 +176,15 @@ async def load_parquet_from_blob(container_client: ContainerClient, blob_dir_pat
     pandas.DataFrame
         The concatenated DataFrame of all parquet files in the given directory.
     """
-    cols = ["street_number", "street_name", "formatted_street_address", "city", "state", "zip_code", "zip_plus_four_code"]
+    cols = [
+        "street_number",
+        "street_name",
+        "formatted_street_address",
+        "city",
+        "state",
+        "zip_code",
+        "zip_plus_four_code",
+    ]
     dfs = []
 
     async for blob in container_client.list_blobs(name_starts_with=blob_dir_path):
@@ -174,7 +192,7 @@ async def load_parquet_from_blob(container_client: ContainerClient, blob_dir_pat
             continue
 
         # BlobClient supports async context manager – this ensures its aiohttp session is closed.
-        async with container_client.get_blob_client(blob=blob.name) as blob_client: 
+        async with container_client.get_blob_client(blob=blob.name) as blob_client:
             downloader = await blob_client.download_blob()
             try:
                 data = await downloader.readall()
@@ -205,19 +223,25 @@ async def load_estated_data_partitioned_blob(table_path):
     -------
     pandas.DataFrame
         The formatted estated data.
-    """    
+    """
     conn_str = os.environ["DATALAKE_CONN_STR"]
-    async with ContainerClient.from_connection_string(conn_str, container_name="general") as container:
+    async with ContainerClient.from_connection_string(
+        conn_str, container_name="general", transport=_create_transport()
+    ) as container:
         blob_df = await load_parquet_from_blob(container, table_path)
         # rename for the onspot orchestrator
-        blob_df = blob_df.rename(columns={
-            'formatted_street_address':'address',
-            'zip_code':'zipCode',
-            'zip_plus_four_code':'plus4Code'
-            })
+        blob_df = blob_df.rename(
+            columns={
+                "formatted_street_address": "address",
+                "zip_code": "zipCode",
+                "zip_plus_four_code": "plus4Code",
+            }
+        )
 
     if not blob_df.empty:
         blob_df = blob_df.drop_duplicates()
-        blob_df["street_number"] = pd.to_numeric(blob_df["street_number"], errors="coerce").astype("Int64")
+        blob_df["street_number"] = pd.to_numeric(
+            blob_df["street_number"], errors="coerce"
+        ).astype("Int64")
         blob_df["street_name"] = blob_df["street_name"].astype("str")
     return blob_df

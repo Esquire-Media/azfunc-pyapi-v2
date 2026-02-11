@@ -4,7 +4,7 @@ from datetime import date
 from io import BytesIO
 from libs.utils.text import pad_text
 from libs.utils.pptx import replace_text, add_custom_image
-from libs.utils.azure_storage import get_blob_sas
+from libs.utils.azure_storage import get_blob_sas, get_container_client
 from pptx import Presentation
 import pandas as pd, os
 
@@ -16,13 +16,13 @@ bp = Blueprint()
 def activity_campaignProposal_executeReport(settings: dict):
 
     # TEMPLATE IMPORT
-    resources_client: ContainerClient = ContainerClient.from_connection_string(conn_str=os.environ[settings["resources_container"]['conn_str']], container_name=settings["resources_container"]["container_name"])
+    resources_client: ContainerClient = get_container_client(conn_str=os.environ[settings["resources_container"]['conn_str']], container_name=settings["resources_container"]["container_name"])
     blob_client = resources_client.get_blob_client(blob=f"templates/template.pptx")
     template = Presentation(BytesIO(blob_client.download_blob().content_as_bytes()))
     
     # DATA IMPORTS
     # import addresses
-    container_client: ContainerClient = ContainerClient.from_connection_string(conn_str=os.environ[settings["runtime_container"]['conn_str']], container_name=settings["runtime_container"]["container_name"])
+    container_client: ContainerClient = get_container_client(conn_str=os.environ[settings["runtime_container"]['conn_str']], container_name=settings["runtime_container"]["container_name"])
     blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/addresses.csv")
     addresses = pd.read_csv(get_blob_sas(blob_client))
 

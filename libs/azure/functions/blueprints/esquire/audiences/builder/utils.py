@@ -71,12 +71,12 @@ def jsonlogic_to_sql(json_logic):
             elif "<" in logic:
                 left = parse_logic(logic["<"][0])
                 right = parse_logic(logic["<"][1])
-                return f"{left} > {right}"
+                return f"{left} < {right}"
 
             elif "<=" in logic:
                 left = parse_logic(logic["<="][0])
                 right = parse_logic(logic["<="][1])
-                return f"{left} >= {right}"
+                return f"{left} <= {right}"
 
             elif "in" in logic:
                 left, right = logic["in"]

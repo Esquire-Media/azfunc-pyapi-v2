@@ -142,3 +142,25 @@ def compile_sql_where_predicate(where_sql: str):
             return False
 
     return predicate
+
+
+import codecs
+from typing import Iterator
+
+def iter_csv_lines_from_blob(downloader, encoding: str = "utf-8") -> Iterator[str]:
+    decoder = codecs.getincrementaldecoder(encoding)()
+    buffer = ""
+
+    for chunk in downloader.chunks():
+        buffer += decoder.decode(chunk)
+        while True:
+            newline = buffer.find("\n")
+            if newline < 0:
+                break
+            line = buffer[: newline + 1]
+            buffer = buffer[newline + 1 :]
+            yield line
+
+    buffer += decoder.decode(b"", final=True)
+    if buffer:
+        yield buffer

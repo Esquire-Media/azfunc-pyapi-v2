@@ -92,18 +92,30 @@ def compile_sql_where_predicate(where_sql: str):
     import re
 
     expr = where_sql
+
+    # Logical operators
     expr = re.sub(r"\bAND\b", "and", expr, flags=re.IGNORECASE)
     expr = re.sub(r"\bOR\b", "or", expr, flags=re.IGNORECASE)
 
     expr = expr.replace("!=", "!=")
     expr = re.sub(r"(?<![<>=!])=(?!=)", "==", expr)
 
-    # Replace quoted identifiers
+    # FIRST: replace quoted identifiers
     expr = re.sub(
         r'"([^"]+)"',
         lambda m: f'_val(row.get("{m.group(1)}"))',
         expr,
     )
+
+    # THEN: convert IN (...) to Python in (...)
+    expr = re.sub(
+        r'_val\(row\.get\("([^"]+)"\)\)\s+IN\s+\(([^)]+)\)',
+        lambda m: f'_val(row.get("{m.group(1)}")) in ({m.group(2)})',
+        expr,
+        flags=re.IGNORECASE,
+    )
+
+    print(expr)
 
     code = compile(expr, "<demographics-filter>", "eval")
 
@@ -112,11 +124,13 @@ def compile_sql_where_predicate(where_sql: str):
             return None
         if isinstance(v, str):
             v = v.strip()
-            # normalize '1', '1.0', '0', '0.0'
-            if v.replace(".", "", 1).isdigit():
+
+            # Try numeric coercion
+            try:
+                return int(float(v))
+            except ValueError:
                 try:
-                    i = int(float(v))
-                    return i
+                    return float(v)
                 except ValueError:
                     return v
         return v
@@ -128,26 +142,3 @@ def compile_sql_where_predicate(where_sql: str):
             return False
 
     return predicate
-
-
-
-import codecs
-from typing import Iterator
-
-def iter_csv_lines_from_blob(downloader, encoding: str = "utf-8") -> Iterator[str]:
-    decoder = codecs.getincrementaldecoder(encoding)()
-    buffer = ""
-
-    for chunk in downloader.chunks():
-        buffer += decoder.decode(chunk)
-        while True:
-            newline = buffer.find("\n")
-            if newline < 0:
-                break
-            line = buffer[: newline + 1]
-            buffer = buffer[newline + 1 :]
-            yield line
-
-    buffer += decoder.decode(b"", final=True)
-    if buffer:
-        yield buffer

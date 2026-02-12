@@ -1,49 +1,135 @@
+import asyncio
+import os
+import weakref
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from io import BytesIO
+from typing import Any, AsyncIterator, Coroutine, Iterable, Optional, TypeVar
+
 import numpy as np
 import pandas as pd
 from azure.storage.blob.aio import ContainerClient
-from io import BytesIO
-import asyncio, os
 
 from libs.utils.azure_storage import _create_transport
 
 
+_PARQUET_COLS: tuple[str, ...] = (
+    "street_number",
+    "street_name",
+    "formatted_street_address",
+    "city",
+    "state",
+    "zip_code",
+    "zip_plus_four_code",
+)
+
+_DEFAULT_PARTITION_CONCURRENCY = int(os.getenv("ESTATED_PARTITION_LOAD_CONCURRENCY", "4"))
+_DEFAULT_DOWNLOAD_CONCURRENCY = int(os.getenv("ESTATED_BLOB_DOWNLOAD_CONCURRENCY", "8"))
+_DEFAULT_DECODE_CONCURRENCY = int(os.getenv("ESTATED_PARQUET_DECODE_CONCURRENCY", "4"))
+_DEFAULT_GROUP_CONCURRENCY = int(os.getenv("NEIGHBOR_GROUP_PROCESS_CONCURRENCY", "8"))
+
+T = TypeVar("T")
+
+
+@dataclass(frozen=True)
+class _Semaphores:
+    partition_load: asyncio.Semaphore
+    blob_download: asyncio.Semaphore
+    parquet_decode: asyncio.Semaphore
+    group_process: asyncio.Semaphore
+
+
+_LOOP_SEMS: "weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, _Semaphores]" = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def _get_semaphores() -> _Semaphores:
+    loop = asyncio.get_running_loop()
+    sems = _LOOP_SEMS.get(loop)
+    if sems is None:
+        sems = _Semaphores(
+            partition_load=asyncio.Semaphore(_DEFAULT_PARTITION_CONCURRENCY),
+            blob_download=asyncio.Semaphore(_DEFAULT_DOWNLOAD_CONCURRENCY),
+            parquet_decode=asyncio.Semaphore(_DEFAULT_DECODE_CONCURRENCY),
+            group_process=asyncio.Semaphore(_DEFAULT_GROUP_CONCURRENCY),
+        )
+        _LOOP_SEMS[loop] = sems
+    return sems
+
+
+@asynccontextmanager
+async def _acquire(sem: asyncio.Semaphore) -> AsyncIterator[None]:
+    await sem.acquire()
+    try:
+        yield
+    finally:
+        sem.release()
+
+
+async def _bounded_as_completed(
+    coros: Iterable[Coroutine[Any, Any, T]],
+    limit: int,
+) -> AsyncIterator[T]:
+    """
+    Consume an iterable of coroutine objects with bounded in-flight concurrency.
+
+    Unlike asyncio.as_completed(), this does NOT eagerly schedule everything at once.
+    """
+    if limit <= 0:
+        limit = 10_000_000
+
+    it = iter(coros)
+    pending: set[asyncio.Task[T]] = set()
+
+    for _ in range(limit):
+        try:
+            pending.add(asyncio.create_task(next(it)))
+        except StopIteration:
+            break
+
+    while pending:
+        done, pending = await asyncio.wait(
+            pending, return_when=asyncio.FIRST_COMPLETED
+        )
+
+        for task in done:
+            yield task.result()
+
+        for _ in range(len(done)):
+            try:
+                pending.add(asyncio.create_task(next(it)))
+            except StopIteration:
+                break
+
+
 async def get_all_neighbors(
     address_df: pd.DataFrame, N: int, same_side_only: bool = True, limit: int = -1
-):
+) -> pd.DataFrame:
     """
     Main function to get address neighbors by batching by the CSZ for quicker reading.
-
-    Parameters
-    ----------
-    address_df : pandas.DataFrame
-        Formatted query street data from smarty. Must include headers street_number, street_name, city, state, zip_code.
-    N : int
-        Number of neighbors to fetch in each direction (if possible).
-    same_side_only : bool, optional
-        Flag to indicate if we're querying both or one side of the street, by default True.
-    limit : int, optional
-        Optional maximum number of records to return, by default -1.
-
-    Returns
-    -------
-    pandas.DataFrame
-        All neighbors of the input addresses.
     """
+    _ = _get_semaphores()  # semaphores are used by the loaders; kept here for clarity
 
-    async def process_group(city, state, zip_code, part_df):
-        city = city.replace(" ", "_")
+    async def process_group(
+        city: str, state: str, zip_code: str, part_df: pd.DataFrame
+    ) -> Optional[pd.DataFrame]:
+        safe_city = city.replace(" ", "_")
         try:
             estated_data = await load_estated_data_partitioned_blob(
-                f"estated_partition_testing/state={state}/zip_code={zip_code}/city={city}/"
+                f"estated_partition_testing/state={state}/zip_code={zip_code}/city={safe_city}/"
             )
-        except Exception as e:
+        except Exception:
             return None
 
-        group_results = []
+        if estated_data.empty:
+            return None
+
+        group_results: list[pd.DataFrame] = []
+        estated_data_street = estated_data["street_name"]
+
         for street_name, street_addresses in part_df.groupby("street_name"):
-            street_data = estated_data[
-                estated_data["street_name"] == str(street_name).upper()
-            ]
+            street_data = estated_data[estated_data_street == str(street_name).upper()]
             if street_data.empty:
                 continue
 
@@ -53,35 +139,29 @@ async def get_all_neighbors(
             if not neighbors.empty:
                 group_results.append(neighbors)
 
-        if group_results:
-            return pd.concat(group_results, ignore_index=True)
-        else:
+        if not group_results:
             return None
+        return pd.concat(group_results, ignore_index=True)
 
-    # Group data by city, state, and zip_code to batch operations
-    tasks = (
+    group_coros: Iterable[Coroutine[Any, Any, Optional[pd.DataFrame]]] = (
         process_group(city, state, zip_code, part_df)
         for (city, state, zip_code), part_df in address_df.groupby(
             ["city", "state", "zip_code"]
         )
     )
 
-    # Using asyncio.as_completed to reduce memory consumption while processing results
-    results_list = []
-    for coro in asyncio.as_completed(tasks):
-        result = await coro
-        if result is not None:
+    results_list: list[pd.DataFrame] = []
+    async for result in _bounded_as_completed(group_coros, limit=_DEFAULT_GROUP_CONCURRENCY):
+        if result is not None and not result.empty:
             results_list.append(result)
 
-    # Concatenate results
-    if results_list:
-        return (
-            pd.concat(results_list, ignore_index=True).head(limit)
-            if limit > 0
-            else pd.concat(results_list, ignore_index=True)
-        )
-    else:
+    if not results_list:
         return pd.DataFrame()
+
+    out = pd.concat(results_list, ignore_index=True)
+    if limit > 0:
+        out = out.head(limit)
+    return out
 
 
 def find_neighbors_for_street(
@@ -89,31 +169,15 @@ def find_neighbors_for_street(
 ) -> pd.DataFrame:
     """
     Vectorized way of finding neighbors for all addresses on a given street.
-
-    Parameters
-    ----------
-    data : pandas.DataFrame
-        The relevant estated data on this street.
-    addresses : pandas.DataFrame
-        The input addresses on this street.
-    N : int
-        Number of neighbors to fetch in each direction (if possible).
-    same_side_only : bool
-        Flag to indicate if we're querying both or one side of the street.
-
-    Returns
-    -------
-    pandas.DataFrame
-        All neighbors of the input addresses.
     """
     data = (
         data.sort_values(by="street_number")
         .dropna(subset=["street_number"])
         .reset_index(drop=True)
     )
-    increment = 2 if same_side_only else 1
+    _ = 2 if same_side_only else 1  # increment (parity filtering is applied below)
 
-    addresses = addresses.dropna(subset=["street_number"])
+    addresses = addresses.dropna(subset=["street_number"]).copy()
     addresses["base_street_num"] = pd.to_numeric(
         addresses["street_number"], errors="coerce"
     )
@@ -122,25 +186,28 @@ def find_neighbors_for_street(
     if data.empty or addresses.empty:
         return pd.DataFrame()
 
-    # Ensure sorted data index aligns with numeric order
     idx_map = pd.Series(data.index, index=data["street_number"])
 
-    start_indices = []
-    end_indices = []
+    start_indices: list[int] = []
+    end_indices: list[int] = []
     for base_num in addresses["base_street_num"]:
         base_idx = idx_map.searchsorted(base_num)
-        start_indices.append(max(0, base_idx - N))
-        end_indices.append(min(len(data), base_idx + N))
-    start_indices = np.array(start_indices)
-    end_indices = np.array(end_indices)
+        start_indices.append(max(0, int(base_idx) - N))
+        end_indices.append(min(len(data), int(base_idx) + N))
 
-    if len(start_indices) == 0 or len(end_indices) == 0:
+    start_indices_arr = np.asarray(start_indices, dtype=np.int64)
+    end_indices_arr = np.asarray(end_indices, dtype=np.int64)
+
+    if start_indices_arr.size == 0 or end_indices_arr.size == 0:
         return pd.DataFrame()
 
     try:
-        base_ids = np.repeat(addresses.index, end_indices - start_indices)
+        base_ids = np.repeat(
+            addresses.index.to_numpy(),
+            end_indices_arr - start_indices_arr,
+        )
         neighbor_indices = np.concatenate(
-            [np.arange(start, end) for start, end in zip(start_indices, end_indices)]
+            [np.arange(start, end) for start, end in zip(start_indices_arr, end_indices_arr)]
         )
     except ValueError:
         return pd.DataFrame()
@@ -151,97 +218,109 @@ def find_neighbors_for_street(
     neighbors = result.merge(data, left_on="neighbor_index", right_index=True)
 
     if same_side_only:
-        evenness_map = addresses["base_street_num"] % 2
+        evenness_map = (addresses["base_street_num"] % 2).to_dict()
         neighbors["base_evenness"] = neighbors["base_address_id"].map(evenness_map)
         neighbors = neighbors[
-            neighbors["street_number"] % 2 == neighbors["base_evenness"]
+            (neighbors["street_number"] % 2) == neighbors["base_evenness"]
         ]
 
-    return neighbors.drop(
-        columns=["base_evenness", "base_address_id", "neighbor_index"], errors="ignore"
-    ).reset_index(drop=True)
+    return (
+        neighbors.drop(
+            columns=["base_evenness", "base_address_id", "neighbor_index"], errors="ignore"
+        )
+        .reset_index(drop=True)
+    )
 
 
-async def load_parquet_from_blob(container_client: ContainerClient, blob_dir_path):
+async def load_parquet_from_blob(
+    container_client: ContainerClient,
+    blob_dir_path: str,
+    *,
+    download_semaphore: Optional[asyncio.Semaphore] = None,
+    decode_semaphore: Optional[asyncio.Semaphore] = None,
+) -> pd.DataFrame:
     """
-    Load parquet files from an Azure Blob Storage directory.
-
-    Parameters
-    ----------
-    blob_dir_path : str
-        The directory path in the Azure Blob Storage container.
-
-    Returns
-    -------
-    pandas.DataFrame
-        The concatenated DataFrame of all parquet files in the given directory.
+    Load parquet files from an Azure Blob Storage directory, with bounded concurrency.
     """
-    cols = [
-        "street_number",
-        "street_name",
-        "formatted_street_address",
-        "city",
-        "state",
-        "zip_code",
-        "zip_plus_four_code",
-    ]
-    dfs = []
+    sems = _get_semaphores()
+    download_sem = download_semaphore or sems.blob_download
+    decode_sem = decode_semaphore or sems.parquet_decode
+
+    dfs: list[pd.DataFrame] = []
 
     async for blob in container_client.list_blobs(name_starts_with=blob_dir_path):
         if getattr(blob, "size", 1) == 0:
             continue
 
-        # BlobClient supports async context manager – this ensures its aiohttp session is closed.
-        async with container_client.get_blob_client(blob=blob.name) as blob_client:
-            downloader = await blob_client.download_blob()
-            try:
-                data = await downloader.readall()
-            finally:
-                # Some SDK versions require explicit close() on the downloader to release the connection.
-                if hasattr(downloader, "close"):
-                    await downloader.close()
+        async with _acquire(download_sem):
+            async with container_client.get_blob_client(blob=blob.name) as blob_client:
+                downloader = await blob_client.download_blob()
+                try:
+                    data = await downloader.readall()
+                finally:
+                    close_fn = getattr(downloader, "close", None)
+                    if close_fn is not None:
+                        maybe_awaitable = close_fn()
+                        if asyncio.iscoroutine(maybe_awaitable):
+                            await maybe_awaitable
 
-        df = pd.read_parquet(BytesIO(data), columns=cols)
+        async with _acquire(decode_sem):
+            df = await asyncio.to_thread(
+                pd.read_parquet, BytesIO(data), columns=list(_PARQUET_COLS)
+            )
+
+        if df.empty:
+            continue
+
+        df = df.dropna(subset=["street_number", "street_name"], how="any")
         if not df.empty:
-            df = df.dropna(subset=["street_number", "street_name"], how="any")
-            if not df.empty:
-                dfs.append(df)
+            dfs.append(df)
 
-    return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame(columns=cols)
+    if not dfs:
+        return pd.DataFrame(columns=list(_PARQUET_COLS))
+    return pd.concat(dfs, ignore_index=True)
 
 
-async def load_estated_data_partitioned_blob(table_path):
+async def load_estated_data_partitioned_blob(
+    table_path: str,
+    *,
+    partition_semaphore: Optional[asyncio.Semaphore] = None,
+    download_semaphore: Optional[asyncio.Semaphore] = None,
+    decode_semaphore: Optional[asyncio.Semaphore] = None,
+) -> pd.DataFrame:
     """
     Read in estated data for a given path, ensuring that the street number is an integer.
-
-    Parameters
-    ----------
-    table_path : str
-        The path to the partitioned blob storage directory.
-
-    Returns
-    -------
-    pandas.DataFrame
-        The formatted estated data.
+    Uses a semaphore to cap concurrent partition loads so the function node isn't overwhelmed.
     """
-    conn_str = os.environ["DATALAKE_CONN_STR"]
-    async with ContainerClient.from_connection_string(
-        conn_str, container_name="general", transport=_create_transport()
-    ) as container:
-        blob_df = await load_parquet_from_blob(container, table_path)
-        # rename for the onspot orchestrator
-        blob_df = blob_df.rename(
-            columns={
-                "formatted_street_address": "address",
-                "zip_code": "zipCode",
-                "zip_plus_four_code": "plus4Code",
-            }
-        )
+    sems = _get_semaphores()
+    partition_sem = partition_semaphore or sems.partition_load
 
-    if not blob_df.empty:
-        blob_df = blob_df.drop_duplicates()
-        blob_df["street_number"] = pd.to_numeric(
-            blob_df["street_number"], errors="coerce"
-        ).astype("Int64")
-        blob_df["street_name"] = blob_df["street_name"].astype("str")
+    conn_str = os.environ["DATALAKE_CONN_STR"]
+
+    async with _acquire(partition_sem):
+        async with ContainerClient.from_connection_string(
+            conn_str, container_name="general", transport=_create_transport()
+        ) as container:
+            blob_df = await load_parquet_from_blob(
+                container,
+                table_path,
+                download_semaphore=download_semaphore,
+                decode_semaphore=decode_semaphore,
+            )
+            blob_df = blob_df.rename(
+                columns={
+                    "formatted_street_address": "address",
+                    "zip_code": "zipCode",
+                    "zip_plus_four_code": "plus4Code",
+                }
+            )
+
+    if blob_df.empty:
+        return blob_df
+
+    blob_df = blob_df.drop_duplicates()
+    blob_df["street_number"] = pd.to_numeric(
+        blob_df["street_number"], errors="coerce"
+    ).astype("Int64")
+    blob_df["street_name"] = blob_df["street_name"].astype("str")
     return blob_df

@@ -299,7 +299,7 @@ async def load_estated_data_partitioned_blob(
 
     async with _acquire(partition_sem):
         async with ContainerClient.from_connection_string(
-            conn_str, container_name="general", transport=_create_transport()
+            conn_str, container_name="general"
         ) as container:
             blob_df = await load_parquet_from_blob(
                 container,

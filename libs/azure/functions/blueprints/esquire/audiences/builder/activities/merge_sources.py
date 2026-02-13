@@ -1,21 +1,30 @@
 from __future__ import annotations
 
 import base64
+from datetime import datetime
 import os
+from urllib.parse import unquote
 import uuid
 from typing import Any, Iterable, Iterator, Mapping, Sequence
 
 from azure.durable_functions import Blueprint
-from azure.storage.blob import BlobBlock, BlobClient, ContentSettings
+from azure.storage.blob import (
+    BlobBlock,
+    BlobClient,
+    ContentSettings,
+    BlobSasPermissions,
+    generate_blob_sas,
+)
+from matplotlib.dates import relativedelta
 
 bp = Blueprint()
 
 # Download chunking is controlled by BlobClient constructor kwargs:
 # - max_single_get_size: max size downloaded in a single GET before switching to ranged/chunked GETs
 # - max_chunk_get_size: max size of each ranged GET chunk
-_DOWNLOAD_CHUNK_SIZE = 4 * 1024 * 1024       # 4 MiB
-_STAGE_BLOCK_SIZE = 32 * 1024 * 1024         # 32 MiB
-_MAX_HEADER_SCAN_BYTES = 2 * 1024 * 1024     # 2 MiB
+_DOWNLOAD_CHUNK_SIZE = 4 * 1024 * 1024  # 4 MiB
+_STAGE_BLOCK_SIZE = 32 * 1024 * 1024  # 32 MiB
+_MAX_HEADER_SCAN_BYTES = 2 * 1024 * 1024  # 2 MiB
 
 
 def _resolve_conn_str(value_or_env_name: str) -> str:
@@ -116,7 +125,9 @@ def _iter_merged_csv_bytes(source_urls: Sequence[str]) -> Iterator[bytes]:
                 yield chunk
 
 
-def _stage_iterable_as_blocks(dest: BlobClient, data_parts: Iterable[bytes], *, block_size: int) -> list[BlobBlock]:
+def _stage_iterable_as_blocks(
+    dest: BlobClient, data_parts: Iterable[bytes], *, block_size: int
+) -> list[BlobBlock]:
     """
     Stage a stream of bytes as a sequence of blocks and return the ordered BlobBlock list
     required by commit_block_list() in newer azure-storage-blob versions.
@@ -158,7 +169,9 @@ def _stage_iterable_as_blocks(dest: BlobClient, data_parts: Iterable[bytes], *, 
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudienceBuilder_mergeSources(ingress: Mapping[str, Any]) -> str:
     source_urls_raw = ingress.get("source_urls")
-    if not isinstance(source_urls_raw, list) or not all(isinstance(u, str) for u in source_urls_raw):
+    if not isinstance(source_urls_raw, list) or not all(
+        isinstance(u, str) for u in source_urls_raw
+    ):
         raise ValueError("ingress['source_urls'] must be a list[str]")
 
     source_urls: list[str] = source_urls_raw
@@ -183,9 +196,13 @@ def activity_esquireAudienceBuilder_mergeSources(ingress: Mapping[str, Any]) -> 
     blob_name = destination.get("blob_name")
     if blob_name is None:
         prefix = blob_prefix.strip("/")
-        blob_name = f"{prefix}/{uuid.uuid4().hex}.csv" if prefix else f"{uuid.uuid4().hex}.csv"
+        blob_name = (
+            f"{prefix}/{uuid.uuid4().hex}.csv" if prefix else f"{uuid.uuid4().hex}.csv"
+        )
     elif not isinstance(blob_name, str) or not blob_name:
-        raise ValueError("destination['blob_name'] must be a non-empty string when provided")
+        raise ValueError(
+            "destination['blob_name'] must be a non-empty string when provided"
+        )
 
     conn_str = _resolve_conn_str(conn_str_key)
 
@@ -196,7 +213,9 @@ def activity_esquireAudienceBuilder_mergeSources(ingress: Mapping[str, Any]) -> 
     )
 
     merged_stream = _iter_merged_csv_bytes(source_urls)
-    block_list = _stage_iterable_as_blocks(dest_blob, merged_stream, block_size=_STAGE_BLOCK_SIZE)
+    block_list = _stage_iterable_as_blocks(
+        dest_blob, merged_stream, block_size=_STAGE_BLOCK_SIZE
+    )
 
     if not block_list:
         dest_blob.upload_blob(
@@ -204,11 +223,33 @@ def activity_esquireAudienceBuilder_mergeSources(ingress: Mapping[str, Any]) -> 
             overwrite=True,
             content_settings=ContentSettings(content_type="text/csv"),
         )
-        return dest_blob.url
+        return (
+            unquote(dest_blob.url)
+            + "?"
+            + generate_blob_sas(
+                account_name=dest_blob.account_name,
+                account_key=dest_blob.credential.account_key,
+                container_name=dest_blob.container_name,
+                blob_name=dest_blob.blob_name,
+                permission=BlobSasPermissions(read=True, write=True),
+                expiry=datetime.utcnow() + relativedelta(days=2),
+            )
+        )
 
     dest_blob.commit_block_list(
         block_list,
         content_settings=ContentSettings(content_type="text/csv"),
     )
 
-    return dest_blob.url
+    return (
+        unquote(dest_blob.url)
+        + "?"
+        + generate_blob_sas(
+            account_name=dest_blob.account_name,
+            account_key=dest_blob.credential.account_key,
+            container_name=dest_blob.container_name,
+            blob_name=dest_blob.blob_name,
+            permission=BlobSasPermissions(read=True, write=True),
+            expiry=datetime.utcnow() + relativedelta(days=2),
+        )
+    )

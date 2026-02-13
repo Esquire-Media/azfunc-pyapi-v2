@@ -1,9 +1,8 @@
-# activities/writeBlob.py
 from azure.durable_functions import Blueprint
 import pandas as pd
 from libs.utils.azure_storage import export_dataframe  # adjust import to where azure_storage.py lives
 from libs.utils.http_clients import get_httpx_client
-import httpx, logging
+import logging
 
 bp = Blueprint()
 

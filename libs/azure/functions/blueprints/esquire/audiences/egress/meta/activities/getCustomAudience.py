@@ -35,5 +35,5 @@ def activity_esquireAudienceMeta_customAudience_get(ingress: dict):
         return res
     except Exception as e:
         return {
-            'error': f"getCustomAudience Error {e.http_status()} : {e.api_error_message()}"
+            'error': f"getCustomAudience Error: {e}"
         }

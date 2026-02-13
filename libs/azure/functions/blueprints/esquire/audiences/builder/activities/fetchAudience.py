@@ -124,6 +124,7 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
                 "dataFilter": data_filter_sql,
                 "dataFilterRaw": data_filter_raw,
                 "processing": getattr(aud, "processing", None),
+                "demographicsFilter": getattr(aud, "demographicsFilter", None)
             }
         # logging.warning(f"[LOG] ingress after fetch audience: {ingress}")
     finally:

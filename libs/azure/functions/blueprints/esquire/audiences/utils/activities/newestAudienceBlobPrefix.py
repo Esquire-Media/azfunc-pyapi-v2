@@ -7,7 +7,7 @@ from typing import Optional, Dict, Any
 from azure.durable_functions import Blueprint
 from azure.storage.blob import ContainerClient
 
-from libs.utils.azure_storage import _get_shared_session
+from libs.utils.azure_storage import _get_shared_session, get_container_client
 from azure.core.pipeline.transport import RequestsTransport
 
 bp: Blueprint = Blueprint()
@@ -54,15 +54,9 @@ def activity_esquireAudiencesUtils_newestAudienceBlobPrefix(
 
     Only directory names that are valid ISO dates/datetimes are considered.
     """
-    container_client = ContainerClient.from_connection_string(
+    container_client = get_container_client(
         conn_str=os.environ.get(ingress["conn_str"], ingress["conn_str"]),
-        container_name=ingress["container_name"],
-        transport=RequestsTransport(
-            session=_get_shared_session(),
-            session_owner=False,  # Don't close our shared session
-            connection_timeout=60,
-            read_timeout=300,
-        ),
+        container_name=ingress["container_name"]
     )
 
     audience_prefix = f"audiences/{ingress['audience_id']}/"

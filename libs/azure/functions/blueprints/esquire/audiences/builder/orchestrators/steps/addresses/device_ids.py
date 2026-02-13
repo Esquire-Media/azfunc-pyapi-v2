@@ -1,7 +1,4 @@
-# File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/steps/addresses/device_ids.py
-
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
-import uuid
 
 bp = Blueprint()
 
@@ -41,106 +38,60 @@ def orchestrator_esquireAudiencesSteps_addresses2deviceids(
     """
     ingress = context.get_input()
 
-    # Convert addresses to device IDs
-    onspot = yield context.task_all(
-        [
-            context.call_sub_orchestrator(
-                "onspot_orchestrator",
-                {
-                    **ingress["working"],
-                    "endpoint": "/save/addresses/all/devices",
-                    "request": {
-                        "hash": False,
-                        "name": context.new_uuid(),
-                        "fileName": context.new_uuid() + ".csv",
-                        "fileFormat": {
-                            "delimiter": ",",
-                            "quoteEncapsulate": True,
-                        },
-                        "mappings": {
-                            "street": ["address"],
-                            "city": ["city"],
-                            "state": ["state"],
-                            "zip": ["zipCode"],
-                            "zip4": ["plus4Code"],
-                        },
-                        "matchAcceptanceThreshold": 29.9,
-                        "sources": [source_url.replace("https://", "az://")],
-                    },
-                },
-            )
-            for source_url in ingress["source_urls"]
-        ]
+    # Merge all source URLs into a single blob first
+    merged_url = yield context.call_activity(
+        "activity_esquireAudienceBuilder_mergeSources",
+        {
+            "source_urls": ingress["source_urls"],
+            "destination": ingress["working"],
+        },
     )
 
-    # Collect URLs of the converted results
-    source_urls = []
-    for result in onspot:
-        job_location_map = {
-            job["id"]: job["location"].replace("az://", "https://")
-            for job in result["jobs"]
-        }
-        for callback in result["callbacks"]:
-            if callback["success"]:
-                if callback["id"] in job_location_map:
-                    source_urls.append(job_location_map[callback["id"]])
-
-    if not ingress.get("custom_coding", {}).get("filter", False):
-        source_urls = yield context.task_all([
-            context.call_activity(
-                "activity_esquireAudienceBuilder_formatDeviceIds",
-                {
-                    "source": url,
-                    "destination": ingress["destination"]
-                }
-            )
-            for url in source_urls
-            if "debug.csv" not in url
-        ])
-        return source_urls
-
-    # Further process the results if custom coding is specified
-    demographics_results = yield context.task_all(
-        [
-            context.call_sub_orchestrator(
-                "onspot_orchestrator",
-                {
-                    **ingress["destination"],
-                    "endpoint": "/save/files/demographics/all",
-                    "request": {
-                        "type": "FeatureCollection",
-                        "features": [
-                            {
-                                "type": "Files",
-                                "paths": [source_url.replace("https://", "az://")],
-                                "properties": {
-                                    "name": context.new_uuid(),
-                                    "fileName": context.new_uuid() + ".csv",
-                                    "hash": False,
-                                    "fileFormat": {
-                                        "delimiter": ",",
-                                        "quoteEncapsulate": True,
-                                    },
-                                },
-                            }
-                        ],
-                    },
+    # Single onspot orchestrator call with combined URL
+    result = yield context.call_sub_orchestrator(
+        "onspot_orchestrator",
+        {
+            **ingress["working"],
+            "endpoint": "/save/addresses/all/devices",
+            "request": {
+                "hash": False,
+                "name": context.new_uuid(),
+                "fileName": context.new_uuid() + ".csv",
+                "fileFormat": {
+                    "delimiter": ",",
+                    "quoteEncapsulate": True,
                 },
-            )
-            for source_url in source_urls
-        ]
+                "mappings": {
+                    "street": ["address"],
+                    "city": ["city"],
+                    "state": ["state"],
+                    "zip": ["zipCode"],
+                    "zip4": ["plus4Code"],
+                },
+                "matchAcceptanceThreshold": 29.9,
+                "sources": [merged_url.replace("https://", "az://")],
+            },
+        },
     )
 
-    # Collect URLs of the demographic results
-    result_urls = []
-    for result in demographics_results:
-        job_location_map = {
-            job["id"]: job["location"].replace("az://", "https://")
-            for job in result["jobs"]
-        }
-        for callback in result["callbacks"]:
-            if callback["success"]:
-                if callback["id"] in job_location_map:
-                    result_urls.append(job_location_map[callback["id"]])
+    # Collect URL of the converted result
+    job_location_map = {
+        job["id"]: job["location"].replace("az://", "https://")
+        for job in result["jobs"]
+    }
+    source_url = None
+    for callback in result["callbacks"]:
+        if callback["success"]:
+            if callback["id"] in job_location_map:
+                source_url = job_location_map[callback["id"]]
+                break
 
-    return result_urls
+    # Format the device IDs for the single source
+    formatted_url = yield context.call_activity(
+        "activity_esquireAudienceBuilder_formatDeviceIds",
+        {
+            "source": source_url,
+            "destination": ingress["destination"]
+        }
+    )
+    return [formatted_url]

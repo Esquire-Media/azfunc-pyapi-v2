@@ -1,7 +1,5 @@
-# File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/steps/addresses/device_ids.py
-
 from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
-# import logging
+
 bp = Blueprint()
 
 MAX_CONCURRENT_TASKS = 10

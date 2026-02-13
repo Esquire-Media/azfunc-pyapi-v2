@@ -20,7 +20,7 @@ def activity_campaignProposal_collectMovers(settings: dict):
     
     # import cleaned addresses from previous step
     container_client = get_container_client(
-        connection_string=os.environ[settings["runtime_container"]['conn_str']],
+        conn_str=os.environ[settings["runtime_container"]['conn_str']],
         container_name=settings["runtime_container"]["container_name"]
     )
     in_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/addresses.csv")

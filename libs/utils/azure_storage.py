@@ -134,7 +134,7 @@ def _create_transport():
     )
 
 
-def get_container_client(connection_string: str, container_name: str) -> ContainerClient:
+def get_container_client(conn_str: str, container_name: str) -> ContainerClient:
     """Create ContainerClient with shared transport for connection pooling.
 
     Args:
@@ -145,7 +145,7 @@ def get_container_client(connection_string: str, container_name: str) -> Contain
         ContainerClient with shared transport
     """
     return ContainerClient.from_connection_string(
-        connection_string,
+        conn_str,
         container_name=container_name,
         transport=_create_transport()
     )
@@ -319,7 +319,7 @@ def export_dataframe(
 
     # establish output blob from a destination url
     if isinstance(destination, str):
-        blob = BlobClient.from_blob_url(destination, transport=_create_transport())
+        blob = get_cached_blob_client(destination)
     # establish output blob from a blob details dictionary
     elif isinstance(destination, dict):
         to_type = destination.get("format", None)

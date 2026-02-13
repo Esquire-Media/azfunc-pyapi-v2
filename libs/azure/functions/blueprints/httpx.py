@@ -1,5 +1,5 @@
 from azure.durable_functions import Blueprint
-import httpx
+from libs.utils.http_clients import get_httpx_client
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()
@@ -14,7 +14,7 @@ def activity_httpx(ingress: dict):
         -data (str)
         -headers (dict)
 
-    Ex.    
+    Ex.
     {
         "method":"POST",
         "url":"https://google.com",
@@ -25,9 +25,14 @@ def activity_httpx(ingress: dict):
     }
     """
 
-    response = httpx.request(
+    client = get_httpx_client()
+    method = ingress.pop("method")
+    url = ingress.pop("url")
+
+    response = client.request(
+        method=method,
+        url=url,
         **ingress,
-        timeout=None
     )
 
     return {

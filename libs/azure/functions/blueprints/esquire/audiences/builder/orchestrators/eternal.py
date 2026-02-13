@@ -1,5 +1,3 @@
-# File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/eternal.py
-
 import os
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 from croniter import croniter

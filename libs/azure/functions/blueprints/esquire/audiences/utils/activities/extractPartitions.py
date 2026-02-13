@@ -1,7 +1,6 @@
 import csv
 from io import StringIO
 from azure.durable_functions import Blueprint
-from azure.storage.blob import BlobClient
 from libs.utils.azure_storage import get_cached_blob_client
 
 bp = Blueprint()

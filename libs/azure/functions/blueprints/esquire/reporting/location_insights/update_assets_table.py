@@ -1,8 +1,9 @@
 from azure.durable_functions import Blueprint
 from azure.data.tables import TableClient
 from azure.functions import TimerRequest
-from azure.storage.blob import ContainerClient
 import os
+
+from libs.utils.azure_storage import get_container_client
 
 bp = Blueprint()
 
@@ -31,7 +32,7 @@ def timer_locationInsights_UpdateAssetsTable(timer: TimerRequest):
     }
 
     # connect to resource storage client
-    container_client = ContainerClient.from_connection_string(
+    container_client = get_container_client(
         conn_str=os.environ[resources_container["conn_str"]],
         container_name=resources_container["container_name"],
     )

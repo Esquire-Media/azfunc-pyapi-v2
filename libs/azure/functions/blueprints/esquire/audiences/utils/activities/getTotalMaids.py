@@ -1,7 +1,6 @@
 from azure.durable_functions import Blueprint
 from azure.storage.blob import (
     BlobClient,
-    ContainerClient,
     DelimitedTextDialect,
     BlobSasPermissions,
     generate_blob_sas,
@@ -9,6 +8,8 @@ from azure.storage.blob import (
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import os
+
+from libs.utils.azure_storage import get_container_client
 
 bp: Blueprint = Blueprint()
 
@@ -23,7 +24,7 @@ async def activity_esquireAudiencesUtils_getTotalMaids(ingress: dict):
     #     "audience_id": ingress,
     # }
 
-    container_client = ContainerClient.from_connection_string(
+    container_client = get_container_client(
         conn_str=os.environ.get(ingress["conn_str"], ingress["conn_str"]),
         container_name=ingress["container_name"],
     )

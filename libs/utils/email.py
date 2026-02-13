@@ -1,5 +1,5 @@
 from typing import List
-import requests
+from libs.utils.http_clients import get_requests_session
 
 
 def send_email(
@@ -15,7 +15,7 @@ def send_email(
         },
         "SaveToSentItems": "false",
     }
-    return requests.post(
+    return get_requests_session().post(
         f"https://graph.microsoft.com/v1.0/users/{from_id}/sendMail",
         headers={"Authorization": "Bearer " + access_token},
         json=email_msg,

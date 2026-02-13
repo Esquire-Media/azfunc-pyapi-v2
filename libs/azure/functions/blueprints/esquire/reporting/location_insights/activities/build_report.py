@@ -338,7 +338,7 @@ def replace_text_in_slides(slides, location_info, observations):
     worst_week = observations.get_worst_week()
     
     replacements = {
-        "{{title}}": location_info["Owner"].upper(),
+        "{{title}}": str(location_info["Owner"]).upper(),
         "{{subtitle}}": location_info["Full Address"],
         "{{year}}": latest_week["Year"],
         "{{latest week}}": latest_week["Week"],

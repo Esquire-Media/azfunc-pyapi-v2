@@ -285,7 +285,14 @@ class Observations:
         obs = obs.drop_duplicates(subset=['deviceid','Hour Number','Date'])
 
         # get crosstabs, normalized so 1 is the "average" cell value
-        crosstab = round(pd.crosstab(obs['Day Number'], obs['Hour Number'], normalize=True) * 168,3) # 168 is the number of buckets (24 x 7)
+        full_hours = list(range(24))
+        full_days = list(range(7))
+
+        crosstab = (
+            pd.crosstab(obs['Day Number'], obs['Hour Number'], normalize=True)
+            .reindex(index=full_days, columns=full_hours, fill_value=0)
+            * 168
+        ).round(3)
         crosstab.columns.name = 'Hour Number'
         crosstab = crosstab.sort_values('Day Number', axis=0, key=lambda x: sort_by_list(crosstab.index, list(days_of_week.values())))
 
@@ -299,8 +306,8 @@ class Observations:
         x = 'Hour Number'
         y = 'Day Number'
         weight = 'weight'
-        xtick_labels = [hours_of_day[hour_num] for hour_num in sorted(obs['Hour Number'].unique())]
-        ytick_labels = [days_of_week[day_num] for day_num in sorted(obs['Day Number'].unique())]
+        xtick_labels = [hours_of_day[int(hour)] for hour in crosstab.columns]
+        ytick_labels = [days_of_week[int(day)] for day in crosstab.index]
         xtick_rotation = 90
         ytick_rotation = 0
 

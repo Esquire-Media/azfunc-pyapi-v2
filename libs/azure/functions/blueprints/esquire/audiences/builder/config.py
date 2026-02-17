@@ -7,7 +7,7 @@ if not from_bind("keystone"):
         "Structured",
         "sql",
         url=os.environ["DATABIND_SQL_KEYSTONE"],
-        schemas=["keystone", "sales"],
+        schemas=["keystone", "sales", "utils"],
         pool_size=1000,
         max_overflow=100,
     )
@@ -73,5 +73,14 @@ MAPPING_DATASOURCE = {
             "name": "entities",
         },
         "isEAV":True
+    },
+    # Estated data - stale, but in use
+    "cmlqvyruq000ol9pap793f875": {
+        "dbType": "postgres",
+        "bind": "keystone",
+        "table": {
+            "schema": "utils",
+            "name": "estated",
+        },
     },
 }

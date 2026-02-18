@@ -19,24 +19,36 @@ def replace_text(replacements, shapes):
                     for key, value in replacements.items():
                       run.text = run.text.replace(str(key), str(value))
 
-def add_custom_image(file, slide, placeholder):
-    """
-    Utility method for adding a saved image to a slide in place of an existing shape.
+from io import BytesIO
 
-    params:
-    file - either a string path to an image file, or a file-like object containing bytes.
-    slide - the pptx slide object.
-    placeholder - an existing shape to copy the dimensions of.
-    """
-    if type(file) == str:
-        file = open(file, "rb")
-    elif type(file) == bytes:
+def _normalize_image(file):
+    if isinstance(file, str):
+        with open(file, "rb") as f:
+            return BytesIO(f.read())
+
+    if isinstance(file, (bytes, bytearray)):
+        return BytesIO(bytes(file))
+
+    # file-like
+    try:
+        file.seek(0)
+    except Exception:
         pass
 
+    data = file.read()
+    if not isinstance(data, (bytes, bytearray)):
+        raise TypeError(f"Unsupported image type: {type(data)}")
+
+    return BytesIO(bytes(data))
+
+
+def add_custom_image(file, slide, placeholder):
+    stream = _normalize_image(file)
+
     slide.shapes.add_picture(
-        image_file = file,
+        image_file=stream,
         left=placeholder.left,
         top=placeholder.top,
         width=placeholder.width,
-        height=placeholder.height
+        height=placeholder.height,
     )

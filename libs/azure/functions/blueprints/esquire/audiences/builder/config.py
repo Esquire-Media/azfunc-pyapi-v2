@@ -7,7 +7,11 @@ if not from_bind("keystone"):
         "Structured",
         "sql",
         url=os.environ["DATABIND_SQL_KEYSTONE"],
-        schemas=["keystone", "sales", "utils"],
+        schemas={
+            "keystone":None, 
+            "sales":None, 
+            "utils":["estated"]
+            },
         pool_size=1000,
         max_overflow=100,
     )
@@ -17,7 +21,7 @@ if not from_bind("general"):
         "Structured",
         "sql",
         url=os.environ["DATABIND_SQL_GENERAL"],
-        schemas=["dbo"],
+        schemas={"dbo":None},
         pool_size=1000,
         max_overflow=100,
     )
@@ -27,7 +31,7 @@ if not from_bind("audiences"):
         "Structured",
         "sql",
         url=os.environ["DATABIND_SQL_AUDIENCES"],
-        schemas=["dbo"],
+        schemas={"dbo":None},
         pool_size=1000,
         max_overflow=100,
     )

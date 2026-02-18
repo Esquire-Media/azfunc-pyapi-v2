@@ -190,7 +190,7 @@ def activity_salesIngestor_eavTransformChunk(settings: dict):
             {"k": lock_key_expr}
         ).scalar()
         if not got:
-            logger.info(f"[LOG] Chunk {chunk_id} already processing; skipping.")
+            logger.info(f"[LOG] Chunk {chunk_id} already processing; skipping.", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
             return "skipped"
 
         stmt = text(sql).bindparams(
@@ -199,5 +199,5 @@ def activity_salesIngestor_eavTransformChunk(settings: dict):
         )
         conn.execute(stmt)
 
-    logger.info(f"[LOG] EAV chunk {chunk_id} complete.")
+    logger.info(f"[LOG] EAV chunk {chunk_id} complete.", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
     return f"chunk {chunk_id} processed"

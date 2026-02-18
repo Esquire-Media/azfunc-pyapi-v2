@@ -15,7 +15,7 @@ bp = Blueprint()
 
 @bp.activity_trigger(input_name="settings")
 def activity_salesIngestor_createStagingTable(settings: dict):
-    logger.info(msg=f"[LOG] Creating Staging Table {qtbl(settings['table_name'])}")
+    logger.info(msg=f"[LOG] Creating Staging Table {qtbl(settings['table_name'])}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
     blob_path = settings['metadata']['blob_id']
     conn_str = os.environ['SALES_INGEST_CONN_STR']
@@ -46,23 +46,38 @@ def activity_salesIngestor_createStagingTable(settings: dict):
         ddl = f"CREATE TABLE {qtbl(table_name)} ({', '.join(cols)});"
         conn.exec_driver_sql(ddl)
 
-    logger.info(msg=f"[LOG] Created Staging Table {qtbl(settings['table_name'])}")
+    logger.info(msg=f"[LOG] Created Staging Table {qtbl(settings['table_name'])}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
 def _normalized_fields_for_ddl(schema: pa.Schema):
     """
     For any dictionary-encoded column, use its value_type for DDL mapping.
-    This keeps dictionary<string> columns as TEXT in Postgres.
+    Escape identifier names but keep Field objects.
     """
     norm = []
     for f in schema:
-        if pa.types.is_dictionary(f.type):
-            # preserve name/nullability/metadata; swap type for value_type
-            norm.append(pa.field(f.name, f.type.value_type, nullable=f.nullable, metadata=f.metadata))
-        else:
-            norm.append(f)
+        name = _escape_ident(f.name)
 
-    norm = [f'"{_escape_ident(f.name)}" {_pg_type(f)}' for f in norm]
+        if pa.types.is_dictionary(f.type):
+            norm.append(
+                pa.field(
+                    name,
+                    f.type.value_type,
+                    nullable=f.nullable,
+                    metadata=f.metadata,
+                )
+            )
+        else:
+            norm.append(
+                pa.field(
+                    name,
+                    f.type,
+                    nullable=f.nullable,
+                    metadata=f.metadata,
+                )
+            )
+
     return norm
+
 
 def _escape_ident(name: str) -> str:
     return name.replace('%', '%%')

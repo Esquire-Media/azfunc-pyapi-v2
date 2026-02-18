@@ -12,7 +12,7 @@ bp = Blueprint()
 def activity_salesIngestor_cleanup(settings: dict):
     table_name = settings['staging_table']  # e.g. staging_<uuid>
 
-    logger.info(msg=f"[LOG] Cleaning up staging table {qtbl(table_name)}")
+    logger.info(msg=f"[LOG] Cleaning up staging table {qtbl(table_name)}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
     with db() as conn:
         # Short timeouts so we don't hang on a lingering lock
@@ -38,10 +38,10 @@ def activity_salesIngestor_cleanup(settings: dict):
         for r in rows:
             fq = f"\"{r['schemaname']}\".\"{r['tablename']}\""
             try:
-                logger.info(msg=f"[LOG] Dropping residual table {fq}")
+                logger.info(msg=f"[LOG] Dropping residual table {fq}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
                 conn.exec_driver_sql(f"DROP TABLE IF EXISTS {fq} CASCADE;")
             except Exception as e:
-                logger.warning(msg=f"[WARN] Failed to drop table {fq}: {str(e)}")
+                logger.warning(msg=f"[WARN] Failed to drop table {fq}: {str(e)}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
 
         # 3) Optional: also try current search_path (harmless if not present)

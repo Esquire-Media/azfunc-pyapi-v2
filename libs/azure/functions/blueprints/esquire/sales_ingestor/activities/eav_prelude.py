@@ -222,12 +222,12 @@ def activity_salesIngestor_eavPrelude(settings: dict):
 
         if not got:
             # Another attempt is doing Prelude for this upload; just skip.
-            logger.info("[LOG] Prelude already in progress; skipping.")
+            logger.info("[LOG] Prelude already in progress; skipping.", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
             return "skipped"
 
         # We hold the advisory lock until transaction ends; now do the work.
         conn.execute(stmt)
-        logger.info("[LOG] EAV Prelude complete")
+        logger.info("[LOG] EAV Prelude complete", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
         return "ok"
 
 def trim_whitespace_in_staging_table(table_name):

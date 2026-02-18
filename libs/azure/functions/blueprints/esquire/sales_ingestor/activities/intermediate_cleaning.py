@@ -13,7 +13,7 @@ bp = Blueprint()
 @bp.activity_trigger(input_name="settings")
 def activity_salesIngestor_intermediate_processing(settings: dict):
 
-    logger.info(msg="[LOG] Intermediate Cleanup")
+    logger.info(msg="[LOG] Intermediate Cleanup", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
     staging_table = qtbl(settings['table_name'])
     fields_map    = settings['fields']
@@ -34,4 +34,4 @@ def activity_salesIngestor_intermediate_processing(settings: dict):
         conn.execute(text("SET search_path TO sales"))
         deleted_count = conn.execute(stmt).scalar()
         if deleted_count > 0:
-            logger.info(f"[LOG] Deleted {deleted_count} rows with empty {order_col}")
+            logger.info(f"[LOG] Deleted {deleted_count} rows with empty {order_col}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})

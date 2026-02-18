@@ -22,7 +22,7 @@ def activity_salesIngestor_assignChunks(settings: dict):
     order_col     = settings["fields"]["order_info"]["order_num"]
     target_rows   = int(settings.get("target_rows_per_chunk", 50_000))
 
-    logger.info(f"[LOG] Assigning chunk_id for {staging_table}")
+    logger.info(f"[LOG] Assigning chunk_id for {staging_table}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
     # 1️⃣ add chunk_id column if missing
     ddl = f"""
@@ -63,7 +63,7 @@ def activity_salesIngestor_assignChunks(settings: dict):
             current_rows += n
 
         total_chunks = chunk_id
-        logger.info(f"[LOG] Planned {total_chunks} chunks for {staging_table}")
+        logger.info(f"[LOG] Planned {total_chunks} chunks for {staging_table}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
         # 4️⃣ write assignments deterministically (idempotent UPSERT)
         #     Rows with same order_num always get the same chunk_id
@@ -94,7 +94,7 @@ def activity_salesIngestor_assignChunks(settings: dict):
         conn.execute(text(update_sql))
         conn.commit()
 
-        logger.info(f"[LOG] Assigned chunk_ids 1..{total_chunks} for {staging_table}")
+        logger.info(f"[LOG] Assigned chunk_ids 1..{total_chunks} for {staging_table}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
         # 5️⃣ return list of chunk ids for fan-out
         chunk_ids = list(range(1, total_chunks + 1))

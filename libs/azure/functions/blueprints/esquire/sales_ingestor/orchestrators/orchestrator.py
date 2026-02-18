@@ -87,7 +87,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         )
 
     except Exception as e:
-        logger.error(msg=e)
+        logger.error(msg=e, extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
         full_trace = traceback.format_exc()
         # if any errors are caught, post an error card to teams tagging Ryan and the calling user
         html_body = f"""
@@ -109,7 +109,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
                 "content_type": "html",
             },
         )
-        logger.warning(msg="Error email sent")
+        logger.warning(msg="Error email sent", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
         # 5. do cleanup of staging table
         yield context.call_activity_with_retry(
@@ -134,7 +134,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
             }
     )
 
-    logger.warning(msg="All tasks completed.")
+    logger.warning(msg="All tasks completed.", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
     # Purge history related to this instance
     yield context.call_sub_orchestrator(

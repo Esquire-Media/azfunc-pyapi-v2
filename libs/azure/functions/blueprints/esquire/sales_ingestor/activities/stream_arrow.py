@@ -19,7 +19,7 @@ bp = Blueprint()
 
 @bp.activity_trigger(input_name="settings")
 def activity_salesIngestor_streamArrow(settings: dict):
-    logger.info(msg=f"[LOG] Streaming blob to staging table {qtbl(settings['table_name'])}")
+    logger.info(msg=f"[LOG] Streaming blob to staging table {qtbl(settings['table_name'])}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
     blob_path = settings['metadata']['blob_id']
     conn_str = os.environ['SALES_INGEST_CONN_STR']
@@ -46,7 +46,7 @@ def activity_salesIngestor_streamArrow(settings: dict):
 
     # Log if we detect dictionary-encoded columns (for diagnostics only)
     if any(pa.types.is_dictionary(f.type) for f in reader.schema):
-        logger.info("[LOG] Detected dictionary-encoded columns; decoding to TEXT during stream.")
+        logger.info("[LOG] Detected dictionary-encoded columns; decoding to TEXT during stream.", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
     with psycopg.connect(conninfo) as conn:
         with conn.cursor() as cur:

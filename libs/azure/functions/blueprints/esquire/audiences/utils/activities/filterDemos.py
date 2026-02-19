@@ -33,7 +33,9 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
     # use sql as in the rest of audience automation to ensure it's consistent
     # kind of an intermediate, narrower level
     where_sql = jsonlogic_to_sql(
-        _canonicalize_jsonlogic(demo_filter)
+        _canonicalize_jsonlogic(
+            rewrite_demographic_fields(demo_filter)
+            )
     )
     # then turn it into pythony dict-handling goodness
     predicate = compile_sql_where_predicate(where_sql)
@@ -164,3 +166,115 @@ def iter_csv_lines_from_blob(downloader, encoding: str = "utf-8") -> Iterator[st
     buffer += decoder.decode(b"", final=True)
     if buffer:
         yield buffer
+
+def rewrite_demographic_fields(json_logic: dict) -> dict:
+    """
+    Rewrite incoming demographic JsonLogic from the UI into JsonLogic that works with the predicate builder and how the demos files are set up
+    """
+
+    BOOLEAN_SELECT_FIELDS = {
+        "educationLevel",
+        "estimatedAge",
+        "householdIncome",
+        "networth",
+        "dwellingType",
+        "gender",
+    }
+
+    BOOLEAN_MULTI_FIELDS = {
+        "interest",
+        "spectator",
+        "donor",
+        "reading",
+        "buyer",
+        "entertain",
+        "presenceOf",
+        "creditCard",
+    }
+
+    NUMERIC_RENAME = {
+        "presenceOfChildren": "presence_of_children",
+        "householdSize": "household_size",
+    }
+
+    CATEGORICAL_RENAME = {
+        "creditCardCreditRating": "credit_card_credit_rating",
+    }
+
+    def process(node):
+
+        if isinstance(node, dict):
+
+            # --- HANDLE "all" FIRST ---
+            if "all" in node:
+                field_block, in_block = node["all"]
+
+                if (
+                    isinstance(field_block, dict)
+                    and field_block.get("var") in BOOLEAN_MULTI_FIELDS
+                    and isinstance(in_block, dict)
+                    and "in" in in_block
+                ):
+                    values = in_block["in"][1]
+
+                    conditions = [
+                        {"==": [{"var": v}, 1]}
+                        for v in values
+                    ]
+
+                    if len(conditions) == 1:
+                        return process(conditions[0])
+
+                    return {"and": [process(c) for c in conditions]}
+
+                return {"all": [process(field_block), process(in_block)]}
+
+            # --- HANDLE "in" ---
+            if "in" in node:
+                left, right = node["in"]
+
+                if isinstance(left, dict) and "var" in left:
+                    field = left["var"]
+
+                    # Boolean select
+                    if field in BOOLEAN_SELECT_FIELDS:
+                        conditions = [
+                            {"==": [{"var": v}, 1]}
+                            for v in right
+                        ]
+                        if len(conditions) == 1:
+                            return process(conditions[0])
+                        return {"or": [process(c) for c in conditions]}
+
+                    # Categorical rename
+                    if field in CATEGORICAL_RENAME:
+                        return {
+                            "in": [
+                                {"var": CATEGORICAL_RENAME[field]},
+                                right
+                            ]
+                        }
+
+                return {"in": [process(left), process(right)]}
+
+            # --- VAR RENAME ---
+            if "var" in node:
+                var_name = node["var"]
+
+                if var_name in NUMERIC_RENAME:
+                    return {"var": NUMERIC_RENAME[var_name]}
+
+                if var_name in CATEGORICAL_RENAME:
+                    return {"var": CATEGORICAL_RENAME[var_name]}
+
+                return node
+
+            # Generic recursion
+            return {k: process(v) for k, v in node.items()}
+
+        if isinstance(node, list):
+            return [process(n) for n in node]
+
+        return node
+
+    return process(json_logic)

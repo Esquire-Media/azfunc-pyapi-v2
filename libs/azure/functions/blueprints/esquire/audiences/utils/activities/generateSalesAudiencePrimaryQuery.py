@@ -340,7 +340,7 @@ sales_batches AS (
   FROM const c
   CROSS JOIN sales.query_eav(
     'sales_batch',
-    jsonb_build_object('tenant_id', jsonb_build_object('==', c.tenant_id))
+    jsonb_build_object('["tenant_id"]', jsonb_build_object('==', c.tenant_id))
   ) AS sb(entity_id uuid)
 ),
 -- Transactions under those batches, filtered by optional date window and any txn-level predicates.

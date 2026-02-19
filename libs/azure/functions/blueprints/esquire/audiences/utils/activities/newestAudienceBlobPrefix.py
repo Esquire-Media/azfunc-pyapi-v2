@@ -7,6 +7,9 @@ from typing import Optional, Dict, Any
 from azure.durable_functions import Blueprint
 from azure.storage.blob import ContainerClient
 
+from libs.utils.azure_storage import _get_shared_session, get_container_client
+from azure.core.pipeline.transport import RequestsTransport
+
 bp: Blueprint = Blueprint()
 
 
@@ -35,7 +38,7 @@ def _parse_iso_dir_name(dir_name: str) -> Optional[datetime]:
 
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudiencesUtils_newestAudienceBlobPrefix(
-    ingress: Dict[str, Any]
+    ingress: Dict[str, Any],
 ) -> Optional[str]:
     """
     Find the newest ISO-date directory prefix for the given audience.
@@ -51,9 +54,9 @@ def activity_esquireAudiencesUtils_newestAudienceBlobPrefix(
 
     Only directory names that are valid ISO dates/datetimes are considered.
     """
-    container_client = ContainerClient.from_connection_string(
+    container_client = get_container_client(
         conn_str=os.environ.get(ingress["conn_str"], ingress["conn_str"]),
-        container_name=ingress["container_name"],
+        container_name=ingress["container_name"]
     )
 
     audience_prefix = f"audiences/{ingress['audience_id']}/"

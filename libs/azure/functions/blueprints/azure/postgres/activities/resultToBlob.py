@@ -3,7 +3,7 @@ from libs.data import from_bind
 from libs.utils.azure_storage import get_blob_sas, init_blob_client
 import os
 import pandas as pd
-
+from sqlalchemy import Connection
 bp = Blueprint()
 
 @bp.activity_trigger(input_name="ingress")
@@ -34,11 +34,19 @@ def activity_azurePostgres_resultToBlob(ingress: dict) -> str:
     # Prefer deterministic blob name from orchestrator; fall back to offset-based
     blob_name = dest.get("blob_name") or f'{dest["blob_prefix"]}/offset-{offset}.{ext}'
 
+    con: Connection = from_bind(src["bind"]).connect().connection() # type: ignore
+
     # Execute chunked query
-    df = pd.read_sql_query(
-        sql=f'{src["query"]} LIMIT {limit} OFFSET {offset}',
-        con=from_bind(src["bind"]).connect().connection(), # type: ignore
-    )
+    try:
+        df = pd.read_sql_query(
+            sql=f'{src["query"]} LIMIT {limit} OFFSET {offset}',
+            con=con, 
+        )
+    except:
+        df = pd.read_sql_query(
+            sql=f'{src["query"]} LIMIT {limit} OFFSET {offset}',
+            con=con.connection, # type: ignore
+        )
 
     # Initialize blob client and upload idempotently
     output_blob = init_blob_client(

@@ -1,8 +1,8 @@
-# activities/writeBlob.py
 from azure.durable_functions import Blueprint
 import pandas as pd
 from libs.utils.azure_storage import export_dataframe  # adjust import to where azure_storage.py lives
-import httpx, logging
+from libs.utils.http_clients import get_httpx_client
+import logging
 
 bp = Blueprint()
 
@@ -33,7 +33,7 @@ def activity_write_blob(payload: dict) -> str:
 
     if payload.get("preflight"):
         try:
-            r = httpx.head(sas_url, timeout=10)
+            r = get_httpx_client().head(sas_url, timeout=10)
             if r.status_code not in (200, 206):
                 logging.warning("HEAD %s -> %s", sas_url, r.status_code)
         except Exception as e:

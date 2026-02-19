@@ -4,9 +4,8 @@ from azure.durable_functions import Blueprint, DurableOrchestrationContext, Retr
 from azure.durable_functions import Blueprint
 from pydantic import BaseModel, conlist
 from libs.utils.pydantic.address import Placekey
-from azure.storage.blob import BlobClient, generate_blob_sas, BlobSasPermissions
 from datetime import datetime as dt, timedelta
-from libs.utils.azure_storage import get_blob_sas
+from libs.utils.azure_storage import get_blob_sas, init_blob_client
 import logging
 import pandas as pd
 import os
@@ -47,7 +46,7 @@ def orchestrator_addressCSV_fromPlacekey(context: DurableOrchestrationContext):
     # output as CSV and build the URL
     df = pd.DataFrame(addresses)
     df = df[["street", "city", "state", "zipcode"]]
-    blob = BlobClient.from_connection_string(
+    blob = init_blob_client(
         conn_str=os.environ[conn_str],
         container_name=output_location["container_name"],
         blob_name=output_location["blob_name"],

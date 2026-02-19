@@ -831,3 +831,13 @@ def estimate_text_box_size(
     ascent, descent = font.getmetrics()
 
     return right - left, bottom  # + descent * new_lines
+
+def get_shape(slide, name: str):
+    """
+    Find a shape by name on a slide.
+    Fail loudly if it doesn't exist.
+    """
+    for shape in slide.shapes:
+        if shape.name == name:
+            return shape
+    raise KeyError(f"Shape '{name}' not found on slide")

@@ -1,7 +1,6 @@
 from azure.durable_functions import Blueprint
-from azure.storage.blob import BlobClient
 from datetime import timedelta
-from libs.utils.azure_storage import get_blob_sas
+from libs.utils.azure_storage import get_blob_sas, init_blob_client
 import pandas as pd, os, logging
 
 bp: Blueprint = Blueprint()
@@ -36,7 +35,7 @@ def activity_salesUploader_salesPostProcessing(ingress: dict):
     smarty_df = pd.read_csv(ingress["processed_blob_url"])
 
     # connect to the ingress sales blob
-    ingress_client = BlobClient.from_connection_string(
+    ingress_client = init_blob_client(
         conn_str=os.environ[ingress["runtime_container"]["conn_str"]],
         container_name=ingress["runtime_container"]["container_name"],
         blob_name=f"{ingress['instance_id']}/02_preprocessed",
@@ -71,7 +70,7 @@ def activity_salesUploader_salesPostProcessing(ingress: dict):
         "date_first": merged_df["date"].min(),
         "date_last": merged_df["date"].max(),
     }
-    with BlobClient.from_connection_string(
+    with init_blob_client(
         conn_str=os.environ[egress["conn_str"]],
         container_name=egress["container_name"],
         blob_name=egress["blob_name"],

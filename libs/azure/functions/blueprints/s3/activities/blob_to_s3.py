@@ -2,6 +2,7 @@
 
 from azure.durable_functions import Blueprint
 from azure.storage.blob import BlobClient
+from libs.utils.azure_storage import get_cached_blob_client, init_blob_client
 import boto3, os
 
 bp = Blueprint()
@@ -67,9 +68,9 @@ def blob_to_s3(ingress: dict):
 
     # Initialize Azure Blob client
     if isinstance(ingress["source"], str):
-        blob = BlobClient.from_blob_url(ingress["source"])
+        blob = get_cached_blob_client(ingress["source"])
     else:
-        blob = BlobClient.from_connection_string(
+        blob = init_blob_client(
             conn_str=os.environ[ingress["source"]["conn_str"]],
             container_name=ingress["source"]["container_name"],
             blob_name=ingress["source"]["blob_name"],

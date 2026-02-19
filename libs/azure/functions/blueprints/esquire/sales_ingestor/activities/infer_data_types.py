@@ -14,7 +14,7 @@ def activity_salesIngestor_inferDataTypes(settings: dict):
 
     table_name = settings['table_name']
 
-    logger.info(msg=f"[LOG] Inferring data types for staging table {qtbl(table_name)}")
+    logger.info(msg=f"[LOG] Inferring data types for staging table {qtbl(table_name)}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
     with db() as conn:
         # get the inferred types 
@@ -26,11 +26,11 @@ def activity_salesIngestor_inferDataTypes(settings: dict):
             inferred_types
             )
         
-        logger.info(msg=f"Field types inferred: {inferred_types_dict}")
+        logger.info(msg=f"Field types inferred: {inferred_types_dict}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
         date_types = {"DATE", "TIMESTAMP", "DATETIME"}
         if not any(dtype.upper() in date_types for dtype in inferred_types_dict.values()):
-            logger.error(msg=f"[LOG] No date fields were able to be inferred.")
+            logger.error(msg=f"[LOG] No date fields were able to be inferred.", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
             raise TypeError("No date fields were able to be inferred.")
 
@@ -44,7 +44,7 @@ def activity_salesIngestor_inferDataTypes(settings: dict):
         # actually run the alters
         apply_alter_statements(conn, alter_statements)
 
-        logger.info(msg=f"Field types inferred: {inferred_types_dict}")
+        logger.info(msg=f"Field types inferred: {inferred_types_dict}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
 def apply_alter_statements(conn, alter_statements: list):
     for stmt in alter_statements:

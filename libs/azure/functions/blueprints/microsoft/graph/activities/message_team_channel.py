@@ -1,5 +1,5 @@
 from azure.durable_functions import Blueprint
-import httpx
+from libs.utils.http_clients import get_httpx_client
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()
@@ -42,8 +42,8 @@ def activity_microsoft_graph_message_team_channel(ingress: dict):
     ...     )
     """
 
-    # Send email using Microsoft Graph
-    return httpx.post(
+    # Send message using Microsoft Graph via cached client
+    return get_httpx_client().post(
         url=ingress["webhook"],
         json={"text": ingress["message"]},
     ).text

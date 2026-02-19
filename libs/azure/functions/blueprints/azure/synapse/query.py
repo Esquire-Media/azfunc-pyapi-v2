@@ -22,9 +22,12 @@ async def activity_synapse_query(ingress: dict):
     """
 
     # Use a context manager to ensure the database connection is properly closed after use.
-    with from_bind(ingress["bind"]).connect() as connection:
+    with from_bind(ingress["bind"]).connect().connection() as connection:
         # Execute the SQL query and read the result into a pandas DataFrame.
-        df = pd.read_sql(ingress["query"], connection.connection())
+        try:
+            df = pd.read_sql(ingress["query"], connection)
+        except:
+            df = pd.read_sql(ingress["query"], connection.connection)
         # Convert the DataFrame to JSON format with orient="records" to ensure it is JSON-serializable.
         json_result = df.to_json(orient="records")
         # Deserialize the JSON string to a Python dictionary and return it.

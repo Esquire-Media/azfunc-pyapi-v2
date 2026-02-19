@@ -1,7 +1,7 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/steps/polygons/device_ids.py
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
-from azure.storage.blob import BlobClient
+from libs.utils.azure_storage import download_blob_bytes
 import uuid, orjson as json
 
 bp = Blueprint()
@@ -71,7 +71,7 @@ def orchestrator_esquireAudiencesSteps_polygon2deviceids(
                     **destination,
                     "endpoint": "/save/geoframe/all/devices",
                     "request": json.loads(
-                        BlobClient.from_blob_url(source_url).download_blob().readall()
+                        download_blob_bytes(source_url)
                     ),
                 },
             )
@@ -91,51 +91,4 @@ def orchestrator_esquireAudiencesSteps_polygon2deviceids(
                 if callback["id"] in job_location_map:
                     source_urls.append(job_location_map[callback["id"]])
 
-    if not ingress.get("custom_coding", {}).get("filter", False):
-        return source_urls
-
-    # Further process the results if custom coding is specified
-    demographics_results = yield context.task_all(
-        [
-            context.call_sub_orchestrator(
-                "onspot_orchestrator",
-                {
-                    **ingress["destination"],
-                    "endpoint": "/save/files/demographics/all",
-                    "request": {
-                        "type": "FeatureCollection",
-                        "features": [
-                            {
-                                "type": "Files",
-                                "paths": [source_url.replace("https://", "az://")],
-                                "properties": {
-                                    "name": uuid.uuid4().hex,
-                                    "fileName": uuid.uuid4().hex + ".csv",
-                                    "hash": False,
-                                    "fileFormat": {
-                                        "delimiter": ",",
-                                        "quoteEncapsulate": True,
-                                    },
-                                },
-                            }
-                        ],
-                    },
-                },
-            )
-            for source_url in source_urls
-        ]
-    )
-
-    # Collect URLs of the demographic results
-    result_urls = []
-    for result in demographics_results:
-        job_location_map = {
-            job["id"]: job["location"].replace("az://", "https://")
-            for job in result["jobs"]
-        }
-        for callback in result["callbacks"]:
-            if callback["success"]:
-                if callback["id"] in job_location_map:
-                    result_urls.append(job_location_map[callback["id"]])
-
-    return result_urls
+    return source_urls

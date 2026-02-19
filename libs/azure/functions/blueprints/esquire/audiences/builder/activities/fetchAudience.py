@@ -56,6 +56,8 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
             max_overflow=100,
         )
     provider = from_bind("keystone")
+    if provider is None:
+        logging.warning("provider did not instatiate properly")
 
     Audience = provider.models["keystone"]["Audience"]
     Advertiser = provider.models["keystone"]["Advertiser"]
@@ -122,6 +124,7 @@ def activity_esquireAudienceBuilder_fetchAudience(ingress: dict):
                 "dataFilter": data_filter_sql,
                 "dataFilterRaw": data_filter_raw,
                 "processing": getattr(aud, "processing", None),
+                "demographicsFilter": getattr(aud, "demographicsFilter", None)
             }
         # logging.warning(f"[LOG] ingress after fetch audience: {ingress}")
     finally:

@@ -1,9 +1,11 @@
+# File: /libs/azure/functions/blueprints/esquire/audiences/utils/activities/faf_filter_count_blob_to_deviceids.py
+
 from azure.durable_functions import Blueprint
-from azure.storage.blob import BlobClient
-from azure.core.exceptions import ResourceNotFoundError
-import csv
-import io
-import logging
+import csv, io, logging
+import pandas as pd
+from typing import Optional
+
+from libs.utils.azure_storage import init_blob_client, export_dataframe
 
 bp = Blueprint()
 
@@ -12,14 +14,11 @@ class _ChunksIO(io.RawIOBase):
     def __init__(self, chunks_iter):
         self._iter = iter(chunks_iter)
         self._buf = b""
-        self._closed = False
 
     def readable(self):
         return True
 
     def readinto(self, b):
-        if self._closed:
-            return 0
         while len(self._buf) < len(b):
             try:
                 self._buf += next(self._iter)
@@ -32,94 +31,64 @@ class _ChunksIO(io.RawIOBase):
 
 
 @bp.activity_trigger(input_name="ingress")
-def activity_faf_filter_devices_blob(ingress: dict):
+def activity_faf_filter_count_blob_to_deviceids(ingress: dict) -> Optional[str]:
     source_url = ingress["source_url"]
-    destination = ingress["destination"]
-    output_name = ingress["output_name"]  # deterministic (e.g. {source_key}.csv)
-    min_count = int(ingress.get("min_count", 2))
-    top_n = ingress.get("top_n")
+    thresholds = ingress.get("thresholds", {}) or {}
 
-    dst_blob_name = f"{destination['blob_prefix']}/{output_name}"
+    min_count = int(thresholds.get("min_count", 2))
+    top_n_raw = thresholds.get("top_n", None)
+    top_n = int(top_n_raw) if top_n_raw not in (None, False, 0, "0") else None
 
-    src = BlobClient.from_blob_url(source_url)
+    src = init_blob_client(blob_url=source_url)
     downloader = src.download_blob()
     raw = _ChunksIO(downloader.chunks())
     text = io.TextIOWrapper(io.BufferedReader(raw), encoding="utf-8", newline="")
-
     reader = csv.DictReader(text)
 
-    dst = BlobClient.from_connection_string(
-        conn_str=destination["conn_str"],
-        container_name=destination["container_name"],
-        blob_name=dst_blob_name,
-    )
+    candidates: list[tuple[str, int]] = []
 
-    # idempotent overwrite for append blob
-    try:
-        dst.delete_blob()
-    except Exception:
-        pass
-    dst.create_append_blob()
+    def maybe_add(deviceid: str, count: int):
+        nonlocal candidates
+        if top_n is None:
+            candidates.append((deviceid, count))
+            return
+        inserted = False
+        for i, (_, c) in enumerate(candidates):
+            if count > c:
+                candidates.insert(i, (deviceid, count))
+                inserted = True
+                break
+        if not inserted:
+            candidates.append((deviceid, count))
+        if len(candidates) > top_n:
+            candidates.pop()
 
-    # write header once
-    dst.append_block(b"deviceid\n")
-
-    written = 0
-    batch = io.StringIO(newline="")
-    w = csv.writer(batch)
-
-
-
-    candidates = []  # bounded to top_n
-    max_seen = 0
-
+    rows_read = 0
     for row in reader:
+        rows_read += 1
         try:
             deviceid = row.get("deviceid")
-            count = int(row.get("count", 0))
             if not deviceid:
                 continue
+            count = int(row.get("count", 0))
             if count < min_count:
                 continue
-
-
+            maybe_add(deviceid, count)
         except Exception:
             continue
 
-        max_seen = max(max_seen, count)
-
-        # Insert into top-N list (descending by count)
-        if top_n:
-            inserted = False
-            for i, (_, c) in enumerate(candidates):
-                if count > c:
-                    candidates.insert(i, (deviceid, count))
-                    inserted = True
-                    break
-            if not inserted:
-                candidates.append((deviceid, count))
-
-            # trim
-            if len(candidates) > top_n:
-                candidates.pop()
-        else:
-            candidates.append((deviceid, count))
-
-    # Write output
-    for deviceid, _ in candidates:
-        w.writerow([deviceid])
-        written += 1
-
-
-    if batch.tell() > 0:
-        dst.append_block(batch.getvalue().encode("utf-8"))
-
-    if written == 0:
-        # empty audience shard: keep behavior consistent with other steps (return None)
-        try:
-            dst.delete_blob()
-        except Exception:
-            pass
+    if not candidates:
+        logging.info("faf_filter: empty after filtering, source=%s rows=%s", source_url, rows_read)
         return None
 
-    return dst.url
+    df = pd.DataFrame({"deviceid": [d for d, _ in candidates]})
+
+    return export_dataframe(
+        df=df,
+        destination={
+            "conn_str": ingress.get("conn_str", "AzureWebJobsStorage"),
+            "container_name": ingress["container_name"],
+            "blob_prefix": ingress["blob_prefix"].strip("/"),
+            "format": "csv",
+        },
+    )

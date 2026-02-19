@@ -5,6 +5,8 @@ from azure.storage.blob import ContainerClient
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor
 
+from libs.utils.azure_storage import get_container_client
+
 
 def get_all_neighbors(
     address_df: pd.DataFrame, N: int, same_side_only: bool = True, limit: int = -1
@@ -156,7 +158,7 @@ def load_parquet_from_blob(blob_dir_path):
     pandas.DataFrame
         The concatenated DataFrame of all parquet files in the given directory.
     """
-    container_client = ContainerClient.from_connection_string(
+    container_client = get_container_client(
         os.environ["DATALAKE_CONN_STR"], container_name="general"
     )
     blobs = list(container_client.list_blobs(name_starts_with=blob_dir_path))

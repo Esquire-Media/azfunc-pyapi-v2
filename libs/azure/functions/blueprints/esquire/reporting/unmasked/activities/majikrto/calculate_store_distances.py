@@ -1,7 +1,6 @@
 from azure.durable_functions import Blueprint
-from azure.storage.blob import BlobClient
 from datetime import timedelta
-from libs.utils.azure_storage import get_blob_sas, export_dataframe
+from libs.utils.azure_storage import get_blob_sas, export_dataframe, init_blob_client
 from sklearn.neighbors import BallTree
 import numpy as np, os, pandas as pd
 
@@ -58,7 +57,7 @@ def activity_pixelPush_calculateStoreDistances(ingress: dict):
     # load the client's store address data
     stores = pd.read_csv(
         get_blob_sas(
-            blob=BlobClient.from_connection_string(
+            blob=init_blob_client(
                 conn_str=os.environ[ingress["store_locations_source"]["conn_str"]],
                 container_name=ingress["store_locations_source"]["container_name"],
                 blob_name=ingress["store_locations_source"]["blob_name"],

@@ -1,5 +1,6 @@
 from azure.durable_functions import Blueprint
 from libs.azure.key_vault import KeyVaultClient
+from libs.utils.http_clients import get_httpx_client
 import httpx, msal, os
 
 # Create a Blueprint instance for defining Azure Functions
@@ -69,7 +70,7 @@ def activity_microsoftGraph_sendEmail(ingress: dict):
         )
 
     # Send email using Microsoft Graph
-    return httpx.post(
+    return get_httpx_client().post(
         url=f"https://graph.microsoft.com/v1.0/users/{ingress['from_id']}/sendMail",
         headers={
             "Authorization": "Bearer " + access_token,

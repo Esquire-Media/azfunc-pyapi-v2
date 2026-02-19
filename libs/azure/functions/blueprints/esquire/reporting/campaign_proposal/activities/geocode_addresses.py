@@ -1,5 +1,6 @@
 from azure.durable_functions import Blueprint
 from azure.storage.blob import ContainerClient
+from libs.utils.azure_storage import get_container_client
 from libs.utils.smarty import bulk_validate
 import os, pandas as pd
 
@@ -49,7 +50,7 @@ def activity_campaignProposal_geocodeAddresses(settings: dict):
         output = cleaned
 
     # return the validated addresses as a list of component dictionaries, each with an index attribute
-    container_client: ContainerClient = ContainerClient.from_connection_string(conn_str=os.environ[settings["runtime_container"]["conn_str"]], container_name=settings["runtime_container"]["container_name"])
+    container_client: ContainerClient = get_container_client(conn_str=os.environ[settings["runtime_container"]["conn_str"]], container_name=settings["runtime_container"]["container_name"])
     blob_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/addresses.csv")
     blob_client.upload_blob(data=output.to_csv(index=False))
 

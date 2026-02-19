@@ -1,13 +1,8 @@
 from __future__ import annotations
-
 import copy
 import logging
 from typing import Any, Dict, List, Optional, TypedDict
-
-from azure.durable_functions import (
-    Blueprint,
-    DurableOrchestrationContext,
-)
+from azure.durable_functions import Blueprint, DurableOrchestrationContext
 
 bp = Blueprint()
 

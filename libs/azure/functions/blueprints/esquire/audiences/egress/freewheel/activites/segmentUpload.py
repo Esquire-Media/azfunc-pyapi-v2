@@ -8,6 +8,8 @@ import os
 import requests
 from azure.durable_functions import Blueprint
 
+from libs.utils.http_clients import get_requests_session
+
 bp = Blueprint()
 
 
@@ -127,7 +129,7 @@ def activity_esquireAudienceFreewheel_segmentUpload(
             # "continent": "EMEA",
         }
     """
-    session = requests.Session()
+    session = get_requests_session()
     _buzz_authenticate(session)
 
     base_url = os.environ["FREEWHEEL_BUZZ_BASE_URL"].rstrip("/")

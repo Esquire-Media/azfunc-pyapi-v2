@@ -156,7 +156,7 @@ def compile_sql_where_predicate(
         except Exception:
             return False
 
-    return predicate, columns
+    return predicate, list(columns)
 
 
 def build_indexed_reader(

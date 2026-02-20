@@ -8,6 +8,10 @@ from libs.azure.functions.blueprints.esquire.audiences.builder.activities.fetchA
 from libs.utils.azure_storage import init_blob_client
 import os
 import csv
+import re
+import ast
+from io import StringIO
+from typing import Iterator, Tuple, Callable, Set
 from azure.storage.blob import BlobSasPermissions, generate_blob_sas
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -38,7 +42,10 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
             )
     )
     # then turn it into pythony dict-handling goodness
-    predicate = compile_sql_where_predicate(where_sql)
+    predicate, required_columns = compile_sql_where_predicate(where_sql)
+
+    # Always include device id column
+    required_columns.add("hashed device id")
 
     # 2. Build destination path
     blob_name = f"{destination['blob_prefix']}/{uuid.uuid4().hex}.csv"
@@ -54,26 +61,26 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
 
     downloader = source_blob.download_blob()
 
-    reader = csv.DictReader(
-        iter_csv_lines_from_blob(downloader)
+    row_iter = build_indexed_reader(
+        downloader=downloader,
+        required_columns=required_columns,
     )
 
     def output_generator():
-        import io, csv
-
-        buf = io.StringIO()
+        buf = StringIO()
         writer = csv.writer(buf)
 
         writer.writerow(["deviceid"])
         yield buf.getvalue()
-        buf.seek(0); buf.truncate(0)
+        buf.seek(0)
+        buf.truncate(0)
 
-        matched = 0
-        for row in reader:
+        for row in row_iter:
             if predicate(row):
-                writer.writerow([row['hashed device id']])
+                writer.writerow([row["hashed device id"]])
                 yield buf.getvalue()
-                buf.seek(0); buf.truncate(0)
+                buf.seek(0)
+                buf.truncate(0)
 
     dest_blob.upload_blob(
         data=output_generator(),
@@ -91,46 +98,48 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
 
     return f"{unquote(dest_blob.url)}?{sas_token}"
 
-def compile_sql_where_predicate(where_sql: str):
-    import re
+def compile_sql_where_predicate(
+    where_sql: str,
+) -> Tuple[Callable[[dict], bool], Set[str]]:
 
-    expr = where_sql
-
-    # Logical operators
-    expr = re.sub(r"\bAND\b", "and", expr, flags=re.IGNORECASE)
+    # Normalize operators
+    expr = re.sub(r"\bAND\b", "and", where_sql, flags=re.IGNORECASE)
     expr = re.sub(r"\bOR\b", "or", expr, flags=re.IGNORECASE)
-
-    expr = expr.replace("!=", "!=")
     expr = re.sub(r"(?<![<>=!])=(?!=)", "==", expr)
 
-    # FIRST: replace quoted identifiers
-    expr = re.sub(
-        r'"([^"]+)"',
-        lambda m: f'_val(row.get("{m.group(1)}"))',
-        expr,
-    )
+    # Extract referenced columns
+    columns = set(re.findall(r'"([^"]+)"', expr))
 
-    # THEN: convert IN (...) to Python in (...)
-    expr = re.sub(
-        r'_val\(row\.get\("([^"]+)"\)\)\s+IN\s+\(([^)]+)\)',
-        lambda m: f'_val(row.get("{m.group(1)}")) in ({m.group(2)})',
-        expr,
-        flags=re.IGNORECASE,
-    )
+    # Replace quoted identifiers with placeholder tokens
+    for col in columns:
+        expr = expr.replace(f'"{col}"', f'__col__{col}')
 
-    print(expr)
+    # Parse into AST
+    tree = ast.parse(expr, mode="eval")
 
-    code = compile(expr, "<demographics-filter>", "eval")
+    class ColumnTransformer(ast.NodeTransformer):
+        def visit_Name(self, node):
+            if node.id.startswith("__col__"):
+                col_name = node.id.replace("__col__", "")
+                return ast.Subscript(
+                    value=ast.Name(id="row", ctx=ast.Load()),
+                    slice=ast.Constant(value=col_name),
+                    ctx=ast.Load(),
+                )
+            return node
 
-    def _val(v):
+    tree = ColumnTransformer().visit(tree)
+    ast.fix_missing_locations(tree)
+
+    compiled = compile(tree, "<demographics-filter>", "eval")
+
+    def fast_coerce(v):
         if v is None:
             return None
         if isinstance(v, str):
             v = v.strip()
-
-            # Try numeric coercion
             try:
-                return int(float(v))
+                return int(v)
             except ValueError:
                 try:
                     return float(v)
@@ -140,11 +149,58 @@ def compile_sql_where_predicate(where_sql: str):
 
     def predicate(row: dict) -> bool:
         try:
-            return bool(eval(code, {"row": row, "_val": _val}))
+            # Coerce only required columns
+            for col in columns:
+                row[col] = fast_coerce(row.get(col))
+            return bool(eval(compiled, {"row": row}))
         except Exception:
             return False
 
-    return predicate
+    return predicate, columns
+
+
+def build_indexed_reader(
+    downloader,
+    required_columns: Set[str],
+    encoding: str = "utf-8",
+) -> Iterator[dict]:
+
+    import codecs
+
+    decoder = codecs.getincrementaldecoder(encoding)()
+    buffer = ""
+
+    def line_iter():
+        nonlocal buffer
+        for chunk in downloader.chunks():
+            buffer += decoder.decode(chunk)
+            while True:
+                newline = buffer.find("\n")
+                if newline < 0:
+                    break
+                line = buffer[: newline + 1]
+                buffer = buffer[newline + 1 :]
+                yield line
+        buffer += decoder.decode(b"", final=True)
+        if buffer:
+            yield buffer
+
+    reader = csv.reader(line_iter())
+
+    header = next(reader)
+
+    # Map required column -> index
+    index_map = {
+        col: header.index(col)
+        for col in required_columns
+        if col in header
+    }
+
+    for row in reader:
+        yield {
+            col: row[idx] if idx < len(row) else None
+            for col, idx in index_map.items()
+        }
 
 
 import codecs

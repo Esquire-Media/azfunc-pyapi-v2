@@ -98,38 +98,38 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
 
     return f"{unquote(dest_blob.url)}?{sas_token}"
 
+
 def compile_sql_where_predicate(
     where_sql: str,
 ) -> Tuple[Callable[[dict], bool], Set[str]]:
 
-    # Normalize operators
-    expr = re.sub(r"\bAND\b", "and", where_sql, flags=re.IGNORECASE)
+    expr = where_sql
+
+    # --- Normalize SQL → Python ---
+    expr = re.sub(r"\bAND\b", "and", expr, flags=re.IGNORECASE)
     expr = re.sub(r"\bOR\b", "or", expr, flags=re.IGNORECASE)
+    expr = re.sub(r"\bNOT\b", "not", expr, flags=re.IGNORECASE)
+
+    expr = re.sub(r"<>", "!=", expr)
     expr = re.sub(r"(?<![<>=!])=(?!=)", "==", expr)
 
-    # Extract referenced columns
+    expr = re.sub(r"\bIN\b", "in", expr, flags=re.IGNORECASE)
+
+    # --- Extract quoted column names ---
     columns = set(re.findall(r'"([^"]+)"', expr))
 
-    # Replace quoted identifiers with placeholder tokens
+    # --- Replace quoted identifiers safely ---
+    # Replace "column name" with row["column name"]
     for col in columns:
-        expr = expr.replace(f'"{col}"', f'__col__{col}')
+        expr = expr.replace(
+            f'"{col}"',
+            f'row[{repr(col)}]'
+        )
 
-    # Parse into AST
-    tree = ast.parse(expr, mode="eval")
-
-    class ColumnTransformer(ast.NodeTransformer):
-        def visit_Name(self, node):
-            if node.id.startswith("__col__"):
-                col_name = node.id.replace("__col__", "")
-                return ast.Subscript(
-                    value=ast.Name(id="row", ctx=ast.Load()),
-                    slice=ast.Constant(value=col_name),
-                    ctx=ast.Load(),
-                )
-            return node
-
-    tree = ColumnTransformer().visit(tree)
-    ast.fix_missing_locations(tree)
+    try:
+        tree = ast.parse(expr, mode="eval")
+    except SyntaxError as e:
+        raise ValueError(f"Failed to parse filter expression: {expr}") from e
 
     compiled = compile(tree, "<demographics-filter>", "eval")
 
@@ -149,7 +149,6 @@ def compile_sql_where_predicate(
 
     def predicate(row: dict) -> bool:
         try:
-            # Coerce only required columns
             for col in columns:
                 row[col] = fast_coerce(row.get(col))
             return bool(eval(compiled, {"row": row}))
@@ -244,7 +243,7 @@ def rewrite_demographic_fields(json_logic: dict) -> dict:
         "householdIncome",
         "networth",
         "dwellingType",
-        "gender",
+        "gender"
     }
 
     BOOLEAN_MULTI_FIELDS = {

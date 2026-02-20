@@ -227,12 +227,17 @@ def iter_csv_lines_from_blob(downloader, encoding: str = "utf-8") -> Iterator[st
 def rewrite_demographic_fields(json_logic: dict) -> dict:
     """
     Rewrite incoming demographic JsonLogic into storage-aligned JsonLogic.
+    - Expands QueryBuilder-style select fields into one-hot boolean columns.
+    - Renames direct-storage fields (e.g., homeOwner -> home_owner).
     Handles QueryBuilder-style `all` operator correctly.
     """
     import ast
 
     json_logic = ast.literal_eval(json_logic)
 
+    # Fields where the UI provides a *choice*, but storage is one-hot boolean columns.
+    # Example: dwellingType == "dwelling_type single family"
+    # becomes:    "dwelling_type single family" == 1
     BOOLEAN_SELECT_FIELDS = {
         "educationLevel",
         "estimatedAge",
@@ -240,7 +245,6 @@ def rewrite_demographic_fields(json_logic: dict) -> dict:
         "networth",
         "dwellingType",
         "gender",
-        'homeOwner'
     }
 
     BOOLEAN_MULTI_FIELDS = {
@@ -254,6 +258,11 @@ def rewrite_demographic_fields(json_logic: dict) -> dict:
         "creditCard",
     }
 
+    # Direct column renames (storage column exists as a normal field)
+    DIRECT_RENAME = {
+        "homeOwner": "home_owner",
+    }
+
     NUMERIC_RENAME = {
         "presenceOfChildren": "presence_of_children",
         "householdSize": "household_size",
@@ -264,7 +273,6 @@ def rewrite_demographic_fields(json_logic: dict) -> dict:
     }
 
     def process(node):
-
         if isinstance(node, dict):
 
             # --- HANDLE "all" FIRST ---
@@ -278,11 +286,7 @@ def rewrite_demographic_fields(json_logic: dict) -> dict:
                     and "in" in in_block
                 ):
                     values = in_block["in"][1]
-
-                    conditions = [
-                        {"==": [{"var": v}, 1]}
-                        for v in values
-                    ]
+                    conditions = [{"==": [{"var": v}, 1]} for v in values]
 
                     if len(conditions) == 1:
                         return process(conditions[0])
@@ -298,30 +302,36 @@ def rewrite_demographic_fields(json_logic: dict) -> dict:
                 if isinstance(left, dict) and "var" in left:
                     field = left["var"]
 
-                    # Boolean select
-                    if field in BOOLEAN_SELECT_FIELDS:
-                        conditions = [
-                            {"==": [{"var": v}, 1]}
-                            for v in right
-                        ]
+                    # Boolean select: expand to one-hot boolean columns
+                    if field in BOOLEAN_SELECT_FIELDS and isinstance(right, list):
+                        conditions = [{"==": [{"var": v}, 1]} for v in right]
                         if len(conditions) == 1:
                             return process(conditions[0])
                         return {"or": [process(c) for c in conditions]}
 
-                    # Categorical rename
+                    # Categorical rename (rare path)
                     if field in CATEGORICAL_RENAME:
-                        return {
-                            "in": [
-                                {"var": CATEGORICAL_RENAME[field]},
-                                right
-                            ]
-                        }
+                        return {"in": [{"var": CATEGORICAL_RENAME[field]}, right]}
 
                 return {"in": [process(left), process(right)]}
+
+            # --- HANDLE "==" (THIS is what was missing for dwellingType) ---
+            if "==" in node:
+                left, right = node["=="]
+
+                # Pattern: {"==":[{"var":"dwellingType"},"dwelling_type single family"]}
+                if isinstance(left, dict) and left.get("var") in BOOLEAN_SELECT_FIELDS and isinstance(right, str):
+                    # Convert to one-hot boolean column check
+                    return {"==": [{"var": right}, 1]}
+
+                return {"==": [process(left), process(right)]}
 
             # --- VAR RENAME ---
             if "var" in node:
                 var_name = node["var"]
+
+                if var_name in DIRECT_RENAME:
+                    return {"var": DIRECT_RENAME[var_name]}
 
                 if var_name in NUMERIC_RENAME:
                     return {"var": NUMERIC_RENAME[var_name]}
@@ -331,7 +341,6 @@ def rewrite_demographic_fields(json_logic: dict) -> dict:
 
                 return node
 
-            # Generic recursion
             return {k: process(v) for k, v in node.items()}
 
         if isinstance(node, list):

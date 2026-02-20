@@ -68,6 +68,7 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
         yield buf.getvalue()
         buf.seek(0); buf.truncate(0)
 
+        matched = 0
         for row in reader:
             if predicate(row):
                 writer.writerow([row['hashed device id']])
@@ -169,8 +170,12 @@ def iter_csv_lines_from_blob(downloader, encoding: str = "utf-8") -> Iterator[st
 
 def rewrite_demographic_fields(json_logic: dict) -> dict:
     """
-    Rewrite incoming demographic JsonLogic from the UI into JsonLogic that works with the predicate builder and how the demos files are set up
+    Rewrite incoming demographic JsonLogic into storage-aligned JsonLogic.
+    Handles QueryBuilder-style `all` operator correctly.
     """
+    import ast
+
+    json_logic = demo_filter = ast.literal_eval(demo_filter)
 
     BOOLEAN_SELECT_FIELDS = {
         "educationLevel",

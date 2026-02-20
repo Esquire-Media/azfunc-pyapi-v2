@@ -175,7 +175,7 @@ def rewrite_demographic_fields(json_logic: dict) -> dict:
     """
     import ast
 
-    json_logic = demo_filter = ast.literal_eval(demo_filter)
+    json_logic = ast.literal_eval(json_logic)
 
     BOOLEAN_SELECT_FIELDS = {
         "educationLevel",

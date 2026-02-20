@@ -50,9 +50,7 @@ def _build_paged_sql(ingress: Dict[str, Any]) -> Tuple[str, int, int]:
     # NOTE: The base SQL MUST include a deterministic ORDER BY for stable paging.
     # OFFSET/FETCH must come *after* ORDER BY in T-SQL.
     paged_sql = (
-        f"{base_sql}\n"
-        f"OFFSET {offset} ROWS\n"
-        f"FETCH NEXT {limit} ROWS ONLY;\n"
+        f"{base_sql}\n" f"OFFSET {offset} ROWS\n" f"FETCH NEXT {limit} ROWS ONLY;\n"
     )
     return paged_sql, offset, limit
 
@@ -112,7 +110,9 @@ def _fetch_users_page_low_memory(
                     pass
         else:
             # Fallback: SQLAlchemy exec with streaming enabled.
-            result = sa_conn.execution_options(stream_results=True).exec_driver_sql(paged_sql)
+            result = sa_conn.execution_options(stream_results=True).exec_driver_sql(
+                paged_sql
+            )
             try:
                 for row in result:
                     val = row[0]
@@ -158,7 +158,9 @@ def _meta_users_replace(ingress: Dict[str, Any], users: List[str]) -> Dict[str, 
         "session": ingress["batch"],
     }
 
-    result = CustomAudience(fbid=audience_id, api=api).create_users_replace(params=params)
+    result = CustomAudience(fbid=audience_id, api=api).create_users_replace(
+        params=params
+    )
 
     # Response is small; exporting is fine and keeps the activity output JSON-serializable.
     return result.export_all_data()
@@ -193,7 +195,14 @@ def activity_esquireAudienceMeta_customAudience_replaceUsers(ingress: dict):
         }
 
     try:
-        return _meta_users_replace(ingress, users)
+        return {
+            **_meta_users_replace(ingress, users),
+            "diag": {
+                "users": len(users),
+                "offset": offset,
+                "limit": limit,
+            },
+        }
     except FacebookRequestError as e:
         body = e.body() if hasattr(e, "body") else {"error": {"message": str(e)}}
         return {"error": body}

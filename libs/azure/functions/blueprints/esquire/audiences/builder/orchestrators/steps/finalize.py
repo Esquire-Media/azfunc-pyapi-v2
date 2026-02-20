@@ -68,11 +68,14 @@ def orchestrator_esquireAudiences_finalize(
     processing = ingress["audience"].get("processing", {})
     steps = processing.get("steps", []) if processing else []
     has_steps = bool(steps)
+    has_demos = ingress["audience"].get("demographicFilter", None)
     logging.warning(f"[LOG] FINALIZE INFO")
     # logging.warning(f"[LOG] ingress: {ingress}")
     logging.warning(f"[LOG] processing: {processing}")
     logging.warning(f"[LOG] steps: {steps}")
     logging.warning(f"[LOG] has_steps: {has_steps}")
+    logging.warning(f"[LOG] has_demos: {has_demos}")
+
 
     inputType = (
         steps[-1]["outputType"]
@@ -137,7 +140,8 @@ def orchestrator_esquireAudiences_finalize(
 
     # do a final layer of demographics filtering if it's needed
     # if here should be fine for idempotency since it's by audience which should be the same on replays
-    if ingress.get("audience").get("demographicFilter"):
+    if has_demos:
+        logging.warning('[LOG] Taking demographics path')
         # common egress for the final layer of demographics filtering
         demos_egress = {
             "working": {

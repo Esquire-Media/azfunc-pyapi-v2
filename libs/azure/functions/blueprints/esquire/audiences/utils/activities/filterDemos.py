@@ -240,6 +240,7 @@ def rewrite_demographic_fields(json_logic: dict) -> dict:
         "networth",
         "dwellingType",
         "gender",
+        'homeOwner'
     }
 
     BOOLEAN_MULTI_FIELDS = {

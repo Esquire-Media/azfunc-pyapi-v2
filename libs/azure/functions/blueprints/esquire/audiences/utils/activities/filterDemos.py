@@ -45,7 +45,7 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
     predicate, required_columns = compile_sql_where_predicate(where_sql)
 
     # Always include device id column
-    required_columns.add("hashed device id")
+    required_columns.append("hashed device id")
 
     # 2. Build destination path
     blob_name = f"{destination['blob_prefix']}/{uuid.uuid4().hex}.csv"

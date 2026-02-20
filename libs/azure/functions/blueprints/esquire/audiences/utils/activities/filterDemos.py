@@ -112,14 +112,12 @@ def compile_sql_where_predicate(
 
     expr = re.sub(r"<>", "!=", expr)
     expr = re.sub(r"(?<![<>=!])=(?!=)", "==", expr)
-
     expr = re.sub(r"\bIN\b", "in", expr, flags=re.IGNORECASE)
 
     # --- Extract quoted column names ---
-    columns = set(re.findall(r'"([^"]+)"', expr))
+    columns: Set[str] = set(re.findall(r'"([^"]+)"', expr))
 
-    # --- Replace quoted identifiers safely ---
-    # Replace "column name" with row["column name"]
+    # Replace "column name" → row["column name"]
     for col in columns:
         expr = expr.replace(
             f'"{col}"',
@@ -127,12 +125,31 @@ def compile_sql_where_predicate(
         )
 
     try:
-        tree = ast.parse(expr, mode="eval")
+        parsed = ast.parse(expr, mode="eval")
     except SyntaxError as e:
         raise ValueError(f"Failed to parse filter expression: {expr}") from e
 
-    compiled = compile(tree, "<demographics-filter>", "eval")
+    # Convert expression into lambda row: <expr>
+    lambda_node = ast.Lambda(
+        args=ast.arguments(
+            posonlyargs=[],
+            args=[ast.arg(arg="row")],
+            kwonlyargs=[],
+            kw_defaults=[],
+            defaults=[],
+        ),
+        body=parsed.body,
+    )
 
+    module = ast.Expression(body=lambda_node)
+    ast.fix_missing_locations(module)
+
+    compiled = compile(module, "<demographics-filter>", "eval")
+
+    # This eval happens ONCE to get the function object
+    base_predicate = eval(compiled)
+
+    # --- Fast coercion ---
     def fast_coerce(v):
         if v is None:
             return None
@@ -151,7 +168,7 @@ def compile_sql_where_predicate(
         try:
             for col in columns:
                 row[col] = fast_coerce(row.get(col))
-            return bool(eval(compiled, {"row": row}))
+            return bool(base_predicate(row))
         except Exception:
             return False
 

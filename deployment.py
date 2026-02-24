@@ -4,13 +4,22 @@ BLUEPRINTS = {
         "libs/azure/functions/blueprints/azure/postgres/*",
         "libs/azure/functions/blueprints/azure/synapse/*",
         "libs/azure/functions/blueprints/esquire/audiences/builder/*",
-        "libs/azure/functions/blueprints/esquire/audiences/egress/*",
         "libs/azure/functions/blueprints/esquire/audiences/utils/activities/*",
         "libs/azure/functions/blueprints/microsoft/graph/*",
         "libs/azure/functions/blueprints/meta/*",
         "libs/azure/functions/blueprints/onspot/*",
         "libs/azure/functions/blueprints/purge_instance_history",
         "libs/azure/functions/blueprints/s3/*",
+    ],
+    "esquire-meta": [
+        "libs/azure/functions/blueprints/esquire/audiences/egress/meta/*",
+        "libs/azure/functions/blueprints/esquire/audiences/utils/activities/newestAudienceBlobPrefix",
+        "libs/azure/functions/blueprints/azure/synapse/*",
+    ],
+    "esquire-freewheel": [
+        "libs/azure/functions/blueprints/esquire/audiences/egress/freewheel/*",
+        "libs/azure/functions/blueprints/esquire/audiences/utils/activities/newestAudienceBlobPaths",
+        "libs/azure/functions/blueprints/azure/synapse/*",
     ],
     "esquire-autopolygon": [
         "libs/azure/functions/blueprints/esquire/rooftop_polys/*",

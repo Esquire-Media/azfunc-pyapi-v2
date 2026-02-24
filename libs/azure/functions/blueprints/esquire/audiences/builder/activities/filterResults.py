@@ -7,6 +7,7 @@ from azure.storage.blob import (
     generate_blob_sas,
     DelimitedTextDialect,
 )
+from libs.utils.azure_storage import get_cached_blob_client, init_blob_client
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
@@ -41,16 +42,16 @@ def activity_esquireAudienceBuilder_filterResults(ingress: dict):
     """
     # Initialize the source BlobClient
     if isinstance(ingress["source"], str):
-        input_blob = BlobClient.from_blob_url(ingress["source"])
+        input_blob = get_cached_blob_client(ingress["source"])
     else:
-        input_blob = BlobClient.from_connection_string(
+        input_blob = init_blob_client(
             conn_str=os.environ[ingress["source"]["conn_str"]],
             container_name=ingress["source"]["container_name"],
             blob_name=ingress["source"]["blob_name"],
         )
 
     # Initialize the destination BlobClient
-    output_blob = BlobClient.from_connection_string(
+    output_blob = init_blob_client(
         conn_str=os.environ[ingress["destination"]["conn_str"]],
         container_name=ingress["destination"]["container_name"],
         blob_name="{}/{}".format(

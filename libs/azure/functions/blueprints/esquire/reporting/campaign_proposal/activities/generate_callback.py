@@ -1,7 +1,6 @@
 from azure.durable_functions import Blueprint
-from azure.storage.blob import BlobClient
 from datetime import timedelta
-from libs.utils.azure_storage import get_blob_sas
+from libs.utils.azure_storage import get_blob_sas, init_blob_client
 import os
 
 # Create a Blueprint instance for defining Azure Functions
@@ -13,16 +12,16 @@ def activity_campaignProposal_generateCallback(settings: dict):
 
     # get a 14-day download URL for each file attachment
     url_pptx = get_blob_sas(
-        blob=BlobClient.from_connection_string(
-            conn_str=os.environ[settings["runtime_container"]["conn_str"]], 
+        blob=init_blob_client(
+            conn_str=os.environ[settings["runtime_container"]["conn_str"]],
             container_name=settings["runtime_container"]['container_name'],
             blob_name=f"{settings['instance_id']}/CampaignProposal-{settings['name']}.pptx"
         ),
         expiry=timedelta(days=14)
     )
     url_comps = get_blob_sas(
-        blob=BlobClient.from_connection_string(
-            conn_str=os.environ[settings["runtime_container"]["conn_str"]], 
+        blob=init_blob_client(
+            conn_str=os.environ[settings["runtime_container"]["conn_str"]],
             container_name=settings["runtime_container"]['container_name'],
             blob_name=f"{settings['instance_id']}/Competitors-{settings['name']}.xlsx"
         ),
@@ -33,6 +32,7 @@ def activity_campaignProposal_generateCallback(settings: dict):
     content = f"""Your Campaign Proposal report for <u>{settings['name']}</u> is done processing and ready for download. 
     <br><br>The following download link(s) will expire in 14 days:"""
     content += f"""<br><a href="{url_pptx}">Campaign Proposal-{settings['name']}.pptx</a>"""
-    content += f"""<br><a href="{url_comps}">Competitors-{settings['name']}.xlsx</a>"""
+    if "in_market_shopper" in settings.get("optionalSlides", []):
+        content += f"""<br><a href="{url_comps}">Competitors-{settings['name']}.xlsx</a>"""
 
     return content

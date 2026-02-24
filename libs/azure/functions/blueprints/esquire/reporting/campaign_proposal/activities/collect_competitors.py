@@ -8,7 +8,7 @@ from libs.azure.key_vault import KeyVaultClient
 from libs.azure.functions.blueprints.esquire.reporting.campaign_proposal.utility.competitor_map import (
     map_competitors,
 )
-from libs.utils.azure_storage import get_blob_sas
+from libs.utils.azure_storage import get_blob_sas, get_container_client
 import ast, os, pandas as pd, re
 
 # Create a Blueprint instance for defining Azure Functions
@@ -19,8 +19,11 @@ bp = Blueprint()
 @bp.activity_trigger(input_name="settings")
 def activity_campaignProposal_collectCompetitors(settings: dict):
 
+    if 'in_market_shopper' not in settings.get('optionalSlides', []):
+        return {}
+
     # import cleaned addresses from previous step
-    container_client: ContainerClient = ContainerClient.from_connection_string(
+    container_client: ContainerClient = get_container_client(
         conn_str=os.environ[settings["runtime_container"]["conn_str"]],
         container_name=settings["runtime_container"]["container_name"],
     )
@@ -36,10 +39,7 @@ def activity_campaignProposal_collectCompetitors(settings: dict):
     mapbox_token = mapbox_key_vault.get_secret("mapbox-token").value
 
     # find nearby competitors in the passed categor(ies)
-    engine = POIEngine(
-        provider_poi=from_bind("foursquare"), 
-        provider_esq=from_bind("keystone")
-    )
+    engine = POIEngine(from_bind("keystone"))
     for r in [
         10,
         15,
@@ -81,14 +81,15 @@ def activity_campaignProposal_collectCompetitors(settings: dict):
     )
     comps = comps[comps["reality_score"] >= 6]
     # use chain name where applicable, and slice the returned columns
-    comps["chain_name"] = comps.apply(
-        lambda x: (
-            ast.literal_eval(x["fsq_chain_name"])[0]
-            if x["fsq_chain_name"] is not None
-            else x["name"]
-        ),
-        axis=1,
-    )
+    # comps["chain_name"] = comps.apply(
+    #     lambda x: (
+    #         ast.literal_eval(x["fsq_chain_name"])[0]
+    #         if x["fsq_chain_name"] is not None
+    #         else x["name"]
+    #     ),
+    #     axis=1,
+    # )
+    comps.dropna(subset=["address"], inplace=True)
     # calculate distances between each source/comp pair, up to a specified radius
     distances = recreate_POI_form(sources=addresses, query_pool=comps, radius=r)
     distances = distances[
@@ -106,7 +107,7 @@ def activity_campaignProposal_collectCompetitors(settings: dict):
     ]
     distances["esq_id"] = distances["esq_id"].replace("null", "")
     # filter to unique competitors across all queries
-    unique_comps = distances.drop_duplicates("fsq_id", keep="first")
+    # unique_comps = distances.drop_duplicates("fsq_id", keep="first")
 
     # EXPORT COMPETITORS LIST (for function use)
     out_client = container_client.get_blob_client(

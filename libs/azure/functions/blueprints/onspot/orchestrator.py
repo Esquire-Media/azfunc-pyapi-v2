@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 
 bp = Blueprint()
 
+import logging
 
 @bp.orchestration_trigger(context_name="context")
 def onspot_orchestrator(context: DurableOrchestrationContext):
@@ -52,6 +53,7 @@ def onspot_orchestrator(context: DurableOrchestrationContext):
     """
 
     # Format the request
+    logging.info("[LOG] Starting format Activity")
     request = yield context.call_activity(
         name="onspot_activity_format",
         input_={
@@ -76,6 +78,7 @@ def onspot_orchestrator(context: DurableOrchestrationContext):
         ]
 
     # Submit request
+    logging.info("[LOG] Starting submit activity")
     jobs = yield context.call_activity(
         name="onspot_activity_submit",
         input_={
@@ -85,6 +88,8 @@ def onspot_orchestrator(context: DurableOrchestrationContext):
     )
 
     # Wait for all of the callbacks
+    logging.info("[LOG] Waiting for callbacks.")
     callbacks = yield context.task_all(events)
+    logging.info("[LOG] All callbacks received")
 
     return {"jobs": jobs if isinstance(jobs, list) else [jobs], "callbacks": callbacks}

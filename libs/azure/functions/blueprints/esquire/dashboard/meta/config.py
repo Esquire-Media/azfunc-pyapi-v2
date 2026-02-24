@@ -1,14 +1,14 @@
 from libs.data import register_binding, from_bind
 import os
 
-if not from_bind("facebook_dashboard"):
-    register_binding(
-        "facebook_dashboard",
-        "Structured",
-        "sql",
-        url=os.environ["DATABIND_SQL_FACEBOOK"],
-        schemas=["dashboard"],
-    )
+# if not from_bind("facebook_dashboard"):
+#     register_binding(
+#         "facebook_dashboard",
+#         "Structured",
+#         "sql",
+#         url=os.environ["DATABIND_SQL_FACEBOOK"],
+#         schemas=["dashboard"],
+#     )
 
 PARAMETERS = {
     "User.Get.Adaccounts": {

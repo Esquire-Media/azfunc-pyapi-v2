@@ -18,7 +18,7 @@ if not from_bind("keystone"):
         "Structured",
         "sql",
         url=os.environ["DATABIND_SQL_KEYSTONE"],
-        schemas=["public"],
+        schemas=["keystone"],
         pool_size=1000,
         max_overflow=100,
     )
@@ -30,17 +30,6 @@ if not from_bind("legacy"):
         "sql",
         url=os.environ["DATABIND_SQL_UNIVERSAL"],
         schemas=["dbo","esquire"],
-        pool_size=1000,
-        max_overflow=100
-)
-    
-if not from_bind("foursquare"):
-    register_binding(
-        "foursquare",
-        "Structured",
-        "sql",
-        url=os.environ["DATABIND_SQL_FOURSQUARE"],
-        schemas=["dbo"],
         pool_size=1000,
         max_overflow=100
 )

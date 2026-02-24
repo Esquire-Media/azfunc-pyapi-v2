@@ -8,7 +8,7 @@ from libs.data.structured.sqlalchemy.utils import (
     name_for_collection_relationship,
     name_for_scalar_relationship,
 )
-from azure.storage.blob import BlobServiceClient
+from libs.utils.azure_storage import get_blob_service_client
 from sqlalchemy import (
     create_engine,
     Column,
@@ -231,8 +231,8 @@ class SQLAlchemyStructuredProvider:
             # Azure Storage initialization
             if os.environ.get("AzureWebJobsStorage"):
                 try:
-                    self.blob_service_client = BlobServiceClient.from_connection_string(
-                        os.environ["AzureWebJobsStorage"]
+                    self.blob_service_client = get_blob_service_client(
+                        connection_string=os.environ["AzureWebJobsStorage"]
                     )
                     self.container_name = "sqlalchemy-cache"
                     container_client = self.blob_service_client.get_container_client(
@@ -279,9 +279,14 @@ class SQLAlchemyStructuredProvider:
             # Reflect the database tables
             if self.schemas:
                 # Reflect tables for specific schemas
-                for s in self.schemas:
+                for s, tables in self.schemas.items():
                     # Reflect tables for the given schema and include views
-                    self._metadata.reflect(bind=self.engine, schema=s, views=True)
+                    self._metadata.reflect(
+                        bind=self.engine,
+                        schema=s,
+                        views=True,
+                        only=(list(tables) if tables is not None else None)
+                    )
                     for table in self._metadata.tables.values():
                         # Check if the table belongs to the current schema
                         if table.schema == s:

@@ -151,8 +151,8 @@ def generate_openapi(json_files: Dict[str, Any] = None) -> Dict[str, Any]:
     # Initialize base structure of OpenAPI specification
     openapi_spec = {
         "openapi": "3.1.0",
-        "info": {"title": "Facebook Business API", "version": "20.0"},
-        "servers": [{"url": "https://graph.facebook.com/v20.0"}],
+        "info": {"title": "Facebook Business API", "version": "22.0"},
+        "servers": [{"url": "https://graph.facebook.com/v22.0"}],
         "components": {
             "headers": {
                 "X-Business-Use-Case-Usage": {

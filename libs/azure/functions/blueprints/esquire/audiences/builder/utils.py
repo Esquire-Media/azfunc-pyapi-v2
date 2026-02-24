@@ -62,21 +62,38 @@ def jsonlogic_to_sql(json_logic):
                 left = parse_logic(logic["=="][0])
                 right = parse_logic(logic["=="][1])
                 return f"{left} = {right}"
+            
+            elif "!=" in logic:
+                left = parse_logic(logic["!="][0])
+                right = parse_logic(logic["!="][1])
+                return f"{left} != {right}"
 
             elif "<" in logic:
                 left = parse_logic(logic["<"][0])
                 right = parse_logic(logic["<"][1])
-                return f"{left} > {right}"
+                return f"{left} < {right}"
 
             elif "<=" in logic:
                 left = parse_logic(logic["<="][0])
                 right = parse_logic(logic["<="][1])
-                return f"{left} >= {right}"
+                return f"{left} <= {right}"
 
             elif "in" in logic:
-                var = parse_logic(logic["in"][0])
-                values = ", ".join(f"'{value}'" for value in logic["in"][1])
-                return f"{var} IN ({values})"
+                left, right = logic["in"]
+
+                # Case 1: "Contains" — substring search
+                if isinstance(left, str) and isinstance(right, dict) and "var" in right:
+                    var = parse_logic(right)
+                    return f"{var} LIKE '%{left}%'"
+
+                # Case 2: "Any In" — list check
+                elif isinstance(left, dict) and "var" in left and isinstance(right, list):
+                    var = parse_logic(left)
+                    values = ", ".join(f"'{v}'" for v in right)
+                    return f"{var} IN ({values})"
+
+                else:
+                    raise ValueError(f"Unsupported 'in' structure: {logic['in']}")
 
             elif "var" in logic:
                 return f"\"{logic['var']}\""
@@ -108,4 +125,179 @@ def jsonlogic_to_sql(json_logic):
             raise ValueError(f"Unsupported operation or type: {type(logic)}")
 
     logic = json.loads(json_logic) if isinstance(json_logic, str) else json_logic
+    
+    # possible intervention if there is custom logic before the final parse
+    if contains_custom_field(logic):
+        logic = rewrite_custom_fields_json(logic)
+
     return parse_logic(logic)
+
+def rewrite_custom_fields_json(json_logic):
+    """
+    Function for handling custom datafilter fields. This will take a custom set of filters and turn them into one
+    EG:
+    {'and': [{'==': [{'var': 'custom.field'}, 'Sealy']},
+    {'>': [{'var': 'custom.numeric_value'}, 0]}]}]}
+    becomes
+    {'and': [{'>': [{'var': 'Sealy'}, 0]}]}]}
+    """
+    def process(node):
+        if isinstance(node, dict):
+            if 'and' in node:
+                # Check if this group has both a custom.field and value usage
+                field = None
+                new_ands = []
+                for cond in node['and']:
+                    if isinstance(cond, dict) and '==' in cond:
+                        left, right = cond['==']
+                        if isinstance(left, dict) and left.get('var') == 'custom.field':
+                            field = right
+                            continue  # drop this condition
+                    new_ands.append(cond)
+
+                # Replace any custom.value with the field
+                if field:
+                    updated = []
+                    for cond in new_ands:
+                        updated.append(replace_custom_value(cond, field))
+                    return {'and': updated}
+                else:
+                    return {'and': [process(c) for c in node['and']]}
+            else:
+                return {k: process(v) for k, v in node.items()}
+        elif isinstance(node, list):
+            return [process(i) for i in node]
+        else:
+            return node
+
+    def replace_custom_value(cond, field):
+        if isinstance(cond, dict):
+            for op, args in cond.items():
+                new_args = []
+                for arg in args:
+                    if isinstance(arg, dict) and arg.get('var') in ('custom.numeric_value', 'custom.text_value'):
+                        new_args.append({'var': field})
+                    else:
+                        new_args.append(arg)
+                return {op: new_args}
+        return cond
+
+    return process(json_logic)
+
+def contains_custom_field(node):
+    if isinstance(node, dict):
+        for key, val in node.items():
+            if key == '==':
+                left, _ = val
+                if isinstance(left, dict) and left.get('var') == 'custom.field':
+                    return True
+            elif isinstance(val, (dict, list)):
+                if contains_custom_field(val):
+                    return True
+    elif isinstance(node, list):
+        return any(contains_custom_field(i) for i in node)
+    return False
+
+def extract_fields_from_dataFilter(dataFilter):
+    """
+    from a given sql-ified datafilter, it tries to find all of the fields that we're interacting with
+    """
+    import re
+    return re.findall(r'"([^"]+)"', dataFilter)
+
+def extract_tenant_id_from_datafilter(sql):
+    import re
+    match = re.search(r'"tenant_id"\s*(?:=|!=|<>|<|>|LIKE|IN)\s*\'([^\']+)\'', sql, re.IGNORECASE)
+    return match.group(1) if match else None
+
+def extract_daysback_from_dataFilter(sql):
+    import re
+    match = re.search(
+        r'"days_back"\s*(?:=|!=|<>|<|>|LIKE|IN)\s*(?:\'([^\']+)\'|(\d+))',
+        sql,
+        re.IGNORECASE
+    )
+    val = match.group(1) or match.group(2) if match else None
+
+    if val is not None:
+        return float(val)
+    else:
+        raise LookupError("days_back variable not found in dataFilter")
+    
+def enforce_bindings():
+    from libs.data import register_binding, from_bind
+    import os
+    if not from_bind("keystone"):
+        register_binding(
+            "keystone",
+            "Structured",
+            "sql",
+            url=os.environ["DATABIND_SQL_KEYSTONE"],
+            schemas=["keystone", "sales"],
+            pool_size=1000,
+            max_overflow=100,
+        )
+    if not from_bind("general"):
+        register_binding(
+            "general",
+            "Structured",
+            "sql",
+            url=os.environ["DATABIND_SQL_GENERAL"],
+            schemas=["dbo"],
+            pool_size=1000,
+            max_overflow=100,
+        )
+    if not from_bind("audiences"):
+        register_binding(
+            "audiences",
+            "Structured",
+            "sql",
+            url=os.environ["DATABIND_SQL_AUDIENCES"],
+            schemas=["dbo"],
+            pool_size=1000,
+            max_overflow=100,
+        )
+
+    MAPPING_DATASOURCE = {
+        # Deepsync mover - can use for testing
+        "clwjn2q4s0056rw04ra44j8k9": {
+            "dbType": "postgres",
+            "bind": "keystone",
+            "table": {
+                "schema": "utils",
+                "name": "movers",
+            },
+            "query": {
+                "select": "add1 AS address, city, st AS state, zip as zipCode",
+                "filter": lambda length, unit: f" AND keycode >= NOW() - INTERVAL {length} {unit[0]}"
+            },
+        },
+        # Esquire audiences
+        "clwjn2q4r0053rw04l2rscs07": {
+            "dbType": "postgres",
+            "bind": "keystone",
+            "table": {
+                "schema": "keystone",
+                "name": "Audience",
+            },
+        },
+        # Esquire geoframes - will need to change
+        "clwjn2q4r0054rw04f76se61o": {
+            "dbType": "postgres",
+            "bind": "keystone",
+            "table": {
+                "schema": "keystone",
+                "name": "TargetingGeoFrame",
+            },
+        },
+        # Esquire sales - not ready to be used yet
+        "clwjn2q4t0057rw04kbhlog0s": {
+            "dbType": "postgres",
+            "bind": "keystone",
+            "table": {
+                "schema": "sales",
+                "name": "entities",
+            },
+            "isEAV":True
+        },
+    }

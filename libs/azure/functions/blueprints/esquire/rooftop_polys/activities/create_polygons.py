@@ -1,7 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/daily_audience_generation/activities/create_polygons.py
 
 from azure.durable_functions import Blueprint
-from functools import partial
+from functools import lru_cache, partial
 from libs.azure.key_vault import KeyVaultClient
 from pyproj import Geod, Proj, transform as pyproj_transform
 from shapely.geometry import Polygon, Point, mapping
@@ -14,12 +14,18 @@ bp: Blueprint = Blueprint()
 max_sql_parameters = 1000
 # maximum number of parameters that MS SQL can parse is ~2100
 
+
+@lru_cache(maxsize=1)
+def _get_googlemaps_client() -> googlemaps.Client:
+    """Get a cached Google Maps client to prevent connection exhaustion."""
+    kv = KeyVaultClient("google-service")
+    return googlemaps.Client(key=kv.get_secret("google-api-key").value)
+
+
 # activity to validate the addresses
 @bp.activity_trigger(input_name="queries")
 def activity_rooftopPolys_createPolygons(queries: dict):
-    kv = KeyVaultClient("google-service")
-
-    gmaps = googlemaps.Client(key=kv.get_secret("google-api-key").value)
+    gmaps = _get_googlemaps_client()
 
     # send an API call to GoogleMaps to get approximate rooftop polygons
     gmaps_passed = execute_google_maps_call(gmaps=gmaps, query_list=queries)

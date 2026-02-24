@@ -1,15 +1,86 @@
-# File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/primaryData.py
+from __future__ import annotations
+
+from typing import Dict, Any, List, Optional
+import hashlib
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
-from azure.storage.blob import BlobServiceClient
+
 from libs.azure.functions.blueprints.esquire.audiences.builder.config import (
     MAPPING_DATASOURCE,
 )
-import os
+from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
+    extract_tenant_id_from_datafilter,
+    extract_fields_from_dataFilter,
+    extract_daysback_from_dataFilter,
+)
 
 bp = Blueprint()
 
 
+# ----------------------------
+# Pure helpers (deterministic)
+# ----------------------------
+def _compute_storage_handle_from_conn_str(conn_str: str) -> str:
+    """
+    Deterministically derive a stable storage handle from a connection string (or an env-var key).
+
+    - If the string contains 'AccountName=', extract it.
+    - Otherwise, fall back to a stable hex digest of the provided string.
+
+    This avoids reading environment variables or instantiating SDK clients in the orchestrator,
+    which would violate Durable Functions determinism requirements.
+    """
+    account_name: Optional[str] = None
+    marker = "AccountName="
+
+    if marker in conn_str:
+        # Typical format: "DefaultEndpointsProtocol=...;AccountName=foo;AccountKey=...;EndpointSuffix=core.windows.net"
+        for part in conn_str.split(";"):
+            p = part.strip()
+            if p.startswith(marker):
+                account_name = p[len(marker) :].strip()
+                break
+
+    if not account_name:
+        # Use a stable deterministic digest of whatever was provided.
+        digest = hashlib.sha256(conn_str.encode("utf-8")).hexdigest()[:16]
+        account_name = digest
+
+    return f"sa_{account_name}"
+
+
+def _normalize_datatype_for_format(data_type: str) -> str:
+    """
+    Deterministically map dataType to CETAS/CSV format.
+    """
+    dt = (data_type or "").strip().lower()
+    return "CSV_HEADER" if dt == "addresses" else "CSV"
+
+
+def _build_postgres_query(ds_cfg: Dict[str, Any], where_clause: str) -> str:
+    """
+    Deterministically build a Postgres SELECT query string for non-EAV sources.
+    """
+    table_cfg = ds_cfg.get("table", {})
+    proj_conf = ds_cfg.get("query", {})
+    schema = table_cfg.get("schema")
+    schema_prefix = f"\"{schema}\"." if schema else ""
+    table_name = f"\"{table_cfg.get('name', '').strip()}\""
+    return f"SELECT {proj_conf.get('select', '*')} FROM {schema_prefix}{table_name} WHERE {where_clause}"
+
+
+def _stable_sorted_urls(urls: List[str]) -> List[str]:
+    """
+    Deterministically sort a list of URLs to ensure stable fan-out ordering.
+    """
+    # Sorting ensures that task_all always fans out in the same order.
+    # This prevents subtle non-determinism if the upstream activity returns URLs in arbitrary order.
+    return sorted(urls)
+
+
+# ---------------------------------------
+# Orchestrator (deterministic & idempotent)
+# ---------------------------------------
 @bp.orchestration_trigger(context_name="context")
 def orchestrator_esquireAudiences_primaryData(
     context: DurableOrchestrationContext,
@@ -17,165 +88,120 @@ def orchestrator_esquireAudiences_primaryData(
     """
     Orchestrates the generation of primary data sets for Esquire audiences.
 
-    This orchestrator processes the data source specified for an audience, executes the necessary queries, and stores the results in the specified storage location.
-
-    Parameters:
-    context (DurableOrchestrationContext): The context object provided by Azure Durable Functions, used to manage and track the orchestration.
-
-    Returns:
-    dict: The updated ingress data with the results of the data processing.
+    Determinism safeguards:
+      - Uses only data from input/context for branching.
+      - No environment variable or SDK calls inside orchestrator.
+      - No real-time clock access except context.current_utc_datetime (replay-safe).
+      - No dict/set iteration order dependence.
+      - Stable string building and whitespace.
+      - Stable fan-out ordering (sorted URLs).
 
     Expected format for context.get_input():
     {
-        "source": {
-            "conn_str": str,
-            "container_name": str,
-            "blob_prefix": str,
-        },
-        "working": {
-            "conn_str": str,
-            "container_name": str,
-            "blob_prefix": str,
-        },
-        "destination": {
-            "conn_str": str,
-            "container_name": str,
-            "blob_prefix": str,
-        },
+        "instance_id": str,
+        "source": {"conn_str": str, "container_name": str, "blob_prefix": str},
+        "working": {"conn_str": str, "container_name": str, "blob_prefix": str, "data_source": Optional[str]},
+        "destination": {"conn_str": str, "container_name": str, "blob_prefix": str},
         "audience": {
             "id": str,
-            "dataSource": {
-                "id": str,
-                "dataType": str
-            },
-            "dataFilter": str
+            "dataSource": {"id": str, "dataType": str},
+            "dataFilter": str,
+            "processing": dict,
+            "TTL_Length": Optional[int],
+            "TTL_Unit": Optional[str]
         }
     }
     """
+    # 1) All inputs must come from context (replay-safe)
+    ingress: Dict[str, Any] = context.get_input() or {}
 
-    # Retrieve the input data for the orchestration
-    ingress = context.get_input()
+    audience: Dict[str, Any] = ingress.get("audience", {}) or {}
+    data_source: Optional[Dict[str, Any]] = audience.get("dataSource")
+    if not data_source:
+        # Nothing to do; return ingress unchanged to remain idempotent.
+        return ingress
 
-    # Check if the audience has a data source
-    if ingress["audience"].get("dataSource"):
-        # Generate a primary data set based on the data source type
-        match MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]]["dbType"]:
-            case "synapse":
-                blob_storage = BlobServiceClient.from_connection_string(
-                    os.environ.get(
-                        ingress["working"]["conn_str"],
-                        ingress["working"]["conn_str"],
-                    )
-                )
-                ingress["query"] = "SELECT {} FROM {}{} WHERE {}".format(
-                    MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
-                        "query"
-                    ].get("select", "*"),
-                    (
-                        "[{}].".format(
-                            MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
-                                "table"
-                            ]["schema"]
-                        )
-                        if MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
-                            "table"
-                        ].get("schema", None)
-                        else ""
-                    ),
-                    "["
-                    + MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
-                        "table"
-                    ]["name"]
-                    + "]",
-                    ingress["audience"]["dataFilter"],
-                )
-                if filter_fn := MAPPING_DATASOURCE[
-                    ingress["audience"]["dataSource"]["id"]
-                ]["query"].get("filter"):
-                    ingress["query"] += filter_fn(
-                        ingress["audience"]["TTL_Length"],
-                        ingress["audience"]["TTL_Unit"],
-                    )
-                ingress["results"] = yield context.call_activity(
-                    "synapse_activity_cetas",
+    ds_id: str = data_source.get("id", "")
+    ds_cfg: Dict[str, Any] = MAPPING_DATASOURCE.get(ds_id, {}) or {}
+
+    db_type: str = (ds_cfg.get("dbType") or "").strip().lower()
+    data_type: str = (data_source.get("dataType") or "").strip().lower()
+
+    # Defensive: ensure required blocks exist to avoid KeyErrors during replay.
+    working: Dict[str, Any] = ingress.get("working", {}) or {}
+    audience_filter: str = audience.get("dataFilter", "") or ""
+
+    # Pre-compute a deterministic handle for any downstream storage usage.
+    # If a handle is explicitly given in ingress["working"]["data_source"], use that; else compute from the conn_str.
+    storage_handle: str = working.get(
+        "data_source",
+        _compute_storage_handle_from_conn_str(working.get("conn_str", "")),
+    )
+
+    # Initialize fields we may enrich (deterministically)
+    ingress_query: Optional[str] = None
+    ingress_results: Optional[List[str]] = None
+
+    # 2) Deterministic branching based only on input/config
+    if db_type == "postgres":
+        is_eav: bool = bool(ds_cfg.get("isEAV", False))
+
+        if is_eav:
+            # Generate EAV sales query inside an activity — pass only deterministic inputs.
+            ingress_query = yield context.call_activity(
+                "activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery",
+                {
+                    **ingress,  # safe: this is the original deterministic input payload
+                    **ds_cfg,
+                    "tenant_id": extract_tenant_id_from_datafilter(audience_filter),
+                    "fields": extract_fields_from_dataFilter(audience_filter),
+                    # Replay-safe time via context (Durable Functions logs/replays guarantee determinism).
+                    "utc_now": str(context.current_utc_datetime),
+                    "days_back": extract_daysback_from_dataFilter(audience_filter),
+                },
+            )
+        else:
+            ingress_query = _build_postgres_query(ds_cfg, audience_filter)
+
+        # Execute the query to blob once (no duplicate calls)
+        ingress_results = yield context.call_sub_orchestrator(
+            "orchestrator_azurePostgres_queryToBlob",
+            {
+                "source": {
+                    "bind": ds_cfg.get("bind"),
+                    "query": ingress_query,
+                },
+                "destination": {
+                    "conn_str": working.get("conn_str"),
+                    "container_name": working.get("container_name"),
+                    "blob_prefix": f"{working.get('blob_prefix')}/-1",
+                    "format": "CSV",
+                },
+            },
+        )
+
+        # Optionally post-process polygons in a deterministic, stable order.
+        if data_type == "polygons" and ingress_results:
+            stable_urls = _stable_sorted_urls(list(ingress_results))
+            # Fan-out in a stable order to avoid non-deterministic scheduling differences.
+            tasks = [
+                context.call_activity(
+                    "activity_esquireAudienceBuilder_formatPolygons",
                     {
-                        "instance_id": ingress["instance_id"],
-                        **MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]],
-                        "destination": {
-                            "conn_str": ingress["working"]["conn_str"],
-                            "container_name": ingress["working"]["container_name"],
-                            "blob_prefix": "{}/-1".format(
-                                ingress["working"]["blob_prefix"],
-                            ),
-                            "handle": ingress["working"].get(
-                                "data_source",
-                                "sa_{}".format(blob_storage.account_name),
-                            ),
-                            "format": (
-                                "CSV_HEADER"
-                                if ingress["audience"]["dataSource"]["dataType"]
-                                == "addresses"
-                                else "CSV"
-                            ),
-                        },
-                        "query": ingress["query"],
-                        "return_urls": True,
+                        "source": url,
+                        "destination": working,
                     },
                 )
-            case "postgres":
-                ingress["query"] = "SELECT * FROM {}{} WHERE {}".format(
-                    (
-                        '"{}".'.format(
-                            MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
-                                "table"
-                            ]["schema"]
-                        )
-                        if MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
-                            "table"
-                        ].get("schema", None)
-                        else ""
-                    ),
-                    '"'
-                    + MAPPING_DATASOURCE[ingress["audience"]["dataSource"]["id"]][
-                        "table"
-                    ]["name"]
-                    + '"',
-                    ingress["audience"]["dataFilter"],
-                )
-                ingress["results"] = yield context.call_sub_orchestrator(
-                    "orchestrator_azurePostgres_queryToBlob",
-                    {
-                        "source": {
-                            "bind": MAPPING_DATASOURCE[
-                                ingress["audience"]["dataSource"]["id"]
-                            ]["bind"],
-                            "query": ingress["query"],
-                        },
-                        "destination": {
-                            "conn_str": ingress["working"]["conn_str"],
-                            "container_name": ingress["working"]["container_name"],
-                            "blob_prefix": "{}/-1".format(
-                                ingress["working"]["blob_prefix"]
-                            ),
-                            "format": "CSV",
-                        },
-                    },
-                )
-                # Check the data type and format polygons if necessary
-                match ingress["audience"]["dataSource"]["dataType"]:
-                    case "polygons":
-                        ingress["results"] = yield context.task_all(
-                            [
-                                context.call_activity(
-                                    "activity_esquireAudienceBuilder_formatPolygons",
-                                    {
-                                        "source": source_url,
-                                        "destination": ingress["working"],
-                                    },
-                                )
-                                for source_url in ingress["results"]
-                            ]
-                        )
+                for url in stable_urls
+            ]
+            # task_all will preserve the order of provided tasks; because we sorted, this is deterministic.
+            ingress_results = yield context.task_all(tasks)
 
-    # Return the updated ingress data with the results
+    # 3) Write back enriched fields in a single place (dict order preserved since 3.7+)
+    if ingress_query is not None:
+        ingress["query"] = ingress_query
+    if ingress_results is not None:
+        ingress["results"] = ingress_results
+
+    # 4) Return the updated ingress — still idempotent. Replaying will reproduce the same decisions & calls.
     return ingress

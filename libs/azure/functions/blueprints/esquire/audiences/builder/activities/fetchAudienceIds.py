@@ -1,9 +1,11 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/activities/fetchAudienceIds.py
 
 from azure.durable_functions import Blueprint
-from libs.data import from_bind
+from libs.data import register_binding, from_bind
+import os
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from libs.azure.functions.blueprints.esquire.audiences.builder.utils import enforce_bindings
 
 bp = Blueprint()
 
@@ -21,11 +23,29 @@ def activity_esquireAudienceBuilder_fetchAudienceIds(ingress: dict):
     Returns:
     list: A list of audience IDs.
     """
+    if not from_bind("keystone"):
+        register_binding(
+            "keystone",
+            "Structured",
+            "sql",
+            url=os.environ["DATABIND_SQL_KEYSTONE"],
+            schemas=["keystone"],
+            pool_size=1000,
+            max_overflow=100,
+        )
     provider = from_bind("keystone")
-    audience = provider.models["public"]["Audience"]
+    audience = provider.models["keystone"]["Audience"]
+    output = []
+    
     session: Session = provider.connect()
-
-    query = select(audience.id).where(audience.status == True)
-    results = session.execute(query).all()
-
-    return list(map(lambda row: row.id, results))
+    try:
+        query = select(audience.id).where(audience.status == True)
+        results = session.execute(query).all()
+        output = list(map(lambda row: row.id, results))
+    finally:
+        try:
+            session.close()
+        except Exception:
+            # Best-effort close; avoid raising from cleanup.
+            pass
+    return output

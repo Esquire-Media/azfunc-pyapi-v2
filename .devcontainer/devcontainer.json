@@ -13,17 +13,24 @@
     "onAutoForward": "ignore"
   },
   "features": {
-    "ghcr.io/devcontainers/features/azure-cli:1": {},
+    "ghcr.io/devcontainers/features/python:1": {},
     "ghcr.io/jlaundry/devcontainer-features/azure-functions-core-tools:1": {},
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/azure-cli:1": {}
   },
+  "initializeCommand": "sh -c 'ENVFILE=\"${localWorkspaceFolder}/.env\"; if [ ! -f \"$ENVFILE\" ]; then umask 000; : > \"$ENVFILE\"; chmod 666 \"$ENVFILE\"; fi'",
   "customizations": {
     "vscode": {
       "extensions": [
         "ms-azuretools.vscode-azurefunctions",
         "ms-azuretools.vscode-docker",
-        "ms-python.python"
+        "ms-python.python",
+        "DurableFunctionsMonitor.durablefunctionsmonitor",
+        "ms-toolsai.jupyter",
+        "ms-python.black-formatter",
+        "AndyGeek.context-code"
       ]
     }
-  }
+  },
+  "postCreateCommand": "sudo chmod +x /usr/lib/azure-functions-core-tools/in-proc6/func"
 }

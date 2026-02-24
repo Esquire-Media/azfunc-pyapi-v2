@@ -126,7 +126,7 @@ dmypy.json
 bin
 obj
 appsettings.json
-local.settings.json
+*.settings.json
 development.py
 
 # Azurite artifacts

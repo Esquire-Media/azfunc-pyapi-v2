@@ -1,7 +1,7 @@
 # File: libs/azure/functions/blueprints/esquire/audiences/maids/geoframes/orchestrators/standard.py
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
-from azure.storage.blob import BlobClient
+from libs.utils.azure_storage import get_cached_blob_client
 import orjson as json
 
 bp = Blueprint()
@@ -43,7 +43,7 @@ def orchestrator_esquireAudienceMaidsGeoframes_standard(
                     **ingress["working"],
                     "endpoint": "/save/geoframe/all/devices",
                     "request": json.loads(
-                        BlobClient.from_blob_url(ingress["source"]).download_blob().content_as_bytes()
+                        get_cached_blob_client(ingress["source"]).download_blob().content_as_bytes()
                     ),
                 },
             )

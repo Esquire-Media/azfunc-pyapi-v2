@@ -27,8 +27,11 @@ class Observations:
         """
         
         # determine the timezone where this location exists
-        local_timezone = get_local_timezone(latitude=data['lat'].median(), longitude=data['lng'].median())
-        data['Datetime'] = data['timestamp'].apply(lambda x: dt.fromtimestamp(x/1000, tz=local_timezone))
+        # local_timezone = get_local_timezone(latitude=data['lat'].median(), longitude=data['lng'].median())
+        # data['Datetime'] = data['timestamp'].apply(lambda x: dt.fromtimestamp(x/1000, tz=local_timezone))
+        # data["Datetime"] = pd.to_datetime(data["Date"] + " " + data["Time"], format="ISO8601", dayfirst=False)
+        dt_str = data["Date"].astype(str).str.strip() + " " + data["Time"].astype(str).str.strip()
+        data["Datetime"] = _parse_iso_datetime_utc(dt_str)
         
         # get date and time from the timestamp
         data['Date'] = data['Datetime'].apply(lambda x: x.date())
@@ -38,10 +41,20 @@ class Observations:
         data = data.drop_duplicates(subset=['deviceid','Date'])
 
         # get other dates in week
-        data['Week'] = data['Date'].apply(get_week)
-        data['EarliestDate'] = data['Date'].apply(lambda x: get_date_by_week_offset(x, 0))
-        data['LatestDate'] = data['Date'].apply(lambda x: get_date_by_week_offset(x, 6))
-        data['RefDate'] = data['Date'].apply(lambda x: get_date_by_week_offset(x, 3))
+        base = pd.to_datetime(data['Date'], errors='coerce', utc=True)
+
+        # normalize to midnight, strip tz
+        base = base.dt.tz_convert(None).dt.normalize()
+
+        data['Week'] = base.dt.isocalendar().week
+
+        data['EarliestDate'] = base - pd.to_timedelta(base.dt.weekday, unit='D')
+        data['LatestDate'] = data['EarliestDate'] + pd.to_timedelta(6, unit='D')
+        data['RefDate'] = data['EarliestDate'] + pd.to_timedelta(3, unit='D')
+        # enforce datetime format
+        data['EarliestDate'] = pd.to_datetime(data['EarliestDate'])
+        data['LatestDate'] = pd.to_datetime(data['LatestDate'])
+        data['RefDate'] = pd.to_datetime(data['RefDate'])
 
         # format as a weekly count (used for most of the summary stats)
         self.obs = data.pivot_table(
@@ -122,16 +135,29 @@ class Observations:
         fig = plt.figure(figsize=(7.5,3))
         ax = plt.subplot(111)
 
+        self.obs["x"] = self.obs.index  # 0..N-1
+
         # invisible plot to get x-axis with week numbers
-        g = sns.lineplot(data=self.obs, x='Week', y='traffic_pct', visible=False)
+        g = sns.lineplot(data=self.obs, x='x', y='traffic_pct', visible=False, ax=ax)
         ax.axhline(y=0, xmin=0, xmax=1, color='gray', linestyle='--')
         ax.set_xlabel('Week')
         ax.set_ylabel('')
-        ax.xaxis.set_major_locator(MultipleLocator(1)) # ensure every week number is shown
+        ax.xaxis.set_major_locator(MultipleLocator(1)) # ensure every week number is showm
+
+        # bottom ticks: one per week, labeled by date
+        ax.set_xticks(self.obs["x"])
+        ax.set_xticklabels(self.obs["RefDate"].dt.strftime("%b %d"), rotation=45, ha="right", fontsize=9)
+        ax.set_xlabel("Week")
+        ax.set_ylabel("")
 
         # invvisible plot for 1st-of-month ticks on upper x-axis
         ax2 = ax.twiny()
-        sns.lineplot(data=self.obs, x='RefDate', y='traffic_pct', visible=False)
+        sns.lineplot(
+            x=self.obs['RefDate'],
+            y=self.obs['traffic_pct'],
+            data=self.obs,
+            visible=False
+        )
         ax2.xaxis.set_major_locator(mdates.DayLocator(bymonthday=[1]))
         ax2.set_xticklabels('')
         ax2.set_xlabel('')
@@ -160,7 +186,7 @@ class Observations:
         bounds = max(abs(self.obs['traffic_pct'].min()), abs(self.obs['traffic_pct'].max())) # make sure 0 is in the center of the y-axis
         plt.ylim(-bounds*1.1, bounds*1.1)
         g.yaxis.set_major_formatter(mtick.FuncFormatter(ytick_formatter))
-        
+
         plt.tight_layout()
         if return_bytes:
             buffer = BytesIO()
@@ -259,7 +285,14 @@ class Observations:
         obs = obs.drop_duplicates(subset=['deviceid','Hour Number','Date'])
 
         # get crosstabs, normalized so 1 is the "average" cell value
-        crosstab = round(pd.crosstab(obs['Day Number'], obs['Hour Number'], normalize=True) * 168,3) # 168 is the number of buckets (24 x 7)
+        full_hours = list(range(24))
+        full_days = list(range(7))
+
+        crosstab = (
+            pd.crosstab(obs['Day Number'], obs['Hour Number'], normalize=True)
+            .reindex(index=full_days, columns=full_hours, fill_value=0)
+            * 168
+        ).round(3)
         crosstab.columns.name = 'Hour Number'
         crosstab = crosstab.sort_values('Day Number', axis=0, key=lambda x: sort_by_list(crosstab.index, list(days_of_week.values())))
 
@@ -273,8 +306,8 @@ class Observations:
         x = 'Hour Number'
         y = 'Day Number'
         weight = 'weight'
-        xtick_labels = [hours_of_day[hour_num] for hour_num in sorted(obs['Hour Number'].unique())]
-        ytick_labels = [days_of_week[day_num] for day_num in sorted(obs['Day Number'].unique())]
+        xtick_labels = [hours_of_day[int(hour)] for hour in crosstab.columns]
+        ytick_labels = [days_of_week[int(day)] for day in crosstab.index]
         xtick_rotation = 90
         ytick_rotation = 0
 
@@ -528,7 +561,7 @@ def get_week(date):
     """
     week = dt.strftime(date, '%W')
     if week == '00':
-        week = '52'
+        week = '53'
     return week
 
 def get_date_by_week_offset(date, offset):
@@ -578,3 +611,7 @@ def sort_by_list(column, sort_list):
     """
     correspondence = {item: idx for idx, item in enumerate(sort_list)}
     return column.map(correspondence)
+
+def _parse_iso_datetime_utc(datetime_series: pd.Series) -> pd.Series:
+    from dateutil import parser
+    return datetime_series.apply(lambda x: parser.isoparse(x).astimezone(tz=pd.Timestamp.utcnow().tz))

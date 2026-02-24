@@ -6,6 +6,6 @@ if not from_bind("postgres"):
         "postgres",
         "Structured",
         "sql",
-        url=os.environ["DATABIND_SQL_POSTGRES"],
-        schemas=["public"],
+        url=os.environ["DATABIND_SQL_KEYSTONE"],
+        schemas=["utils"],
     )

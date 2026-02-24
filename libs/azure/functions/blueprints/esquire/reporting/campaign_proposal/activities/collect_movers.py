@@ -1,12 +1,11 @@
 from azure.durable_functions import Blueprint
-from azure.storage.blob import ContainerClient
 from datetime import datetime as dt, timedelta
 from libs.azure.functions.blueprints.esquire.reporting.campaign_proposal.utility.zipcode_map import map_zipcodes
 from libs.utils.esquire.movers.mover_engine import MoverEngine
 from libs.utils.esquire.zipcodes.zipcode_engine import ZipcodeEngine
 from libs.azure.key_vault import KeyVaultClient
 from libs.data import from_bind
-from libs.utils.azure_storage import get_blob_sas
+from libs.utils.azure_storage import get_blob_sas, get_container_client
 import orjson as json, numpy as np, os, pandas as pd
 
 # Create a Blueprint instance for defining Azure Functions
@@ -16,8 +15,14 @@ bp = Blueprint()
 @bp.activity_trigger(input_name="settings")
 def activity_campaignProposal_collectMovers(settings: dict):
     
+    if 'new_mover' not in settings.get('optionalSlides', []):
+        return {}
+    
     # import cleaned addresses from previous step
-    container_client: ContainerClient = ContainerClient.from_connection_string(conn_str=os.environ[settings["runtime_container"]['conn_str']], container_name=settings["runtime_container"]["container_name"])
+    container_client = get_container_client(
+        conn_str=os.environ[settings["runtime_container"]['conn_str']],
+        container_name=settings["runtime_container"]["container_name"]
+    )
     in_client = container_client.get_blob_client(blob=f"{settings['instance_id']}/addresses.csv")
     addresses = pd.read_csv(get_blob_sas(in_client), usecols=['address','latitude','longitude'])
 
@@ -41,9 +46,9 @@ def activity_campaignProposal_collectMovers(settings: dict):
     # on the first run-through, we grab all the unique zipcodes and map each addr/radius with its associated zipcodes 
     for i, addr in addresses.iterrows():
         # print(addr['address'])
-        addr_dict = {
-            **addr
-        }
+        # addr_dict = {
+        #     **addr
+        # }
 
         # mapping between each addr/radius pair and the zipcodes within it
         mapping_dict = {

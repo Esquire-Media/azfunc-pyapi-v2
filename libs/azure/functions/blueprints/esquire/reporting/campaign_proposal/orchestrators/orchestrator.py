@@ -1,3 +1,4 @@
+import traceback
 from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
 import logging, os
 
@@ -39,6 +40,7 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
             egress,
         )
 
+        
         # call activity to collect mover counts for each individual location as well as a deduped total
         yield context.call_activity_with_retry(
             "activity_campaignProposal_collectMovers",
@@ -46,6 +48,7 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
             egress,
         )
 
+        
         # call activity to collect nearby competitors to each location
         yield context.call_activity_with_retry(
             "activity_campaignProposal_collectCompetitors",
@@ -81,18 +84,26 @@ def orchestrator_campaignProposal_root(context: DurableOrchestrationContext):
         )
 
     except Exception as e:
-        # if any errors are caught, post an error card to teams tagging Ryan and the calling user
+        full_trace = traceback.format_exc()
+        html_body = f"""
+            <html>
+                <body>
+                    <h2 style="color:red;">Campaign Proposal Failure</h2>
+                    <p><strong>{type(e).__name__}:</strong> {str(e)}</p>
+                    <p><strong>Trace:</strong> {full_trace}</p>
+                </body>
+            </html>
+            """
         yield context.call_activity(
-            "activity_microsoftGraph_postErrorCard",
+            "activity_microsoftGraph_sendEmail",
             {
-                "function_name": "esquire-campaign-proposal",
-                "instance_id": context.instance_id,
-                "owners": ["8489ce7c-e89f-4710-9d34-1442684ce7fe", egress["user"]],
-                "error": f"{type(e).__name__} : {e}"[:1000],
-                "webhook": os.environ["EXCEPTIONS_WEBHOOK_DEVOPS"],
+                "from_id": "57d355d1-eeb7-45a0-a260-00daceea9f5f",
+                "to_addresses": ["matt@esquireadvertising.com"],
+                "subject": "esquire-campaign-proposal Failure",
+                "message": html_body,
+                "content_type": "html",
             },
         )
-        logging.warning("Error card sent")
         raise e
 
     logging.warning("All tasks completed.")

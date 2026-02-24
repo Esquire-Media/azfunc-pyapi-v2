@@ -7,7 +7,11 @@ if not from_bind("keystone"):
         "Structured",
         "sql",
         url=os.environ["DATABIND_SQL_KEYSTONE"],
-        schemas=["public"],
+        schemas={
+            "keystone":None, 
+            "sales":None, 
+            "utils":["estated"]
+            },
         pool_size=1000,
         max_overflow=100,
     )
@@ -17,7 +21,7 @@ if not from_bind("general"):
         "Structured",
         "sql",
         url=os.environ["DATABIND_SQL_GENERAL"],
-        schemas=["dbo"],
+        schemas={"dbo":None},
         pool_size=1000,
         max_overflow=100,
     )
@@ -27,44 +31,23 @@ if not from_bind("audiences"):
         "Structured",
         "sql",
         url=os.environ["DATABIND_SQL_AUDIENCES"],
-        schemas=["dbo"],
-        pool_size=1000,
-        max_overflow=100,
-    )
-if not from_bind("foursquare"):
-    register_binding(
-        "foursquare",
-        "Structured",
-        "sql",
-        url=os.environ["DATABIND_SQL_FOURSQUARE"],
-        schemas=["dbo"],
+        schemas={"dbo":None},
         pool_size=1000,
         max_overflow=100,
     )
 
 MAPPING_DATASOURCE = {
-    # Attom estated data - can use for testing
-    "clwjn2q4s0055rw04ojmpvg77": {
-        "dbType": "synapse",
-        "bind": "audience",
-        "table": {
-            "schema": "dbo",
-            "name": "addresses",
-        },
-    },
     # Deepsync mover - can use for testing
     "clwjn2q4s0056rw04ra44j8k9": {
-        "dbType": "synapse",
-        "bind": "audiences",
+        "dbType": "postgres",
+        "bind": "keystone",
         "table": {
-            "schema": "dbo",
+            "schema": "utils",
             "name": "movers",
         },
         "query": {
-            "select": "address, city, state, zipcode as zipCode",
-            "filter": lambda length, unit: " AND CONVERT(DATE, [date], 126) >= DATEADD({}, {}, GETDATE())".format(
-                unit[0], 0 - length
-            ),
+            "select": "add1 AS address, city, st AS state, zip AS \"zipCode\"",
+            "filter": lambda length, unit: f" AND keycode >= NOW() - INTERVAL {length} {unit[0]}"
         },
     },
     # Esquire audiences
@@ -72,7 +55,7 @@ MAPPING_DATASOURCE = {
         "dbType": "postgres",
         "bind": "keystone",
         "table": {
-            "schema": "public",
+            "schema": "keystone",
             "name": "Audience",
         },
     },
@@ -81,35 +64,27 @@ MAPPING_DATASOURCE = {
         "dbType": "postgres",
         "bind": "keystone",
         "table": {
-            "schema": "public",
+            "schema": "keystone",
             "name": "TargetingGeoFrame",
         },
     },
     # Esquire sales - not ready to be used yet
     "clwjn2q4t0057rw04kbhlog0s": {
-        "dbType": "synapse",
-        "bind": "general",
+        "dbType": "postgres",
+        "bind": "keystone",
         "table": {
-            "schema": "dbo",
-            "name": "sales",
+            "schema": "sales",
+            "name": "entities",
         },
+        "isEAV":True
     },
-    # Foursquare POI - can use for testing
-    "clwjn2q4t0058rw04fx6qanbh": {
-        "dbType": "synapse",
-        "bind": "foursquare",
+    # Estated data - stale, but in use
+    "cmlqvyruq000ol9pap793f875": {
+        "dbType": "postgres",
+        "bind": "keystone",
         "table": {
-            "schema": "dbo",
-            "name": "poi",
-        },
-    },
-    # OSM Building footprints - not set up in Synapse
-    "clwjn2q4t0059rw04qxcw5q3h": {
-        "dbType": "synapse",
-        "bind": "general",
-        "table": {
-            "schema": "dbo",
-            "name": "osm",
+            "schema": "utils",
+            "name": "estated",
         },
     },
 }

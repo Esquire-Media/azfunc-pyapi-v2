@@ -1,10 +1,9 @@
-#  file path:libs/azure/functions/blueprints/esquire/audiences/utils/activities/getTotalMaids.py
-
 from azure.durable_functions import Blueprint
 from azure.storage.blob import (
     BlobClient,
     DelimitedTextDialect,
 )
+from libs.utils.azure_storage import get_cached_blob_client
 
 bp: Blueprint = Blueprint()
 
@@ -12,7 +11,7 @@ bp: Blueprint = Blueprint()
 # activity to grab the geojson data and format the request files for OnSpot
 @bp.activity_trigger(input_name="ingress")
 async def activity_esquireAudiencesUtils_getMaidCount(ingress: str):
-    blob = BlobClient.from_blob_url(ingress)
+    blob = get_cached_blob_client(ingress)
     # Define the dialect for the CSV format (assumes default comma delimiters)
     dialect = DelimitedTextDialect(
         delimiter=",",  # Specify the delimiter, e.g., comma, semicolon, etc.

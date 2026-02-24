@@ -4,6 +4,8 @@ from azure.functions import TimerRequest
 from azure.storage.blob import ContainerClient
 import os
 
+from libs.utils.azure_storage import get_container_client
+
 bp = Blueprint()
 
 @bp.timer_trigger(arg_name="timer", schedule="0 0 */2 * * *")
@@ -30,7 +32,7 @@ def timer_campaignProposal_UpdateAssetsTable(timer: TimerRequest):
     }
 
     # connect to resource storage client
-    container_client = ContainerClient.from_connection_string(
+    container_client = get_container_client(
         conn_str=os.environ[resources_container["conn_str"]],
         container_name=resources_container["container_name"]
     )

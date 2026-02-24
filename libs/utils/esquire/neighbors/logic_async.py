@@ -119,7 +119,7 @@ async def get_all_neighbors(
             # estated_data = await load_estated_data_partitioned_blob(
             #     f"estated_partition_testing/state={state}/zip_code={zip_code}/city={safe_city}/"
             # )
-            estated_data = await load_estated_data_partitioned_db(
+            estated_data = await load_estated_data_db(
                 city=city,
                 state=state,
                 zip_code=zip_code,
@@ -335,7 +335,7 @@ import pandas as pd
 from sqlalchemy import text
 from libs.data import from_bind
 
-async def load_estated_data_partitioned_db(
+async def load_estated_data_db(
     *,
     city: str,
     state: str,

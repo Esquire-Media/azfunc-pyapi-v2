@@ -201,6 +201,7 @@ def activity_esquireAudienceMeta_customAudience_replaceUsers(ingress: dict):
                 "users": len(users),
                 "offset": offset,
                 "limit": limit,
+                "sample": users[0:10],
             },
         }
     except FacebookRequestError as e:

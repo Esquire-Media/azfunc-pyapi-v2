@@ -148,14 +148,14 @@ def orchestrator_esquireAudiences_finalize(
                 **ingress["working"],
                 "blob_prefix": "{}/{}".format(
                     ingress["working"]["blob_prefix"],
-                    len(steps)+1,
+                    len(steps)+2,
                 ),
             },
             "destination": {
                 **ingress["working"],
                             "blob_prefix": "{}/{}".format(
                     ingress["working"]["blob_prefix"],
-                    len(steps)+2,
+                    len(steps)+3,
                 ),
             },
         }

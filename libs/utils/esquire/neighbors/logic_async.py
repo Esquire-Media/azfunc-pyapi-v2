@@ -335,7 +335,7 @@ import pandas as pd
 from sqlalchemy import text
 from libs.data import from_bind
 
-async def load_estated_data_db(
+def load_estated_data_db(
     *,
     city: str,
     state: str,

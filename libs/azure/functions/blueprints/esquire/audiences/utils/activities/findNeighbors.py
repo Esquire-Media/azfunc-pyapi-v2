@@ -1,248 +1,204 @@
-from __future__ import annotations
-
 import base64
-import csv
-import logging
 import os
-from datetime import datetime, timedelta, timezone
-from io import StringIO
-from typing import Any, Dict, List, Tuple
+import uuid
+from datetime import datetime
+from typing import Any, Iterable, Iterator, List, Mapping
 
 import pandas as pd
 from azure.durable_functions import Blueprint
-from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
+from azure.storage.blob import (
+    BlobBlock,
+    BlobClient,
+    ContentSettings,
+    BlobSasPermissions,
+    generate_blob_sas,
+)
 
 from libs.utils.azure_storage import get_cached_blob_client
-
-# Import your DB loader + neighbor algorithm from the module you shared :contentReference[oaicite:5]{index=5}
-from libs.utils.esquire.neighbors.logic_async import load_estated_data_db, find_neighbors_for_street
+from libs.utils.esquire.neighbors.logic_async import (
+    load_estated_data_db,
+    find_neighbors_for_street,
+)
 
 bp = Blueprint()
-LOGGER = logging.getLogger(__name__)
 
-# How long the returned SAS should be valid
-_SAS_HOURS = int(os.getenv("NEIGHBORS_BATCH_SAS_HOURS", "48"))
-
-
-def _norm_city(v: Any) -> str:
-    return str(v or "").strip().upper()
+def _new_block_id() -> str:
+    return base64.b64encode(uuid.uuid4().bytes).decode("ascii")
 
 
-def _norm_state(v: Any) -> str:
-    return str(v or "").strip().upper()
+def _stage_iterable_as_blocks(
+    dest: BlobClient, data_parts: Iterable[bytes]
+) -> list[BlobBlock]:
 
+    blocks: list[BlobBlock] = []
 
-def _norm_zip(v: Any) -> str:
-    return str(v or "").strip()
-
-
-def _partition_key(city: str, state: str, zip_code: str) -> Tuple[str, str, str]:
-    return (_norm_city(city), _norm_state(state), _norm_zip(zip_code))
-
-
-def _parse_conn_str(conn_str: str) -> Dict[str, str]:
-    """
-    Parse Azure Storage connection string into a dict.
-    Needed to generate SAS with account key.
-    """
-    parts = {}
-    for seg in conn_str.split(";"):
-        if not seg.strip():
+    for part in data_parts:
+        if not part:
             continue
-        if "=" not in seg:
-            continue
-        k, v = seg.split("=", 1)
-        parts[k.strip()] = v.strip()
-    return parts
+
+        block_id = _new_block_id()
+        dest.stage_block(block_id=block_id, data=part)
+        blocks.append(BlobBlock(block_id=block_id))
+
+    return blocks
 
 
-def _make_read_sas_url(blob_client: BlobClient, conn_str_key: str) -> str:
-    """
-    Generate a read-only SAS URL matching the style your export_dataframe returns.
-    """
-    raw_conn_str = os.environ[conn_str_key]
-    cs = _parse_conn_str(raw_conn_str)
+def _partition_csv_bytes(
+    city: str,
+    state: str,
+    zip_code: str,
+    addresses: list[dict],
+    n_per_side: int,
+    same_side_only: bool,
+    bind: str,
+) -> bytes:
 
-    account_name = cs.get("AccountName")
-    account_key = cs.get("AccountKey")
-    if not account_name or not account_key:
-        # Fall back to bare URL (may be fine if container is public / managed identity used elsewhere)
-        return blob_client.url
+    if not addresses:
+        return b""
 
-    sas = generate_blob_sas(
-        account_name=account_name,
-        account_key=account_key,
-        container_name=blob_client.container_name,
-        blob_name=blob_client.blob_name,
-        permission=BlobSasPermissions(read=True),
-        expiry=datetime.now(timezone.utc) + timedelta(hours=_SAS_HOURS),
+    df = pd.DataFrame(addresses)
+
+    if "primary_number" in df.columns and "street_number" not in df.columns:
+        df = df.rename(columns={"primary_number": "street_number"})
+
+    df["street_name"] = df["street_name"].astype(str).str.upper()
+
+    estated_df = load_estated_data_db(
+        city=city,
+        state=state,
+        zip_code=zip_code,
+        bind=bind,
     )
-    return f"{blob_client.url}?{sas}"
 
+    if estated_df.empty:
+        return b""
 
-def _csv_rows_for_neighbors(df: pd.DataFrame, include_header: bool) -> bytes:
-    """
-    Build CSV bytes for the neighbor output.
-    We keep it consistent with prior output columns.
-    """
+    group_results: list[pd.DataFrame] = []
+    est_street = estated_df["street_name"]
+
+    for street_name, street_addresses in df.groupby("street_name"):
+        street_data = estated_df[est_street == str(street_name).upper()]
+        if street_data.empty:
+            continue
+
+        neighbors_df = find_neighbors_for_street(
+            street_data,
+            street_addresses,
+            n_per_side,
+            same_side_only,
+        )
+
+        if not neighbors_df.empty:
+            group_results.append(neighbors_df)
+
+    if not group_results:
+        return b""
+
+    out_df = pd.concat(group_results, ignore_index=True).drop_duplicates()
+
     cols = ["address", "city", "state", "zipCode", "plus4Code"]
-    out = df.reindex(columns=cols)
-    sio = StringIO()
-    out.to_csv(sio, index=False, header=include_header)
-    return sio.getvalue().encode("utf-8")
+    out_df = out_df.reindex(columns=cols)
+
+    return out_df.to_csv(index=False, header=False).encode("utf-8")
 
 
 @bp.activity_trigger(input_name="ingress")
-async def activity_esquireAudiencesNeighbors_processPartitionBatch_blockblob(ingress: dict) -> str:
-    """
-    ingress = {
-      "run_id": str,
-      "batch_index": int,
-      "partitions": [{"city":..,"state":..,"zip":..}, ...],
-      "source_urls": [...],
-      "destination": {"conn_str": "AzureWebJobsStorage", "container_name": "...", "blob_prefix": "..."},
-      "process": {"housesPerSide": 20, "bothSides": True},
-      "db_bind": "keystone"
-    }
+def activity_esquireAudiencesNeighbors_processBatch_blockblob(
+    ingress: Mapping[str, Any]
+) -> str:
 
-    Returns: SAS URL to a single CSV blob.
-    Each partition corresponds to exactly one staged block.
-    """
-
-    run_id = str(ingress["run_id"])
-    batch_index = int(ingress["batch_index"])
-    partitions: List[dict] = ingress.get("partitions", []) or []
-    source_urls: List[str] = ingress.get("source_urls", []) or []
-    dest: dict = ingress["destination"]
-    process: dict = ingress.get("process", {}) or {}
-    bind: str = str(ingress.get("db_bind") or "keystone")
+    partitions = ingress["partitions"]
+    source_urls = ingress.get("source_urls", [])
+    dest = ingress["destination"]
+    process = ingress.get("process", {})
+    run_id = ingress["run_id"]
+    batch_index = ingress["batch_index"]
+    bind = ingress.get("db_bind", "keystone")
 
     n_per_side = int(process.get("housesPerSide", 20))
-    # Keep legacy behavior consistent with your current pipeline wiring
     same_side_only = bool(process.get("bothSides", True))
 
-    conn_str_key = dest.get("conn_str", "AzureWebJobsStorage")
-    container = dest["container_name"]
-    prefix = (dest.get("blob_prefix") or "").strip("/")
+    conn_str = os.getenv(dest["conn_str"], dest["conn_str"])
+    container_name = dest["container_name"]
+    blob_prefix = dest.get("blob_prefix", "").strip("/")
 
-    # Deterministic blob name per (run_id, batch_index) => idempotent retries
-    blob_name = f"{prefix}/neighbors/run_id={run_id}/batch-{batch_index:05d}.csv"
+    blob_name = (
+        f"{blob_prefix}/batch-{batch_index:05d}.csv"
+    )
 
-    blob_client = BlobClient.from_connection_string(
-        os.environ[conn_str_key],
-        container_name=container,
+    dest_blob = BlobClient.from_connection_string(
+        conn_str=conn_str,
+        container_name=container_name,
         blob_name=blob_name,
     )
 
-    # Prepare the partition key set for this batch
-    batch_keys: List[Tuple[str, str, str]] = []
-    for p in partitions:
-        batch_keys.append(_partition_key(p.get("city"), p.get("state"), p.get("zip")))
-
-    key_set = set(batch_keys)
-
-    # Build address rows per partition by scanning sources ONCE for this activity
-    addresses_by_key: Dict[Tuple[str, str, str], List[dict]] = {k: [] for k in key_set}
+    # Build address map once per activity
+    addresses_by_partition = {}
 
     for url in source_urls:
-        try:
-            bc = get_cached_blob_client(url)
-            csv_bytes = bc.download_blob().readall()
-        except Exception as e:
-            LOGGER.warning("Failed reading source blob", extra={"url": url, "err": repr(e)})
-            continue
+        bc = get_cached_blob_client(url)
+        csv_bytes = bc.download_blob().readall()
+        rows = pd.read_csv(pd.io.common.BytesIO(csv_bytes)).to_dict("records")
 
-        try:
-            reader = csv.DictReader(StringIO(csv_bytes.decode("utf-8")))
-        except Exception as e:
-            LOGGER.warning("Failed decoding source CSV", extra={"url": url, "err": repr(e)})
-            continue
+        for row in rows:
+            key = (
+                row.get("city", "").strip().upper(),
+                row.get("state", "").strip().upper(),
+                str(row.get("zipCode", "")).strip(),
+            )
+            addresses_by_partition.setdefault(key, []).append(row)
 
-        for row in reader:
-            k = _partition_key(row.get("city"), row.get("state"), row.get("zipCode") or row.get("zip"))
-            if k in key_set:
-                addresses_by_key[k].append(row)
+    def _iter_partition_blocks() -> Iterator[bytes]:
+        header_written = False
 
-    # Stage blocks
-    block_ids: List[str] = []
-    wrote_header = False
+        for part in partitions:
+            city = part["city"].strip().upper()
+            state = part["state"].strip().upper()
+            zip_code = part["zip"].strip()
 
-    # Make sure blob exists as block blob (stage_block is fine even if not yet created)
-    for idx, part in enumerate(partitions):
-        city = _norm_city(part.get("city"))
-        state = _norm_state(part.get("state"))
-        zip_code = _norm_zip(part.get("zip"))
+            key = (city, state, zip_code)
+            addresses = addresses_by_partition.get(key, [])
 
-        k = (city, state, zip_code)
-        addr_rows = addresses_by_key.get(k, [])
+            data = _partition_csv_bytes(
+                city,
+                state,
+                zip_code,
+                addresses,
+                n_per_side,
+                same_side_only,
+                bind,
+            )
 
-        # Compute neighbors for this partition
-        out_bytes: bytes = b""
-        if addr_rows:
-            addr_df = pd.DataFrame(addr_rows)
+            if data and not header_written:
+                header = b"address,city,state,zipCode,plus4Code\n"
+                yield header
+                header_written = True
 
-            # Normalize & align columns
-            # Old pipeline sometimes used primary_number; align with street_number
-            if "street_number" not in addr_df.columns and "primary_number" in addr_df.columns:
-                addr_df = addr_df.rename(columns={"primary_number": "street_number"})
+            yield data
 
-            # The find_neighbors code expects:
-            # - street_name
-            # - street_number
-            if "street_name" in addr_df.columns:
-                addr_df["street_name"] = addr_df["street_name"].astype(str).str.upper()
+    block_list = _stage_iterable_as_blocks(dest_blob, _iter_partition_blocks())
 
-            # Ensure required fields exist
-            if "street_number" in addr_df.columns and "street_name" in addr_df.columns:
-                try:
-                    estated_df = await load_estated_data_db(
-                        city=city,
-                        state=state,
-                        zip_code=zip_code,
-                        bind=bind,
-                    )
-                except Exception as e:
-                    LOGGER.warning(
-                        "DB estated load failed",
-                        extra={"city": city, "state": state, "zip": zip_code, "err": repr(e)},
-                    )
-                    estated_df = pd.DataFrame()
-                    raise e
+    if not block_list:
+        dest_blob.upload_blob(
+            b"",
+            overwrite=True,
+            content_settings=ContentSettings(content_type="text/csv"),
+        )
+    else:
+        dest_blob.commit_block_list(
+            block_list,
+            content_settings=ContentSettings(content_type="text/csv"),
+        )
 
-                if not estated_df.empty:
-                    group_results: List[pd.DataFrame] = []
-                    est_street = estated_df["street_name"]
-
-                    for street_name, street_addresses in addr_df.groupby("street_name"):
-                        street_data = estated_df[est_street == str(street_name).upper()]
-                        if street_data.empty:
-                            continue
-
-                        neighbors_df = find_neighbors_for_street(
-                            street_data,
-                            street_addresses,
-                            n_per_side,
-                            same_side_only,
-                        )
-                        if not neighbors_df.empty:
-                            group_results.append(neighbors_df)
-
-                    if group_results:
-                        neighbors_out = pd.concat(group_results, ignore_index=True)
-                        neighbors_out = neighbors_out.drop_duplicates()
-                        out_bytes = _csv_rows_for_neighbors(neighbors_out, include_header=not wrote_header)
-                        wrote_header = True
-
-        # One block per partition (even if empty)
-        block_id_raw = f"{run_id}:{batch_index:05d}:{idx:06d}"
-        block_id = base64.b64encode(block_id_raw.encode("utf-8")).decode("utf-8")
-        block_ids.append(block_id)
-
-        await blob_client.stage_block(block_id=block_id, data=out_bytes)
-
-    # Commit the full block list in the same order as partitions
-    # (If all blocks are empty, commit creates an empty blob—fine.)
-    await blob_client.commit_block_list(block_ids)
-
-    sas_url = _make_read_sas_url(blob_client, conn_str_key)
-    return sas_url
+    return (
+        dest_blob.url
+        + "?"
+        + generate_blob_sas(
+            account_name=dest_blob.account_name,
+            account_key=dest_blob.credential.account_key,
+            container_name=dest_blob.container_name,
+            blob_name=dest_blob.blob_name,
+            permission=BlobSasPermissions(read=True, write=True),
+            expiry=datetime.utcnow().replace(hour=23, minute=59),
+        )
+    )

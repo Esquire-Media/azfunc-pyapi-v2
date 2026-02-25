@@ -360,15 +360,15 @@ async def load_estated_data_db(
             SELECT
                 street_number,
                 street_name,
-                formatted_street_address AS address,
+                address,
                 city,
                 state,
-                zip_code AS "zipCode",
-                zip_plus_four_code AS "plus4Code"
+                "zipCode",
+                "plus4Code"
             FROM utils.estated
             WHERE city = %s
               AND state = %s
-              AND zip_code = %s
+              AND "zipCode" = %s
               AND street_number IS NOT NULL
             """,
             (city, state, zip_code),

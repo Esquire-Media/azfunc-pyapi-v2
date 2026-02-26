@@ -116,7 +116,7 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
     bind = ingress.get("db_bind", "keystone")
 
     n_per_side = int(process.get("housesPerSide", 20))
-    same_side_only = bool(process.get("bothSides", True))
+    same_side_only = not bool(process.get("bothSides", True))
 
     conn_str = os.getenv(dest["conn_str"], dest["conn_str"])
     container_name = dest["container_name"]
@@ -144,7 +144,7 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
             key = (
                 row.get("city", "").strip().upper(),
                 row.get("state", "").strip().upper(),
-                str(row.get("zipCode", "")).strip(),
+                str(row.get("zipCode", "")).strip().zfill(5),
             )
             addresses_by_partition.setdefault(key, []).append(row)
 

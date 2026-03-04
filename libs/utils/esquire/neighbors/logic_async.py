@@ -358,7 +358,15 @@ def load_estated_data_db(
         cur.execute(
             """
             SELECT
-                street_number,
+                NULLIF(
+                    regexp_replace(
+                        street_number, 
+                        '[^0-9]+', 
+                        '', 
+                        'g'
+                    ), 
+                    ''
+                )::int AS street_number,
                 street_name,
                 address,
                 city,
@@ -367,9 +375,9 @@ def load_estated_data_db(
                 "plus4Code"
             FROM utils.estated
             WHERE city = %s
-              AND state = %s
-              AND "zipCode" = %s
-              AND street_number IS NOT NULL
+                AND state = %s
+                AND "zipCode" = %s
+                AND street_number IS NOT NULL
             """,
             (city, state, zip_code),
         )

@@ -69,7 +69,7 @@ def activity_salesIngestor_planAddressBatches(settings: dict):
     logging.warning(f"""
                 ALTER TABLE {qtbl(settings["staging_table"])}
                 ADD COLUMN IF NOT EXISTS "{col_name}" UUID;
-            """)
+            """, extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
     with safe_engine_connect(_engine()) as conn:
         conn.execute(text(
             f"""
@@ -112,7 +112,7 @@ def activity_salesIngestor_planAddressBatches(settings: dict):
     for i in range(num_batches):
         ranges.append({"offset": i*batch_size, "limit": batch_size})
 
-    logger.info(f"[LOG] Address plan scope={scope}, cols={cols}, total={total}, batches={num_batches}")
+    logger.info(f"[LOG] Address plan scope={scope}, cols={cols}, total={total}, batches={num_batches}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
     # After calculating total distinct addresses
     min_p, max_p = 2, 10
@@ -184,7 +184,7 @@ def activity_salesIngestor_enrichAddresses(settings: dict):
       - activity_salesIngestor_planAddressBatches
       - activity_salesIngestor_enrichAddresses_batch (N times in parallel)
     """
-    logger.info(msg=f"[LOG] Enriching {settings['scope']} Addresses (single-activity path)")
+    logger.info(msg=f"[LOG] Enriching {settings['scope']} Addresses (single-activity path)", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
     # For backward compatibility, do a single pass using one big DISTINCT and call process_batch_fast once.
     scope      = settings["scope"]
     addr_map   = settings["fields"][scope]

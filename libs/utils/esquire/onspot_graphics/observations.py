@@ -48,6 +48,8 @@ class Observations:
 
         data['Week'] = base.dt.isocalendar().week
 
+        data = data[data['Week'] != data['Week'].max()]
+
         data['EarliestDate'] = base - pd.to_timedelta(base.dt.weekday, unit='D')
         data['LatestDate'] = data['EarliestDate'] + pd.to_timedelta(6, unit='D')
         data['RefDate'] = data['EarliestDate'] + pd.to_timedelta(3, unit='D')

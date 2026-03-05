@@ -136,7 +136,6 @@ def _stage_iterable_as_blocks(
     buffer = bytearray()
     start = 0
 
-    def _stage_view(view: memoryview) -> None:
         block_id = _new_block_id()
         # stage_block expects bytes/stream/iterable; bytes(view) makes a copy but is SDK-version-safe.
         dest.stage_block(block_id=block_id, data=bytes(view))

@@ -43,7 +43,7 @@ def meta_customaudience_orchestrator(context: DurableOrchestrationContext):
     ingress = dict(ingress)  # local copy; safe mutations inside orchestrator
 
     # ---- Deterministic session id for this orchestration instance ----
-    sid_bytes = hashlib.sha256(context.instance_id.encode("utf-8")).digest()[:8]
+    sid_bytes = hashlib.sha256(context.current_utc_datetime.isoformat().encode("utf-8")).digest()[:8]
     session_id = (int.from_bytes(sid_bytes, "big") % ((1 << 63) - 1)) + 1
 
     # ---- 1) Fetch ESQ audience definition (idempotent read) ----

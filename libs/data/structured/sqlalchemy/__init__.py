@@ -279,9 +279,14 @@ class SQLAlchemyStructuredProvider:
             # Reflect the database tables
             if self.schemas:
                 # Reflect tables for specific schemas
-                for s in self.schemas:
+                for s, tables in self.schemas.items():
                     # Reflect tables for the given schema and include views
-                    self._metadata.reflect(bind=self.engine, schema=s, views=True)
+                    self._metadata.reflect(
+                        bind=self.engine,
+                        schema=s,
+                        views=True,
+                        only=(list(tables) if tables is not None else None)
+                    )
                     for table in self._metadata.tables.values():
                         # Check if the table belongs to the current schema
                         if table.schema == s:

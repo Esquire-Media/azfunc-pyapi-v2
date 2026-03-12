@@ -141,35 +141,25 @@ def _fetch_users_page_low_memory(
     return users, None, offset, limit
 
 
-def _meta_users_replace(ingress: Dict[str, Any], users: List[str]) -> Dict[str, Any]:
+def _meta_users_add(ingress: Dict[str, Any], users: List[str]) -> Dict[str, Any]:
     """
-    Calls Meta usersreplace with stable session semantics using the SDK's adobject method.
-    This path is known-good in your environment (unlike api.call which was missing scheme).
+    Calls Meta users (add) endpoint using the SDK's adobject method.
     """
     api = initialize_facebook_api(ingress)
     audience_id = ingress["audience"]["audience"]
 
-    # Build params with minimal extra copying.
-    params = {
-        "payload": {
-            "schema": CustomAudience.Schema.mobile_advertiser_id,
-            "data": users,
-        },
-        "session": ingress["batch"],
-    }
-
-    result = CustomAudience(fbid=audience_id, api=api).create_users_replace(
-        params=params
+    result = CustomAudience(fbid=audience_id, api=api).add_users(
+        schema=CustomAudience.Schema.mobile_advertiser_id,
+        users=users,
     )
 
-    # Response is small; exporting is fine and keeps the activity output JSON-serializable.
-    return result.export_all_data()
+    return result.body()
 
 
 @bp.activity_trigger(input_name="ingress")
-def activity_esquireAudienceMeta_customAudience_replaceUsers(ingress: dict):
+def activity_esquireAudienceMeta_customAudience_addUsers(ingress: dict):
     """
-    Sends a deterministic REPLACE batch to Meta using the usersreplace endpoint,
+    Sends a deterministic ADD batch to Meta using the users endpoint,
     using a low-memory fetch from the database.
 
     Memory reductions:
@@ -195,8 +185,9 @@ def activity_esquireAudienceMeta_customAudience_replaceUsers(ingress: dict):
         }
 
     try:
+        result = _meta_users_add(ingress, users)
         return {
-            **_meta_users_replace(ingress, users),
+            "response": result,
             "diag": {
                 "users": len(users),
                 "offset": offset,

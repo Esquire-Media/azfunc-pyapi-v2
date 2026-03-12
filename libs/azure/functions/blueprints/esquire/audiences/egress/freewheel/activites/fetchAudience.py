@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
+# Import config to ensure SQL bindings are registered
+import libs.azure.functions.blueprints.esquire.audiences.egress.freewheel.config
+
 from azure.durable_functions import Blueprint
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload

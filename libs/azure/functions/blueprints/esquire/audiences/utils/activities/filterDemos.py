@@ -1,23 +1,101 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/utils/activities/filterDemos.py
 
 from azure.durable_functions import Blueprint
-from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
-    jsonlogic_to_sql,
-)
 from libs.azure.functions.blueprints.esquire.audiences.builder.activities.fetchAudience import _canonicalize_jsonlogic
 from libs.utils.azure_storage import init_blob_client
 import os
 import csv
-import re
-import ast
+import json
 from io import StringIO
-from typing import Iterator, Tuple, Callable, Set
+from typing import Iterator, Set
 from azure.storage.blob import BlobSasPermissions, generate_blob_sas
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from urllib.parse import unquote
 
 bp = Blueprint()
+
+
+def evaluate_jsonlogic(logic: dict, row: dict) -> bool:
+    """
+    Directly evaluate JsonLogic against a row dictionary.
+
+    Handles:
+    - {"var": "fieldname"} -> returns row.get(fieldname)
+    - {"in": [value, list]} -> returns value in list
+    - {"==": [left, right]} -> returns left == right
+    - {"!=": [left, right]} -> returns left != right
+    - {"and": [conditions]} -> returns all(conditions)
+    - {"or": [conditions]} -> returns any(conditions)
+    - {"not": [condition]} -> returns not condition
+    """
+    if isinstance(logic, dict):
+        # Handle "var" - fetch value from row
+        if "var" in logic:
+            field_name = logic["var"]
+            return row.get(field_name)
+
+        # Handle "in" - value in list
+        if "in" in logic:
+            left = evaluate_jsonlogic(logic["in"][0], row)
+            right = evaluate_jsonlogic(logic["in"][1], row)
+            if right is None:
+                return False
+            return left in right
+
+        # Handle "==" - equality
+        if "==" in logic:
+            left = evaluate_jsonlogic(logic["=="][0], row)
+            right = evaluate_jsonlogic(logic["=="][1], row)
+            return left == right
+
+        # Handle "!=" - inequality
+        if "!=" in logic:
+            left = evaluate_jsonlogic(logic["!="][0], row)
+            right = evaluate_jsonlogic(logic["!="][1], row)
+            return left != right
+
+        # Handle "and" - all conditions must be true
+        if "and" in logic:
+            return all(evaluate_jsonlogic(cond, row) for cond in logic["and"])
+
+        # Handle "or" - any condition must be true
+        if "or" in logic:
+            return any(evaluate_jsonlogic(cond, row) for cond in logic["or"])
+
+        # Handle "not" - negation
+        if "not" in logic:
+            return not evaluate_jsonlogic(logic["not"][0], row)
+
+        raise ValueError(f"Unknown JsonLogic operator: {logic}")
+
+    if isinstance(logic, list):
+        return [evaluate_jsonlogic(item, row) for item in logic]
+
+    # Scalar values pass through
+    return logic
+
+
+def extract_columns_from_jsonlogic(logic: dict) -> Set[str]:
+    """
+    Extract column names referenced in a JsonLogic expression.
+    """
+    columns: Set[str] = set()
+
+    def extract(node):
+        if isinstance(node, dict):
+            if "var" in node:
+                columns.add(node["var"])
+            else:
+                for value in node.values():
+                    extract(value)
+        elif isinstance(node, list):
+            for item in node:
+                extract(item)
+
+    extract(logic)
+    return columns
+
 
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
@@ -26,23 +104,19 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
     """
 
     import uuid
-    import logging
     from azure.storage.blob import BlobClient
 
     source_url = ingress["source_url"]
     demo_filter = ingress["demographicFilter"]
     destination = ingress["destination"]
 
-    # 1. Compile filter
-    # use sql as in the rest of audience automation to ensure it's consistent
-    # kind of an intermediate, narrower level
-    where_sql = jsonlogic_to_sql(
-        _canonicalize_jsonlogic(
-            rewrite_demographic_fields(demo_filter)
-            )
-    )
-    # then turn it into pythony dict-handling goodness
-    predicate, required_columns = compile_sql_where_predicate(where_sql)
+    # 1. Compile filter - use direct JsonLogic evaluation
+    # Rewrite demographic fields for backward compatibility
+    rewritten_filter = rewrite_demographic_fields(demo_filter)
+    canonical_filter = _canonicalize_jsonlogic(rewritten_filter)
+
+    # Extract required columns from JsonLogic
+    required_columns = list(extract_columns_from_jsonlogic(canonical_filter))
 
     # Always include device id column
     required_columns.append("hashed device id")
@@ -76,7 +150,7 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
         buf.truncate(0)
 
         for row in row_iter:
-            if predicate(row):
+            if evaluate_jsonlogic(canonical_filter, row):
                 writer.writerow([row["hashed device id"]])
                 yield buf.getvalue()
                 buf.seek(0)
@@ -99,85 +173,9 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
     return f"{unquote(dest_blob.url)}?{sas_token}"
 
 
-def compile_sql_where_predicate(
-    where_sql: str,
-) -> Tuple[Callable[[dict], bool], Set[str]]:
-
-    expr = where_sql
-
-    # --- Normalize SQL → Python ---
-    expr = re.sub(r"\bAND\b", "and", expr, flags=re.IGNORECASE)
-    expr = re.sub(r"\bOR\b", "or", expr, flags=re.IGNORECASE)
-    expr = re.sub(r"\bNOT\b", "not", expr, flags=re.IGNORECASE)
-
-    expr = re.sub(r"<>", "!=", expr)
-    expr = re.sub(r"(?<![<>=!])=(?!=)", "==", expr)
-    expr = re.sub(r"\bIN\b", "in", expr, flags=re.IGNORECASE)
-
-    # --- Extract quoted column names ---
-    columns: Set[str] = set(re.findall(r'"([^"]+)"', expr))
-
-    # Replace "column name" → row["column name"]
-    for col in columns:
-        expr = expr.replace(
-            f'"{col}"',
-            f'row[{repr(col)}]'
-        )
-
-    try:
-        parsed = ast.parse(expr, mode="eval")
-    except SyntaxError as e:
-        raise ValueError(f"Failed to parse filter expression: {expr}") from e
-
-    # Convert expression into lambda row: <expr>
-    lambda_node = ast.Lambda(
-        args=ast.arguments(
-            posonlyargs=[],
-            args=[ast.arg(arg="row")],
-            kwonlyargs=[],
-            kw_defaults=[],
-            defaults=[],
-        ),
-        body=parsed.body,
-    )
-
-    module = ast.Expression(body=lambda_node)
-    ast.fix_missing_locations(module)
-
-    compiled = compile(module, "<demographics-filter>", "eval")
-
-    # This eval happens ONCE to get the function object
-    base_predicate = eval(compiled)
-
-    # --- Fast coercion ---
-    def fast_coerce(v):
-        if v is None:
-            return None
-        if isinstance(v, str):
-            v = v.strip()
-            try:
-                return int(v)
-            except ValueError:
-                try:
-                    return float(v)
-                except ValueError:
-                    return v
-        return v
-
-    def predicate(row: dict) -> bool:
-        try:
-            for col in columns:
-                row[col] = fast_coerce(row.get(col))
-            return bool(base_predicate(row))
-        except Exception:
-            return False
-
-    return predicate, list(columns)
-
-
 def build_indexed_reader(
     downloader,
-    required_columns: Set[str],
+    required_columns: list,
     encoding: str = "utf-8",
 ) -> Iterator[dict]:
 
@@ -240,7 +238,7 @@ def iter_csv_lines_from_blob(downloader, encoding: str = "utf-8") -> Iterator[st
     if buffer:
         yield buffer
 
-def rewrite_demographic_fields(json_logic: dict) -> dict:
+def rewrite_demographic_fields(json_logic: dict | str) -> dict:
     """
     Rewrite incoming demographic JsonLogic into storage-aligned JsonLogic.
     - Expands QueryBuilder-style select fields into one-hot boolean columns.
@@ -248,7 +246,8 @@ def rewrite_demographic_fields(json_logic: dict) -> dict:
     Handles QueryBuilder-style `all` operator correctly.
     """
     import ast
-
+    if (type(json_logic) == "str"):
+        json_logic = json.loads(json_logic)
     json_logic = ast.literal_eval(json_logic)
 
     # Fields where the UI provides a *choice*, but storage is one-hot boolean columns.
@@ -260,7 +259,20 @@ def rewrite_demographic_fields(json_logic: dict) -> dict:
         "householdIncome",
         "networth",
         "dwellingType",
-        "gender"
+        "gender",
+        "creditCardCreditRating",
+    }
+
+    # Mapping from credit card credit rating letters to storage column names
+    CREDIT_RATING_MAP = {
+        "A": "credit score 800+",
+        "B": "credit score 750-799",
+        "C": "credit score 700-749",
+        "D": "credit score 650-699",
+        "E": "credit score 600-649",
+        "F": "credit score 550-599",
+        "G": "credit score 500-549",
+        "H": "credit score <499",
     }
 
     BOOLEAN_MULTI_FIELDS = {
@@ -277,6 +289,7 @@ def rewrite_demographic_fields(json_logic: dict) -> dict:
     # Direct column renames (storage column exists as a normal field)
     DIRECT_RENAME = {
         "homeOwner": "home_owner",
+        "hasCredit": "has_credit",
     }
 
     NUMERIC_RENAME = {
@@ -285,7 +298,6 @@ def rewrite_demographic_fields(json_logic: dict) -> dict:
     }
 
     CATEGORICAL_RENAME = {
-        "creditCardCreditRating": "credit_card_credit_rating",
     }
 
     def process(node):
@@ -302,7 +314,7 @@ def rewrite_demographic_fields(json_logic: dict) -> dict:
                     and "in" in in_block
                 ):
                     values = in_block["in"][1]
-                    conditions = [{"==": [{"var": v}, 1]} for v in values]
+                    conditions = [{"==": [{"var": v}, "1"]} for v in values]
 
                     if len(conditions) == 1:
                         return process(conditions[0])
@@ -320,7 +332,10 @@ def rewrite_demographic_fields(json_logic: dict) -> dict:
 
                     # Boolean select: expand to one-hot boolean columns
                     if field in BOOLEAN_SELECT_FIELDS and isinstance(right, list):
-                        conditions = [{"==": [{"var": v}, 1]} for v in right]
+                        # Special handling for creditCardCreditRating: map letter ratings to column names
+                        if field == "creditCardCreditRating":
+                            right = [CREDIT_RATING_MAP.get(v, v) for v in right]
+                        conditions = [{"==": [{"var": v}, "1"]} for v in right]
                         if len(conditions) == 1:
                             return process(conditions[0])
                         return {"or": [process(c) for c in conditions]}
@@ -337,8 +352,14 @@ def rewrite_demographic_fields(json_logic: dict) -> dict:
 
                 # Pattern: {"==":[{"var":"dwellingType"},"dwelling_type single family"]}
                 if isinstance(left, dict) and left.get("var") in BOOLEAN_SELECT_FIELDS and isinstance(right, str):
-                    # Convert to one-hot boolean column check
-                    return {"==": [{"var": right}, 1]}
+                    # Convert to one-hot boolean column check (use string "1" to match CSV format)
+                    return {"==": [{"var": right}, "1"]}
+
+                # Pattern: {"==":[{"var":"hasCredit"}, 1]} -> convert 1 to "1" for CSV compatibility
+                # DIRECT_RENAME fields store boolean values as "0"/"1" strings in CSV
+                if isinstance(left, dict) and left.get("var") in DIRECT_RENAME:
+                    if isinstance(right, int):
+                        right = str(right)
 
                 return {"==": [process(left), process(right)]}
 

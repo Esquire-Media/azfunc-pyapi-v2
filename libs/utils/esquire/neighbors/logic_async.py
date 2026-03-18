@@ -377,7 +377,15 @@ def load_estated_data_db(
             WHERE city = %s
                 AND state = %s
                 AND "zipCode" = %s
-                AND street_number IS NOT NULL
+                AND NULLIF(
+                    regexp_replace(
+                        street_number, 
+                        '[^0-9]+', 
+                        '', 
+                        'g'
+                    ), 
+                    ''
+                )::bigint < 999999
             """,
             (city, state, zip_code),
         )

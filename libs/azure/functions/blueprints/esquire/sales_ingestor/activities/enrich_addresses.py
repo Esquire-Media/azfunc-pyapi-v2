@@ -93,7 +93,27 @@ def activity_salesIngestor_planAddressBatches(settings: dict):
             )
         ).fetchone()
 
-    cols = [addr_map[k] for k in ["street", "addr2", "city", "state", "zipcode"] if addr_map.get(k, "") != ""]
+    expected_keys = ["street", "addr2", "city", "state", "zipcode"]
+    cols = [
+        addr_map[k]
+        for k in expected_keys
+        if k in addr_map and addr_map[k]
+    ]
+    if not cols:
+        return {"ranges": []}
+    
+    # ensure columns actually exist in staging
+    with safe_engine_connect(_engine()) as conn:
+        existing_cols = conn.execute(
+            text(f"""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'sales'
+                AND table_name = '{staging.split('.')[-1]}'
+            """)
+        ).scalars().all()
+    cols = [c for c in cols if c in existing_cols]
+
     if not cols:
         return {"ranges": []}
 
@@ -155,7 +175,12 @@ def activity_salesIngestor_enrichAddresses_batch(payload: dict):
     offset = int(payload["range"]["offset"])
     limit = int(payload["range"]["limit"])
 
-    cols = [addr_map[k] for k in ["street", "addr2", "city", "state", "zipcode"] if addr_map.get(k, "") != ""]
+    expected_keys = ["street", "addr2", "city", "state", "zipcode"]
+    cols = [
+        addr_map[k]
+        for k in expected_keys
+        if k in addr_map and addr_map[k]
+    ]
     quoted_cols = [f'"{c}"' for c in cols]
     select_list = ", ".join(quoted_cols)
     order_by = ", ".join(quoted_cols)
@@ -211,7 +236,12 @@ def activity_salesIngestor_enrichAddresses(settings: dict):
             )
         )
 
-    cols = [addr_map[k] for k in ["street", "addr2", "city", "state", "zipcode"] if addr_map.get(k, "") != ""]
+    expected_keys = ["street", "addr2", "city", "state", "zipcode"]
+    cols = [
+        addr_map[k]
+        for k in expected_keys
+        if k in addr_map and addr_map[k]
+    ]
     if not cols:
         return f"{scope} enrichment complete (no address columns)"
 

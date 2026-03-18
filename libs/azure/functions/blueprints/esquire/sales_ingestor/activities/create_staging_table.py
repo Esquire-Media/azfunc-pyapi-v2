@@ -69,7 +69,7 @@ def activity_salesIngestor_createStagingTable(settings: dict):
 
         order_col = normalized_fields["order_info"]["order_num"]
         conn.exec_driver_sql(
-            f'CREATE INDEX IF NOT EXISTS idx_{table_name}_order '
+            f'CREATE INDEX IF NOT EXISTS idx_{table_name.replace("-","")}_order '
             f'ON {qtbl(table_name)} ("{order_col}");'
         )
 

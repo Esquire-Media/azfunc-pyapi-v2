@@ -1,30 +1,39 @@
-
 from azure.durable_functions import Blueprint
 import pyarrow as pa
 import os
-from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import db, qtbl
-from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.arrow_ingest import _pg_type
-from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.blob import  _arrow_reader
 import io
 import csv
-import psycopg
-import pyarrow as pa
 import json
-from azure.storage.blob import BlobClient
+import psycopg
 import logging
+from azure.storage.blob import BlobClient
+
+from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import qtbl
+from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.arrow_ingest import _pg_type
+from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.blob import _arrow_reader
+from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.field_mapping import (
+    build_raw_to_standardized_map,
+)
+
 logger = logging.getLogger("salesIngestor.logger")
 logger.setLevel(logging.INFO)
 
 bp = Blueprint()
 
+
 @bp.activity_trigger(input_name="settings")
 def activity_salesIngestor_streamArrow(settings: dict):
-    logger.info(msg=f"[LOG] Streaming blob to staging table {qtbl(settings['table_name'])}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
+    logger.info(
+        msg=f"[LOG] Streaming blob to staging table {qtbl(settings['table_name'])}",
+        extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
+    )
 
-    blob_path = settings['metadata']['blob_id']
-    conn_str = os.environ['SALES_INGEST_CONN_STR']
+    raw_to_standardized = build_raw_to_standardized_map(settings["fields"])
+
+    blob_path = settings["metadata"]["blob_id"]
+    conn_str = os.environ["SALES_INGEST_CONN_STR"]
     chunk_size = 10 * 1024 * 1024
-    container = 'ingest'
+    container = "ingest"
 
     blob = BlobClient.from_connection_string(
         conn_str,
@@ -36,17 +45,31 @@ def activity_salesIngestor_streamArrow(settings: dict):
 
     reader = _arrow_reader(blob, chunk_size)
 
-    table_name = settings['table_name']
-    conninfo = os.environ['DATABIND_SQL_KEYSTONE'].replace("+psycopg2", "")
+    missing_headers = [
+        raw_header
+        for raw_header in raw_to_standardized.keys()
+        if raw_header not in reader.schema.names
+    ]
+    if missing_headers:
+        raise ValueError(
+            f"Mapped headers were not found in uploaded file schema: {missing_headers}"
+        )
 
-    # Use an explicit column list for COPY for extra safety.
-    arrow_cols = [f'"{name}"' for name in reader.schema.names]
-    cols_list  = ", ".join(arrow_cols)
-    copy_sql   = f"COPY {qtbl(table_name)} ({cols_list}) FROM STDIN (FORMAT CSV)"
+    table_name = settings["table_name"]
+    conninfo = os.environ["DATABIND_SQL_KEYSTONE"].replace("+psycopg2", "")
 
-    # Log if we detect dictionary-encoded columns (for diagnostics only)
-    if any(pa.types.is_dictionary(f.type) for f in reader.schema):
-        logger.info("[LOG] Detected dictionary-encoded columns; decoding to TEXT during stream.", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
+    arrow_cols = [
+        f'"{raw_to_standardized.get(name, name)}"'
+        for name in reader.schema.names
+    ]
+    cols_list = ", ".join(arrow_cols)
+    copy_sql = f"COPY {qtbl(table_name)} ({cols_list}) FROM STDIN (FORMAT CSV)"
+
+    if any(pa.types.is_dictionary(field.type) for field in reader.schema):
+        logger.info(
+            "[LOG] Detected dictionary-encoded columns; decoding to TEXT during stream.",
+            extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
+        )
 
     with psycopg.connect(conninfo) as conn:
         with conn.cursor() as cur:
@@ -61,27 +84,21 @@ def _copy_buffer(record_batch: pa.RecordBatch) -> io.BytesIO:
     Convert a RecordBatch into a CSV buffer, decoding dictionary arrays to values.
     JSON/JSONB values get json.dumps(...) exactly as before.
     """
-    # Decode dict columns to values (string, list, struct, etc.)
     decoded_batch = _decode_dictionary_columns(record_batch)
 
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\n")
 
-    # Compute Postgres target types against the normalized schema
     norm_fields = _normalized_fields_for_mapping(decoded_batch.schema)
-    pg_types    = [_pg_type(f) for f in norm_fields]
-
-    # Convert to Python lists once for speed
+    pg_types = [_pg_type(field) for field in norm_fields]
     col_lists = [col.to_pylist() for col in decoded_batch.columns]
 
-    # Row-wise write honoring JSON columns exactly as your original logic
     for i in range(decoded_batch.num_rows):
         row = []
         for val, pg_type in zip((col[i] for col in col_lists), pg_types):
             if val is None:
                 row.append("")
             elif pg_type in ("JSON", "JSONB"):
-                # Ensure valid JSON encoding
                 row.append(json.dumps(val))
             else:
                 row.append(val)
@@ -92,10 +109,9 @@ def _copy_buffer(record_batch: pa.RecordBatch) -> io.BytesIO:
 
 
 def _iter_batches(reader: pa.RecordBatchReader):
-    """Stream batches no matter the concrete reader."""
-    if hasattr(reader, "__iter__"):          # StreamReader
+    if hasattr(reader, "__iter__"):
         yield from reader
-    else:                                    # FileReader
+    else:
         for i in range(reader.num_record_batches):
             yield reader.get_batch(i)
 
@@ -106,12 +122,20 @@ def _normalized_fields_for_mapping(schema: pa.Schema):
     Used to compute pg_types for JSON/JSONB handling during COPY.
     """
     norm = []
-    for f in schema:
-        if pa.types.is_dictionary(f.type):
-            norm.append(pa.field(f.name, f.type.value_type, nullable=f.nullable, metadata=f.metadata))
+    for field in schema:
+        if pa.types.is_dictionary(field.type):
+            norm.append(
+                pa.field(
+                    field.name,
+                    field.type.value_type,
+                    nullable=field.nullable,
+                    metadata=field.metadata,
+                )
+            )
         else:
-            norm.append(f)
+            norm.append(field)
     return norm
+
 
 def _decode_dictionary_columns(batch: pa.RecordBatch) -> pa.RecordBatch:
     """
@@ -124,4 +148,5 @@ def _decode_dictionary_columns(batch: pa.RecordBatch) -> pa.RecordBatch:
             cols.append(arr.dictionary_decode())
         else:
             cols.append(arr)
-    return pa.record_batch(cols, names=[f.name for f in batch.schema])
+
+    return pa.record_batch(cols, names=[field.name for field in batch.schema])

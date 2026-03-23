@@ -120,7 +120,7 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
 
     conn_str = os.getenv(dest["conn_str"], dest["conn_str"])
     container_name = dest["container_name"]
-    blob_prefix = dest.get("blob_prefix", "").strip("/")
+    blob_prefix = str(dest.get("blob_prefix", "")).strip("/")
 
     blob_name = (
         f"{blob_prefix}/batch-{batch_index:05d}.csv"
@@ -142,8 +142,8 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
 
         for row in rows:
             key = (
-                row.get("city", "").strip().upper(),
-                row.get("state", "").strip().upper(),
+                str(row.get("city", "")).strip().upper(),
+                str(row.get("state", "")).strip().upper(),
                 str(row.get("zipCode", "")).strip().zfill(5),
             )
             addresses_by_partition.setdefault(key, []).append(row)
@@ -152,9 +152,9 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
         header_written = False
 
         for part in partitions:
-            city = part["city"].strip().upper()
-            state = part["state"].strip().upper()
-            zip_code = part["zip"].strip()
+            city = str(part["city"]).strip().upper()
+            state = str(part["state"]).strip().upper()
+            zip_code = str(part["zip"]).strip()
 
             key = (city, state, zip_code)
             addresses = addresses_by_partition.get(key, [])

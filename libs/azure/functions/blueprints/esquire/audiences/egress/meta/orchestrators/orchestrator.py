@@ -20,6 +20,7 @@ ACT_FORCE_END = "activity_esquireAudienceMeta_customAudienceSession_forceEnd"
 ACT_NEWEST_PREFIX = "activity_esquireAudiencesUtils_newestAudienceBlobPrefix"
 ACT_SYNAPSE_QUERY = "activity_synapse_query"
 ACT_REPLACE_USERS = "activity_esquireAudienceMeta_customAudience_replaceUsers"
+ACT_ADD_USERS = "activity_esquireAudienceMeta_customAudience_addUsers"
 
 
 @bp.orchestration_trigger(context_name="context")
@@ -193,7 +194,7 @@ def meta_customaudience_orchestrator(context: DurableOrchestrationContext):
         while True:
             context.set_custom_status("Adding users to Meta Audience (REPLACE).")
             session = yield context.call_activity(
-                ACT_REPLACE_USERS,
+                ACT_ADD_USERS,
                 {
                     **ingress,
                     "sql": {

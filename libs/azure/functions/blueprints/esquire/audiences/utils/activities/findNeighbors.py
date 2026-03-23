@@ -12,7 +12,9 @@ from azure.storage.blob import (
     ContentSettings,
     BlobSasPermissions,
     generate_blob_sas,
+    BlobServiceClient
 )
+from azure.core.exceptions import ResourceExistsError
 
 from libs.utils.azure_storage import get_cached_blob_client
 from libs.utils.esquire.neighbors.logic_async import (
@@ -102,6 +104,38 @@ def _partition_csv_bytes(
     return out_df.to_csv(index=False, header=False).encode("utf-8")
 
 
+def persist_neighbors_blob_to_history(dest_blob, run_id: str) -> None:
+    container_name = os.getenv("NEIGHBORS_HISTORICAL_CONTAINER_NAME")
+
+    if not container_name:
+        return
+
+    try:
+        # Reuse SAME storage account as dest_blob
+        blob_service = BlobServiceClient(
+            account_url=f"https://{dest_blob.account_name}.blob.core.windows.net",
+            credential=dest_blob.credential,
+        )
+
+        container_client = blob_service.get_container_client(container_name)
+
+        try:
+            container_client.create_container()
+        except ResourceExistsError:
+            pass
+
+        blob_filename = dest_blob.blob_name.split("/")[-1]
+        dest_path = f"neighbors-history/{run_id}/{blob_filename}"
+
+        historical_blob = container_client.get_blob_client(dest_path)
+
+        # Same account → no SAS needed
+        historical_blob.start_copy_from_url(dest_blob.url)
+
+    except Exception:
+        pass
+        # logging.warning(f"Historical copy failed: {e}")
+
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudiencesNeighbors_processBatch_blockblob(
     ingress: Mapping[str, Any]
@@ -189,6 +223,11 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
             block_list,
             content_settings=ContentSettings(content_type="text/csv"),
         )
+
+    persist_neighbors_blob_to_history(
+        dest_blob=dest_blob,
+        run_id=run_id
+    )
 
     return (
         dest_blob.url

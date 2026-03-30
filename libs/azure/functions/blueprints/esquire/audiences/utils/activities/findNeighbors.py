@@ -44,6 +44,7 @@ def _stage_iterable_as_blocks(
 
     return blocks
 
+import logging
 
 def _partition_csv_bytes(
     city: str,
@@ -56,6 +57,7 @@ def _partition_csv_bytes(
 ) -> bytes:
 
     if not addresses:
+        logging.warning(f"[LOG] No addresses coming into _partition_csv_bytes")
         return b""
 
     df = pd.DataFrame(addresses)
@@ -92,6 +94,9 @@ def _partition_csv_bytes(
 
         if not neighbors_df.empty:
             group_results.append(neighbors_df)
+        else:
+            
+            logging.warning(f"[LOG] No neighbors for {city}, {state}, {zip_code}, {street_name}")
 
     if not group_results:
         return b""
@@ -213,6 +218,8 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
     block_list = _stage_iterable_as_blocks(dest_blob, _iter_partition_blocks())
 
     if not block_list:
+        import logging
+        logging.warning("[LOG] No block lists from neighbors, commiting empty block")
         dest_blob.upload_blob(
             b"",
             overwrite=True,

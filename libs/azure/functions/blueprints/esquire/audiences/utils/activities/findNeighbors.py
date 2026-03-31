@@ -12,7 +12,9 @@ from azure.storage.blob import (
     ContentSettings,
     BlobSasPermissions,
     generate_blob_sas,
+    BlobServiceClient
 )
+from azure.core.exceptions import ResourceExistsError
 
 from libs.utils.azure_storage import get_cached_blob_client
 from libs.utils.esquire.neighbors.logic_async import (
@@ -42,6 +44,7 @@ def _stage_iterable_as_blocks(
 
     return blocks
 
+import logging
 
 def _partition_csv_bytes(
     city: str,
@@ -54,6 +57,7 @@ def _partition_csv_bytes(
 ) -> bytes:
 
     if not addresses:
+        logging.warning(f"[LOG] No addresses coming into _partition_csv_bytes")
         return b""
 
     df = pd.DataFrame(addresses)
@@ -90,6 +94,9 @@ def _partition_csv_bytes(
 
         if not neighbors_df.empty:
             group_results.append(neighbors_df)
+        else:
+            
+            logging.warning(f"[LOG] No neighbors for {city}, {state}, {zip_code}, {street_name}")
 
     if not group_results:
         return b""
@@ -101,6 +108,38 @@ def _partition_csv_bytes(
 
     return out_df.to_csv(index=False, header=False).encode("utf-8")
 
+
+def persist_neighbors_blob_to_history(dest_blob, run_id: str) -> None:
+    container_name = os.getenv("NEIGHBORS_HISTORICAL_CONTAINER_NAME")
+
+    if not container_name:
+        return
+
+    try:
+        # Reuse SAME storage account as dest_blob
+        blob_service = BlobServiceClient(
+            account_url=f"https://{dest_blob.account_name}.blob.core.windows.net",
+            credential=dest_blob.credential,
+        )
+
+        container_client = blob_service.get_container_client(container_name)
+
+        try:
+            container_client.create_container()
+        except ResourceExistsError:
+            pass
+
+        blob_filename = dest_blob.blob_name.split("/")[-1]
+        dest_path = f"neighbors-history/{run_id}/{blob_filename}"
+
+        historical_blob = container_client.get_blob_client(dest_path)
+
+        # Same account → no SAS needed
+        historical_blob.start_copy_from_url(dest_blob.url)
+
+    except Exception:
+        pass
+        # logging.warning(f"Historical copy failed: {e}")
 
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudiencesNeighbors_processBatch_blockblob(
@@ -179,6 +218,8 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
     block_list = _stage_iterable_as_blocks(dest_blob, _iter_partition_blocks())
 
     if not block_list:
+        import logging
+        logging.warning("[LOG] No block lists from neighbors, commiting empty block")
         dest_blob.upload_blob(
             b"",
             overwrite=True,
@@ -189,6 +230,11 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
             block_list,
             content_settings=ContentSettings(content_type="text/csv"),
         )
+
+    persist_neighbors_blob_to_history(
+        dest_blob=dest_blob,
+        run_id=run_id
+    )
 
     return (
         dest_blob.url

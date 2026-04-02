@@ -114,10 +114,16 @@ async def get_all_neighbors(
     async def process_group(
         city: str, state: str, zip_code: str, part_df: pd.DataFrame
     ) -> Optional[pd.DataFrame]:
-        safe_city = city.replace(" ", "_")
+        # safe_city = city.replace(" ", "_")
         try:
-            estated_data = await load_estated_data_partitioned_blob(
-                f"estated_partition_testing/state={state}/zip_code={zip_code}/city={safe_city}/"
+            # estated_data = await load_estated_data_partitioned_blob(
+            #     f"estated_partition_testing/state={state}/zip_code={zip_code}/city={safe_city}/"
+            # )
+            estated_data = await load_estated_data_db(
+                city=city,
+                state=state,
+                zip_code=zip_code,
+                bind='keystone'
             )
         except Exception:
             return None
@@ -324,3 +330,80 @@ async def load_estated_data_partitioned_blob(
     ).astype("Int64")
     blob_df["street_name"] = blob_df["street_name"].astype("str")
     return blob_df
+
+import pandas as pd
+from sqlalchemy import text
+from libs.data import from_bind
+
+def load_estated_data_db(
+    *,
+    city: str,
+    state: str,
+    zip_code: str,
+    bind: str = "keystone",
+) -> pd.DataFrame:
+    """
+    Drop-in replacement for blob estated loader.
+    Loads estated rows for a single CSZ partition from Postgres.
+    """
+
+    provider = from_bind(bind)
+    session = provider.connect()
+
+    try:
+        conn = session.connection()
+        raw = getattr(conn, "connection", None)
+        cur = raw.cursor()
+
+        cur.execute(
+            """
+            SELECT
+                NULLIF(
+                    regexp_replace(
+                        street_number, 
+                        '[^0-9]+', 
+                        '', 
+                        'g'
+                    ), 
+                    ''
+                )::int AS street_number,
+                street_name,
+                address,
+                city,
+                state,
+                "zipCode",
+                "plus4Code"
+            FROM utils.estated
+            WHERE city = %s
+                AND state = %s
+                AND "zipCode" = %s
+                AND NULLIF(
+                    regexp_replace(
+                        street_number, 
+                        '[^0-9]+', 
+                        '', 
+                        'g'
+                    ), 
+                    ''
+                )::bigint < 999999
+            """,
+            (city, state, zip_code),
+        )
+
+        rows = cur.fetchall()
+        if not rows:
+            return pd.DataFrame()
+
+        cols = [d[0] for d in cur.description]
+        df = pd.DataFrame(rows, columns=cols)
+
+        df["street_number"] = pd.to_numeric(
+            df["street_number"], errors="coerce"
+        ).astype("Int64")
+
+        df["street_name"] = df["street_name"].astype(str)
+
+        return df.drop_duplicates()
+
+    finally:
+        session.close()

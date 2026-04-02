@@ -136,10 +136,9 @@ def _stage_iterable_as_blocks(
     buffer = bytearray()
     start = 0
 
-    def _stage_view(view: memoryview) -> None:
+    def _stage_bytes(data: bytes) -> None:
         block_id = _new_block_id()
-        # stage_block expects bytes/stream/iterable; bytes(view) makes a copy but is SDK-version-safe.
-        dest.stage_block(block_id=block_id, data=bytes(view))
+        dest.stage_block(block_id=block_id, data=data)
         blocks.append(BlobBlock(block_id=block_id))
 
     for part in data_parts:
@@ -149,8 +148,7 @@ def _stage_iterable_as_blocks(
         buffer.extend(part)
 
         while (len(buffer) - start) >= block_size:
-            view = memoryview(buffer)[start : start + block_size]
-            _stage_view(view)
+            _stage_bytes(bytes(buffer[start : start + block_size]))
             start += block_size
 
         # Compact occasionally so the front-gap doesn't grow unbounded.
@@ -160,8 +158,7 @@ def _stage_iterable_as_blocks(
 
     remaining = len(buffer) - start
     if remaining:
-        view = memoryview(buffer)[start:]
-        _stage_view(view)
+        _stage_bytes(bytes(buffer[start:]))
 
     return blocks
 

@@ -1,5 +1,8 @@
 # File: /libs/azure/functions/blueprints/esquire/audiences/builder/orchestrators/uploader.py
 
+import json
+import os
+
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 
 bp = Blueprint()
@@ -47,25 +50,30 @@ def orchestrator_esquireAudiences_uploader(
 
     ingress = context.get_input()
     advertiser = (ingress.get("audience", {}) or {}).get("advertiser", {}) or {}
+    audience_id = ingress.get("audience", {}).get("id")
 
     # Targets in deterministic, fixed order
     targets = [
-        ("freewheel_segment_orchestrator", bool(advertiser.get("freewheel"))),
-        ("meta_customaudience_orchestrator", bool(advertiser.get("meta"))),
-        # ("xandr_segment_orchestrator", bool(advertiser.get("xandr"))),
+        ("esquire-freewheel", bool(advertiser.get("freewheel"))),
+        ("esquire-meta", bool(advertiser.get("meta"))),
     ]
 
-    # Always schedule exactly 2 sub-orchestrations in that order.
+    # Always schedule exactly 2 HTTP calls in that order.
     tasks = []
-    for orch_name, enabled in targets:
+    for func_app_name, enabled in targets:
         if enabled:
-            tasks.append(context.call_sub_orchestrator(orch_name, ingress))
+            tasks.append(
+                context.call_http(
+                    method="POST",
+                    uri=f"https://{func_app_name}.azurewebsites.net/api/{audience_id}",
+                )
+            )
         else:
             # Keep the schedule shape constant with a no-op
             tasks.append(
                 context.call_sub_orchestrator(
                     "orchestrator_noop",
-                    {"reason": f"{orch_name} disabled", "audienceId": ingress.get("audience", {}).get("id")},
+                    {"reason": f"{func_app_name} disabled", "audienceId": audience_id},
                 )
             )
 

@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import Optional, Any, Dict, List
 from copy import deepcopy
 
+# Import config to ensure SQL bindings are registered
+import libs.azure.functions.blueprints.esquire.audiences.egress.meta.config
+
 from azure.durable_functions import Blueprint
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload

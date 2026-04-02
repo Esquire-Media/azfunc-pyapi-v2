@@ -1,83 +1,250 @@
-from azure.durable_functions import Blueprint
-from libs.utils.esquire.neighbors.logic_async import load_estated_data_partitioned_blob, find_neighbors_for_street
-from io import StringIO
-from libs.utils.azure_storage import get_cached_blob_client
-import csv
+import base64
+import os
+import uuid
+from datetime import datetime
+from typing import Any, Iterable, Iterator, List, Mapping
+
 import pandas as pd
-import logging
+from azure.durable_functions import Blueprint
+from azure.storage.blob import (
+    BlobBlock,
+    BlobClient,
+    ContentSettings,
+    BlobSasPermissions,
+    generate_blob_sas,
+    BlobServiceClient
+)
+from azure.core.exceptions import ResourceExistsError
+
+from libs.utils.azure_storage import get_cached_blob_client
+from libs.utils.esquire.neighbors.logic_async import (
+    load_estated_data_db,
+    find_neighbors_for_street,
+)
 
 bp = Blueprint()
 
-@bp.activity_trigger(input_name="ingress")
-async def activity_esquireAudiencesNeighbors_findNeighbors(ingress: dict):
+def _new_block_id() -> str:
+    return base64.b64encode(uuid.uuid4().bytes).decode("ascii")
 
-    # before: city = ingress["city"].strip().upper().replace(" ", "_")
-    city_raw  = ingress["city"].strip().upper()          # for CSV equality
-    city_path = city_raw.replace(" ", "_")               # for estated blob path
-    state = ingress["state"].strip().upper()
-    zip_code = ingress["zip"].strip()
-    source_urls = ingress.get("source_urls", [])
-    n_per_side = ingress.get("n_per_side")
-    same_side_only = ingress.get("same_side_only")
 
-    # logging.warning(f"[LOG] Finding neighbors for {city}, {state}, {zip_code} across {len(source_urls)} url(s)")
+def _stage_iterable_as_blocks(
+    dest: BlobClient, data_parts: Iterable[bytes]
+) -> list[BlobBlock]:
 
-    # Aggregate & filter addresses for this partition from ALL sources
-    addresses = []
-    for url in source_urls:
-        try:
-            blob_client = get_cached_blob_client(url)
-            csv_bytes = blob_client.download_blob().readall()
-        except Exception as e:
-            # logging.warning(f"[LOG] Failed to read {url}: {e}")
+    blocks: list[BlobBlock] = []
+
+    for part in data_parts:
+        if not part:
             continue
-        reader = csv.DictReader(StringIO(csv_bytes.decode("utf-8")))
-        for row in reader:
-            if (
-                row.get("city", "").strip().upper() == city_raw and
-                row.get("state", "").strip().upper() == state and
-                row.get("zipCode", "").strip() == zip_code
-            ):
-                addresses.append(row)
-                
+
+        block_id = _new_block_id()
+        dest.stage_block(block_id=block_id, data=part)
+        blocks.append(BlobBlock(block_id=block_id))
+
+    return blocks
+
+import logging
+
+def _partition_csv_bytes(
+    city: str,
+    state: str,
+    zip_code: str,
+    addresses: list[dict],
+    n_per_side: int,
+    same_side_only: bool,
+    bind: str,
+) -> bytes:
 
     if not addresses:
-        # logging.warning(f"[LOG] No addresses for {city}, {state}, {zip_code}")
-        return []
+        logging.warning(f"[LOG] No addresses coming into _partition_csv_bytes")
+        return b""
 
-    # Load estated data for this partition
-    try:
-        estated_data = await load_estated_data_partitioned_blob(
-            f"estated_partition_testing/state={state}/zip_code={zip_code}/city={city_path}/"
+    df = pd.DataFrame(addresses)
+
+    if "primary_number" in df.columns and "street_number" not in df.columns:
+        df = df.rename(columns={"primary_number": "street_number"})
+
+    df["street_name"] = df["street_name"].astype(str).str.upper()
+
+    estated_df = load_estated_data_db(
+        city=city,
+        state=state,
+        zip_code=zip_code,
+        bind=bind,
+    )
+
+    if estated_df.empty:
+        return b""
+
+    group_results: list[pd.DataFrame] = []
+    est_street = estated_df["street_name"]
+
+    for street_name, street_addresses in df.groupby("street_name"):
+        street_data = estated_df[est_street == str(street_name).upper()]
+        if street_data.empty:
+            continue
+
+        neighbors_df = find_neighbors_for_street(
+            street_data,
+            street_addresses,
+            n_per_side,
+            same_side_only,
         )
-    except Exception as e:
-        logging.warning("[LOG] Failed to load estated")
-        return []
-    
-    if estated_data.empty:
-        return []
 
-    # Run neighbor matching
-    group_results = []
+        if not neighbors_df.empty:
+            group_results.append(neighbors_df)
+        else:
+            
+            logging.warning(f"[LOG] No neighbors for {city}, {state}, {zip_code}, {street_name}")
+
+    if not group_results:
+        return b""
+
+    out_df = pd.concat(group_results, ignore_index=True).drop_duplicates()
+
+    cols = ["address", "city", "state", "zipCode", "plus4Code"]
+    out_df = out_df.reindex(columns=cols)
+
+    return out_df.to_csv(index=False, header=False).encode("utf-8")
+
+
+def persist_neighbors_blob_to_history(dest_blob, run_id: str) -> None:
+    container_name = os.getenv("NEIGHBORS_HISTORICAL_CONTAINER_NAME")
+
+    if not container_name:
+        return
+
     try:
-        for street_name, street_addresses in pd.DataFrame(addresses).groupby("street_name"):
-            street_data = estated_data[
-                estated_data["street_name"] == str(street_name).upper()
-            ]
-            if street_data.empty:
-                continue
-            street_data = street_data
+        # Reuse SAME storage account as dest_blob
+        blob_service = BlobServiceClient(
+            account_url=f"https://{dest_blob.account_name}.blob.core.windows.net",
+            credential=dest_blob.credential,
+        )
 
-            neighbors = find_neighbors_for_street(
-                street_data, street_addresses.rename(columns={'primary_number':'street_number'}, errors='ignore'), n_per_side, same_side_only
+        container_client = blob_service.get_container_client(container_name)
+
+        try:
+            container_client.create_container()
+        except ResourceExistsError:
+            pass
+
+        blob_filename = dest_blob.blob_name.split("/")[-1]
+        dest_path = f"neighbors-history/{run_id}/{blob_filename}"
+
+        historical_blob = container_client.get_blob_client(dest_path)
+
+        # Same account → no SAS needed
+        historical_blob.start_copy_from_url(dest_blob.url)
+
+    except Exception:
+        pass
+        # logging.warning(f"Historical copy failed: {e}")
+
+@bp.activity_trigger(input_name="ingress")
+def activity_esquireAudiencesNeighbors_processBatch_blockblob(
+    ingress: Mapping[str, Any]
+) -> str:
+
+    partitions = ingress["partitions"]
+    source_urls = ingress.get("source_urls", [])
+    dest = ingress["destination"]
+    process = ingress.get("process", {})
+    run_id = ingress["run_id"]
+    batch_index = ingress["batch_index"]
+    bind = ingress.get("db_bind", "keystone")
+
+    n_per_side = int(process.get("housesPerSide", 20))
+    same_side_only = not bool(process.get("bothSides", True))
+
+    conn_str = os.getenv(dest["conn_str"], dest["conn_str"])
+    container_name = dest["container_name"]
+    blob_prefix = str(dest.get("blob_prefix", "")).strip("/")
+
+    blob_name = (
+        f"{blob_prefix}/batch-{batch_index:05d}.csv"
+    )
+
+    dest_blob = BlobClient.from_connection_string(
+        conn_str=conn_str,
+        container_name=container_name,
+        blob_name=blob_name,
+    )
+
+    # Build address map once per activity
+    addresses_by_partition = {}
+
+    for url in source_urls:
+        bc = get_cached_blob_client(url)
+        csv_bytes = bc.download_blob().readall()
+        rows = pd.read_csv(pd.io.common.BytesIO(csv_bytes)).to_dict("records")
+
+        for row in rows:
+            key = (
+                str(row.get("city", "")).strip().upper(),
+                str(row.get("state", "")).strip().upper(),
+                str(row.get("zipCode", "")).strip().zfill(5),
             )
-            if not neighbors.empty:
-                group_results.append(neighbors)
-    except:
-        logging.error(f"Problem reading: {url}")
-    if group_results:
-        # logging.warning("[LOG] Got group results")
-        return pd.concat(group_results, ignore_index=True)[['address', 'city', 'state', 'zipCode', 'plus4Code']].to_dict(orient="records")
+            addresses_by_partition.setdefault(key, []).append(row)
+
+    def _iter_partition_blocks() -> Iterator[bytes]:
+        header_written = False
+
+        for part in partitions:
+            city = str(part["city"]).strip().upper()
+            state = str(part["state"]).strip().upper()
+            zip_code = str(part["zip"]).strip()
+
+            key = (city, state, zip_code)
+            addresses = addresses_by_partition.get(key, [])
+
+            data = _partition_csv_bytes(
+                city,
+                state,
+                zip_code,
+                addresses,
+                n_per_side,
+                same_side_only,
+                bind,
+            )
+
+            if data and not header_written:
+                header = b"address,city,state,zipCode,plus4Code\n"
+                yield header
+                header_written = True
+
+            yield data
+
+    block_list = _stage_iterable_as_blocks(dest_blob, _iter_partition_blocks())
+
+    if not block_list:
+        import logging
+        logging.warning("[LOG] No block lists from neighbors, commiting empty block")
+        dest_blob.upload_blob(
+            b"",
+            overwrite=True,
+            content_settings=ContentSettings(content_type="text/csv"),
+        )
     else:
-        # logging.warning("[LOG] No group results")
-        return []
+        dest_blob.commit_block_list(
+            block_list,
+            content_settings=ContentSettings(content_type="text/csv"),
+        )
+
+    persist_neighbors_blob_to_history(
+        dest_blob=dest_blob,
+        run_id=run_id
+    )
+
+    return (
+        dest_blob.url
+        + "?"
+        + generate_blob_sas(
+            account_name=dest_blob.account_name,
+            account_key=dest_blob.credential.account_key,
+            container_name=dest_blob.container_name,
+            blob_name=dest_blob.blob_name,
+            permission=BlobSasPermissions(read=True, write=True),
+            expiry=datetime.utcnow().replace(hour=23, minute=59),
+        )
+    )

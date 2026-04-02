@@ -1,3 +1,4 @@
 FROM mcr.microsoft.com/devcontainers/base:ubuntu
 USER vscode
-RUN curl -fsSL https://claude.ai/install.sh | bash
+ENV OPENCODE_CONFIG=.opencode/settings.json
+RUN curl -fsSL https://opencode.ai/install | bash

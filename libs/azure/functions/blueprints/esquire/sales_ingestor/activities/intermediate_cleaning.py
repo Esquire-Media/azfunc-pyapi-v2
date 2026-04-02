@@ -1,46 +1,37 @@
+
 from azure.durable_functions import Blueprint
 import logging
-from sqlalchemy import text
-
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import db, qtbl
-from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.field_mapping import (
-    normalize_fields_to_standardized,
-)
+from sqlalchemy import text, bindparam
+
 
 logger = logging.getLogger("salesIngestor.logger")
 logger.setLevel(logging.INFO)
 
 bp = Blueprint()
 
-
 @bp.activity_trigger(input_name="settings")
 def activity_salesIngestor_intermediate_processing(settings: dict):
-    logger.info(
-        msg="[LOG] Intermediate Cleanup",
-        extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
-    )
 
-    standardized_fields = normalize_fields_to_standardized(settings["fields"])
+    logger.info(msg="[LOG] Intermediate Cleanup", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
-    staging_table = qtbl(settings["table_name"])
-    order_col = standardized_fields["order_info"]["order_num"]
+    staging_table = qtbl(settings['table_name'])
+    fields_map    = settings['fields']
+    order_col     = fields_map['order_info']['order_num']
 
-    stmt = text(
-        f"""
+    # Remove rows where there is no order number
+    # happens sometimes with fill fields
+    stmt = text(f"""
         WITH deleted AS (
             DELETE FROM {staging_table}
             WHERE "{order_col}" IS NULL OR TRIM("{order_col}") = ''
             RETURNING *
         )
         SELECT COUNT(*) FROM deleted;
-        """
-    )
+    """)
 
     with db() as conn:
         conn.execute(text("SET search_path TO sales"))
         deleted_count = conn.execute(stmt).scalar()
         if deleted_count > 0:
-            logger.info(
-                f"[LOG] Deleted {deleted_count} rows with empty {order_col}",
-                extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
-            )
+            logger.info(f"[LOG] Deleted {deleted_count} rows with empty {order_col}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})

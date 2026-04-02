@@ -28,8 +28,6 @@ def activity_salesIngestor_streamArrow(settings: dict):
         extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
     )
 
-    raw_to_standardized = build_raw_to_standardized_map(settings["fields"])
-
     blob_path = settings["metadata"]["blob_id"]
     conn_str = os.environ["SALES_INGEST_CONN_STR"]
     chunk_size = 10 * 1024 * 1024
@@ -45,23 +43,10 @@ def activity_salesIngestor_streamArrow(settings: dict):
 
     reader = _arrow_reader(blob, chunk_size)
 
-    missing_headers = [
-        raw_header
-        for raw_header in raw_to_standardized.keys()
-        if raw_header not in reader.schema.names
-    ]
-    if missing_headers:
-        raise ValueError(
-            f"Mapped headers were not found in uploaded file schema: {missing_headers}"
-        )
-
     table_name = settings["table_name"]
     conninfo = os.environ["DATABIND_SQL_KEYSTONE"].replace("+psycopg2", "")
 
-    arrow_cols = [
-        f'"{raw_to_standardized.get(name, name)}"'
-        for name in reader.schema.names
-    ]
+    arrow_cols = [f'"{name}"' for name in reader.schema.names]
     cols_list = ", ".join(arrow_cols)
     copy_sql = f"COPY {qtbl(table_name)} ({cols_list}) FROM STDIN (FORMAT CSV)"
 
@@ -77,6 +62,8 @@ def activity_salesIngestor_streamArrow(settings: dict):
                 for batch in _iter_batches(reader):
                     buf = _copy_buffer(batch)
                     cp.write(buf.read())
+    
+    return {}
 
 
 def _copy_buffer(record_batch: pa.RecordBatch) -> io.BytesIO:

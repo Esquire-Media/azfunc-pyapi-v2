@@ -38,18 +38,6 @@ def activity_salesIngestor_createStagingTable(settings: dict):
     )
 
     reader = _arrow_reader(blob, chunk_size)
-    raw_to_standardized = build_raw_to_standardized_map(settings["fields"])
-    normalized_fields = normalize_fields_to_standardized(settings["fields"])
-
-    missing_headers = [
-        raw_header
-        for raw_header in raw_to_standardized.keys()
-        if raw_header not in reader.schema.names
-    ]
-    if missing_headers:
-        raise ValueError(
-            f"Mapped headers were not found in uploaded file schema: {missing_headers}"
-        )
 
     table_name = settings["table_name"]
     schema = reader.schema
@@ -61,22 +49,17 @@ def activity_salesIngestor_createStagingTable(settings: dict):
         cols = []
         for field in norm_fields:
             raw_name = field.name
-            standardized_name = raw_to_standardized.get(raw_name, raw_name)
-            cols.append(f'"{standardized_name}" {_pg_type(field)}')
+            cols.append(f'"{raw_name}" {_pg_type(field)}')
 
         ddl = f"CREATE UNLOGGED TABLE {qtbl(table_name)} ({', '.join(cols)});"
         conn.exec_driver_sql(ddl)
-
-        order_col = normalized_fields["order_info"]["order_num"]
-        conn.exec_driver_sql(
-            f'CREATE INDEX IF NOT EXISTS idx_{table_name.replace("-","")}_order '
-            f'ON {qtbl(table_name)} ("{order_col}");'
-        )
 
     logger.info(
         msg=f"[LOG] Created Staging Table {qtbl(settings['table_name'])}",
         extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
     )
+
+    return {}
 
 
 def _normalized_fields_for_ddl(schema: pa.Schema):

@@ -44,3 +44,5 @@ def activity_salesIngestor_intermediate_processing(settings: dict):
                 f"[LOG] Deleted {deleted_count} rows with empty {order_col}",
                 extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
             )
+
+    return {}

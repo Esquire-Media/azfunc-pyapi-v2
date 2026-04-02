@@ -51,15 +51,18 @@ def flatten_standardized_to_original(
 
     return result
 
+def build_raw_to_standardized_map(fields: dict) -> dict:
+    out = {}
 
-def build_raw_to_standardized_map(fields: dict[str, Any]) -> dict[str, str]:
-    """
-    Invert the request mapping into:
-        original_header -> standardized_attribute
-    """
-    std_to_original = flatten_standardized_to_original(fields)
-    return {original: standardized for standardized, original in std_to_original.items()}
+    for section in fields.values():
+        for standardized, raw in section.items():
+            if not raw or not raw.strip():
+                continue
 
+            raw = raw.strip()
+            out.setdefault(raw, []).append(standardized)
+
+    return out
 
 def normalize_fields_to_standardized(
     fields: dict[str, Any],

@@ -228,7 +228,8 @@ def activity_salesIngestor_eavPrelude(settings: dict):
                 "original_header": original_header,
                 "standardized_attribute": standardized_attribute,
             }
-            for original_header, standardized_attribute in raw_to_standardized.items()
+            for original_header, std_list in raw_to_standardized.items()
+            for standardized_attribute in std_list
         ]
 
         if batch_mapping_rows:
@@ -239,7 +240,7 @@ def activity_salesIngestor_eavPrelude(settings: dict):
                         (sales_batch_id, original_header, standardized_attribute)
                     VALUES
                         (:sales_batch_id, :original_header, :standardized_attribute)
-                    ON CONFLICT (sales_batch_id, original_header) DO NOTHING
+                    ON CONFLICT (sales_batch_id, original_header, standardized_attribute) DO NOTHING
                     """
                 ),
                 batch_mapping_rows,

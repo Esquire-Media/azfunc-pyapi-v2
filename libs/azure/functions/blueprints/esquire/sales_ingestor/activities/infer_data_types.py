@@ -56,6 +56,7 @@ def activity_salesIngestor_inferDataTypes(settings: dict):
             msg=f"Field types inferred: {inferred_types_dict}",
             extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
         )
+    return {}
 
 
 def apply_alter_statements(conn, alter_statements: list):

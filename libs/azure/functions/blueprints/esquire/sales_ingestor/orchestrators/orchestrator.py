@@ -39,6 +39,16 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
                 }
             )
         
+        # standardize our field names
+        yield context.call_activity_with_retry(
+            "activity_salesIngestor_standardizeColumns",
+            retry,
+            {
+                "table_name": table_name,
+                **settings
+            }
+        )
+        
         # 1.5 intermediate cleaning
         yield context.call_activity_with_retry(
             "activity_salesIngestor_intermediate_processing",
@@ -48,7 +58,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
                 **settings
             }
         )
-        
+
         # 2. infer data types and alter the fields as necessary
         yield context.call_activity_with_retry(
             "activity_salesIngestor_inferDataTypes",

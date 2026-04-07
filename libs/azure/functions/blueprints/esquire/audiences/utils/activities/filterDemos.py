@@ -2,13 +2,14 @@
 
 from azure.durable_functions import Blueprint
 from libs.azure.functions.blueprints.esquire.audiences.builder.activities.fetchAudience import _canonicalize_jsonlogic
+from libs.azure.functions.blueprints.esquire.audiences.builder.utils import (
+    jsonlogic_to_sql,
+)
 from libs.utils.azure_storage import init_blob_client
 import os
 import csv
 import json
-from io import StringIO
-from typing import Iterator, Set
-from azure.storage.blob import BlobSasPermissions, generate_blob_sas
+from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas, DelimitedTextDialect
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from urllib.parse import unquote
@@ -16,115 +17,30 @@ from urllib.parse import unquote
 bp = Blueprint()
 
 
-def evaluate_jsonlogic(logic: dict, row: dict) -> bool:
-    """
-    Directly evaluate JsonLogic against a row dictionary.
-
-    Handles:
-    - {"var": "fieldname"} -> returns row.get(fieldname)
-    - {"in": [value, list]} -> returns value in list
-    - {"==": [left, right]} -> returns left == right
-    - {"!=": [left, right]} -> returns left != right
-    - {"and": [conditions]} -> returns all(conditions)
-    - {"or": [conditions]} -> returns any(conditions)
-    - {"not": [condition]} -> returns not condition
-    """
-    if isinstance(logic, dict):
-        # Handle "var" - fetch value from row
-        if "var" in logic:
-            field_name = logic["var"]
-            return row.get(field_name)
-
-        # Handle "in" - value in list
-        if "in" in logic:
-            left = evaluate_jsonlogic(logic["in"][0], row)
-            right = evaluate_jsonlogic(logic["in"][1], row)
-            if right is None:
-                return False
-            return left in right
-
-        # Handle "==" - equality
-        if "==" in logic:
-            left = evaluate_jsonlogic(logic["=="][0], row)
-            right = evaluate_jsonlogic(logic["=="][1], row)
-            return left == right
-
-        # Handle "!=" - inequality
-        if "!=" in logic:
-            left = evaluate_jsonlogic(logic["!="][0], row)
-            right = evaluate_jsonlogic(logic["!="][1], row)
-            return left != right
-
-        # Handle "and" - all conditions must be true
-        if "and" in logic:
-            return all(evaluate_jsonlogic(cond, row) for cond in logic["and"])
-
-        # Handle "or" - any condition must be true
-        if "or" in logic:
-            return any(evaluate_jsonlogic(cond, row) for cond in logic["or"])
-
-        # Handle "not" - negation
-        if "not" in logic:
-            return not evaluate_jsonlogic(logic["not"][0], row)
-
-        raise ValueError(f"Unknown JsonLogic operator: {logic}")
-
-    if isinstance(logic, list):
-        return [evaluate_jsonlogic(item, row) for item in logic]
-
-    # Scalar values pass through
-    return logic
-
-
-def extract_columns_from_jsonlogic(logic: dict) -> Set[str]:
-    """
-    Extract column names referenced in a JsonLogic expression.
-    """
-    columns: Set[str] = set()
-
-    def extract(node):
-        if isinstance(node, dict):
-            if "var" in node:
-                columns.add(node["var"])
-            else:
-                for value in node.values():
-                    extract(value)
-        elif isinstance(node, list):
-            for item in node:
-                extract(item)
-
-    extract(logic)
-    return columns
-
-
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
     """
-    Durable-safe streaming demographics filter.
+    Uses Azure Blob Query for server-side SQL pushdown filtering.
+    Only matching rows are returned from Azure Storage - no local filtering.
     """
-
     import uuid
-    from azure.storage.blob import BlobClient
+    from io import StringIO
 
     source_url = ingress["source_url"]
     demo_filter = ingress["demographicFilter"]
     destination = ingress["destination"]
 
-    # 1. Compile filter - use direct JsonLogic evaluation
-    # Rewrite demographic fields for backward compatibility
+    # 1. Transform filter: UI JsonLogic -> storage-aligned JsonLogic
     rewritten_filter = rewrite_demographic_fields(demo_filter)
     canonical_filter = _canonicalize_jsonlogic(rewritten_filter)
 
-    # Extract required columns from JsonLogic
-    required_columns = list(extract_columns_from_jsonlogic(canonical_filter))
+    # 2. Convert to SQL WHERE clause for server-side filtering
+    where_clause = jsonlogic_to_sql(canonical_filter)
 
-    # Always include device id column
-    required_columns.append("hashed device id")
-
-    # 2. Build destination path
+    # 3. Build destination path
     blob_name = f"{destination['blob_prefix']}/{uuid.uuid4().hex}.csv"
 
-    # 3. Open blob streams
+    # 4. Open blobs
     source_blob = BlobClient.from_blob_url(source_url)
     dest_blob = init_blob_client(
         conn_str=os.environ[destination["conn_str"]],
@@ -132,35 +48,33 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
         blob_name=blob_name,
     )
 
+    # 5. Execute query server-side - project ONLY "hashed device id" column
+    # This minimizes data transfer since output only needs deviceids
+    query_sql = f'SELECT "hashed device id" FROM BlobStorage WHERE {where_clause}'
 
-    downloader = source_blob.download_blob()
+    # Collect query results
+    dialect = DelimitedTextDialect(delimiter=",", quotechar='"', lineterminator="\n", has_header="true")
+    result_data = source_blob.query_blob(query_sql, blob_format=dialect).readall()
 
-    row_iter = build_indexed_reader(
-        downloader=downloader,
-        required_columns=required_columns,
-    )
+    # 6. Build output CSV with only "deviceid" header
+    result_text = result_data.decode("utf-8")
+    reader = csv.reader(StringIO(result_text))
+    output_buffer = StringIO()
+    writer = csv.writer(output_buffer)
+    writer.writerow(["deviceid"])
 
-    def output_generator():
-        buf = StringIO()
-        writer = csv.writer(buf)
+    next(reader, None)  # skip header
+    for row in reader:
+        if row:
+            writer.writerow([row[0]])  # hashed device id is first column
 
-        writer.writerow(["deviceid"])
-        yield buf.getvalue()
-        buf.seek(0)
-        buf.truncate(0)
-
-        for row in row_iter:
-            if evaluate_jsonlogic(canonical_filter, row):
-                writer.writerow([row["hashed device id"]])
-                yield buf.getvalue()
-                buf.seek(0)
-                buf.truncate(0)
-
+    # 7. Upload result
     dest_blob.upload_blob(
-        data=output_generator(),
+        data=output_buffer.getvalue().encode("utf-8"),
         overwrite=True,
     )
 
+    # 8. Generate SAS token
     sas_token = generate_blob_sas(
         account_name=dest_blob.account_name,
         container_name=dest_blob.container_name,
@@ -172,72 +86,6 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
 
     return f"{unquote(dest_blob.url)}?{sas_token}"
 
-
-def build_indexed_reader(
-    downloader,
-    required_columns: list,
-    encoding: str = "utf-8",
-) -> Iterator[dict]:
-
-    import codecs
-
-    decoder = codecs.getincrementaldecoder(encoding)()
-    buffer = ""
-
-    def line_iter():
-        nonlocal buffer
-        for chunk in downloader.chunks():
-            buffer += decoder.decode(chunk)
-            while True:
-                newline = buffer.find("\n")
-                if newline < 0:
-                    break
-                line = buffer[: newline + 1]
-                buffer = buffer[newline + 1 :]
-                yield line
-        buffer += decoder.decode(b"", final=True)
-        if buffer:
-            yield buffer
-
-    reader = csv.reader(line_iter())
-
-    header = next(reader)
-
-    # Map required column -> index
-    index_map = {
-        col: header.index(col)
-        for col in required_columns
-        if col in header
-    }
-
-    for row in reader:
-        yield {
-            col: row[idx] if idx < len(row) else None
-            for col, idx in index_map.items()
-        }
-
-
-import codecs
-from typing import Iterator
-
-def iter_csv_lines_from_blob(downloader, encoding: str = "utf-8") -> Iterator[str]:
-    decoder = codecs.getincrementaldecoder(encoding)()
-    buffer = ""
-
-    for chunk in downloader.chunks():
-        buffer += decoder.decode(chunk)
-        while True:
-            newline = buffer.find("\n")
-            if newline < 0:
-                break
-            line = buffer[: newline + 1]
-            buffer = buffer[newline + 1 :]
-            yield line
-
-    buffer += decoder.decode(b"", final=True)
-    if buffer:
-        yield buffer
-
 def rewrite_demographic_fields(json_logic: dict | str) -> dict:
     """
     Rewrite incoming demographic JsonLogic into storage-aligned JsonLogic.
@@ -246,9 +94,10 @@ def rewrite_demographic_fields(json_logic: dict | str) -> dict:
     Handles QueryBuilder-style `all` operator correctly.
     """
     import ast
-    if (type(json_logic) == "str"):
+    if isinstance(json_logic, str):
         json_logic = json.loads(json_logic)
-    json_logic = ast.literal_eval(json_logic)
+    if isinstance(json_logic, str):
+        json_logic = ast.literal_eval(json_logic)
 
     # Fields where the UI provides a *choice*, but storage is one-hot boolean columns.
     # Example: dwellingType == "dwelling_type single family"

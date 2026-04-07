@@ -177,7 +177,7 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
     for url in source_urls:
         bc = get_cached_blob_client(url)
         csv_bytes = bc.download_blob().readall()
-        rows = pd.read_csv(pd.io.common.BytesIO(csv_bytes)).to_dict("records")
+        rows = pd.read_csv(pd.io.common.BytesIO(csv_bytes),dtype={"zipCode": "string", "plus4Code": "string"},).to_dict("records")
 
         for row in rows:
             key = (
@@ -193,7 +193,7 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
         for part in partitions:
             city = str(part["city"]).strip().upper()
             state = str(part["state"]).strip().upper()
-            zip_code = str(part["zip"]).strip()
+            zip_code = str(part["zip"]).strip().zfill(0)
 
             key = (city, state, zip_code)
             addresses = addresses_by_partition.get(key, [])

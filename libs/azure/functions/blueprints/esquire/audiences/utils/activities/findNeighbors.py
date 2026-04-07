@@ -76,6 +76,18 @@ def _partition_csv_bytes(
 
     if estated_df.empty:
         return b""
+    
+    df["street_name"] = (
+        df["street_name"]
+        .astype(str)
+        .map(_normalize_street_name)
+    )
+
+    estated_df["street_name"] = (
+        estated_df["street_name"]
+        .astype(str)
+        .map(_normalize_street_name)
+    )
 
     group_results: list[pd.DataFrame] = []
     est_street = estated_df["street_name"]
@@ -248,3 +260,19 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
             expiry=datetime.utcnow().replace(hour=23, minute=59),
         )
     )
+
+import re
+
+_ORDINAL_SUFFIX_RE = re.compile(r"^(\d+)(ST|ND|RD|TH)$")
+
+def _normalize_street_name(value: str) -> str:
+    if not value:
+        return ""
+
+    v = str(value).strip().upper()
+
+    match = _ORDINAL_SUFFIX_RE.match(v)
+    if match:
+        return match.group(1)  # strip suffix
+
+    return v

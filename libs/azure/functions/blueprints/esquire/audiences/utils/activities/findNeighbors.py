@@ -76,6 +76,18 @@ def _partition_csv_bytes(
 
     if estated_df.empty:
         return b""
+    
+    df["street_name"] = (
+        df["street_name"]
+        .astype(str)
+        .map(_normalize_street_name)
+    )
+
+    estated_df["street_name"] = (
+        estated_df["street_name"]
+        .astype(str)
+        .map(_normalize_street_name)
+    )
 
     group_results: list[pd.DataFrame] = []
     est_street = estated_df["street_name"]
@@ -177,7 +189,7 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
     for url in source_urls:
         bc = get_cached_blob_client(url)
         csv_bytes = bc.download_blob().readall()
-        rows = pd.read_csv(pd.io.common.BytesIO(csv_bytes)).to_dict("records")
+        rows = pd.read_csv(pd.io.common.BytesIO(csv_bytes),dtype={"zipCode": "string", "plus4Code": "string"},).to_dict("records")
 
         for row in rows:
             key = (
@@ -193,7 +205,7 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
         for part in partitions:
             city = str(part["city"]).strip().upper()
             state = str(part["state"]).strip().upper()
-            zip_code = str(part["zip"]).strip()
+            zip_code = str(part["zip"]).strip().zfill(0)
 
             key = (city, state, zip_code)
             addresses = addresses_by_partition.get(key, [])
@@ -248,3 +260,19 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
             expiry=datetime.utcnow().replace(hour=23, minute=59),
         )
     )
+
+import re
+
+_ORDINAL_SUFFIX_RE = re.compile(r"^(\d+)(ST|ND|RD|TH)$")
+
+def _normalize_street_name(value: str) -> str:
+    if not value:
+        return ""
+
+    v = str(value).strip().upper()
+
+    match = _ORDINAL_SUFFIX_RE.match(v)
+    if match:
+        return match.group(1)  # strip suffix
+
+    return v

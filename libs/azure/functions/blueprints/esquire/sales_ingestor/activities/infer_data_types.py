@@ -1,66 +1,86 @@
-
 from azure.durable_functions import Blueprint
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import db, qtbl
+from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.field_mapping import (
+    normalize_fields_to_standardized,
+)
 import pandas as pd
 from sqlalchemy import text
 import logging
+
 logger = logging.getLogger("salesIngestor.logger")
 logger.setLevel(logging.INFO)
 
 bp = Blueprint()
 
+
 @bp.activity_trigger(input_name="settings")
 def activity_salesIngestor_inferDataTypes(settings: dict):
+    table_name = settings["table_name"]
 
-    table_name = settings['table_name']
-
-    logger.info(msg=f"[LOG] Inferring data types for staging table {qtbl(table_name)}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
+    logger.info(
+        msg=f"[LOG] Inferring data types for staging table {qtbl(table_name)}",
+        extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
+    )
 
     with db() as conn:
-        # get the inferred types 
-        inferred_types = infer_schema_to_df(conn, table_name, settings['metadata']['upload_id'].replace('-',''))
+        inferred_types = infer_schema_to_df(
+            conn,
+            table_name,
+            settings["metadata"]["upload_id"].replace("-", ""),
+        )
 
-        # and remove excessive ones, converting to a dict
-        inferred_types_dict = cleanup_inferred_schema(
-            settings,
-            inferred_types
-            )
-        
-        logger.info(msg=f"Field types inferred: {inferred_types_dict}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
+        inferred_types_dict = cleanup_inferred_schema(settings, inferred_types)
+
+        logger.info(
+            msg=f"Field types inferred: {inferred_types_dict}",
+            extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
+        )
 
         date_types = {"DATE", "TIMESTAMP", "DATETIME"}
         if not any(dtype.upper() in date_types for dtype in inferred_types_dict.values()):
-            logger.error(msg=f"[LOG] No date fields were able to be inferred.", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
-
+            logger.error(
+                msg=f"[LOG] No date fields were able to be inferred.",
+                extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
+            )
             raise TypeError("No date fields were able to be inferred.")
 
-        # make all our alters
         alter_statements = generate_alter_statements(
-            table_name = qtbl(table_name),
-            inferred_schema = inferred_types_dict,
-            settings=settings
+            table_name=qtbl(table_name),
+            inferred_schema=inferred_types_dict,
+            settings=settings,
         )
 
-        # actually run the alters
         apply_alter_statements(conn, alter_statements)
 
-        logger.info(msg=f"Field types inferred: {inferred_types_dict}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
+        logger.info(
+            msg=f"Field types inferred: {inferred_types_dict}",
+            extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
+        )
+    return {}
+
 
 def apply_alter_statements(conn, alter_statements: list):
     for stmt in alter_statements:
         conn.execute(text(stmt))
 
+
 def cleanup_inferred_schema(settings, inferred_types):
+    standardized_fields = normalize_fields_to_standardized(settings["fields"])
+
     return inferred_types[
-                (inferred_types['suggested_type'] != 'TEXT') &
-                (~inferred_types['column_name'].isin([
-                    settings['fields']['billing']['zipcode'],
-                    settings['fields']['shipping']['zipcode']
-                ]))
-            ].set_index('column_name')['suggested_type'].to_dict()
+        (inferred_types["suggested_type"] != "TEXT")
+        & (
+            ~inferred_types["column_name"].isin(
+                [
+                    standardized_fields["billing"]["zipcode"],
+                    standardized_fields["shipping"]["zipcode"],
+                ]
+            )
+        )
+    ].set_index("column_name")["suggested_type"].to_dict()
+
 
 def infer_schema_to_df(conn, staging_table: str, upload_id) -> pd.DataFrame:
-    # 1. Format the SQL with your target table
     sql = f"""
     DROP TABLE IF EXISTS tmp_type_inference_results_{upload_id};
 
@@ -95,8 +115,8 @@ def infer_schema_to_df(conn, staging_table: str, upload_id) -> pd.DataFrame:
                         COUNT(*) FILTER (WHERE (%1$I)::TEXT IS NULL OR (%1$I)::TEXT = '') AS null_count,
                         COUNT(*) FILTER (WHERE (%1$I)::TEXT IS NOT NULL AND (%1$I)::TEXT <> '') AS non_null_count,
                         COUNT(*) FILTER (WHERE LOWER((%1$I)::TEXT) IN ('true','false'))::FLOAT AS bool_matches,
-                        COUNT(*) FILTER (WHERE (%1$I)::TEXT ~ '^[+-]?\d+$')::FLOAT AS int_matches,
-                        COUNT(*) FILTER (WHERE (%1$I)::TEXT ~ '^[+-]?(\d+\.\d*|\.\d+)([eE][+-]?\d+)?$')::FLOAT AS float_matches,
+                        COUNT(*) FILTER (WHERE (%1$I)::TEXT ~ '^[+-]?\\d+$')::FLOAT AS int_matches,
+                        COUNT(*) FILTER (WHERE (%1$I)::TEXT ~ '^[+-]?(\\d+\\.\\d*|\\.\\d+)([eE][+-]?\\d+)?$')::FLOAT AS float_matches,
                         COUNT(*) FILTER (WHERE sales.try_cast_timestamp((%1$I)::TEXT) IS NOT NULL)::FLOAT AS datetime_matches
                     FROM sales."{staging_table}"
                 )
@@ -124,41 +144,39 @@ def infer_schema_to_df(conn, staging_table: str, upload_id) -> pd.DataFrame:
     END $$;
     """
 
-    # 2. Execute the DO block
     conn.execute(text(sql))
-
-    # 3. Fetch results into DataFrame
-
-    return pd.read_sql(f"SELECT column_name, suggested_type FROM tmp_type_inference_results_{upload_id}", conn)
+    return pd.read_sql(
+        f"SELECT column_name, suggested_type FROM tmp_type_inference_results_{upload_id}",
+        conn,
+    )
 
 
 def generate_alter_statements(inferred_schema: dict, table_name: str, settings: dict = None):
-    billing_zip     = settings['fields']['billing']['zipcode']
-    shipping_zip    = settings['fields']['shipping']['zipcode']
-    sale_date       = settings['fields']['order_info']['sale_date']
-    order_number    = settings['fields']['order_info']['order_num']
+    standardized_fields = normalize_fields_to_standardized(settings["fields"])
+
+    billing_zip = standardized_fields["billing"]["zipcode"]
+    shipping_zip = standardized_fields["shipping"]["zipcode"]
+    sale_date = standardized_fields["order_info"]["sale_date"]
+    order_number = standardized_fields["order_info"]["order_num"]
 
     alter_statements = []
 
     for col, pg_type in inferred_schema.items():
-        # Always skip if still TEXT
-        if pg_type == 'TEXT':
+        if pg_type == "TEXT":
             continue
 
-        # Force zip codes to remain TEXT
-        if col in {billing_zip, shipping_zip} and pg_type in {'INTEGER', 'NUMERIC', 'BIGINT'}:
+        if col in {billing_zip, shipping_zip} and pg_type in {"INTEGER", "NUMERIC", "BIGINT"}:
             continue
 
-        # Sale date can only become TIMESTAMP
-        if col == sale_date and pg_type != 'TIMESTAMP':
+        if col == sale_date and pg_type != "TIMESTAMP":
             continue
 
         if col == order_number:
             continue
 
-        if pg_type == 'INTEGER':
-            pg_type = 'BIGINT'
-            
+        if pg_type == "INTEGER":
+            pg_type = "BIGINT"
+
         stmt = (
             f'ALTER TABLE {table_name} '
             f'ALTER COLUMN "{col}" TYPE {pg_type} '
@@ -167,5 +185,3 @@ def generate_alter_statements(inferred_schema: dict, table_name: str, settings: 
         alter_statements.append(stmt)
 
     return alter_statements
-
-

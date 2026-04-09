@@ -183,10 +183,15 @@ def activity_salesIngestor_eavPrelude(settings: dict):
              OR (cc.data_type LIKE 'timestamp%' AND a.data_type = 'timestamptz')
              OR (cc.data_type IN ('json','jsonb') AND a.data_type = 'jsonb')
          )
-         AND a.entity_type_id IN (
-            (SELECT entity_type_id FROM entity_types WHERE name = 'transaction'),
-            (SELECT entity_type_id FROM entity_types WHERE name = 'line_item')
-         )
+         AND (
+            (cc.always_constant = TRUE AND a.entity_type_id = (
+                SELECT entity_type_id FROM entity_types WHERE name = 'transaction'
+            ))
+            OR
+            (cc.always_constant = FALSE AND a.entity_type_id = (
+                SELECT entity_type_id FROM entity_types WHERE name = 'line_item'
+            ))
+        )
     )
     INSERT INTO client_header_map (tenant_id, mapped_header, attribute_id)
     SELECT tenant_id, mapped_header, attribute_id
@@ -233,7 +238,7 @@ def activity_salesIngestor_eavPrelude(settings: dict):
 
         if batch_mapping_rows:
             stmt = text(
-                    """
+                    f"""
                     WITH input_rows AS (
                         SELECT
                             CAST(:sales_batch_id AS uuid) AS sales_batch_id,
@@ -244,28 +249,43 @@ def activity_salesIngestor_eavPrelude(settings: dict):
                             standardized_attribute_name text
                         )
                     ),
-                    column_types AS (
+                    flattened_staging AS (
+                        SELECT s."{order_col}", col.key AS column_name, col.value AS column_value
+                        FROM {staging_table} s,
+                            LATERAL jsonb_each_text(to_jsonb(s)) col
+                    ),
+                    column_consistency AS (
+                        SELECT column_name,
+                            BOOL_AND(COUNT(DISTINCT column_value) = 1) OVER (PARTITION BY column_name) AS always_constant
+                        FROM flattened_staging
+                        GROUP BY "{order_col}", column_name
+                    ),
+                    column_classification AS (
                         SELECT
                             c.column_name,
-                            CASE
-                                WHEN format_type(a.atttypid, a.atttypmod) IN ('character varying','text') THEN 'string'
-                                WHEN format_type(a.atttypid, a.atttypmod) IN ('numeric','integer','bigint','real','double precision') THEN 'numeric'
-                                WHEN format_type(a.atttypid, a.atttypmod) = 'boolean' THEN 'boolean'
-                                WHEN format_type(a.atttypid, a.atttypmod) LIKE 'timestamp%' THEN 'timestamptz'
-                                WHEN format_type(a.atttypid, a.atttypmod) IN ('json','jsonb') THEN 'jsonb'
-                                ELSE 'string'
-                            END::attr_data_type AS col_attr_type
+                            format_type(a.atttypid, a.atttypmod) AS data_type,
+                            cc.always_constant
                         FROM information_schema.columns c
-                        JOIN pg_class cls
-                        ON cls.relname = :staging_table
-                        AND cls.relnamespace = 'sales'::regnamespace
-                        JOIN pg_attribute a
-                        ON a.attrelid = cls.oid
-                        AND a.attname  = c.column_name
-                        AND a.attnum > 0
-                        AND NOT a.attisdropped
+                        JOIN pg_class cls ON cls.relname = c.table_name AND cls.relnamespace = 'sales'::regnamespace
+                        JOIN pg_attribute a ON a.attrelid = cls.oid AND a.attname = c.column_name
+                        JOIN column_consistency cc ON c.column_name = cc.column_name
                         WHERE c.table_schema = 'sales'
                         AND c.table_name  = :staging_table
+                        AND a.attnum > 0 AND NOT a.attisdropped
+                    ),
+                    column_types AS (
+                        SELECT
+                            cc.column_name,
+                            cc.always_constant,
+                            CASE
+                                WHEN cc.data_type IN ('character varying','text') THEN 'string'
+                                WHEN cc.data_type IN ('numeric','integer','bigint','real','double precision') THEN 'numeric'
+                                WHEN cc.data_type = 'boolean' THEN 'boolean'
+                                WHEN cc.data_type LIKE 'timestamp%' THEN 'timestamptz'
+                                WHEN cc.data_type IN ('json','jsonb') THEN 'jsonb'
+                                ELSE 'string'
+                            END::attr_data_type AS col_attr_type
+                        FROM column_classification cc
                     )
                     INSERT INTO sales.sales_batch_header_map_test (
                         sales_batch_id,
@@ -282,9 +302,14 @@ def activity_salesIngestor_eavPrelude(settings: dict):
                     JOIN attributes a
                     ON a.name = ir.standardized_attribute_name
                     AND a.data_type = ct.col_attr_type
-                    AND a.entity_type_id IN (
-                        (SELECT entity_type_id FROM entity_types WHERE name = 'transaction'),
-                        (SELECT entity_type_id FROM entity_types WHERE name = 'line_item')
+                    AND (
+                        (ct.always_constant = TRUE AND a.entity_type_id = (
+                            SELECT entity_type_id FROM entity_types WHERE name = 'transaction'
+                        ))
+                        OR
+                        (ct.always_constant = FALSE AND a.entity_type_id = (
+                            SELECT entity_type_id FROM entity_types WHERE name = 'line_item'
+                        ))
                     )
                     ON CONFLICT (sales_batch_id, original_attribute_name, standardized_attribute_id) DO NOTHING
                     """).bindparams(

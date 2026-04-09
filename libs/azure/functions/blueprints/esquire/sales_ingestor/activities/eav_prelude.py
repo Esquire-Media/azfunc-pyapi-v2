@@ -224,26 +224,79 @@ def activity_salesIngestor_eavPrelude(settings: dict):
 
         batch_mapping_rows = [
             {
-                "sales_batch_id": settings["metadata"]["upload_id"],
-                "original_header": original_header,
-                "standardized_attribute": standardized_attribute,
+                "original_attribute_name": original_attribute_name,
+                "standardized_attribute_name": standardized_attribute,
             }
-            for original_header, std_list in raw_to_standardized.items()
+            for original_attribute_name, std_list in raw_to_standardized.items()
             for standardized_attribute in std_list
         ]
 
         if batch_mapping_rows:
+            stmt = text(
+                    """
+                    WITH input_rows AS (
+                        SELECT
+                            CAST(:sales_batch_id AS uuid) AS sales_batch_id,
+                            x.original_attribute_name,
+                            x.standardized_attribute_name
+                        FROM jsonb_to_recordset(:rows) AS x(
+                            original_attribute_name text,
+                            standardized_attribute_name text
+                        )
+                    ),
+                    column_types AS (
+                        SELECT
+                            c.column_name,
+                            CASE
+                                WHEN format_type(a.atttypid, a.atttypmod) IN ('character varying','text') THEN 'string'
+                                WHEN format_type(a.atttypid, a.atttypmod) IN ('numeric','integer','bigint','real','double precision') THEN 'numeric'
+                                WHEN format_type(a.atttypid, a.atttypmod) = 'boolean' THEN 'boolean'
+                                WHEN format_type(a.atttypid, a.atttypmod) LIKE 'timestamp%' THEN 'timestamptz'
+                                WHEN format_type(a.atttypid, a.atttypmod) IN ('json','jsonb') THEN 'jsonb'
+                                ELSE 'string'
+                            END::attr_data_type AS col_attr_type
+                        FROM information_schema.columns c
+                        JOIN pg_class cls
+                        ON cls.relname = :staging_table
+                        AND cls.relnamespace = 'sales'::regnamespace
+                        JOIN pg_attribute a
+                        ON a.attrelid = cls.oid
+                        AND a.attname  = c.column_name
+                        AND a.attnum > 0
+                        AND NOT a.attisdropped
+                        WHERE c.table_schema = 'sales'
+                        AND c.table_name  = :staging_table
+                    )
+                    INSERT INTO sales.sales_batch_header_map_test (
+                        sales_batch_id,
+                        original_attribute_name,
+                        standardized_attribute_id
+                    )
+                    SELECT
+                        ir.sales_batch_id,
+                        ir.original_attribute_name,
+                        a.id
+                    FROM input_rows ir
+                    JOIN column_types ct
+                    ON ct.column_name = ir.standardized_attribute_name
+                    JOIN attributes a
+                    ON a.name = ir.standardized_attribute_name
+                    AND a.data_type = ct.col_attr_type
+                    AND a.entity_type_id IN (
+                        (SELECT entity_type_id FROM entity_types WHERE name = 'transaction'),
+                        (SELECT entity_type_id FROM entity_types WHERE name = 'line_item')
+                    )
+                    ON CONFLICT (sales_batch_id, original_attribute_name, standardized_attribute_id) DO NOTHING
+                    """).bindparams(
+                        bindparam("rows", value=batch_mapping_rows, type_=JSONB)
+                    )
+            
             conn.execute(
-                text(
-                    """
-                    INSERT INTO sales.sales_batch_header_map
-                        (sales_batch_id, original_header, standardized_attribute)
-                    VALUES
-                        (:sales_batch_id, :original_header, :standardized_attribute)
-                    ON CONFLICT (sales_batch_id, original_header, standardized_attribute) DO NOTHING
-                    """
-                ),
-                batch_mapping_rows,
+                stmt,
+                {
+                    "sales_batch_id": settings["metadata"]["upload_id"],
+                    "staging_table": settings["staging_table"],
+                },
             )
 
         logger.info(

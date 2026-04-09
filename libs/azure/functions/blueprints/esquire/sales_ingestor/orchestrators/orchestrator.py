@@ -17,6 +17,8 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         settings["metadata"]["upload_timestamp"] = context.current_utc_datetime.isoformat()
         settings["metadata"]["upload_id"] = context.new_uuid()
 
+        logger.warning(f'[LOG] batch upload id: {settings["metadata"]["upload_id"]}')
+
         retry = RetryOptions(15000, 3)
 
         table_name = f"staging_{settings['metadata']['upload_id']}"

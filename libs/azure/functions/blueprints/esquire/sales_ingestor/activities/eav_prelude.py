@@ -287,7 +287,7 @@ def activity_salesIngestor_eavPrelude(settings: dict):
                             END::attr_data_type AS col_attr_type
                         FROM column_classification cc
                     )
-                    INSERT INTO sales.sales_batch_header_map_test (
+                    INSERT INTO sales.sales_batch_header_map (
                         sales_batch_id,
                         original_attribute_name,
                         standardized_attribute_id

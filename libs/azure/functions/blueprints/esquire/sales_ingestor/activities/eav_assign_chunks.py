@@ -84,17 +84,21 @@ def activity_salesIngestor_assignChunks(settings: dict):
         conn.execute(text(f"DROP TABLE IF EXISTS {temp_table};"))
         conn.execute(text(f"CREATE TEMP TABLE {temp_table} (order_key text, chunk_id int);"))
 
-        for key, cid in chunks.items():
-            conn.execute(
-                text(f"INSERT INTO {temp_table} VALUES (:k, :cid)"),
-                {"k": key, "cid": cid},
-            )
+        _bulk_insert_chunks(conn, temp_table, chunks)
 
         index_sql = text(
             f"""
             CREATE INDEX IF NOT EXISTS idx_chunk_id
             ON {staging_table}(chunk_id);
             """
+        )
+        conn.execute(index_sql)
+
+        index_sql = text(
+            f'''
+            CREATE INDEX IF NOT EXISTS idx_{settings["staging_table"].replace("-", "")}_order
+            ON {staging_table} ("{order_col}");
+            '''
         )
         conn.execute(index_sql)
 
@@ -114,3 +118,17 @@ def activity_salesIngestor_assignChunks(settings: dict):
         )
 
         return list(range(1, total_chunks + 1))
+    
+def _bulk_insert_chunks(conn, temp_table: str, chunks: dict, batch_size: int = 5000):
+    items = list(chunks.items())
+    for i in range(0, len(items), batch_size):
+        batch = items[i:i + batch_size]
+        rows = [{"k": k, "cid": v} for k, v in batch]
+
+        conn.execute(
+            text(f"""
+                INSERT INTO {temp_table} (order_key, chunk_id)
+                VALUES (:k, :cid)
+            """),
+            rows,
+        )

@@ -140,8 +140,6 @@ def rewrite_demographic_fields(json_logic: dict | str) -> dict:
     DIRECT_RENAME = {
         "homeOwner": "home_owner",
         "hasCredit": "has_credit",
-        "state": "state",
-        "city": "city",
     }
 
     NUMERIC_RENAME = {
@@ -150,6 +148,8 @@ def rewrite_demographic_fields(json_logic: dict | str) -> dict:
     }
 
     CATEGORICAL_RENAME = {
+        "state": "state",
+        "city": "city",
     }
 
     # zipcode fields, need to ensure leading zeroes

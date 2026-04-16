@@ -17,6 +17,8 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         settings["metadata"]["upload_timestamp"] = context.current_utc_datetime.isoformat()
         settings["metadata"]["upload_id"] = context.new_uuid()
 
+        logger.warning(f'[LOG] batch upload id: {settings["metadata"]["upload_id"]}')
+
         retry = RetryOptions(15000, 3)
 
         table_name = f"staging_{settings['metadata']['upload_id']}"
@@ -39,6 +41,16 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
                 }
             )
         
+        # standardize our field names
+        yield context.call_activity_with_retry(
+            "activity_salesIngestor_standardizeColumns",
+            retry,
+            {
+                "table_name": table_name,
+                **settings
+            }
+        )
+        
         # 1.5 intermediate cleaning
         yield context.call_activity_with_retry(
             "activity_salesIngestor_intermediate_processing",
@@ -48,7 +60,7 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
                 **settings
             }
         )
-        
+
         # 2. infer data types and alter the fields as necessary
         yield context.call_activity_with_retry(
             "activity_salesIngestor_inferDataTypes",

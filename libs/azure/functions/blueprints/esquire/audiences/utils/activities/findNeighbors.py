@@ -12,7 +12,9 @@ from azure.storage.blob import (
     ContentSettings,
     BlobSasPermissions,
     generate_blob_sas,
+    BlobServiceClient
 )
+from azure.core.exceptions import ResourceExistsError
 
 from libs.utils.azure_storage import get_cached_blob_client
 from libs.utils.esquire.neighbors.logic_async import (
@@ -42,6 +44,7 @@ def _stage_iterable_as_blocks(
 
     return blocks
 
+import logging
 
 def _partition_csv_bytes(
     city: str,
@@ -54,6 +57,7 @@ def _partition_csv_bytes(
 ) -> bytes:
 
     if not addresses:
+        logging.warning(f"[LOG] No addresses coming into _partition_csv_bytes")
         return b""
 
     df = pd.DataFrame(addresses)
@@ -72,6 +76,18 @@ def _partition_csv_bytes(
 
     if estated_df.empty:
         return b""
+    
+    df["street_name"] = (
+        df["street_name"]
+        .astype(str)
+        .map(_normalize_street_name)
+    )
+
+    estated_df["street_name"] = (
+        estated_df["street_name"]
+        .astype(str)
+        .map(_normalize_street_name)
+    )
 
     group_results: list[pd.DataFrame] = []
     est_street = estated_df["street_name"]
@@ -90,6 +106,9 @@ def _partition_csv_bytes(
 
         if not neighbors_df.empty:
             group_results.append(neighbors_df)
+        else:
+            
+            logging.warning(f"[LOG] No neighbors for {city}, {state}, {zip_code}, {street_name}")
 
     if not group_results:
         return b""
@@ -101,6 +120,38 @@ def _partition_csv_bytes(
 
     return out_df.to_csv(index=False, header=False).encode("utf-8")
 
+
+def persist_neighbors_blob_to_history(dest_blob, run_id: str) -> None:
+    container_name = os.getenv("NEIGHBORS_HISTORICAL_CONTAINER_NAME")
+
+    if not container_name:
+        return
+
+    try:
+        # Reuse SAME storage account as dest_blob
+        blob_service = BlobServiceClient(
+            account_url=f"https://{dest_blob.account_name}.blob.core.windows.net",
+            credential=dest_blob.credential,
+        )
+
+        container_client = blob_service.get_container_client(container_name)
+
+        try:
+            container_client.create_container()
+        except ResourceExistsError:
+            pass
+
+        blob_filename = dest_blob.blob_name.split("/")[-1]
+        dest_path = f"neighbors-history/{run_id}/{blob_filename}"
+
+        historical_blob = container_client.get_blob_client(dest_path)
+
+        # Same account → no SAS needed
+        historical_blob.start_copy_from_url(dest_blob.url)
+
+    except Exception:
+        pass
+        # logging.warning(f"Historical copy failed: {e}")
 
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudiencesNeighbors_processBatch_blockblob(
@@ -120,7 +171,7 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
 
     conn_str = os.getenv(dest["conn_str"], dest["conn_str"])
     container_name = dest["container_name"]
-    blob_prefix = dest.get("blob_prefix", "").strip("/")
+    blob_prefix = str(dest.get("blob_prefix", "")).strip("/")
 
     blob_name = (
         f"{blob_prefix}/batch-{batch_index:05d}.csv"
@@ -138,12 +189,12 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
     for url in source_urls:
         bc = get_cached_blob_client(url)
         csv_bytes = bc.download_blob().readall()
-        rows = pd.read_csv(pd.io.common.BytesIO(csv_bytes)).to_dict("records")
+        rows = pd.read_csv(pd.io.common.BytesIO(csv_bytes),dtype={"zipCode": "string", "plus4Code": "string"},).to_dict("records")
 
         for row in rows:
             key = (
-                row.get("city", "").strip().upper(),
-                row.get("state", "").strip().upper(),
+                str(row.get("city", "")).strip().upper(),
+                str(row.get("state", "")).strip().upper(),
                 str(row.get("zipCode", "")).strip().zfill(5),
             )
             addresses_by_partition.setdefault(key, []).append(row)
@@ -152,9 +203,9 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
         header_written = False
 
         for part in partitions:
-            city = part["city"].strip().upper()
-            state = part["state"].strip().upper()
-            zip_code = part["zip"].strip()
+            city = str(part["city"]).strip().upper()
+            state = str(part["state"]).strip().upper()
+            zip_code = str(part["zip"]).strip().zfill(0)
 
             key = (city, state, zip_code)
             addresses = addresses_by_partition.get(key, [])
@@ -179,6 +230,8 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
     block_list = _stage_iterable_as_blocks(dest_blob, _iter_partition_blocks())
 
     if not block_list:
+        import logging
+        logging.warning("[LOG] No block lists from neighbors, commiting empty block")
         dest_blob.upload_blob(
             b"",
             overwrite=True,
@@ -189,6 +242,11 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
             block_list,
             content_settings=ContentSettings(content_type="text/csv"),
         )
+
+    persist_neighbors_blob_to_history(
+        dest_blob=dest_blob,
+        run_id=run_id
+    )
 
     return (
         dest_blob.url
@@ -202,3 +260,19 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
             expiry=datetime.utcnow().replace(hour=23, minute=59),
         )
     )
+
+import re
+
+_ORDINAL_SUFFIX_RE = re.compile(r"^(\d+)(ST|ND|RD|TH)$")
+
+def _normalize_street_name(value: str) -> str:
+    if not value:
+        return ""
+
+    v = str(value).strip().upper()
+
+    match = _ORDINAL_SUFFIX_RE.match(v)
+    if match:
+        return match.group(1)  # strip suffix
+
+    return v

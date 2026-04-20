@@ -91,6 +91,7 @@ def rewrite_demographic_fields(json_logic: dict | str) -> dict:
     Rewrite incoming demographic JsonLogic into storage-aligned JsonLogic.
     - Expands QueryBuilder-style select fields into one-hot boolean columns.
     - Renames direct-storage fields (e.g., homeOwner -> home_owner).
+    - Supports direct categorical/location fields such as state/city/zip/zip4.
     Handles QueryBuilder-style `all` operator correctly.
     """
     import ast
@@ -147,7 +148,34 @@ def rewrite_demographic_fields(json_logic: dict | str) -> dict:
     }
 
     CATEGORICAL_RENAME = {
+        "state": "state",
+        "city": "city",
     }
+
+    # zipcode fields, need to ensure leading zeroes
+    ZIP_CATEGORICAL_RENAME = {
+        "zip": "zip",
+        "zip4": "zip4",
+    }
+
+    ZIP_VALUE_FIELDS = set(ZIP_CATEGORICAL_RENAME)
+
+    # ensure leading-zero for zipcodes
+    def _normalize_zip_scalar(field: str, value):
+        if field == "zip":
+            return str(value).zfill(5)
+        if field == "zip4":
+            return str(value).zfill(4)
+        return value
+
+    def _normalize_zip_list(field: str, values):
+        if not isinstance(values, list):
+            return values
+        if field == "zip":
+            return [str(v).zfill(5) for v in values]
+        if field == "zip4":
+            return [str(v).zfill(4) for v in values]
+        return values
 
     def process(node):
         if isinstance(node, dict):
@@ -189,6 +217,15 @@ def rewrite_demographic_fields(json_logic: dict | str) -> dict:
                             return process(conditions[0])
                         return {"or": [process(c) for c in conditions]}
 
+                    # zipcode handling path
+                    if field in ZIP_CATEGORICAL_RENAME:
+                        return {
+                            "in": [
+                                {"var": ZIP_CATEGORICAL_RENAME[field]},
+                                _normalize_zip_list(field, right),
+                            ]
+                        }
+                    
                     # Categorical rename (rare path)
                     if field in CATEGORICAL_RENAME:
                         return {"in": [{"var": CATEGORICAL_RENAME[field]}, right]}
@@ -210,6 +247,9 @@ def rewrite_demographic_fields(json_logic: dict | str) -> dict:
                     if isinstance(right, int):
                         right = str(right)
 
+                if isinstance(left, dict) and left.get("var") in ZIP_VALUE_FIELDS:
+                    right = _normalize_zip_scalar(left["var"], right)
+
                 return {"==": [process(left), process(right)]}
 
             # --- VAR RENAME ---
@@ -221,6 +261,9 @@ def rewrite_demographic_fields(json_logic: dict | str) -> dict:
 
                 if var_name in NUMERIC_RENAME:
                     return {"var": NUMERIC_RENAME[var_name]}
+                
+                if var_name in ZIP_CATEGORICAL_RENAME:
+                    return {"var": ZIP_CATEGORICAL_RENAME[var_name]}
 
                 if var_name in CATEGORICAL_RENAME:
                     return {"var": CATEGORICAL_RENAME[var_name]}

@@ -57,7 +57,7 @@ def _normalize_datatype_for_format(data_type: str) -> str:
     return "CSV_HEADER" if dt == "addresses" else "CSV"
 
 
-def _build_postgres_query(ds_cfg: Dict[str, Any], where_clause: str) -> str:
+def _build_postgres_query(ds_cfg: Dict[str, Any], where_clause: str, audience: Dict[str, Any]) -> str:
     """
     Deterministically build a Postgres SELECT query string for non-EAV sources.
     """
@@ -66,14 +66,39 @@ def _build_postgres_query(ds_cfg: Dict[str, Any], where_clause: str) -> str:
     schema = table_cfg.get("schema")
     schema_prefix = f"\"{schema}\"." if schema else ""
     table_name = f"\"{table_cfg.get('name', '').strip()}\""
+
+    filter_sql = _evaluate_filter(ds_cfg, audience)
+
     return f"""
         SELECT {proj_conf.get('select', '*')} 
         FROM {schema_prefix}{table_name} 
         WHERE 
             {where_clause} AND
-            {ds_cfg.get('query', {}).get('filter', '1=1')}
+            {filter_sql}
     """.strip()
 
+def _evaluate_filter(ds_cfg: Dict[str, Any], audience: Dict[str, Any]) -> str:
+    query_cfg = ds_cfg.get("query", {}) or {}
+    filter_cfg = query_cfg.get("filter")
+
+    if not filter_cfg:
+        return "1=1"
+
+    if isinstance(filter_cfg, str):
+        return filter_cfg.strip()
+
+    ds_id = audience.get("dataSource", {}).get("id")
+
+    if callable(filter_cfg) and ds_id == "clwjn2q4s0056rw04ra44j8k9":
+        ttl_length = audience.get("TTL_Length")
+        ttl_unit = audience.get("TTL_Unit")
+
+        if ttl_length is None or not ttl_unit:
+            raise ValueError("Movers filter requires TTL_Length and TTL_Unit")
+
+        return str(filter_cfg(ttl_length, ttl_unit)).strip()
+
+    raise TypeError(f"Unsupported filter type: {type(filter_cfg)}")
 
 def _stable_sorted_urls(urls: List[str]) -> List[str]:
     """
@@ -167,7 +192,7 @@ def orchestrator_esquireAudiences_primaryData(
                 },
             )
         else:
-            ingress_query = _build_postgres_query(ds_cfg, audience_filter)
+            ingress_query = _build_postgres_query(ds_cfg, audience_filter, audience)
 
         # Execute the query to blob once (no duplicate calls)
         ingress_results = yield context.call_sub_orchestrator(

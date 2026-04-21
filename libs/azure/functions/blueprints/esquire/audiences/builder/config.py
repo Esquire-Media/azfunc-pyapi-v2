@@ -47,7 +47,7 @@ MAPPING_DATASOURCE = {
         },
         "query": {
             "select": "add1 AS address, city, st AS state, zip AS \"zipCode\"",
-            "filter": lambda length, unit: f" AND keycode >= NOW() - INTERVAL {length} {unit[0]}"
+            "filter": lambda length, unit: f"keycode >= NOW() - INTERVAL {length} {unit[0]}"
         },
     },
     # Esquire audiences

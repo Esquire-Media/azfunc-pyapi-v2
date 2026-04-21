@@ -269,7 +269,7 @@ def enforce_bindings():
             },
             "query": {
                 "select": "add1 AS address, city, st AS state, zip as zipCode",
-                "filter": lambda length, unit: f"keycode >= NOW() - INTERVAL {length} {unit[0]}"
+                "filter": lambda length, unit: f"keycode >= NOW() - INTERVAL '{length} {unit}'"
             },
         },
         # Esquire audiences

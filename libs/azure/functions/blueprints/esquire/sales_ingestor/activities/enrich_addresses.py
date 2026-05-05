@@ -393,6 +393,8 @@ def process_batch_fast(
         with eng.begin() as conn2:
             conn2.execute(stmt.on_conflict_do_nothing(index_elements=["id"]))
 
+    cleaned["hashed_address_id"] = cleaned["address_id"].astype(str)
+
     upsert_address_attributes(cleaned)
 
     return f"{scope} enrichment complete"
@@ -455,6 +457,7 @@ def upsert_address_attributes(cleaned: pd.DataFrame):
         "lacs_link_indicator",
         "is_suite_link_match",
         "enhanced_match",
+        "hashed_address_id",
     ]
 
     rows = [
@@ -500,12 +503,17 @@ def upsert_address_attributes(cleaned: pd.DataFrame):
     if "zipcode" in cleaned.columns:
         cleaned["zipcode"] = cleaned["zipcode"].apply(format_zipcode)
 
+    available_attribute_names = [col for col in attribute_names if col in cleaned.columns]
+
     eav_rows = []
-    for entry in cleaned[attribute_names + ["address_id"]].dropna(how="any").itertuples(index=False):
-        aid = str(entry.address_id)
-        for col in attribute_names:
+
+    for entry in cleaned[available_attribute_names + ["address_id"]].itertuples(index=False):
+        aid = str(getattr(entry, "address_id"))
+
+        for col in available_attribute_names:
             val = getattr(entry, col, None)
-            if val:
+
+            if pd.notna(val) and str(val).strip():
                 eav_rows.append(
                     {
                         "entity_id": aid,

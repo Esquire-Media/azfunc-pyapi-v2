@@ -304,14 +304,14 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
     for db_attr, logic_obj in txn_attr_exprs.items():
         expr_json = json.dumps(logic_obj)
         txn_kv_pairs_sql_parts.append(
-            f"'{db_attr}', '{expr_json}'::jsonb"
+            f"sales.resolve_attribute_ids(c.tenant_id, '{db_attr}'), '{expr_json}'::jsonb"
         )
 
     # Optional sale_date pair (only if days_back present)
     sale_date_pair_sql = ""
     if isinstance(days_back, int) and days_back >= 0:
         sale_date_pair_sql = (
-            "'sale_date', "
+            "sales.resolve_attribute_ids(c.tenant_id, 'sale_date'), "
             f"jsonb_build_object('>=', NOW() - INTERVAL '{int(days_back)} DAY')"
         )
 

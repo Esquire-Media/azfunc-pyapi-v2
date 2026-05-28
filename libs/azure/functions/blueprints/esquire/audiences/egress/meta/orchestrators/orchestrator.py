@@ -194,7 +194,7 @@ def meta_customaudience_orchestrator(context: DurableOrchestrationContext):
         while True:
             context.set_custom_status("Adding users to Meta Audience (REPLACE).")
             session = yield context.call_activity(
-                ACT_ADD_USERS,
+                ACT_REPLACE_USERS,
                 {
                     **ingress,
                     "sql": {

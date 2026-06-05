@@ -17,37 +17,65 @@ from libs.utils.time import get_local_timezone
 from libs.azure.key_vault import KeyVaultClient
 
 class Observations:
-    def __init__(self, data):
+    def __init__(self, data, end_date=None):
         """
         Object representing a device observations audience.
 
         Params:
 
         * data : pandas dataframe of a raw Onspot Device Observations file.
+        * end_date : report end date as YYYY-MM-DD. Expected to be a Sunday.
         """
-        
-        # determine the timezone where this location exists
-        # local_timezone = get_local_timezone(latitude=data['lat'].median(), longitude=data['lng'].median())
-        # data['Datetime'] = data['timestamp'].apply(lambda x: dt.fromtimestamp(x/1000, tz=local_timezone))
-        # data["Datetime"] = pd.to_datetime(data["Date"] + " " + data["Time"], format="ISO8601", dayfirst=False)
-        dt_str = data["Date"].astype(str).str.strip() + " " + data["Time"].astype(str).str.strip()
-        data["Datetime"] = _parse_iso_datetime_utc(dt_str)
-        
-        # get date and time from the timestamp
-        data['Date'] = data['Datetime'].apply(lambda x: x.date())
-        data['Time'] = data['Datetime'].apply(lambda x: x.time())
+
+        data = data.copy()
+
+        # Onspot Date/Time is being treated as UTC first.
+        dt_str = (
+            data["Date"].astype(str).str.strip()
+            + " "
+            + data["Time"].astype(str).str.strip()
+        )
+        data["DatetimeUTC"] = _parse_iso_datetime_utc(dt_str)
+
+        # Convert back to local store time before deriving Date/Week.
+        local_timezone = get_local_timezone(
+            latitude=data["lat"].median(),
+            longitude=data["lng"].median(),
+        )
+
+        data["Datetime"] = data["DatetimeUTC"].apply(
+            lambda x: x.astimezone(local_timezone)
+        )
+
+        data["Date"] = data["Datetime"].apply(lambda x: x.date())
+        data["Time"] = data["Datetime"].apply(lambda x: x.time())
+
+        # Trim to the intended 16-week report window.
+        if end_date is not None:
+            report_end = dt.fromisoformat(end_date).date()
+            report_start = report_end - timedelta(days=111)
+
+            data = data[
+                (data["Date"] >= report_start)
+                & (data["Date"] <= report_end)
+            ].copy()
+
         self.raw_data = data.copy()
 
-        data = data.drop_duplicates(subset=['deviceid','Date'])
+        data = data.drop_duplicates(subset=["deviceid", "Date"])
 
-        # get other dates in week
-        base = pd.to_datetime(data['Date'], errors='coerce', utc=True)
+        # Derive weeks from local dates.
+        base = pd.to_datetime(data["Date"], errors="coerce").dt.normalize()
 
-        # normalize to midnight, strip tz
-        base = base.dt.tz_convert(None).dt.normalize()
+        iso = base.dt.isocalendar()
+        data["ISOYear"] = iso.year.astype(int)
+        data["Week"] = iso.week.astype(int)
 
-        data['Week'] = base.dt.isocalendar().week
+        data["EarliestDate"] = base - pd.to_timedelta(base.dt.weekday, unit="D")
+        data["LatestDate"] = data["EarliestDate"] + pd.to_timedelta(6, unit="D")
+        data["RefDate"] = data["EarliestDate"] + pd.to_timedelta(3, unit="D")
 
+<<<<<<< Updated upstream
         data = data[data['Week'] != data['Week'].max()]
 
         data['EarliestDate'] = base - pd.to_timedelta(base.dt.weekday, unit='D')
@@ -57,23 +85,45 @@ class Observations:
         data['EarliestDate'] = pd.to_datetime(data['EarliestDate'])
         data['LatestDate'] = pd.to_datetime(data['LatestDate'])
         data['RefDate'] = pd.to_datetime(data['RefDate'])
+=======
+        data["EarliestDate"] = pd.to_datetime(data["EarliestDate"])
+        data["LatestDate"] = pd.to_datetime(data["LatestDate"])
+        data["RefDate"] = pd.to_datetime(data["RefDate"])
+>>>>>>> Stashed changes
 
-        # format as a weekly count (used for most of the summary stats)
         self.obs = data.pivot_table(
-            index=['Week','RefDate','EarliestDate','LatestDate'],
-            values=['deviceid'],
-            aggfunc='count'
+            index=["ISOYear", "Week", "RefDate", "EarliestDate", "LatestDate"],
+            values=["deviceid"],
+            aggfunc="count",
         )
-        self.obs = self.obs.sort_values('RefDate').reset_index()
-        self.obs['traffic_pct'] = round(100 * (self.obs['deviceid'] - self.obs['deviceid'].mean()) / self.obs['deviceid'].mean(),1)
-        # calculate weeks of consecutive growth (used in summary bullet points)
-        self.obs['Weeks of Growth'] = 0
+        self.obs = self.obs.sort_values("RefDate").reset_index()
+
+        # Keep only complete weeks ending on or before the requested Sunday.
+        # Then keep the final 16 complete weeks.
+        if end_date is not None:
+            report_end_ts = pd.Timestamp(report_end)
+            self.obs = self.obs[self.obs["LatestDate"] <= report_end_ts].copy()
+            self.obs = self.obs.tail(16).copy()
+
+        if len(self.obs) == 0:
+            raise ValueError(
+                "No observations remain after trimming to the report window."
+            )
+
+        avg = self.obs["deviceid"].mean()
+        self.obs["traffic_pct"] = round(
+            100 * (self.obs["deviceid"] - avg) / avg,
+            1,
+        )
+
+        self.obs["Weeks of Growth"] = 0
         for index, row in self.obs.iterrows():
             if index > 0:
-                if self.obs.loc[index]['traffic_pct'] > self.obs.loc[index-1]['traffic_pct']:
-                    self.obs.at[index, 'Weeks of Growth'] = self.obs.loc[index-1]['Weeks of Growth'] + 1
+                if self.obs.loc[index, "traffic_pct"] > self.obs.loc[index - 1, "traffic_pct"]:
+                    self.obs.at[index, "Weeks of Growth"] = (
+                        self.obs.loc[index - 1, "Weeks of Growth"] + 1
+                    )
 
-        # save with latlongs retained (for heatmap)
         self.latlongs = data
 
     def get_latest_week(self):
@@ -177,8 +227,16 @@ class Observations:
         ax3.plot([self.get_best_week()['RefDate']],   [self.get_best_week()['traffic_pct']],   'o', markersize=12, color='#449fd8')
         ax3.plot([self.get_worst_week()['RefDate']],  [self.get_worst_week()['traffic_pct']],  'o', markersize=12, color='#449fd8')
         # half-fill the circles if two attributes overlap
-        best_fill = 'right' if self.get_latest_week()['Week'] == self.get_best_week()['Week'] else 'full'
-        worst_fill = 'right' if self.get_latest_week()['Week'] == self.get_worst_week()['Week'] else 'full'
+        best_fill = (
+            "right"
+            if self.get_latest_week()["RefDate"] == self.get_best_week()["RefDate"]
+            else "full"
+        )
+        worst_fill = (
+            "right"
+            if self.get_latest_week()["RefDate"] == self.get_worst_week()["RefDate"]
+            else "full"
+        )
         # colored marker centers for best, worst, and latest weeks
         ax3.plot([self.get_latest_week()['RefDate']], [self.get_latest_week()['traffic_pct']], marker=MarkerStyle('o', fillstyle='full'),     markersize=7, color='#035FC5', markeredgewidth=0)
         ax3.plot([self.get_best_week()['RefDate']],   [self.get_best_week()['traffic_pct']],   marker=MarkerStyle('o', fillstyle=best_fill),  markersize=7, color='#6CBE4F', markeredgewidth=0)
@@ -371,10 +429,10 @@ class Observations:
             latest_performance = round(latest_performance,1)
         
         # current week is new best
-        if latest_week['Week'] == best_week['Week']:
+        if latest_week["RefDate"] == best_week["RefDate"]:
             bullet = f"Week {latest_week['Week']} has set a new high in market traffic within the last 4 months, with {latest_performance}% above the average."
         # current week is new worst
-        elif latest_week['Week'] == worst_week['Week']:
+        elif latest_week["RefDate"] == worst_week["RefDate"]:
             bullet = f"Week {latest_week['Week']} has set a new low in market traffic within the last 4 months, with {latest_performance}% below the average."
         # current week is above average
         elif latest_performance >= 0:
@@ -397,7 +455,7 @@ class Observations:
         recent_max = self.obs.iloc[rev['Weeks of Growth'].idxmax()]
         
         # if latest growth period ends in current week
-        if (recent_max['Week'] == latest_week['Week']):
+        if recent_max["RefDate"] == latest_week["RefDate"]:
             bullet = f"As of Week {recent_max['Week']} {dates_to_range(recent_max['EarliestDate'], recent_max['LatestDate'])} there have been {max_weeks_of_growth} consecutive weeks of growth."
         # if latest growth period is no longer active
         else:
@@ -616,4 +674,64 @@ def sort_by_list(column, sort_list):
 
 def _parse_iso_datetime_utc(datetime_series: pd.Series) -> pd.Series:
     from dateutil import parser
-    return datetime_series.apply(lambda x: parser.isoparse(x).astimezone(tz=pd.Timestamp.utcnow().tz))
+    from datetime import timezone
+
+    def parse_one(x):
+        parsed = parser.isoparse(x)
+
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+
+        return parsed.astimezone(timezone.utc)
+
+    return datetime_series.apply(parse_one)
+
+def debug_week_counts(data: pd.DataFrame) -> pd.DataFrame:
+    """
+    Diagnostic helper for validating UTC-vs-local week assignment.
+
+    If UTCWeekStart shows a week after the requested Sunday while LocalWeekStart
+    does not, the issue is timezone spillover.
+    """
+
+    out = data.copy()
+
+    dt_str = (
+        out["Date"].astype(str).str.strip()
+        + " "
+        + out["Time"].astype(str).str.strip()
+    )
+
+    out["DatetimeUTC"] = _parse_iso_datetime_utc(dt_str)
+
+    local_timezone = get_local_timezone(
+        latitude=out["lat"].median(),
+        longitude=out["lng"].median(),
+    )
+
+    out["DatetimeLocal"] = out["DatetimeUTC"].apply(
+        lambda x: x.astimezone(local_timezone)
+    )
+
+    out["UTCDate"] = out["DatetimeUTC"].apply(lambda x: x.date())
+    out["LocalDate"] = out["DatetimeLocal"].apply(lambda x: x.date())
+
+    utc_base = pd.to_datetime(out["UTCDate"]).dt.normalize()
+    local_base = pd.to_datetime(out["LocalDate"]).dt.normalize()
+
+    out["UTCWeekStart"] = utc_base - pd.to_timedelta(utc_base.dt.weekday, unit="D")
+    out["LocalWeekStart"] = local_base - pd.to_timedelta(local_base.dt.weekday, unit="D")
+
+    return (
+        out.groupby(["UTCWeekStart", "LocalWeekStart"])
+        .agg(
+            rows=("deviceid", "size"),
+            unique_devices=("deviceid", "nunique"),
+            min_utc=("DatetimeUTC", "min"),
+            max_utc=("DatetimeUTC", "max"),
+            min_local=("DatetimeLocal", "min"),
+            max_local=("DatetimeLocal", "max"),
+        )
+        .reset_index()
+        .sort_values(["LocalWeekStart", "UTCWeekStart"])
+    )

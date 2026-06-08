@@ -49,3 +49,5 @@ def activity_salesIngestor_cleanup(settings: dict):
 
         conn.commit()
 
+    return {}
+

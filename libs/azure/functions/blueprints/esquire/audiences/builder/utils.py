@@ -47,6 +47,16 @@ def jsonlogic_to_sql(json_logic):
             if "or" in logic:
                 conditions = [parse_logic(sub_logic) for sub_logic in logic["or"]]
                 return " OR ".join(f"({condition})" for condition in conditions)
+            
+            if "!" in logic:
+                operand = logic["!"]
+
+                if isinstance(operand, list):
+                    if len(operand) != 1:
+                        raise ValueError(f"Unsupported '!' structure: {logic['!']}")
+                    operand = operand[0]
+
+                return f"NOT ({parse_logic(operand)})"
 
             elif ">" in logic:
                 left = parse_logic(logic[">"][0])

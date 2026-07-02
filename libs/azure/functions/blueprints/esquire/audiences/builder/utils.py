@@ -59,13 +59,29 @@ def jsonlogic_to_sql(json_logic):
                 return f"{left} >= {right}"
 
             elif "==" in logic:
-                left = parse_logic(logic["=="][0])
-                right = parse_logic(logic["=="][1])
+                left_raw = logic["=="][0]
+                right_raw = logic["=="][1]
+                left = parse_logic(left_raw)
+                right = parse_logic(right_raw)
+
+                if right_raw is None:
+                    return f"{left} IS NULL"
+                if left_raw is None:
+                    return f"{right} IS NULL"
+
                 return f"{left} = {right}"
             
             elif "!=" in logic:
-                left = parse_logic(logic["!="][0])
-                right = parse_logic(logic["!="][1])
+                left_raw = logic["!="][0]
+                right_raw = logic["!="][1]
+                left = parse_logic(left_raw)
+                right = parse_logic(right_raw)
+
+                if right_raw is None:
+                    return f"{left} IS NOT NULL"
+                if left_raw is None:
+                    return f"{right} IS NOT NULL"
+
                 return f"{left} != {right}"
 
             elif "<" in logic:
@@ -117,6 +133,8 @@ def jsonlogic_to_sql(json_logic):
                 # Using GETDATE() for the current timestamp in MSSQL
                 return "GETDATE()"
         # Direct handling for non-dict types (e.g., when logic is a part of a larger operation)
+        elif logic is None:
+            return "NULL"
         elif isinstance(logic, str):
             return f"'{logic}'"
         elif isinstance(logic, int):
@@ -269,7 +287,7 @@ def enforce_bindings():
             },
             "query": {
                 "select": "add1 AS address, city, st AS state, zip as zipCode",
-                "filter": lambda length, unit: f"keycode >= NOW() - INTERVAL '{length} {unit}'"
+                "filter": lambda length, unit: f" AND keycode >= NOW() - INTERVAL {length} {unit[0]}"
             },
         },
         # Esquire audiences

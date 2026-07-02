@@ -1,11 +1,15 @@
 from azure.durable_functions import Blueprint
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import db, qtbl
+from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.field_mapping import (
+    normalize_fields_to_standardized,
+)
 from sqlalchemy import text
-import logging, math
+import logging
 
 bp = Blueprint()
 logger = logging.getLogger("salesIngestor.logger")
 logger.setLevel(logging.INFO)
+
 
 @bp.activity_trigger(input_name="settings")
 def activity_salesIngestor_assignChunks(settings: dict):
@@ -18,13 +22,18 @@ def activity_salesIngestor_assignChunks(settings: dict):
     Returns:
       list[int] — chunk_id values for subsequent fan-out
     """
+    standardized_fields = normalize_fields_to_standardized(settings["fields"])
+
     staging_table = qtbl(settings["staging_table"])
-    order_col     = settings["fields"]["order_info"]["order_num"]
-    target_rows   = int(settings.get("target_rows_per_chunk", 50_000))
+    order_col = standardized_fields["order_info"]["order_num"]
+    target_rows = int(settings.get("target_rows_per_chunk", 50_000))
 
-    logger.info(f"[LOG] Assigning chunk_id for {staging_table}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
+    logger.info(
+        f"[LOG] Assigning chunk_id for {staging_table}",
+        extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
+    )
 
-    # 1️⃣ add chunk_id column if missing
+    # 1. add chunk_id column if missing
     ddl = f"""
     DO $$
     BEGIN
@@ -43,7 +52,7 @@ def activity_salesIngestor_assignChunks(settings: dict):
     with db() as conn:
         conn.execute(text(ddl))
 
-        # 2️⃣ compute number of rows per order to balance chunks
+        # 2. compute number of rows per order to balance chunks
         sql_order_counts = f"""
         SELECT s."{order_col}"::text AS order_key, COUNT(*)::bigint AS n
         FROM {staging_table} s
@@ -52,36 +61,45 @@ def activity_salesIngestor_assignChunks(settings: dict):
         """
         orders = conn.execute(text(sql_order_counts)).mappings().all()
 
-        # 3️⃣ assign sequential chunk ids (stable order)
+        # 3. assign sequential chunk ids (stable order)
         chunks, current_rows, chunk_id = {}, 0, 1
-        for r in orders:
-            n = int(r["n"])
+        for row in orders:
+            n = int(row["n"])
             if current_rows + n > target_rows and current_rows > 0:
                 chunk_id += 1
                 current_rows = 0
-            chunks[r["order_key"]] = chunk_id
+            chunks[row["order_key"]] = chunk_id
             current_rows += n
 
         total_chunks = chunk_id
-        logger.info(f"[LOG] Planned {total_chunks} chunks for {staging_table}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
+        logger.info(
+            f"[LOG] Planned {total_chunks} chunks for {staging_table}",
+            extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
+        )
 
-        # 4️⃣ write assignments deterministically (idempotent UPSERT)
+        # 4. write assignments deterministically (idempotent UPSERT)
         #     Rows with same order_num always get the same chunk_id
         temp_table = f"tmp_chunk_assign_{settings['metadata']['upload_id'].replace('-', '')}"
 
         conn.execute(text(f"DROP TABLE IF EXISTS {temp_table};"))
         conn.execute(text(f"CREATE TEMP TABLE {temp_table} (order_key text, chunk_id int);"))
 
-        for key, cid in chunks.items():
-            conn.execute(
-                text(f"INSERT INTO {temp_table} VALUES (:k, :cid)"),
-                {"k": key, "cid": cid}
-            )
+        _bulk_insert_chunks(conn, temp_table, chunks)
 
-        index_sql = text(f"""        
+        index_sql = text(
+            f"""
             CREATE INDEX IF NOT EXISTS idx_chunk_id
             ON {staging_table}(chunk_id);
-            """)
+            """
+        )
+        conn.execute(index_sql)
+
+        index_sql = text(
+            f'''
+            CREATE INDEX IF NOT EXISTS idx_{settings["staging_table"].replace("-", "")}_order
+            ON {staging_table} ("{order_col}");
+            '''
+        )
         conn.execute(index_sql)
 
         update_sql = f"""
@@ -94,8 +112,23 @@ def activity_salesIngestor_assignChunks(settings: dict):
         conn.execute(text(update_sql))
         conn.commit()
 
-        logger.info(f"[LOG] Assigned chunk_ids 1..{total_chunks} for {staging_table}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
+        logger.info(
+            f"[LOG] Assigned chunk_ids 1..{total_chunks} for {staging_table}",
+            extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
+        )
 
-        # 5️⃣ return list of chunk ids for fan-out
-        chunk_ids = list(range(1, total_chunks + 1))
-        return chunk_ids
+        return list(range(1, total_chunks + 1))
+    
+def _bulk_insert_chunks(conn, temp_table: str, chunks: dict, batch_size: int = 5000):
+    items = list(chunks.items())
+    for i in range(0, len(items), batch_size):
+        batch = items[i:i + batch_size]
+        rows = [{"k": k, "cid": v} for k, v in batch]
+
+        conn.execute(
+            text(f"""
+                INSERT INTO {temp_table} (order_key, chunk_id)
+                VALUES (:k, :cid)
+            """),
+            rows,
+        )

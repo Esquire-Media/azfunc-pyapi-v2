@@ -65,7 +65,10 @@ def activity_locationInsights_buildReport(settings: dict):
                 )
             )
         )
-        observations = Observations(observations_data)
+        observations = Observations(
+            observations_data,
+            end_date=settings["endDate"],
+        )
 
 
     # # load template presentation

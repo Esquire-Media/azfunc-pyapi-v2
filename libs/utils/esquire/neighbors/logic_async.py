@@ -373,7 +373,7 @@ def load_estated_data_db(
                 state,
                 "zipCode",
                 "plus4Code"
-            FROM utils.estated
+            FROM utils.attom
             WHERE city = %s
                 AND state = %s
                 AND "zipCode" = %s

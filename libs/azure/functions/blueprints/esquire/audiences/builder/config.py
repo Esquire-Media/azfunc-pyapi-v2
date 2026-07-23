@@ -10,7 +10,7 @@ if not from_bind("keystone"):
         schemas={
             "keystone":None, 
             "sales":None, 
-            "utils":["estated"]
+            "utils":["attom"]
             },
         pool_size=1000,
         max_overflow=100,
@@ -84,7 +84,7 @@ MAPPING_DATASOURCE = {
         "bind": "keystone",
         "table": {
             "schema": "utils",
-            "name": "estated",
+            "name": "attom",
         },
     },
 }

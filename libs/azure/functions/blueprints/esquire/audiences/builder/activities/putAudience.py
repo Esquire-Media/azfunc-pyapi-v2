@@ -86,7 +86,16 @@ def activity_esquireAudiencesBuilder_putAudience(ingress: Dict[str, Any]) -> Dic
 
     provider = from_bind("keystone")
 
-    if provider is None:
+    models = getattr(provider, "models", None) if provider is not None else None
+    keystone_models = models.get("keystone") if models is not None else None
+    Audience = (
+        keystone_models.get("Audience")
+        if keystone_models is not None
+        else None
+    )
+
+    # Retry registration once if the provider or expected model mapping was not initialized correctly.
+    if provider is None or models is None or keystone_models is None or Audience is None:
         connection_url = os.getenv("DATABIND_SQL_KEYSTONE")
 
         if not connection_url:
@@ -104,21 +113,26 @@ def activity_esquireAudiencesBuilder_putAudience(ingress: Dict[str, Any]) -> Dic
             max_overflow=100,
         )
 
+        # reinstatiate for final checks
         provider = from_bind("keystone")
+
+        models = getattr(provider, "models", None) if provider is not None else None
+        keystone_models = models.get("keystone") if models is not None else None
+        Audience = (
+            keystone_models.get("Audience")
+            if keystone_models is not None
+            else None
+        )
 
     if provider is None:
         raise RuntimeError(
             "Keystone provider was not available after binding registration."
         )
 
-    models = getattr(provider, "models", None)
-
     if models is None:
         raise RuntimeError(
             "Keystone provider was instantiated, but provider.models is None."
         )
-
-    keystone_models = models.get("keystone")
 
     if keystone_models is None:
         available_schemas = list(models.keys())
@@ -127,8 +141,6 @@ def activity_esquireAudiencesBuilder_putAudience(ingress: Dict[str, Any]) -> Dic
             "The 'keystone' schema was not found in provider.models. "
             f"Available schemas: {available_schemas}"
         )
-
-    Audience = keystone_models.get("Audience")
 
     if Audience is None:
         available_models = list(keystone_models.keys())

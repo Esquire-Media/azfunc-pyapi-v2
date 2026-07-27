@@ -373,10 +373,10 @@ def load_estated_data_db(
                 state,
                 "zipCode",
                 "plus4Code"
-            FROM utils.estated
-            WHERE city = %s
+            FROM utils.attom
+            WHERE "zipCode" = %s
+                AND city = %s
                 AND state = %s
-                AND "zipCode" = %s
                 AND NULLIF(
                     regexp_replace(
                         street_number, 

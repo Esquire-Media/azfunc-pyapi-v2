@@ -387,7 +387,7 @@ def load_estated_data_db(
                     ''
                 )::bigint < 999999
             """,
-            (city, state, zip_code),
+            (zip_code, city, state),
         )
 
         rows = cur.fetchall()

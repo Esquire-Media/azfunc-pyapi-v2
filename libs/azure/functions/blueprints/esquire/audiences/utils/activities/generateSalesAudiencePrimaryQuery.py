@@ -395,46 +395,29 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
             )
 
     # -----------------------------
-    # Build JSON for transaction filters (excluding sale_date/parent link)
+    # Build address filter objects
     # -----------------------------
-    txn_attr_exprs: Dict[str, Any] = {}
-
-    # Explicit transaction vars
-    for var, db_attr in transaction_vars.items():
+    for var, db_attr in address_vars.items():
         exprs = collected.get(var, [])
         if not exprs:
             continue
-        txn_attr_exprs[db_attr] = exprs[0] if len(exprs) == 1 else {"and": exprs}
 
-    # Attach custom dynamic field/value if present
-    if custom_attr_name and custom_value_exprs:
-        exprs = custom_value_exprs
-        if custom_attr_name in txn_attr_exprs:
-            existing = txn_attr_exprs[custom_attr_name]
-            if isinstance(existing, dict) and "and" in existing:
-                existing["and"].extend(exprs)
-            else:
-                txn_attr_exprs[custom_attr_name] = {
-                    "and": ([existing] if isinstance(existing, dict) else [existing]) + exprs
-                }
-        else:
-            txn_attr_exprs[custom_attr_name] = exprs[0] if len(exprs) == 1 else {"and": exprs}
+        for expr in exprs:
+            filter_sql_parts.append(
+                render_filter(
+                    scope="address",
+                    logical_name=db_attr,
+                    expected_type="string",
+                    expr=expr,
+                )
+            )
 
-    # Render KV pairs for jsonb_build_object:
-    #   sales.resolve_attribute_ids(c.tenant_id, '<attr>'), '<json>'::jsonb
-    txn_kv_pairs_sql_parts: List[str] = []
-    for db_attr, logic_obj in txn_attr_exprs.items():
-        expr_json = json.dumps(logic_obj)
-        txn_kv_pairs_sql_parts.append(
-            f"sales.resolve_attribute_ids(c.tenant_id, '{db_attr}'), '{expr_json}'::jsonb"
-        )
-
-    # Optional sale_date pair (only if days_back present)
-    sale_date_pair_sql = ""
-    if isinstance(days_back, int) and days_back >= 0:
-        sale_date_pair_sql = (
-            "sales.resolve_attribute_ids(c.tenant_id, 'sale_date'), "
-            f"jsonb_build_object('>=', NOW() - INTERVAL '{int(days_back)} DAY')"
+    filters_sql = "jsonb_build_array()"
+    if filter_sql_parts:
+        filters_sql = (
+            "jsonb_build_array(\n    "
+            + ",\n    ".join(filter_sql_parts)
+            + "\n  )"
         )
 
     all_kv_pairs: List[str] = []

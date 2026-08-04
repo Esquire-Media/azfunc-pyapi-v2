@@ -188,7 +188,7 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
     def render_filter(
         scope: str,
         logical_name: str,
-        expected_type: str,
+        value_type: str,
         expr: Dict[str, Any],
     ) -> str:
         if len(expr) != 1:
@@ -196,15 +196,15 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
 
         (jsonlogic_op, value), = expr.items()
 
-        if expected_type == "string":
+        if value_type == "string":
             if jsonlogic_op == "==":
                 if not isinstance(value, str):
                     raise ValueError(
                         f"String equality requires a string value, received {value!r}."
                     )
                 function_op = "eq"
-                value_key = "value_strings"
-                value_sql = render_text_array([value])
+                value_key = "value_string"
+                value_sql = sql_string(value)
             elif jsonlogic_op == "in":
                 function_op = "in"
                 value_key = "value_strings"
@@ -215,7 +215,7 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
                     f"for string filters; received {jsonlogic_op!r} for "
                     f"{logical_name!r}."
                 )
-        elif expected_type == "numeric":
+        elif value_type == "numeric":
             if jsonlogic_op not in {">", ">="}:
                 raise ValueError(
                     "sales.fn_find_matching_addresses supports only '>' and '>=' "
@@ -231,15 +231,14 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
             value_key = "value_numeric"
             value_sql = str(value)
         else:
-            raise ValueError(f"Unsupported sales filter type: {expected_type!r}.")
+            raise ValueError(f"Unsupported sales filter type: {value_type!r}.")
 
         return (
             "jsonb_build_object(\n"
-            f"      'scope',         {sql_string(scope)},\n"
-            f"      'logical_name',  {sql_string(logical_name)},\n"
-            f"      'expected_type', {sql_string(expected_type)},\n"
-            f"      'op',            {sql_string(function_op)},\n"
-            f"      '{value_key}',  {value_sql}\n"
+            f"      'scope',        {sql_string(scope)},\n"
+            f"      'logical_name', {sql_string(logical_name)},\n"
+            f"      'op',           {sql_string(function_op)},\n"
+            f"      '{value_key}', {value_sql}\n"
             "    )"
         )
 
@@ -298,7 +297,7 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
             # Preserve the value type so the database function receives the correct expected_type.
             custom_value_exprs.append(
                 {
-                    "expected_type": (
+                    "value_type": (
                         "numeric" if var_name == "custom.numeric_value" else "string"
                     ),
                     "expr": {norm_op: const},
@@ -387,13 +386,13 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
         if not exprs:
             continue
 
-        expected_type = "numeric" if var == "default_sale_amount" else "string"
+        value_type = "numeric" if var == "default_sale_amount" else "string"
         for expr in exprs:
             filter_sql_parts.append(
                 render_filter(
                     scope="transaction",
                     logical_name=db_attr,
-                    expected_type=expected_type,
+                    value_type=value_type,
                     expr=expr,
                 )
             )
@@ -405,7 +404,7 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
                 render_filter(
                     scope="transaction",
                     logical_name=custom_attr_name,
-                    expected_type=custom_value_expr["expected_type"],
+                    value_type=custom_value_expr["value_type"],
                     expr=custom_value_expr["expr"],
                 )
             )
@@ -423,7 +422,7 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
                 render_filter(
                     scope="address",
                     logical_name=db_attr,
-                    expected_type="string",
+                    value_type="string",
                     expr=expr,
                 )
             )

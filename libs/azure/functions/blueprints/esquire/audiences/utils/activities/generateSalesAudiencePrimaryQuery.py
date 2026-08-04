@@ -164,6 +164,77 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
         return None
 
     # -----------------------------
+    # SQL rendering helpers
+    # -----------------------------
+    def sql_string(value: str) -> str:
+        return "'" + value.replace("'", "''") + "'"
+
+    def render_text_array(values: Any) -> str:
+        if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+            raise ValueError(
+                f"Expected a list of string filter values, received {values!r}."
+            )
+        return "ARRAY[" + ", ".join(sql_string(value) for value in values) + "]::text[]"
+
+    def render_filter(
+        scope: str,
+        logical_name: str,
+        expected_type: str,
+        expr: Dict[str, Any],
+    ) -> str:
+        if len(expr) != 1:
+            raise ValueError(f"Invalid sales filter expression: {expr!r}.")
+
+        (jsonlogic_op, value), = expr.items()
+
+        if expected_type == "string":
+            if jsonlogic_op == "==":
+                if not isinstance(value, str):
+                    raise ValueError(
+                        f"String equality requires a string value, received {value!r}."
+                    )
+                function_op = "eq"
+                value_key = "value_strings"
+                value_sql = render_text_array([value])
+            elif jsonlogic_op == "in":
+                function_op = "in"
+                value_key = "value_strings"
+                value_sql = render_text_array(value)
+            else:
+                raise ValueError(
+                    "sales.fn_find_matching_addresses supports only '==' and 'in' "
+                    f"for string filters; received {jsonlogic_op!r} for "
+                    f"{logical_name!r}."
+                )
+        elif expected_type == "numeric":
+            if jsonlogic_op not in {">", ">="}:
+                raise ValueError(
+                    "sales.fn_find_matching_addresses supports only '>' and '>=' "
+                    f"for numeric filters; received {jsonlogic_op!r} for "
+                    f"{logical_name!r}."
+                )
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(
+                    f"Numeric filter {logical_name!r} requires a numeric value; "
+                    f"received {value!r}."
+                )
+            function_op = "gt" if jsonlogic_op == ">" else "gte"
+            value_key = "value_numeric"
+            value_sql = str(value)
+        else:
+            raise ValueError(f"Unsupported sales filter type: {expected_type!r}.")
+
+        return (
+            "jsonb_build_object(\n"
+            f"      'scope',         {sql_string(scope)},\n"
+            f"      'logical_name',  {sql_string(logical_name)},\n"
+            f"      'expected_type', {sql_string(expected_type)},\n"
+            f"      'op',            {sql_string(function_op)},\n"
+            f"      '{value_key}',  {value_sql}\n"
+            "    )"
+        )
+
+    # -----------------------------
     # Custom dynamic attribute/value accumulation
     # -----------------------------
     identifier_re = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")

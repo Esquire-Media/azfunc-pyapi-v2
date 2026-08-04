@@ -427,111 +427,14 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
             + "\n  )"
         )
 
-    all_kv_pairs: List[str] = []
-    if sale_date_pair_sql:
-        all_kv_pairs.append(sale_date_pair_sql)
-    all_kv_pairs.extend(txn_kv_pairs_sql_parts)
-
-    txn_filter_kvs_sql = ""
-    if all_kv_pairs:
-        txn_filter_kvs_sql = ",\n      " + ",\n      ".join(all_kv_pairs)
-
     # -----------------------------
     # Final SQL
     # -----------------------------
     query = f"""
-WITH
--- Centralize constants so they're easy to change.
-const AS (
-  SELECT
-    '{tenant_id}'::text AS tenant_id
-),
--- Sales batches scoped to the tenant (prefer JSONLogic tenant, else ingress).
-sales_batches AS (
-  SELECT sb.entity_id
-  FROM const c
-  CROSS JOIN sales.query_eav(
-    'sales_batch',
-    jsonb_build_object('["tenant_id"]', jsonb_build_object('==', c.tenant_id))
-  ) AS sb(entity_id uuid)
-),
--- Transactions under those batches, filtered by optional date window and any txn-level predicates.
-transactions AS (
-  SELECT t.entity_id, t.billing_address_id
-  FROM (
-    SELECT COALESCE(jsonb_agg(entity_id), '[]'::jsonb) AS ids
-    FROM sales_batches
-  ) b
-  CROSS JOIN const c
-  CROSS JOIN sales.query_eav(
-    'transaction',
-    jsonb_build_object(
-      'parent_entity_id', jsonb_build_object('in', b.ids){txn_filter_kvs_sql}
-    ),
-    ARRAY['billing_address_id']
-  ) AS t(entity_id uuid, billing_address_id text)
-),
--- Collect distinct billing address ids from line items tied to those transactions.
-line_items AS (
-  SELECT li.entity_id, li.shipping_address_id
-  FROM (
-    SELECT COALESCE(jsonb_agg(entity_id), '[]'::jsonb) AS ids
-    FROM transactions
-  ) ti
-  CROSS JOIN sales.query_eav(
-    'line_item',
-    jsonb_build_object(
-      'parent_entity_id', jsonb_build_object('in', ti.ids)
-    ),
-    ARRAY['shipping_address_id']
-  ) AS li(entity_id uuid, shipping_address_id text)
-),
--- Union of all address_ids we care about: shipping (line_items) + billing (transactions).
-addresses AS (
-  SELECT DISTINCT billing_address_id AS address_id
-  FROM transactions
-  WHERE billing_address_id IS NOT NULL
-
-  UNION   -- de-duplicate addresses across shipping/billing
-
-  SELECT DISTINCT shipping_address_id AS address_id
-  FROM line_items
-  WHERE shipping_address_id IS NOT NULL
-)
--- Final address projection with consistent NULLIF handling and aliases.
-SELECT
-  NULLIF(a.delivery_line_1, 'NONE')    AS address,
-  NULLIF(a.delivery_line_2, 'NONE')    AS delivery_line_2,
-  NULLIF(a.city_name, 'NONE')          AS city,
-  NULLIF(a.state_abbreviation, 'NONE') AS state,
-  NULLIF(a.zipcode, 'NONE')            AS "zipCode",
-  NULLIF(a.plus4_code, 'NONE')         AS "plus4Code",
-  NULLIF(a.primary_number, 'NONE')     AS primary_number,
-  NULLIF(a.street_name, 'NONE')        AS street_name,
-  NULLIF(a.latitude, 'NONE')::float    AS latitude,
-  NULLIF(a.longitude, 'NONE')::float   AS longitude
-FROM (
-  SELECT COALESCE(jsonb_agg(addr.address_id), '[]'::jsonb) AS ids
-  FROM addresses AS addr
-) ai
-CROSS JOIN LATERAL sales.query_eav(
-  'address',
-  jsonb_build_object(
-    'entity_id', jsonb_build_object('in', ai.ids)
-  ){addr_filter_concat_sql},
-  ARRAY['delivery_line_1','delivery_line_2','city_name','state_abbreviation','zipcode','plus4_code','primary_number','street_name','latitude','longitude']
-) AS a(
-  entity_id uuid,
-  delivery_line_1 text,
-  delivery_line_2 text,
-  city_name text,
-  state_abbreviation text,
-  zipcode text,
-  plus4_code text,
-  primary_number text,
-  street_name text,
-  latitude text,
-  longitude text
+SELECT *
+FROM sales.fn_find_matching_addresses(
+  p_tenant_id => {sql_string(str(tenant_id))},
+  p_filters   => {filters_sql}
 )
 """.strip()
 

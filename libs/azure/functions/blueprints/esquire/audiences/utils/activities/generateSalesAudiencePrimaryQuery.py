@@ -349,19 +349,50 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
     }
 
     # -----------------------------
-    # Build JSON for address filters (appended via || to base)
+    # Build transaction filter objects
     # -----------------------------
-    address_filter_obj: Dict[str, Any] = {}
-    for var, db_attr in address_vars.items():
+    filter_sql_parts: List[str] = []
+
+    # Optional sale_date filter (only if days_back present)
+    if isinstance(days_back, int) and days_back >= 0:
+        filter_sql_parts.append(
+            "jsonb_build_object(\n"
+            "      'scope',         'transaction',\n"
+            "      'logical_name',  'sale_date',\n"
+            "      'expected_type', 'timestamptz',\n"
+            "      'op',            'gte',\n"
+            f"      'value_ts',      now() - interval '{int(days_back)} days'\n"
+            "    )"
+        )
+
+    # Explicit transaction vars
+    for var, db_attr in transaction_vars.items():
         exprs = collected.get(var, [])
         if not exprs:
             continue
-        address_filter_obj[db_attr] = exprs[0] if len(exprs) == 1 else {"and": exprs}
 
-    addr_filter_concat_sql = ""
-    if address_filter_obj:
-        addr_filter_json = json.dumps(address_filter_obj)
-        addr_filter_concat_sql = f" || '{addr_filter_json}'::jsonb"
+        expected_type = "numeric" if var == "default_sale_amount" else "string"
+        for expr in exprs:
+            filter_sql_parts.append(
+                render_filter(
+                    scope="transaction",
+                    logical_name=db_attr,
+                    expected_type=expected_type,
+                    expr=expr,
+                )
+            )
+
+    # Attach custom dynamic field/value filters if present
+    if custom_attr_name and custom_value_exprs:
+        for custom_value_expr in custom_value_exprs:
+            filter_sql_parts.append(
+                render_filter(
+                    scope="transaction",
+                    logical_name=custom_attr_name,
+                    expected_type=custom_value_expr["expected_type"],
+                    expr=custom_value_expr["expr"],
+                )
+            )
 
     # -----------------------------
     # Build JSON for transaction filters (excluding sale_date/parent link)

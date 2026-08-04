@@ -15,22 +15,25 @@ Json = Union[Dict[str, Any], List[Any], str, int, float, bool, None]
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: dict) -> str:
     """
-    Build the primary SQL for the Sales Audience using the `sales.query_eav(...)` pattern and
-    JSONLogic-style filters.
+    Build the primary SQL for the Sales Audience using the
+    `sales.fn_find_matching_addresses(...)` pattern and JSONLogic-style filters.
 
     Updates per requirements:
-    - Prefer the tenant specified inside ingress["audience"]["dataFilter"] (JSONLogic) if present.
-      Only fall back to ingress["tenant_id"] when JSONLogic does not provide a tenant.
-      If neither is present, we raise a clear error.
-    - ingress["audience"]["dataFilter"] may be a JSON string or an object (both supported).
-    - `days_back` is optional. If present (either in JSONLogic or ingress fallback), we add:
+    - Prefer the tenant specified inside ingress["audience"]["dataFilterRaw"] (JSONLogic)
+      if present. Only fall back to ingress["tenant_id"] when JSONLogic does not provide
+      a tenant. If neither is present, we raise a clear error.
+    - ingress["audience"]["dataFilterRaw"] may be a JSON string or an object
+      (both supported).
+    - `days_back` is optional. If present (either in JSONLogic or ingress fallback),
+      we add:
           sale_date >= NOW() - INTERVAL '<days_back> DAY'
       If not present anywhere, we do **not** apply a date filter.
     - Address-scoped vars: city, state_abbreviation, zipcode
-    - Transaction-scoped vars: store_location, brand, category, description, default_sale_amount
+    - Transaction-scoped vars: store_location, brand, category, description,
+      default_sale_amount
     - Custom dynamic attribute/value support:
-        The attribute **name** comes from `custom.field`, and the **value** used in comparisons
-        comes from either `custom.numeric_value` or `custom.text_value`.
+        The attribute **name** comes from `custom.field`, and the **value** used in
+        comparisons comes from either `custom.numeric_value` or `custom.text_value`.
 
         Examples:
           {"and":[
@@ -46,15 +49,32 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
             → filters: default_sale_amount > 0
 
         Notes:
-        - We ignore invalid attribute names (must match ^[A-Za-z_][A-Za-z0-9_]*$) with a warning.
-        - If multiple custom value constraints exist, they are ANDed together for the chosen field.
+        - We ignore invalid attribute names (must match ^[A-Za-z_][A-Za-z0-9_]*$)
+          with a warning.
+        - If multiple custom value constraints exist, they are emitted as separate
+          filter objects and ANDed together by the database function.
 
-    Supported simple JSONLogic atoms: ==, !=, >, <, >=, <=, in
+    Supported simple JSONLogic atoms accepted from the existing ingress:
+      ==, !=, >, <, >=, <=, in
+
     Supported shapes for atoms:
       { "<op>": [ {"var":"name"}, <const> ] }
       { "<op>": [ <const>, {"var":"name"} ] }  # normalized by inverting order-sensitive ops
 
-    The generated SQL mirrors the provided "new query" and injects predicates dynamically.
+    The database function currently supports:
+      - string filters: ==, in
+      - numeric filters: >, >=
+      - timestamptz filters: >, >=
+
+    `days_back` generates the supported timestamptz >= filter. Unsupported
+    field/operator combinations raise a clear error instead of generating a
+    filter that the database function cannot evaluate.
+
+    As in the prior activity, compound JSONLogic nodes are walked recursively.
+    The generated database filter array is evaluated with AND semantics.
+
+    The generated SQL mirrors the provided "new query" and injects filter
+    objects dynamically.
     """
 
     # -----------------------------

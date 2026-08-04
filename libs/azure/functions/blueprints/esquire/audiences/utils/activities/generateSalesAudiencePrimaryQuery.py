@@ -286,8 +286,15 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
 
         if var_name in {"custom.numeric_value", "custom.text_value"}:
             # Treat these as value-side comparisons for the dynamic attribute chosen via custom.field.
-            # We just record the operator/constant pair; later we attach them to the resolved attribute.
-            custom_value_exprs.append({norm_op: const})
+            # Preserve the value type so the database function receives the correct expected_type.
+            custom_value_exprs.append(
+                {
+                    "expected_type": (
+                        "numeric" if var_name == "custom.numeric_value" else "string"
+                    ),
+                    "expr": {norm_op: const},
+                }
+            )
             return
 
         # --- Default collection for regular vars ---

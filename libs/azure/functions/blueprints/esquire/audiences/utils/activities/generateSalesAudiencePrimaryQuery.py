@@ -61,10 +61,19 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
       { "<op>": [ {"var":"name"}, <const> ] }
       { "<op>": [ <const>, {"var":"name"} ] }  # normalized by inverting order-sensitive ops
 
-    The database function currently supports:
+    The database function infers each filter's data type from the populated
+    scalar value field:
+      - `value_string` for string equality
+      - `value_strings` for string membership
+      - `value_numeric` for numeric comparisons
+      - `value_boolean` for boolean equality
+      - `value_ts` for timestamp comparisons
+      - `value_jsonb` for JSONB equality or containment
+
+    The existing ingress currently generates:
       - string filters: ==, in
       - numeric filters: >, >=
-      - timestamptz filters: >, >=
+      - timestamptz filters: >= through `days_back`
 
     `days_back` generates the supported timestamptz >= filter. Unsupported
     field/operator combinations raise a clear error instead of generating a

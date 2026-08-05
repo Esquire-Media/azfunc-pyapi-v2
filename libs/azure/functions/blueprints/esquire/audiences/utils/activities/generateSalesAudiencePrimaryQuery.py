@@ -15,22 +15,25 @@ Json = Union[Dict[str, Any], List[Any], str, int, float, bool, None]
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: dict) -> str:
     """
-    Build the primary SQL for the Sales Audience using the `sales.query_eav(...)` pattern and
-    JSONLogic-style filters.
+    Build the primary SQL for the Sales Audience using the
+    `sales.fn_find_matching_addresses(...)` pattern and JSONLogic-style filters.
 
     Updates per requirements:
-    - Prefer the tenant specified inside ingress["audience"]["dataFilter"] (JSONLogic) if present.
-      Only fall back to ingress["tenant_id"] when JSONLogic does not provide a tenant.
-      If neither is present, we raise a clear error.
-    - ingress["audience"]["dataFilter"] may be a JSON string or an object (both supported).
-    - `days_back` is optional. If present (either in JSONLogic or ingress fallback), we add:
+    - Prefer the tenant specified inside ingress["audience"]["dataFilterRaw"] (JSONLogic)
+      if present. Only fall back to ingress["tenant_id"] when JSONLogic does not provide
+      a tenant. If neither is present, we raise a clear error.
+    - ingress["audience"]["dataFilterRaw"] may be a JSON string or an object
+      (both supported).
+    - `days_back` is optional. If present (either in JSONLogic or ingress fallback),
+      we add:
           sale_date >= NOW() - INTERVAL '<days_back> DAY'
       If not present anywhere, we do **not** apply a date filter.
     - Address-scoped vars: city, state_abbreviation, zipcode
-    - Transaction-scoped vars: store_location, brand, category, description, default_sale_amount
+    - Transaction-scoped vars: store_location, brand, category, description,
+      default_sale_amount
     - Custom dynamic attribute/value support:
-        The attribute **name** comes from `custom.field`, and the **value** used in comparisons
-        comes from either `custom.numeric_value` or `custom.text_value`.
+        The attribute **name** comes from `custom.field`, and the **value** used in
+        comparisons comes from either `custom.numeric_value` or `custom.text_value`.
 
         Examples:
           {"and":[
@@ -46,15 +49,41 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
             → filters: default_sale_amount > 0
 
         Notes:
-        - We ignore invalid attribute names (must match ^[A-Za-z_][A-Za-z0-9_]*$) with a warning.
-        - If multiple custom value constraints exist, they are ANDed together for the chosen field.
+        - We ignore invalid attribute names (must match ^[A-Za-z_][A-Za-z0-9_]*$)
+          with a warning.
+        - If multiple custom value constraints exist, they are emitted as separate
+          filter objects and ANDed together by the database function.
 
-    Supported simple JSONLogic atoms: ==, !=, >, <, >=, <=, in
+    Supported simple JSONLogic atoms accepted from the existing ingress:
+      ==, !=, >, <, >=, <=, in
+
     Supported shapes for atoms:
       { "<op>": [ {"var":"name"}, <const> ] }
       { "<op>": [ <const>, {"var":"name"} ] }  # normalized by inverting order-sensitive ops
 
-    The generated SQL mirrors the provided "new query" and injects predicates dynamically.
+    The database function infers each filter's data type from the populated
+    scalar value field:
+      - `value_string` for string equality
+      - `value_strings` for string membership
+      - `value_numeric` for numeric comparisons
+      - `value_boolean` for boolean equality
+      - `value_ts` for timestamp comparisons
+      - `value_jsonb` for JSONB equality or containment
+
+    The existing ingress currently generates:
+      - string filters: ==, in
+      - numeric filters: >, >=
+      - timestamptz filters: >= through `days_back`
+
+    `days_back` generates the supported timestamptz >= filter. Unsupported
+    field/operator combinations raise a clear error instead of generating a
+    filter that the database function cannot evaluate.
+
+    As in the prior activity, compound JSONLogic nodes are walked recursively.
+    The generated database filter array is evaluated with AND semantics.
+
+    The generated SQL mirrors the provided "new query" and injects filter
+    objects dynamically.
     """
 
     # -----------------------------
@@ -144,6 +173,76 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
         return None
 
     # -----------------------------
+    # SQL rendering helpers
+    # -----------------------------
+    def sql_string(value: str) -> str:
+        return "'" + value.replace("'", "''") + "'"
+
+    def render_text_array(values: Any) -> str:
+        if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+            raise ValueError(
+                f"Expected a list of string filter values, received {values!r}."
+            )
+        return "ARRAY[" + ", ".join(sql_string(value) for value in values) + "]::text[]"
+
+    def render_filter(
+        scope: str,
+        logical_name: str,
+        value_type: str,
+        expr: Dict[str, Any],
+    ) -> str:
+        if len(expr) != 1:
+            raise ValueError(f"Invalid sales filter expression: {expr!r}.")
+
+        (jsonlogic_op, value), = expr.items()
+
+        if value_type == "string":
+            if jsonlogic_op == "==":
+                if not isinstance(value, str):
+                    raise ValueError(
+                        f"String equality requires a string value, received {value!r}."
+                    )
+                function_op = "eq"
+                value_key = "value_string"
+                value_sql = sql_string(value)
+            elif jsonlogic_op == "in":
+                function_op = "in"
+                value_key = "value_strings"
+                value_sql = render_text_array(value)
+            else:
+                raise ValueError(
+                    "sales.fn_find_matching_addresses supports only '==' and 'in' "
+                    f"for string filters; received {jsonlogic_op!r} for "
+                    f"{logical_name!r}."
+                )
+        elif value_type == "numeric":
+            if jsonlogic_op not in {">", ">="}:
+                raise ValueError(
+                    "sales.fn_find_matching_addresses supports only '>' and '>=' "
+                    f"for numeric filters; received {jsonlogic_op!r} for "
+                    f"{logical_name!r}."
+                )
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(
+                    f"Numeric filter {logical_name!r} requires a numeric value; "
+                    f"received {value!r}."
+                )
+            function_op = "gt" if jsonlogic_op == ">" else "gte"
+            value_key = "value_numeric"
+            value_sql = str(value)
+        else:
+            raise ValueError(f"Unsupported sales filter type: {value_type!r}.")
+
+        return (
+            "jsonb_build_object(\n"
+            f"      'scope',        {sql_string(scope)},\n"
+            f"      'logical_name', {sql_string(logical_name)},\n"
+            f"      'op',           {sql_string(function_op)},\n"
+            f"      '{value_key}', {value_sql}\n"
+            "    )"
+        )
+
+    # -----------------------------
     # Custom dynamic attribute/value accumulation
     # -----------------------------
     identifier_re = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -195,8 +294,15 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
 
         if var_name in {"custom.numeric_value", "custom.text_value"}:
             # Treat these as value-side comparisons for the dynamic attribute chosen via custom.field.
-            # We just record the operator/constant pair; later we attach them to the resolved attribute.
-            custom_value_exprs.append({norm_op: const})
+            # Preserve the value type so the database function receives the correct expected_type.
+            custom_value_exprs.append(
+                {
+                    "value_type": (
+                        "numeric" if var_name == "custom.numeric_value" else "string"
+                    ),
+                    "expr": {norm_op: const},
+                }
+            )
             return
 
         # --- Default collection for regular vars ---
@@ -258,168 +364,85 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
     }
 
     # -----------------------------
-    # Build JSON for address filters (appended via || to base)
+    # Build transaction filter objects
     # -----------------------------
-    address_filter_obj: Dict[str, Any] = {}
-    for var, db_attr in address_vars.items():
-        exprs = collected.get(var, [])
-        if not exprs:
-            continue
-        address_filter_obj[db_attr] = exprs[0] if len(exprs) == 1 else {"and": exprs}
+    filter_sql_parts: List[str] = []
 
-    addr_filter_concat_sql = ""
-    if address_filter_obj:
-        addr_filter_json = json.dumps(address_filter_obj)
-        addr_filter_concat_sql = f" || '{addr_filter_json}'::jsonb"
-
-    # -----------------------------
-    # Build JSON for transaction filters (excluding sale_date/parent link)
-    # -----------------------------
-    txn_attr_exprs: Dict[str, Any] = {}
+    # Optional sale_date filter (only if days_back present)
+    if isinstance(days_back, int) and days_back >= 0:
+        filter_sql_parts.append(
+            "jsonb_build_object(\n"
+            "      'scope',         'transaction',\n"
+            "      'logical_name',  'sale_date',\n"
+            "      'expected_type', 'timestamptz',\n"
+            "      'op',            'gte',\n"
+            f"      'value_ts',      now() - interval '{int(days_back)} days'\n"
+            "    )"
+        )
 
     # Explicit transaction vars
     for var, db_attr in transaction_vars.items():
         exprs = collected.get(var, [])
         if not exprs:
             continue
-        txn_attr_exprs[db_attr] = exprs[0] if len(exprs) == 1 else {"and": exprs}
 
-    # Attach custom dynamic field/value if present
+        value_type = "numeric" if var == "default_sale_amount" else "string"
+        for expr in exprs:
+            filter_sql_parts.append(
+                render_filter(
+                    scope="transaction",
+                    logical_name=db_attr,
+                    value_type=value_type,
+                    expr=expr,
+                )
+            )
+
+    # Attach custom dynamic field/value filters if present
     if custom_attr_name and custom_value_exprs:
-        exprs = custom_value_exprs
-        if custom_attr_name in txn_attr_exprs:
-            existing = txn_attr_exprs[custom_attr_name]
-            if isinstance(existing, dict) and "and" in existing:
-                existing["and"].extend(exprs)
-            else:
-                txn_attr_exprs[custom_attr_name] = {
-                    "and": ([existing] if isinstance(existing, dict) else [existing]) + exprs
-                }
-        else:
-            txn_attr_exprs[custom_attr_name] = exprs[0] if len(exprs) == 1 else {"and": exprs}
+        for custom_value_expr in custom_value_exprs:
+            filter_sql_parts.append(
+                render_filter(
+                    scope="transaction",
+                    logical_name=custom_attr_name,
+                    value_type=custom_value_expr["value_type"],
+                    expr=custom_value_expr["expr"],
+                )
+            )
 
-    # Render KV pairs for jsonb_build_object:
-    #   sales.resolve_attribute_ids(c.tenant_id, '<attr>'), '<json>'::jsonb
-    txn_kv_pairs_sql_parts: List[str] = []
-    for db_attr, logic_obj in txn_attr_exprs.items():
-        expr_json = json.dumps(logic_obj)
-        txn_kv_pairs_sql_parts.append(
-            f"sales.resolve_attribute_ids(c.tenant_id, '{db_attr}'), '{expr_json}'::jsonb"
+    # -----------------------------
+    # Build address filter objects
+    # -----------------------------
+    for var, db_attr in address_vars.items():
+        exprs = collected.get(var, [])
+        if not exprs:
+            continue
+
+        for expr in exprs:
+            filter_sql_parts.append(
+                render_filter(
+                    scope="address",
+                    logical_name=db_attr,
+                    value_type="string",
+                    expr=expr,
+                )
+            )
+
+    filters_sql = "jsonb_build_array()"
+    if filter_sql_parts:
+        filters_sql = (
+            "jsonb_build_array(\n    "
+            + ",\n    ".join(filter_sql_parts)
+            + "\n  )"
         )
-
-    # Optional sale_date pair (only if days_back present)
-    sale_date_pair_sql = ""
-    if isinstance(days_back, int) and days_back >= 0:
-        sale_date_pair_sql = (
-            "sales.resolve_attribute_ids(c.tenant_id, 'sale_date'), "
-            f"jsonb_build_object('>=', NOW() - INTERVAL '{int(days_back)} DAY')"
-        )
-
-    all_kv_pairs: List[str] = []
-    if sale_date_pair_sql:
-        all_kv_pairs.append(sale_date_pair_sql)
-    all_kv_pairs.extend(txn_kv_pairs_sql_parts)
-
-    txn_filter_kvs_sql = ""
-    if all_kv_pairs:
-        txn_filter_kvs_sql = ",\n      " + ",\n      ".join(all_kv_pairs)
 
     # -----------------------------
     # Final SQL
     # -----------------------------
     query = f"""
-WITH
--- Centralize constants so they're easy to change.
-const AS (
-  SELECT
-    '{tenant_id}'::text AS tenant_id
-),
--- Sales batches scoped to the tenant (prefer JSONLogic tenant, else ingress).
-sales_batches AS (
-  SELECT sb.entity_id
-  FROM const c
-  CROSS JOIN sales.query_eav(
-    'sales_batch',
-    jsonb_build_object('["tenant_id"]', jsonb_build_object('==', c.tenant_id))
-  ) AS sb(entity_id uuid)
-),
--- Transactions under those batches, filtered by optional date window and any txn-level predicates.
-transactions AS (
-  SELECT t.entity_id, t.billing_address_id
-  FROM (
-    SELECT COALESCE(jsonb_agg(entity_id), '[]'::jsonb) AS ids
-    FROM sales_batches
-  ) b
-  CROSS JOIN const c
-  CROSS JOIN sales.query_eav(
-    'transaction',
-    jsonb_build_object(
-      'parent_entity_id', jsonb_build_object('in', b.ids){txn_filter_kvs_sql}
-    ),
-    ARRAY['billing_address_id']
-  ) AS t(entity_id uuid, billing_address_id text)
-),
--- Collect distinct billing address ids from line items tied to those transactions.
-line_items AS (
-  SELECT li.entity_id, li.shipping_address_id
-  FROM (
-    SELECT COALESCE(jsonb_agg(entity_id), '[]'::jsonb) AS ids
-    FROM transactions
-  ) ti
-  CROSS JOIN sales.query_eav(
-    'line_item',
-    jsonb_build_object(
-      'parent_entity_id', jsonb_build_object('in', ti.ids)
-    ),
-    ARRAY['shipping_address_id']
-  ) AS li(entity_id uuid, shipping_address_id text)
-),
--- Union of all address_ids we care about: shipping (line_items) + billing (transactions).
-addresses AS (
-  SELECT DISTINCT billing_address_id AS address_id
-  FROM transactions
-  WHERE billing_address_id IS NOT NULL
-
-  UNION   -- de-duplicate addresses across shipping/billing
-
-  SELECT DISTINCT shipping_address_id AS address_id
-  FROM line_items
-  WHERE shipping_address_id IS NOT NULL
-)
--- Final address projection with consistent NULLIF handling and aliases.
-SELECT
-  NULLIF(a.delivery_line_1, 'NONE')    AS address,
-  NULLIF(a.delivery_line_2, 'NONE')    AS delivery_line_2,
-  NULLIF(a.city_name, 'NONE')          AS city,
-  NULLIF(a.state_abbreviation, 'NONE') AS state,
-  NULLIF(a.zipcode, 'NONE')            AS "zipCode",
-  NULLIF(a.plus4_code, 'NONE')         AS "plus4Code",
-  NULLIF(a.primary_number, 'NONE')     AS primary_number,
-  NULLIF(a.street_name, 'NONE')        AS street_name,
-  NULLIF(a.latitude, 'NONE')::float    AS latitude,
-  NULLIF(a.longitude, 'NONE')::float   AS longitude
-FROM (
-  SELECT COALESCE(jsonb_agg(addr.address_id), '[]'::jsonb) AS ids
-  FROM addresses AS addr
-) ai
-CROSS JOIN LATERAL sales.query_eav(
-  'address',
-  jsonb_build_object(
-    'entity_id', jsonb_build_object('in', ai.ids)
-  ){addr_filter_concat_sql},
-  ARRAY['delivery_line_1','delivery_line_2','city_name','state_abbreviation','zipcode','plus4_code','primary_number','street_name','latitude','longitude']
-) AS a(
-  entity_id uuid,
-  delivery_line_1 text,
-  delivery_line_2 text,
-  city_name text,
-  state_abbreviation text,
-  zipcode text,
-  plus4_code text,
-  primary_number text,
-  street_name text,
-  latitude text,
-  longitude text
+SELECT *
+FROM sales.fn_find_matching_addresses(
+  p_tenant_id => {sql_string(str(tenant_id))},
+  p_filters   => {filters_sql}
 )
 """.strip()
 

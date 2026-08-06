@@ -148,8 +148,8 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
 
     logger.warning(msg="All tasks completed.", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
-    # Purge history related to this instance
-    yield context.call_sub_orchestrator(
-        "purge_instance_history",
-        {"instance_id": context.instance_id},
-    )
+    # # Purge history related to this instance
+    # yield context.call_sub_orchestrator(
+    #     "purge_instance_history",
+    #     {"instance_id": context.instance_id},
+    # )

@@ -153,7 +153,10 @@ def orchestrator_esquireAudiences_processingSteps(
                             # No specific processing required
                             process["results"] = yield context.call_sub_orchestrator(
                                 "orchestrator_esquireAudiencesSteps_addresses2neighbors",
-                                egress,
+                                {
+                                    **egress,
+                                    "audience":ingress["audience"]
+                                    },
                             )
                         elif egress["process"].get("kind", "") == "Proximity":
                             process["results"] = yield context.call_sub_orchestrator(

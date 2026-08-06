@@ -121,7 +121,7 @@ def _partition_csv_bytes(
     return out_df.to_csv(index=False, header=False).encode("utf-8")
 
 
-def persist_neighbors_blob_to_history(dest_blob, run_id: str) -> None:
+def persist_neighbors_blob_to_history(dest_blob, run_id: str, audience_id: str) -> None:
     container_name = os.getenv("NEIGHBORS_HISTORICAL_CONTAINER_NAME")
 
     if not container_name:
@@ -142,7 +142,7 @@ def persist_neighbors_blob_to_history(dest_blob, run_id: str) -> None:
             pass
 
         blob_filename = dest_blob.blob_name.split("/")[-1]
-        dest_path = f"neighbors-history/{run_id}/{blob_filename}"
+        dest_path = f"neighbors-history/{audience_id}/{run_id}/{blob_filename}"
 
         historical_blob = container_client.get_blob_client(dest_path)
 
@@ -163,6 +163,7 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
     dest = ingress["destination"]
     process = ingress.get("process", {})
     run_id = ingress["run_id"]
+    audience_id = ingress["audience"]["id"]
     batch_index = ingress["batch_index"]
     bind = ingress.get("db_bind", "keystone")
 
@@ -205,7 +206,7 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
         for part in partitions:
             city = str(part["city"]).strip().upper()
             state = str(part["state"]).strip().upper()
-            zip_code = str(part["zip"]).strip().zfill(0)
+            zip_code = str(part["zip"]).strip().zfill(5)
 
             key = (city, state, zip_code)
             addresses = addresses_by_partition.get(key, [])
@@ -245,7 +246,8 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
 
     persist_neighbors_blob_to_history(
         dest_blob=dest_blob,
-        run_id=run_id
+        run_id=run_id,
+        audience_id=audience_id
     )
 
     return (

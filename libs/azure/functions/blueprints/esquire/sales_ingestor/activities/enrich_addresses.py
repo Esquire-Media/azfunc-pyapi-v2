@@ -60,7 +60,7 @@ def activity_salesIngestor_planAddressBatches(settings: dict):
 
     scope = settings["scope"]
     addr_map = standardized_fields[scope]
-    batch_size = int(settings.get("batch_size", 500))
+    batch_size = int(settings.get("batch_size", 200))
     staging = settings["staging_table"]
 
     col_name = f"{scope}_address_id"
@@ -150,9 +150,9 @@ def activity_salesIngestor_planAddressBatches(settings: dict):
     if total < 5000:
         suggested_parallelism = min_p
     elif total < 50000:
-        suggested_parallelism = 10
+        suggested_parallelism = 4
     elif total < 250000:
-        suggested_parallelism = 25
+        suggested_parallelism = 8
     else:
         suggested_parallelism = max_p
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Union, Optional
 
 from azure.durable_functions import Blueprint
@@ -65,15 +66,21 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
     scalar value field:
       - `value_string` for string equality
       - `value_strings` for string membership
-      - `value_numeric` for numeric comparisons
+      - `value_numeric` for scalar numeric comparisons
+      - `value_numerics` for numeric membership
       - `value_boolean` for boolean equality
       - `value_ts` for timestamp comparisons
       - `value_jsonb` for JSONB equality or containment
 
     The existing ingress currently generates:
       - string filters: ==, in
-      - numeric filters: >, >=
+      - numeric filters: ==, in, >, >=
       - timestamptz filters: >= through `days_back`
+
+    Numeric values may arrive from dataFilterRaw as JSON strings. Numeric-looking
+    scalar strings and lists of numeric-looking strings are converted to PostgreSQL
+    numeric literals before the filter array is passed to the database function.
+    Address filters remain explicitly string-typed.
 
     `days_back` generates the supported timestamptz >= filter. Unsupported
     field/operator combinations raise a clear error instead of generating a
@@ -178,12 +185,58 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
     def sql_string(value: str) -> str:
         return "'" + value.replace("'", "''") + "'"
 
+    def parse_numeric(value: Any) -> Decimal:
+        if isinstance(value, bool):
+            raise ValueError(f"Boolean value {value!r} is not numeric.")
+
+        if isinstance(value, (int, float, Decimal)):
+            numeric_value = Decimal(str(value))
+        elif isinstance(value, str) and value.strip():
+            try:
+                numeric_value = Decimal(value.strip())
+            except InvalidOperation as e:
+                raise ValueError(f"Value {value!r} is not numeric.") from e
+        else:
+            raise ValueError(f"Value {value!r} is not numeric.")
+
+        if not numeric_value.is_finite():
+            raise ValueError(f"Non-finite numeric value {value!r} is not supported.")
+
+        return numeric_value
+
+    def is_numeric_value(value: Any) -> bool:
+        try:
+            parse_numeric(value)
+            return True
+        except ValueError:
+            return False
+
+    def render_numeric(value: Any) -> str:
+        numeric_value = parse_numeric(value)
+
+        if numeric_value == numeric_value.to_integral_value():
+            return format(numeric_value, "f").split(".")[0]
+
+        return format(numeric_value.normalize(), "f")
+
     def render_text_array(values: Any) -> str:
         if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
             raise ValueError(
                 f"Expected a list of string filter values, received {values!r}."
             )
         return "ARRAY[" + ", ".join(sql_string(value) for value in values) + "]::text[]"
+
+    def render_numeric_array(values: Any) -> str:
+        if not isinstance(values, list) or not values:
+            raise ValueError(
+                f"Expected a non-empty list of numeric filter values, received {values!r}."
+            )
+
+        return (
+            "ARRAY["
+            + ", ".join(render_numeric(value) for value in values)
+            + "]::numeric[]"
+        )
 
     def render_filter(
         scope: str,
@@ -216,20 +269,24 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
                     f"{logical_name!r}."
                 )
         elif value_type == "numeric":
-            if jsonlogic_op not in {">", ">="}:
+            if jsonlogic_op == "==":
+                function_op = "eq"
+                value_key = "value_numeric"
+                value_sql = render_numeric(value)
+            elif jsonlogic_op == "in":
+                function_op = "in"
+                value_key = "value_numerics"
+                value_sql = render_numeric_array(value)
+            elif jsonlogic_op in {">", ">="}:
+                function_op = "gt" if jsonlogic_op == ">" else "gte"
+                value_key = "value_numeric"
+                value_sql = render_numeric(value)
+            else:
                 raise ValueError(
-                    "sales.fn_find_matching_addresses supports only '>' and '>=' "
-                    f"for numeric filters; received {jsonlogic_op!r} for "
-                    f"{logical_name!r}."
+                    "sales.fn_find_matching_addresses supports only '==', 'in', "
+                    "'>', and '>=' for numeric filters; received "
+                    f"{jsonlogic_op!r} for {logical_name!r}."
                 )
-            if isinstance(value, bool) or not isinstance(value, (int, float)):
-                raise ValueError(
-                    f"Numeric filter {logical_name!r} requires a numeric value; "
-                    f"received {value!r}."
-                )
-            function_op = "gt" if jsonlogic_op == ">" else "gte"
-            value_key = "value_numeric"
-            value_sql = str(value)
         else:
             raise ValueError(f"Unsupported sales filter type: {value_type!r}.")
 
@@ -337,7 +394,7 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
         tenant_id = ingress.get("tenant_id")
 
     if not tenant_id:
-        # Without a tenant, we cannot resolve attribute names or scope sales_batches.
+        # Without a tenant, the database function cannot scope the sales batches.
         raise ValueError(
             "Missing tenant_id: not provided in JSONLogic and ingress['tenant_id'] is absent."
         )
@@ -372,11 +429,10 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
     if isinstance(days_back, int) and days_back >= 0:
         filter_sql_parts.append(
             "jsonb_build_object(\n"
-            "      'scope',         'transaction',\n"
-            "      'logical_name',  'sale_date',\n"
-            "      'expected_type', 'timestamptz',\n"
-            "      'op',            'gte',\n"
-            f"      'value_ts',      now() - interval '{int(days_back)} days'\n"
+            "      'scope',        'transaction',\n"
+            "      'logical_name', 'sale_date',\n"
+            "      'op',           'gte',\n"
+            f"      'value_ts',     now() - interval '{int(days_back)} days'\n"
             "    )"
         )
 
@@ -386,8 +442,29 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
         if not exprs:
             continue
 
-        value_type = "numeric" if var == "default_sale_amount" else "string"
         for expr in exprs:
+            (_, value), = expr.items()
+
+            if var == "default_sale_amount":
+                value_type = "numeric"
+            elif isinstance(value, list):
+                if value and all(is_numeric_value(item) for item in value):
+                    value_type = "numeric"
+                elif all(isinstance(item, str) for item in value):
+                    value_type = "string"
+                else:
+                    raise ValueError(
+                        f"Unable to infer filter type for {var!r} from {value!r}."
+                    )
+            elif is_numeric_value(value):
+                value_type = "numeric"
+            elif isinstance(value, str):
+                value_type = "string"
+            else:
+                raise ValueError(
+                    f"Unable to infer filter type for {var!r} from {value!r}."
+                )
+
             filter_sql_parts.append(
                 render_filter(
                     scope="transaction",

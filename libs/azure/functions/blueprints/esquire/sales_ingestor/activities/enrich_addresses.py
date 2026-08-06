@@ -141,7 +141,7 @@ def activity_salesIngestor_planAddressBatches(settings: dict):
     for i in range(num_batches):
         ranges.append({"offset": i * batch_size, "limit": batch_size})
 
-    logger.info(
+    logger.warning(
         f"[LOG] Address plan scope={scope}, cols={cols}, total={total}, batches={num_batches}",
         extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
     )
@@ -215,7 +215,7 @@ def activity_salesIngestor_enrichAddresses_batch(payload: dict):
 def activity_salesIngestor_enrichAddresses(settings: dict):
     standardized_fields = normalize_fields_to_standardized(settings["fields"])
 
-    logger.info(
+    logger.warning(
         msg=f"[LOG] Enriching {settings['scope']} Addresses (single-activity path)",
         extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
     )

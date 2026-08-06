@@ -179,6 +179,14 @@ def orchestrator_esquireAudiences_primaryData(
 
         if is_eav:
             # Generate EAV sales query inside an activity — pass only deterministic inputs.
+            filter_scopes = yield context.call_activity(
+                "activity_esquireAudienceBuilder_getSalesFilterScopes",
+                {
+                "tenant_id": extract_tenant_id_from_datafilter(audience_filter),
+                "filter_fields": extract_fields_from_dataFilter(audience_filter),
+                },
+            )
+
             ingress_query = yield context.call_activity(
                 "activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery",
                 {
@@ -189,6 +197,7 @@ def orchestrator_esquireAudiences_primaryData(
                     # Replay-safe time via context (Durable Functions logs/replays guarantee determinism).
                     "utc_now": str(context.current_utc_datetime),
                     "days_back": extract_daysback_from_dataFilter(audience_filter),
+                    filter_scopes: filter_scopes
                 },
             )
         else:

@@ -246,6 +246,7 @@ def activity_esquireAudienceBuilder_getSalesFilterScopes(
 
     scopes = {
         row["logical_name"]: list(row["scopes"])
+        if len(row["scopes"]) == 1 else ["transaction"]
         for row in rows
     }
 

@@ -181,48 +181,39 @@ ORDER BY requested.logical_name
     bindparam("filter_fields", type_=ARRAY(Text())),
 )
 
-
 @bp.activity_trigger(input_name="ingress")
 def activity_esquireAudienceBuilder_getSalesFilterScopes(
     ingress: dict,
-) -> Dict[str, List[str]]:
+) -> Dict[str, str]:
     """
-    Return the transaction and/or line_item scope for each requested sales field.
+    Return the resolved transaction or line_item scope for each requested
+    sales field.
 
     Expected ingress:
       {
         "tenant_id": "<tenant id>",
-        "filter_fields": ["sale_date", "Sealy", "sku"]
+        "filter_fields": ["store_location", "brand", "sku"]
       }
 
     Returns:
       {
-        "sale_date": ["transaction"],
-        "Sealy": ["transaction"],
-        "sku": ["transaction", "line_item"]
+        "store_location": "transaction",
+        "brand": "transaction",
+        "sku": "line_item"
       }
 
-    This activity does not parse the audience data filter and does not build
-    the audience query. The orchestrator supplies the exact sales field names
-    that require scope resolution.
-
-    Tenant-specific client header mappings are preferred over canonical
-    attribute-name matches. Each winning candidate is then checked against
-    tenant-owned sales data using the direct hierarchy:
-      - transaction -> sales_batch
-      - line_item -> transaction -> sales_batch
-
-    A field is returned with both scopes when the winning attribute candidates
-    are present in tenant data at both levels.
+    When a field exists at both transaction and line_item scope,
+    transaction wins.
     """
-
     tenant_id = ingress.get("tenant_id")
     if not isinstance(tenant_id, str) or not tenant_id.strip():
         raise ValueError("Missing ingress['tenant_id'].")
 
     raw_filter_fields = ingress.get("filter_fields") or []
     if not isinstance(raw_filter_fields, list):
-        raise ValueError("ingress['filter_fields'] must be a list of field names.")
+        raise ValueError(
+            "ingress['filter_fields'] must be a list of field names."
+        )
 
     filter_fields = list(
         dict.fromkeys(
@@ -244,30 +235,28 @@ def activity_esquireAudienceBuilder_getSalesFilterScopes(
             },
         ).mappings().all()
 
-    scopes = {
-        row["logical_name"]: list(row["scopes"])
-        if len(row["scopes"]) == 1 else ["transaction"]
+    result = {
+        row["logical_name"]: (
+            "transaction"
+            if row["logical_name"] == "sale_date"
+            else _resolve_scope(list(row["scopes"]))
+        )
         for row in rows
+        if row["scopes"]
     }
 
     unresolved = [
         field
         for field in filter_fields
-        if not scopes.get(field)
+        if field not in result
     ]
+
     if unresolved:
         raise ValueError(
             "No transaction or line_item scope found for: "
             + ", ".join(unresolved)
             + "."
         )
-
-    # sale_date should only ever be on transaction
-    result = {
-        field: scopes[field] if field != 'sale_date' else 'transaction'
-        for field in filter_fields
-    }
-
 
     logging.info(
         "[SalesFilterScopes] Resolved scopes for tenant %s: %s",
@@ -276,3 +265,21 @@ def activity_esquireAudienceBuilder_getSalesFilterScopes(
     )
 
     return result
+
+def _resolve_scope(scopes: List[str]) -> str:
+    """
+    Resolve raw observed scopes to the single scope used by audience filtering.
+
+    Precedence:
+      - transaction + line_item -> transaction
+      - transaction only        -> transaction
+      - line_item only          -> line_item
+    """
+    if "transaction" in scopes:
+        return "transaction"
+
+    if "line_item" in scopes:
+        return "line_item"
+
+    raise ValueError("No transaction or line_item scope found.")
+

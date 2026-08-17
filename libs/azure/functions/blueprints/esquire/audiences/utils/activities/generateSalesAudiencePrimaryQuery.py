@@ -117,6 +117,11 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
     except Exception:
         ingress_days_back = None
 
+    filter_scopes: Dict[str, str] = ingress.get("filter_scopes") or {}
+    if not isinstance(filter_scopes, dict):
+        raise ValueError("ingress['filter_scopes'] must be a dictionary.")
+
+
     # -----------------------------
     # JSONLogic helpers
     # -----------------------------
@@ -412,7 +417,8 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
         "state_abbreviation": "state_abbreviation",
         "zipcode": "zipcode",
     }
-    transaction_vars = {
+
+    sales_vars = {
         "store_location": "store_location",
         "brand": "brand",
         "category": "category",
@@ -420,12 +426,30 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
         "default_sale_amount": "default_sale_amount",
     }
 
+
+    def get_sales_scope(logical_name: str) -> str:
+        """
+        Return the already-resolved sales scope supplied by the scope activity.
+
+        Scope precedence is NOT handled here. The scope activity has already
+        resolved transaction vs line_item.
+        """
+        scope = filter_scopes.get(logical_name)
+
+        if scope not in {"transaction", "line_item"}:
+            raise ValueError(
+                f"Missing or invalid sales scope for {logical_name!r}: {scope!r}."
+            )
+
+        return scope
+
+
     # -----------------------------
-    # Build transaction filter objects
+    # Build filter objects
     # -----------------------------
     filter_sql_parts: List[str] = []
 
-    # Optional sale_date filter (only if days_back present)
+    # sale_date is always transaction scoped.
     if isinstance(days_back, int) and days_back >= 0:
         filter_sql_parts.append(
             "jsonb_build_object(\n"
@@ -436,58 +460,77 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
             "    )"
         )
 
-    # Explicit transaction vars
-    for var, db_attr in transaction_vars.items():
+
+    # -----------------------------
+    # Sales attribute filters
+    # -----------------------------
+    for var, db_attr in sales_vars.items():
         exprs = collected.get(var, [])
         if not exprs:
             continue
+
+        scope = get_sales_scope(db_attr)
 
         for expr in exprs:
             (_, value), = expr.items()
 
             if var == "default_sale_amount":
                 value_type = "numeric"
+
             elif isinstance(value, list):
                 if value and all(is_numeric_value(item) for item in value):
                     value_type = "numeric"
+
                 elif all(isinstance(item, str) for item in value):
                     value_type = "string"
+
                 else:
                     raise ValueError(
-                        f"Unable to infer filter type for {var!r} from {value!r}."
+                        f"Unable to infer filter type for {var!r} "
+                        f"from {value!r}."
                     )
+
             elif is_numeric_value(value):
                 value_type = "numeric"
+
             elif isinstance(value, str):
                 value_type = "string"
+
             else:
                 raise ValueError(
-                    f"Unable to infer filter type for {var!r} from {value!r}."
+                    f"Unable to infer filter type for {var!r} "
+                    f"from {value!r}."
                 )
 
             filter_sql_parts.append(
                 render_filter(
-                    scope="transaction",
+                    scope=scope,
                     logical_name=db_attr,
                     value_type=value_type,
                     expr=expr,
                 )
             )
 
-    # Attach custom dynamic field/value filters if present
+
+    # -----------------------------
+    # Custom dynamic sales attributes
+    # -----------------------------
     if custom_attr_name and custom_value_exprs:
+        scope = get_sales_scope(custom_attr_name)
+
         for custom_value_expr in custom_value_exprs:
             filter_sql_parts.append(
                 render_filter(
-                    scope="transaction",
+                    scope=scope,
                     logical_name=custom_attr_name,
                     value_type=custom_value_expr["value_type"],
                     expr=custom_value_expr["expr"],
                 )
             )
 
+
     # -----------------------------
-    # Build address filter objects
+    # Address filters
     # -----------------------------
     for var, db_attr in address_vars.items():
         exprs = collected.get(var, [])
@@ -504,14 +547,18 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
                 )
             )
 
+
+    # -----------------------------
+    # Final filter array
+    # -----------------------------
     filters_sql = "jsonb_build_array()"
+
     if filter_sql_parts:
         filters_sql = (
             "jsonb_build_array(\n    "
             + ",\n    ".join(filter_sql_parts)
             + "\n  )"
         )
-
     # -----------------------------
     # Final SQL
     # -----------------------------

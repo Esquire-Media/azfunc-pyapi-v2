@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import ARRAY
 bp = Blueprint()
 
 engine = create_engine(
-    os.environ["DATABASE_URL"],
+    os.environ["DATABIND_SQL_KEYSTONE"],
     pool_pre_ping=True,
 )
 

@@ -16,6 +16,12 @@ engine = create_engine(
 )
 
 
+NON_SCOPED_FIELDS = {
+    "tenant_id",
+    "days_back",
+    "sale_date"
+}
+
 SCOPE_QUERY = text(
     """
 WITH
@@ -186,13 +192,22 @@ def activity_esquireAudienceBuilder_getSalesFilterScopes(
     ingress: dict,
 ) -> Dict[str, str]:
     """
-    Return the resolved transaction or line_item scope for each requested
-    sales field.
+    Return the resolved transaction or line_item scope for requested
+    sales attributes.
+
+    tenant_id and days_back are control fields, not sales attributes,
+    and are excluded from scope resolution.
 
     Expected ingress:
       {
         "tenant_id": "<tenant id>",
-        "filter_fields": ["store_location", "brand", "sku"]
+        "filter_fields": [
+            "tenant_id",
+            "days_back",
+            "store_location",
+            "brand",
+            "sku"
+        ]
       }
 
     Returns:
@@ -219,7 +234,11 @@ def activity_esquireAudienceBuilder_getSalesFilterScopes(
         dict.fromkeys(
             field.strip()
             for field in raw_filter_fields
-            if isinstance(field, str) and field.strip()
+            if (
+                isinstance(field, str)
+                and field.strip()
+                and field.strip() not in NON_SCOPED_FIELDS
+            )
         )
     )
 
@@ -236,11 +255,7 @@ def activity_esquireAudienceBuilder_getSalesFilterScopes(
         ).mappings().all()
 
     result = {
-        row["logical_name"]: (
-            "transaction"
-            if row["logical_name"] == "sale_date"
-            else _resolve_scope(list(row["scopes"]))
-        )
+        row["logical_name"]: _resolve_scope(list(row["scopes"]))
         for row in rows
         if row["scopes"]
     }
@@ -282,4 +297,3 @@ def _resolve_scope(scopes: List[str]) -> str:
         return "line_item"
 
     raise ValueError("No transaction or line_item scope found.")
-

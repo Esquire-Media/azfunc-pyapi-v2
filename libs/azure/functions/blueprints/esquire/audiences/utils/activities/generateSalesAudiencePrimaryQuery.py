@@ -424,6 +424,9 @@ def activity_esquireAudienceBuilder_generateSalesAudiencePrimaryQuery(ingress: d
         "category": "category",
         "description": "description",
         "default_sale_amount": "default_sale_amount",
+        "vendor":"vendor",
+        "customer_type":"customer_type",
+        "subcategory":"subcategory"
     }
 
 

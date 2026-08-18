@@ -349,4 +349,7 @@ def _resolve_scope(scopes: List[str]) -> str:
     if "line_item" in scopes:
         return "line_item"
 
-    raise ValueError("No transaction or line_item scope found.")
+    else:
+        logging.warning("No transaction or line_item scope found.")
+        return "transaction"
+        # raise ValueError("No transaction or line_item scope found.")

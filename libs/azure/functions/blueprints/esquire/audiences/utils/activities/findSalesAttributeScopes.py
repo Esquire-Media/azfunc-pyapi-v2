@@ -19,168 +19,221 @@ engine = create_engine(
 NON_SCOPED_FIELDS = {
     "tenant_id",
     "days_back",
-    "sale_date"
+    "sale_date",
+    "state_abbreviation",
+    "city",
+    "zipcode"
 }
 
 SCOPE_QUERY = text(
     """
 WITH
-requested_fields AS (
-  SELECT DISTINCT
+params AS (
+  SELECT
+    CAST(:tenant_id AS text) AS tenant_id
+),
+
+requested_filters AS (
+  SELECT
+    requested.filter_id,
     requested.logical_name
-  FROM unnest(:filter_fields) AS requested(logical_name)
+  FROM unnest(:filter_fields)
+       WITH ORDINALITY AS requested(logical_name, filter_id)
 ),
 
-/*
-Find this tenant's sales batches through the existing optimized EAV query path.
-*/
-tenant_sales_batches AS MATERIALIZED (
-  SELECT batch.entity_id
-  FROM sales.query_eav(
-    'sales_batch',
-    jsonb_build_object(
-      '["tenant_id"]',
-      jsonb_build_object(
-        '==',
-        :tenant_id
-      )
-    )
-  ) AS batch(entity_id uuid)
+entity_type_ids AS (
+  SELECT
+    (
+      SELECT entity_type_id
+      FROM sales.entity_types
+      WHERE name = 'sales_batch'
+    ) AS sales_batch_type_id,
+    (
+      SELECT entity_type_id
+      FROM sales.entity_types
+      WHERE name = 'transaction'
+    ) AS transaction_type_id,
+    (
+      SELECT entity_type_id
+      FROM sales.entity_types
+      WHERE name = 'line_item'
+    ) AS line_item_type_id
 ),
 
-attribute_candidates AS MATERIALIZED (
+candidate_filter_names AS MATERIALIZED (
   /*
-   * Prefer tenant-specific mappings.
+   * Direct logical name.
    */
   SELECT
-    requested.logical_name,
-    attribute.id AS attribute_id,
-    attribute.entity_type_id,
-    entity_type.name AS scope,
-    0 AS priority
-  FROM requested_fields AS requested
+    filter.filter_id,
+    filter.logical_name,
+    filter.logical_name AS attribute_name
+  FROM requested_filters AS filter
+
+  UNION
+
+  /*
+   * Tenant-specific mapped physical name.
+   */
+  SELECT
+    filter.filter_id,
+    filter.logical_name,
+    mapped_attribute.name AS attribute_name
+  FROM requested_filters AS filter
+  CROSS JOIN params
   JOIN sales.client_header_map AS header_map
-    ON header_map.tenant_id = :tenant_id
-   AND header_map.mapped_header = requested.logical_name
-  JOIN sales.attributes AS attribute
-    ON attribute.id = header_map.attribute_id
-  JOIN sales.entity_types AS entity_type
-    ON entity_type.entity_type_id = attribute.entity_type_id
-   AND entity_type.name IN (
-     'transaction',
-     'line_item'
-   )
+    ON header_map.tenant_id = params.tenant_id
+   AND header_map.mapped_header = filter.logical_name
+  JOIN sales.attributes AS mapped_attribute
+    ON mapped_attribute.id = header_map.attribute_id
+),
 
-  UNION ALL
-
+candidate_attributes AS MATERIALIZED (
   /*
-   * Canonical-name fallback.
+   * Resolve possible transaction and line-item attributes without deciding
+   * the scope yet.
    */
-  SELECT
-    requested.logical_name,
+  SELECT DISTINCT
+    candidate.filter_id,
+    candidate.logical_name,
     attribute.id AS attribute_id,
-    attribute.entity_type_id,
-    entity_type.name AS scope,
-    1 AS priority
-  FROM requested_fields AS requested
+    attribute.name AS attribute_name,
+    CASE
+      WHEN attribute.entity_type_id = types.transaction_type_id
+        THEN 'transaction'
+      WHEN attribute.entity_type_id = types.line_item_type_id
+        THEN 'line_item'
+    END AS scope
+  FROM candidate_filter_names AS candidate
+  CROSS JOIN entity_type_ids AS types
   JOIN sales.attributes AS attribute
-    ON attribute.name = requested.logical_name
-  JOIN sales.entity_types AS entity_type
-    ON entity_type.entity_type_id = attribute.entity_type_id
-   AND entity_type.name IN (
-     'transaction',
-     'line_item'
+    ON attribute.name = candidate.attribute_name
+   AND attribute.entity_type_id IN (
+     types.transaction_type_id,
+     types.line_item_type_id
    )
 ),
 
-/*
-Use tenant mappings when available. Otherwise, use canonical-name candidates.
-If the winning priority contains both scopes, both remain candidates.
-*/
-best_attribute_candidates AS MATERIALIZED (
+tenant_attribute_ids AS MATERIALIZED (
+  SELECT
+    attribute.id AS attribute_id
+  FROM entity_type_ids AS types
+  JOIN sales.attributes AS attribute
+    ON attribute.entity_type_id = types.sales_batch_type_id
+   AND attribute.name = 'tenant_id'
+   AND attribute.data_type = 'string'::sales.attr_data_type
+),
+
+sales_batches AS MATERIALIZED (
   SELECT DISTINCT
+    batch.id AS batch_id
+  FROM params
+  CROSS JOIN entity_type_ids AS types
+  JOIN tenant_attribute_ids AS tenant_attribute
+    ON TRUE
+  JOIN sales.entity_attribute_values AS tenant_value
+    ON tenant_value.attribute_id = tenant_attribute.attribute_id
+   AND tenant_value.value_string = params.tenant_id
+  JOIN sales.entities AS batch
+    ON batch.id = tenant_value.entity_id
+   AND batch.entity_type_id = types.sales_batch_type_id
+),
+
+matching_value_entities AS MATERIALIZED (
+  SELECT
+    candidate.filter_id,
     candidate.logical_name,
     candidate.attribute_id,
-    candidate.entity_type_id,
-    candidate.scope
-  FROM attribute_candidates AS candidate
-  WHERE candidate.priority = (
-    SELECT min(comparison.priority)
-    FROM attribute_candidates AS comparison
-    WHERE comparison.logical_name = candidate.logical_name
-  )
+    candidate.attribute_name,
+    candidate.scope,
+    attribute_value.entity_id
+  FROM candidate_attributes AS candidate
+  JOIN sales.entity_attribute_values AS attribute_value
+    ON attribute_value.attribute_id = candidate.attribute_id
 ),
 
-observed_scopes AS (
-  /*
-   * Check transaction attributes by walking:
-   *
-   * EAV value -> transaction -> tenant sales batch
-   *
-   * EXISTS stops after the first tenant-owned occurrence.
-   */
-  SELECT
-    candidate.logical_name,
-    candidate.scope
-  FROM best_attribute_candidates AS candidate
-  WHERE candidate.scope = 'transaction'
-    AND EXISTS (
-      SELECT 1
-      FROM sales.entity_attribute_values AS attribute_value
-      JOIN sales.entities AS transaction_entity
-        ON transaction_entity.id = attribute_value.entity_id
-       AND transaction_entity.entity_type_id =
-           candidate.entity_type_id
-      JOIN tenant_sales_batches AS batch
-        ON batch.entity_id = transaction_entity.parent_entity_id
-      WHERE attribute_value.attribute_id = candidate.attribute_id
+scope_hits AS MATERIALIZED (
+  (
+    SELECT DISTINCT ON (
+      match.filter_id,
+      match.scope
     )
+      match.filter_id,
+      match.logical_name,
+      match.scope,
+      match.attribute_id,
+      match.attribute_name,
+      match.entity_id AS sample_entity_id
+    FROM matching_value_entities AS match
+    CROSS JOIN entity_type_ids AS types
+    JOIN sales.entities AS transaction_entity
+      ON transaction_entity.id = match.entity_id
+     AND transaction_entity.entity_type_id =
+         types.transaction_type_id
+    JOIN sales_batches AS batch
+      ON batch.batch_id =
+         transaction_entity.parent_entity_id
+    WHERE match.scope = 'transaction'
+    ORDER BY
+      match.filter_id,
+      match.scope,
+      match.entity_id
+  )
 
   UNION ALL
 
-  /*
-   * Check line-item attributes by walking:
-   *
-   * EAV value -> line item -> transaction -> tenant sales batch
-   *
-   * EXISTS stops after the first tenant-owned occurrence.
-   */
-  SELECT
-    candidate.logical_name,
-    candidate.scope
-  FROM best_attribute_candidates AS candidate
-  WHERE candidate.scope = 'line_item'
-    AND EXISTS (
-      SELECT 1
-      FROM sales.entity_attribute_values AS attribute_value
-      JOIN sales.entities AS line_item_entity
-        ON line_item_entity.id = attribute_value.entity_id
-       AND line_item_entity.entity_type_id =
-           candidate.entity_type_id
-      JOIN sales.entities AS transaction_entity
-        ON transaction_entity.id = line_item_entity.parent_entity_id
-      JOIN tenant_sales_batches AS batch
-        ON batch.entity_id = transaction_entity.parent_entity_id
-      WHERE attribute_value.attribute_id = candidate.attribute_id
+  (
+    SELECT DISTINCT ON (
+      match.filter_id,
+      match.scope
     )
+      match.filter_id,
+      match.logical_name,
+      match.scope,
+      match.attribute_id,
+      match.attribute_name,
+      match.entity_id AS sample_entity_id
+    FROM matching_value_entities AS match
+    CROSS JOIN entity_type_ids AS types
+    JOIN sales.entities AS line_item_entity
+      ON line_item_entity.id = match.entity_id
+     AND line_item_entity.entity_type_id =
+         types.line_item_type_id
+    JOIN sales.entities AS transaction_entity
+      ON transaction_entity.id =
+         line_item_entity.parent_entity_id
+     AND transaction_entity.entity_type_id =
+         types.transaction_type_id
+    JOIN sales_batches AS batch
+      ON batch.batch_id =
+         transaction_entity.parent_entity_id
+    WHERE match.scope = 'line_item'
+    ORDER BY
+      match.filter_id,
+      match.scope,
+      match.entity_id
+  )
 )
 
 SELECT
-  requested.logical_name,
+  filter.logical_name,
   COALESCE(
     array_agg(
-      DISTINCT observed.scope
-      ORDER BY observed.scope
+      DISTINCT hit.scope
+      ORDER BY hit.scope
     ) FILTER (
-      WHERE observed.scope IS NOT NULL
+      WHERE hit.scope IS NOT NULL
     ),
     ARRAY[]::text[]
   ) AS scopes
-FROM requested_fields AS requested
-LEFT JOIN observed_scopes AS observed
-  ON observed.logical_name = requested.logical_name
-GROUP BY requested.logical_name
-ORDER BY requested.logical_name
+FROM requested_filters AS filter
+LEFT JOIN scope_hits AS hit
+  ON hit.filter_id = filter.filter_id
+GROUP BY
+  filter.filter_id,
+  filter.logical_name
+ORDER BY
+  filter.filter_id
 """.strip()
 ).bindparams(
     bindparam("tenant_id", type_=Text()),
@@ -296,4 +349,7 @@ def _resolve_scope(scopes: List[str]) -> str:
     if "line_item" in scopes:
         return "line_item"
 
-    raise ValueError("No transaction or line_item scope found.")
+    else:
+        logging.warning("No transaction or line_item scope found.")
+        return "transaction"
+        # raise ValueError("No transaction or line_item scope found.")

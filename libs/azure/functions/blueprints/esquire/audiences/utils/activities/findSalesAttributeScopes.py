@@ -19,7 +19,10 @@ engine = create_engine(
 NON_SCOPED_FIELDS = {
     "tenant_id",
     "days_back",
-    "sale_date"
+    "sale_date",
+    "state_abbreviation",
+    "city",
+    "zipcode"
 }
 
 SCOPE_QUERY = text(

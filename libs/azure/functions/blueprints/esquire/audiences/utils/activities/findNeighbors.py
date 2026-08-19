@@ -206,7 +206,7 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
         for part in partitions:
             city = str(part["city"]).strip().upper()
             state = str(part["state"]).strip().upper()
-            zip_code = str(part["zip"]).strip().zfill(0)
+            zip_code = str(part["zip"]).strip().zfill(5)
 
             key = (city, state, zip_code)
             addresses = addresses_by_partition.get(key, [])

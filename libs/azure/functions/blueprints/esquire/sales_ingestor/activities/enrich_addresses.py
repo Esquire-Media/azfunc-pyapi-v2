@@ -60,7 +60,7 @@ def activity_salesIngestor_planAddressBatches(settings: dict):
 
     scope = settings["scope"]
     addr_map = standardized_fields[scope]
-    batch_size = int(settings.get("batch_size", 500))
+    batch_size = int(settings.get("batch_size", 200))
     staging = settings["staging_table"]
 
     col_name = f"{scope}_address_id"
@@ -141,7 +141,7 @@ def activity_salesIngestor_planAddressBatches(settings: dict):
     for i in range(num_batches):
         ranges.append({"offset": i * batch_size, "limit": batch_size})
 
-    logger.info(
+    logger.warning(
         f"[LOG] Address plan scope={scope}, cols={cols}, total={total}, batches={num_batches}",
         extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
     )
@@ -150,9 +150,9 @@ def activity_salesIngestor_planAddressBatches(settings: dict):
     if total < 5000:
         suggested_parallelism = min_p
     elif total < 50000:
-        suggested_parallelism = 10
+        suggested_parallelism = 4
     elif total < 250000:
-        suggested_parallelism = 25
+        suggested_parallelism = 8
     else:
         suggested_parallelism = max_p
 
@@ -215,7 +215,7 @@ def activity_salesIngestor_enrichAddresses_batch(payload: dict):
 def activity_salesIngestor_enrichAddresses(settings: dict):
     standardized_fields = normalize_fields_to_standardized(settings["fields"])
 
-    logger.info(
+    logger.warning(
         msg=f"[LOG] Enriching {settings['scope']} Addresses (single-activity path)",
         extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
     )

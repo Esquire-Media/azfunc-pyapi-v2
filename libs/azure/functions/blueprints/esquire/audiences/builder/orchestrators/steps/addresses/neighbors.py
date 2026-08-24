@@ -1,20 +1,78 @@
 import os
-from azure.durable_functions import Blueprint, DurableOrchestrationContext, RetryOptions
+from typing import Iterator, TypeVar
+
+from azure.durable_functions import (
+    Blueprint,
+    DurableOrchestrationContext,
+    RetryOptions,
+)
+
 
 bp = Blueprint()
 
-_PARTITIONS_PER_ACTIVITY = int(os.getenv("NEIGHBORS_PARTITIONS_PER_ACTIVITY", "100"))
-_MAX_CONCURRENT_BATCHES = int(os.getenv("NEIGHBORS_MAX_CONCURRENT_BATCHES", "15"))
+T = TypeVar("T")
 
-def _chunked(lst, size):
-    for i in range(0, len(lst), size):
-        yield lst[i:i + size]
 
-@bp.orchestration_trigger(context_name="context")
-def orchestrator_esquireAudiencesSteps_addresses2neighbors(context: DurableOrchestrationContext):
+_PARTITIONS_PER_ACTIVITY = int(
+    os.getenv(
+        "NEIGHBORS_PARTITIONS_PER_ACTIVITY",
+        "100",
+    )
+)
 
+_MAX_CONCURRENT_BATCHES = int(
+    os.getenv(
+        "NEIGHBORS_MAX_CONCURRENT_BATCHES",
+        "15",
+    )
+)
+
+_ACTIVITY_RETRY_ATTEMPTS = int(
+    os.getenv(
+        "NEIGHBORS_ACTIVITY_RETRY_ATTEMPTS",
+        "3",
+    )
+)
+
+_ACTIVITY_RETRY_DELAY_MS = int(
+    os.getenv(
+        "NEIGHBORS_ACTIVITY_RETRY_DELAY_MS",
+        "5000",
+    )
+)
+
+
+def _chunked(
+    items: list[T],
+    size: int,
+) -> Iterator[list[T]]:
+    if size <= 0:
+        raise ValueError(
+            "Chunk size must be > 0"
+        )
+
+    for start in range(
+        0,
+        len(items),
+        size,
+    ):
+        yield items[
+            start:start + size
+        ]
+
+
+@bp.orchestration_trigger(
+    context_name="context"
+)
+def orchestrator_esquireAudiencesSteps_addresses2neighbors(
+    context: DurableOrchestrationContext,
+):
     ingress = context.get_input() or {}
-    retry = RetryOptions(5000, 3)
+
+    retry = RetryOptions(
+        _ACTIVITY_RETRY_DELAY_MS,
+        _ACTIVITY_RETRY_ATTEMPTS,
+    )
 
     partitions = yield context.call_activity_with_retry(
         "activity_esquireAudiencesNeighbors_extractPartitions",
@@ -26,11 +84,24 @@ def orchestrator_esquireAudiencesSteps_addresses2neighbors(context: DurableOrche
         return []
 
     run_id = context.instance_id
+
+    # Assign batch indexes before grouping into concurrency waves.
+    # This prevents later waves from overwriting batch-00000.csv, etc.
+    batches = list(
+        enumerate(
+            _chunked(
+                partitions,
+                _PARTITIONS_PER_ACTIVITY,
+            )
+        )
+    )
+
     out_urls: list[str] = []
 
-    batches = list(_chunked(partitions, _PARTITIONS_PER_ACTIVITY))
-
-    for batch_group in _chunked(batches, _MAX_CONCURRENT_BATCHES):
+    for batch_group in _chunked(
+        batches,
+        _MAX_CONCURRENT_BATCHES,
+    ):
         tasks = [
             context.call_activity_with_retry(
                 "activity_esquireAudiencesNeighbors_processBatch_blockblob",
@@ -38,14 +109,21 @@ def orchestrator_esquireAudiencesSteps_addresses2neighbors(context: DurableOrche
                 {
                     **ingress,
                     "run_id": run_id,
-                    "batch_index": idx,
+                    "batch_index": batch_index,
                     "partitions": batch,
                 },
             )
-            for idx, batch in enumerate(batch_group)
+            for batch_index, batch in batch_group
         ]
 
-        results = yield context.task_all(tasks)
-        out_urls.extend([r for r in results if r])
+        results = yield context.task_all(
+            tasks
+        )
+
+        out_urls.extend(
+            result
+            for result in results
+            if result
+        )
 
     return out_urls

@@ -16,14 +16,14 @@ T = TypeVar("T")
 _PARTITIONS_PER_ACTIVITY = int(
     os.getenv(
         "NEIGHBORS_PARTITIONS_PER_ACTIVITY",
-        "100",
+        "5",
     )
 )
 
 _MAX_CONCURRENT_BATCHES = int(
     os.getenv(
         "NEIGHBORS_MAX_CONCURRENT_BATCHES",
-        "15",
+        "5",
     )
 )
 
@@ -47,18 +47,10 @@ def _chunked(
     size: int,
 ) -> Iterator[list[T]]:
     if size <= 0:
-        raise ValueError(
-            "Chunk size must be > 0"
-        )
+        raise ValueError("Chunk size must be > 0")
 
-    for start in range(
-        0,
-        len(items),
-        size,
-    ):
-        yield items[
-            start:start + size
-        ]
+    for start in range(0, len(items), size):
+        yield items[start:start + size]
 
 
 @bp.orchestration_trigger(
@@ -85,8 +77,8 @@ def orchestrator_esquireAudiencesSteps_addresses2neighbors(
 
     run_id = context.instance_id
 
-    # Assign batch indexes before grouping into concurrency waves.
-    # This prevents later waves from overwriting batch-00000.csv, etc.
+    # Batch indexes are assigned globally before concurrency waves so
+    # retries/waves always target the same result blob names.
     batches = list(
         enumerate(
             _chunked(
@@ -116,9 +108,7 @@ def orchestrator_esquireAudiencesSteps_addresses2neighbors(
             for batch_index, batch in batch_group
         ]
 
-        results = yield context.task_all(
-            tasks
-        )
+        results = yield context.task_all(tasks)
 
         out_urls.extend(
             result

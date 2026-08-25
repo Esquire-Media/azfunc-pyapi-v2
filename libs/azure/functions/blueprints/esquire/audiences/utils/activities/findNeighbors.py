@@ -1,58 +1,52 @@
+import base64
 import logging
 import os
 import re
-from datetime import datetime
-from typing import Any, Iterator, Mapping, TypeVar
+from datetime import datetime, timedelta, timezone
+from typing import Any, Mapping
 
 import pandas as pd
 from azure.core.exceptions import ResourceExistsError
 from azure.durable_functions import Blueprint
 from azure.storage.blob import (
+    BlobBlock,
     BlobClient,
     BlobSasPermissions,
     BlobServiceClient,
     ContentSettings,
-    ExponentialRetry,
     generate_blob_sas,
 )
 
 from libs.utils.azure_storage import get_cached_blob_client
-from libs.utils.esquire.neighbors.logic_sql import NeighborSqlReader
+from libs.utils.esquire.neighbors.logic_async import (
+    find_neighbors_for_street,
+)
+from libs.utils.esquire.neighbors.logic_sql import (
+    AttomPartitionReader,
+)
 
 
 bp = Blueprint()
 
-T = TypeVar("T")
 
+_RESULT_COLUMNS = [
+    "address",
+    "city",
+    "state",
+    "zipCode",
+    "plus4Code",
+]
 
-_SQL_PARTITIONS_PER_QUERY = int(
-    os.getenv("NEIGHBORS_SQL_PARTITIONS_PER_QUERY", "10")
+_BLOCK_SIZE_BYTES = int(
+    os.getenv(
+        "NEIGHBORS_RESULT_BLOCK_SIZE_BYTES",
+        str(8 * 1024 * 1024),
+    )
 )
-_BLOB_CONNECT_TIMEOUT_SECONDS = int(
-    os.getenv("NEIGHBORS_BLOB_CONNECT_TIMEOUT_SECONDS", "10")
-)
-_BLOB_READ_TIMEOUT_SECONDS = int(
-    os.getenv("NEIGHBORS_BLOB_READ_TIMEOUT_SECONDS", "30")
-)
-_BLOB_SERVER_TIMEOUT_SECONDS = int(
-    os.getenv("NEIGHBORS_BLOB_SERVER_TIMEOUT_SECONDS", "30")
-)
-
 
 _ORDINAL_SUFFIX_RE = re.compile(
     r"^(\d+)(ST|ND|RD|TH)$"
 )
-
-
-def _chunked(
-    items: list[T],
-    size: int,
-) -> Iterator[list[T]]:
-    if size <= 0:
-        raise ValueError("Chunk size must be > 0")
-
-    for start in range(0, len(items), size):
-        yield items[start:start + size]
 
 
 def _normalize_street_name(
@@ -93,20 +87,15 @@ def _partition_key_from_definition(
 def _download_source_blob(
     url: str,
 ) -> bytes:
-    """
-    Keep the existing cached-client/authentication behavior while
-    applying bounded per-operation transport/server timeouts.
-    """
     blob = get_cached_blob_client(url)
 
-    downloader = blob.download_blob(
-        max_concurrency=1,
-        timeout=_BLOB_SERVER_TIMEOUT_SECONDS,
-        connection_timeout=_BLOB_CONNECT_TIMEOUT_SECONDS,
-        read_timeout=_BLOB_READ_TIMEOUT_SECONDS,
+    return (
+        blob
+        .download_blob(
+            max_concurrency=1,
+        )
+        .readall()
     )
-
-    return downloader.readall()
 
 
 def _load_addresses_by_partition(
@@ -117,10 +106,6 @@ def _load_addresses_by_partition(
     tuple[str, str, str],
     list[dict[str, Any]],
 ]:
-    """
-    Parse each source blob once for this activity, but retain only rows
-    belonging to this activity's partition batch.
-    """
     target_keys = {
         _partition_key_from_definition(partition)
         for partition in partitions
@@ -160,129 +145,133 @@ def _load_addresses_by_partition(
     return addresses_by_partition
 
 
-def _build_neighbor_requests(
+def _prepare_source_addresses(
+    addresses: list[dict[str, Any]],
+) -> pd.DataFrame:
+    df = pd.DataFrame(addresses)
+
+    if (
+        "primary_number" in df.columns
+        and "street_number" not in df.columns
+    ):
+        df = df.rename(
+            columns={
+                "primary_number": "street_number",
+            }
+        )
+
+    # Preserve the existing source-data semantics.
+    df["street_name"] = (
+        df["street_name"]
+        .astype(str)
+        .str.upper()
+    )
+
+    df["street_name"] = (
+        df["street_name"]
+        .astype(str)
+        .map(_normalize_street_name)
+    )
+
+    return df
+
+
+def _prepare_attom_data(
+    data: pd.DataFrame,
+) -> pd.DataFrame:
+    if data.empty:
+        return data
+
+    out = data.copy()
+
+    out["street_name"] = (
+        out["street_name"]
+        .astype(str)
+        .str.upper()
+        .map(_normalize_street_name)
+    )
+
+    return out
+
+
+def _partition_neighbors(
     *,
-    indexed_partitions: list[
-        tuple[int, Mapping[str, Any]]
-    ],
-    addresses_by_partition: dict[
-        tuple[str, str, str],
-        list[dict[str, Any]],
-    ],
-) -> list[dict[str, Any]]:
-    """
-    Reproduce the source-address preparation in the current Python path.
+    partition: Mapping[str, Any],
+    addresses: list[dict[str, Any]],
+    reader: AttomPartitionReader,
+    n_per_side: int,
+    same_side_only: bool,
+) -> pd.DataFrame:
+    if not addresses:
+        return pd.DataFrame(
+            columns=_RESULT_COLUMNS
+        )
 
-    Compatibility details:
-      - primary_number is renamed only when street_number does not exist
-        as a DataFrame column at all;
-      - street_name uses the existing normalization;
-      - base_street_num uses pd.to_numeric(errors="coerce");
-      - source_ord preserves the original source-row order.
-    """
-    requests: list[dict[str, Any]] = []
+    source = _prepare_source_addresses(
+        addresses
+    )
 
-    for partition_ord, partition in indexed_partitions:
-        key = _partition_key_from_definition(
+    city, state, zip_code = (
+        _partition_key_from_definition(
             partition
         )
-        city, state, zip_code = key
+    )
 
-        addresses = addresses_by_partition.get(
-            key,
-            [],
+    data = reader.load_partition(
+        city=city,
+        state=state,
+        zip_code=zip_code,
+    )
+
+    if data.empty:
+        return pd.DataFrame(
+            columns=_RESULT_COLUMNS
         )
 
-        if not addresses:
+    data = _prepare_attom_data(data)
+
+    group_results: list[
+        pd.DataFrame
+    ] = []
+
+    # pandas groupby sorts street_name by default, matching the existing
+    # partition-processing path.
+    for street_name, street_addresses in source.groupby(
+        "street_name"
+    ):
+        street_data = data[
+            data["street_name"] == street_name
+        ]
+
+        if street_data.empty:
             continue
 
-        df = pd.DataFrame(addresses)
-
-        if (
-            "primary_number" in df.columns
-            and "street_number" not in df.columns
-        ):
-            df = df.rename(
-                columns={
-                    "primary_number": "street_number",
-                }
-            )
-
-        # Preserve current failure behavior for malformed source schemas.
-        df["street_name"] = (
-            df["street_name"]
-            .astype(str)
-            .str.upper()
+        neighbors = find_neighbors_for_street(
+            street_data,
+            street_addresses,
+            n_per_side,
+            same_side_only,
         )
 
-        df["street_name"] = (
-            df["street_name"]
-            .astype(str)
-            .map(_normalize_street_name)
+        if not neighbors.empty:
+            group_results.append(neighbors)
+
+    if not group_results:
+        return pd.DataFrame(
+            columns=_RESULT_COLUMNS
         )
 
-        df["source_ord"] = range(len(df))
+    result = pd.concat(
+        group_results,
+        ignore_index=True,
+    ).drop_duplicates()
 
-        df = df.dropna(
-            subset=["street_number"]
-        ).copy()
-
-        df["base_street_num"] = pd.to_numeric(
-            df["street_number"],
-            errors="coerce",
-        )
-
-        df = df.dropna(
-            subset=["base_street_num"]
-        )
-
-        for row in df.itertuples(
-            index=False
-        ):
-            base_street_num = row.base_street_num
-            item = getattr(
-                base_street_num,
-                "item",
-                None,
-            )
-            if item is not None:
-                base_street_num = item()
-
-            source_ord = row.source_ord
-            item = getattr(
-                source_ord,
-                "item",
-                None,
-            )
-            if item is not None:
-                source_ord = item()
-
-            requests.append(
-                {
-                    "partition_ord": int(
-                        partition_ord
-                    ),
-                    "source_ord": int(
-                        source_ord
-                    ),
-                    "city": city,
-                    "state": state,
-                    "zip_code": zip_code,
-                    "street_name": row.street_name,
-                    "base_street_num": (
-                        base_street_num
-                    ),
-                }
-            )
-
-    return requests
+    return result[_RESULT_COLUMNS]
 
 
 def _build_batch_payload(
     *,
-    partitions: list[
-        Mapping[str, Any]
-    ],
+    partitions: list[Mapping[str, Any]],
     addresses_by_partition: dict[
         tuple[str, str, str],
         list[dict[str, Any]],
@@ -291,38 +280,26 @@ def _build_batch_payload(
     same_side_only: bool,
     bind: str,
 ) -> bytes:
-    """
-    Keep the Durable activity boundary large while keeping each SQL query
-    small. partition_ord is assigned before SQL chunking so ordering is
-    activity-wide and does not restart for every SQL query.
-    """
-    indexed_partitions = list(
-        enumerate(partitions)
-    )
-
     result_frames: list[
         pd.DataFrame
     ] = []
 
-    with NeighborSqlReader(
+    # One connection/session for the entire small Durable activity.
+    with AttomPartitionReader(
         bind=bind
     ) as reader:
-        for partition_chunk in _chunked(
-            indexed_partitions,
-            _SQL_PARTITIONS_PER_QUERY,
-        ):
-            requests = _build_neighbor_requests(
-                indexed_partitions=partition_chunk,
-                addresses_by_partition=(
-                    addresses_by_partition
-                ),
+        for partition in partitions:
+            key = _partition_key_from_definition(
+                partition
             )
 
-            if not requests:
-                continue
-
-            result = reader.find_neighbors(
-                requests=requests,
+            result = _partition_neighbors(
+                partition=partition,
+                addresses=addresses_by_partition.get(
+                    key,
+                    [],
+                ),
+                reader=reader,
                 n_per_side=n_per_side,
                 same_side_only=same_side_only,
             )
@@ -331,8 +308,10 @@ def _build_batch_payload(
                 result_frames.append(result)
 
     if not result_frames:
-        # Preserve current empty-output behavior: zero-byte blob.
-        return b""
+        return (
+            ",".join(_RESULT_COLUMNS)
+            + "\n"
+        ).encode("utf-8")
 
     output = pd.concat(
         result_frames,
@@ -354,43 +333,50 @@ def _create_destination_blob(
         conn_str=conn_str,
         container_name=container_name,
         blob_name=blob_name,
-        connection_timeout=(
-            _BLOB_CONNECT_TIMEOUT_SECONDS
-        ),
-        read_timeout=(
-            _BLOB_READ_TIMEOUT_SECONDS
-        ),
-        retry_policy=ExponentialRetry(
-            initial_backoff=1,
-            increment_base=2,
-            retry_total=2,
-        ),
     )
 
 
-def _upload_result(
+def _stage_payload_as_blocks(
     *,
     dest_blob: BlobClient,
     payload: bytes,
 ) -> None:
-    """
-    One SDK-managed upload replaces per-partition stage_block calls plus
-    commit_block_list.
-    """
-    dest_blob.upload_blob(
-        payload,
-        overwrite=True,
-        max_concurrency=1,
-        timeout=_BLOB_SERVER_TIMEOUT_SECONDS,
-        connection_timeout=(
-            _BLOB_CONNECT_TIMEOUT_SECONDS
-        ),
-        read_timeout=(
-            _BLOB_READ_TIMEOUT_SECONDS
-        ),
-        content_settings=ContentSettings(
-            content_type="text/csv"
-        ),
+    content_settings = ContentSettings(
+        content_type="text/csv"
+    )
+
+    block_list: list[BlobBlock] = []
+
+    for block_index, start in enumerate(
+        range(
+            0,
+            len(payload),
+            _BLOCK_SIZE_BYTES,
+        )
+    ):
+        block_id = base64.b64encode(
+            f"{block_index:08d}".encode(
+                "ascii"
+            )
+        ).decode("ascii")
+
+        dest_blob.stage_block(
+            block_id=block_id,
+            data=payload[
+                start:
+                start + _BLOCK_SIZE_BYTES
+            ],
+        )
+
+        block_list.append(
+            BlobBlock(
+                block_id=block_id
+            )
+        )
+
+    dest_blob.commit_block_list(
+        block_list,
+        content_settings=content_settings,
     )
 
 
@@ -400,10 +386,6 @@ def persist_neighbors_blob_to_history(
     run_id: str,
     audience_id: str,
 ) -> None:
-    """
-    Historical persistence is strictly best-effort. No failure anywhere
-    in this path may fail the audience-build activity.
-    """
     container_name = os.getenv(
         "NEIGHBORS_HISTORICAL_CONTAINER_NAME"
     )
@@ -421,17 +403,6 @@ def persist_neighbors_blob_to_history(
                 f".blob.core.windows.net"
             ),
             credential=dest_blob.credential,
-            connection_timeout=(
-                _BLOB_CONNECT_TIMEOUT_SECONDS
-            ),
-            read_timeout=(
-                _BLOB_READ_TIMEOUT_SECONDS
-            ),
-            retry_policy=ExponentialRetry(
-                initial_backoff=1,
-                increment_base=2,
-                retry_total=1,
-            ),
         )
 
         container = (
@@ -442,17 +413,7 @@ def persist_neighbors_blob_to_history(
         )
 
         try:
-            container.create_container(
-                timeout=(
-                    _BLOB_SERVER_TIMEOUT_SECONDS
-                ),
-                connection_timeout=(
-                    _BLOB_CONNECT_TIMEOUT_SECONDS
-                ),
-                read_timeout=(
-                    _BLOB_READ_TIMEOUT_SECONDS
-                ),
-            )
+            container.create_container()
         except ResourceExistsError:
             pass
 
@@ -475,16 +436,7 @@ def persist_neighbors_blob_to_history(
         )
 
         historical_blob.start_copy_from_url(
-            dest_blob.url,
-            timeout=(
-                _BLOB_SERVER_TIMEOUT_SECONDS
-            ),
-            connection_timeout=(
-                _BLOB_CONNECT_TIMEOUT_SECONDS
-            ),
-            read_timeout=(
-                _BLOB_READ_TIMEOUT_SECONDS
-            ),
+            dest_blob.url
         )
 
     except Exception:
@@ -503,38 +455,26 @@ def persist_neighbors_blob_to_history(
 def _create_result_url(
     dest_blob: BlobClient,
 ) -> str:
-    return (
-        dest_blob.url
-        + "?"
-        + generate_blob_sas(
-            account_name=(
-                dest_blob.account_name
-            ),
-            account_key=(
-                dest_blob
-                .credential
-                .account_key
-            ),
-            container_name=(
-                dest_blob.container_name
-            ),
-            blob_name=(
-                dest_blob.blob_name
-            ),
-            permission=BlobSasPermissions(
-                read=True,
-                write=True,
-            ),
-            # Preserve current SAS-expiry behavior.
-            expiry=(
-                datetime.utcnow()
-                .replace(
-                    hour=23,
-                    minute=59,
-                )
-            ),
-        )
+    sas = generate_blob_sas(
+        account_name=dest_blob.account_name,
+        account_key=(
+            dest_blob
+            .credential
+            .account_key
+        ),
+        container_name=dest_blob.container_name,
+        blob_name=dest_blob.blob_name,
+        permission=BlobSasPermissions(
+            read=True,
+            write=True,
+        ),
+        expiry=(
+            datetime.now(timezone.utc)
+            + timedelta(hours=24)
+        ),
     )
+
+    return f"{dest_blob.url}?{sas}"
 
 
 @bp.activity_trigger(
@@ -593,9 +533,14 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
         )
     ).strip("/")
 
-    blob_name = (
-        f"{blob_prefix}/"
+    filename = (
         f"batch-{batch_index:05d}.csv"
+    )
+
+    blob_name = (
+        f"{blob_prefix}/{filename}"
+        if blob_prefix
+        else filename
     )
 
     addresses_by_partition = (
@@ -624,7 +569,7 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
     )
 
     try:
-        _upload_result(
+        _stage_payload_as_blocks(
             dest_blob=dest_blob,
             payload=payload,
         )

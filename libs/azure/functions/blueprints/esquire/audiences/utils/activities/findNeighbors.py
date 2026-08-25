@@ -1,280 +1,588 @@
 import base64
+import logging
 import os
-import uuid
-from datetime import datetime
-from typing import Any, Iterable, Iterator, List, Mapping
+import re
+from datetime import datetime, timedelta, timezone
+from typing import Any, Mapping
 
 import pandas as pd
+from azure.core.exceptions import ResourceExistsError
 from azure.durable_functions import Blueprint
 from azure.storage.blob import (
     BlobBlock,
     BlobClient,
-    ContentSettings,
     BlobSasPermissions,
+    BlobServiceClient,
+    ContentSettings,
     generate_blob_sas,
-    BlobServiceClient
 )
-from azure.core.exceptions import ResourceExistsError
 
 from libs.utils.azure_storage import get_cached_blob_client
 from libs.utils.esquire.neighbors.logic_async import (
-    load_estated_data_db,
     find_neighbors_for_street,
 )
+from libs.utils.esquire.neighbors.logic_sql import (
+    AttomPartitionReader,
+)
+
 
 bp = Blueprint()
 
-def _new_block_id() -> str:
-    return base64.b64encode(uuid.uuid4().bytes).decode("ascii")
+
+_RESULT_COLUMNS = [
+    "address",
+    "city",
+    "state",
+    "zipCode",
+    "plus4Code",
+]
+
+_BLOCK_SIZE_BYTES = int(
+    os.getenv(
+        "NEIGHBORS_RESULT_BLOCK_SIZE_BYTES",
+        str(8 * 1024 * 1024),
+    )
+)
+
+_ORDINAL_SUFFIX_RE = re.compile(
+    r"^(\d+)(ST|ND|RD|TH)$"
+)
 
 
-def _stage_iterable_as_blocks(
-    dest: BlobClient, data_parts: Iterable[bytes]
-) -> list[BlobBlock]:
+def _normalize_street_name(
+    value: str,
+) -> str:
+    if not value:
+        return ""
 
-    blocks: list[BlobBlock] = []
+    normalized = str(value).strip().upper()
+    match = _ORDINAL_SUFFIX_RE.match(normalized)
 
-    for part in data_parts:
-        if not part:
-            continue
+    return match.group(1) if match else normalized
 
-        block_id = _new_block_id()
-        dest.stage_block(block_id=block_id, data=part)
-        blocks.append(BlobBlock(block_id=block_id))
 
-    return blocks
-
-import logging
-
-def _partition_csv_bytes(
-    city: str,
-    state: str,
-    zip_code: str,
-    addresses: list[dict],
-    n_per_side: int,
-    same_side_only: bool,
-    bind: str,
-) -> bytes:
-
-    if not addresses:
-        logging.warning(f"[LOG] No addresses coming into _partition_csv_bytes")
-        return b""
-
-    df = pd.DataFrame(addresses)
-
-    if "primary_number" in df.columns and "street_number" not in df.columns:
-        df = df.rename(columns={"primary_number": "street_number"})
-
-    df["street_name"] = df["street_name"].astype(str).str.upper()
-
-    estated_df = load_estated_data_db(
-        city=city,
-        state=state,
-        zip_code=zip_code,
-        bind=bind,
+def _partition_key(
+    *,
+    city: Any,
+    state: Any,
+    zip_code: Any,
+) -> tuple[str, str, str]:
+    return (
+        str(city).strip().upper(),
+        str(state).strip().upper(),
+        str(zip_code).strip().zfill(5),
     )
 
-    if estated_df.empty:
-        return b""
-    
+
+def _partition_key_from_definition(
+    partition: Mapping[str, Any],
+) -> tuple[str, str, str]:
+    return _partition_key(
+        city=partition["city"],
+        state=partition["state"],
+        zip_code=partition["zip"],
+    )
+
+
+def _download_source_blob(
+    url: str,
+) -> bytes:
+    blob = get_cached_blob_client(url)
+
+    return (
+        blob
+        .download_blob(
+            max_concurrency=1,
+        )
+        .readall()
+    )
+
+
+def _load_addresses_by_partition(
+    *,
+    source_urls: list[str],
+    partitions: list[Mapping[str, Any]],
+) -> dict[
+    tuple[str, str, str],
+    list[dict[str, Any]],
+]:
+    target_keys = {
+        _partition_key_from_definition(partition)
+        for partition in partitions
+    }
+
+    addresses_by_partition: dict[
+        tuple[str, str, str],
+        list[dict[str, Any]],
+    ] = {}
+
+    for url in source_urls:
+        csv_bytes = _download_source_blob(url)
+
+        rows = pd.read_csv(
+            pd.io.common.BytesIO(csv_bytes),
+            dtype={
+                "zipCode": "string",
+                "plus4Code": "string",
+            },
+        ).to_dict("records")
+
+        for row in rows:
+            key = _partition_key(
+                city=row.get("city", ""),
+                state=row.get("state", ""),
+                zip_code=row.get("zipCode", ""),
+            )
+
+            if key not in target_keys:
+                continue
+
+            addresses_by_partition.setdefault(
+                key,
+                [],
+            ).append(row)
+
+    return addresses_by_partition
+
+
+def _prepare_source_addresses(
+    addresses: list[dict[str, Any]],
+) -> pd.DataFrame:
+    df = pd.DataFrame(addresses)
+
+    if (
+        "primary_number" in df.columns
+        and "street_number" not in df.columns
+    ):
+        df = df.rename(
+            columns={
+                "primary_number": "street_number",
+            }
+        )
+
+    # Preserve the existing source-data semantics.
+    df["street_name"] = (
+        df["street_name"]
+        .astype(str)
+        .str.upper()
+    )
+
     df["street_name"] = (
         df["street_name"]
         .astype(str)
         .map(_normalize_street_name)
     )
 
-    estated_df["street_name"] = (
-        estated_df["street_name"]
+    return df
+
+
+def _prepare_attom_data(
+    data: pd.DataFrame,
+) -> pd.DataFrame:
+    if data.empty:
+        return data
+
+    out = data.copy()
+
+    out["street_name"] = (
+        out["street_name"]
         .astype(str)
+        .str.upper()
         .map(_normalize_street_name)
     )
 
-    group_results: list[pd.DataFrame] = []
-    est_street = estated_df["street_name"]
+    return out
 
-    for street_name, street_addresses in df.groupby("street_name"):
-        street_data = estated_df[est_street == str(street_name).upper()]
+
+def _partition_neighbors(
+    *,
+    partition: Mapping[str, Any],
+    addresses: list[dict[str, Any]],
+    reader: AttomPartitionReader,
+    n_per_side: int,
+    same_side_only: bool,
+) -> pd.DataFrame:
+    if not addresses:
+        return pd.DataFrame(
+            columns=_RESULT_COLUMNS
+        )
+
+    source = _prepare_source_addresses(
+        addresses
+    )
+
+    city, state, zip_code = (
+        _partition_key_from_definition(
+            partition
+        )
+    )
+
+    data = reader.load_partition(
+        city=city,
+        state=state,
+        zip_code=zip_code,
+    )
+
+    if data.empty:
+        return pd.DataFrame(
+            columns=_RESULT_COLUMNS
+        )
+
+    data = _prepare_attom_data(data)
+
+    group_results: list[
+        pd.DataFrame
+    ] = []
+
+    # pandas groupby sorts street_name by default, matching the existing
+    # partition-processing path.
+    for street_name, street_addresses in source.groupby(
+        "street_name"
+    ):
+        street_data = data[
+            data["street_name"] == street_name
+        ]
+
         if street_data.empty:
             continue
 
-        neighbors_df = find_neighbors_for_street(
+        neighbors = find_neighbors_for_street(
             street_data,
             street_addresses,
             n_per_side,
             same_side_only,
         )
 
-        if not neighbors_df.empty:
-            group_results.append(neighbors_df)
-        else:
-            
-            logging.warning(f"[LOG] No neighbors for {city}, {state}, {zip_code}, {street_name}")
+        if not neighbors.empty:
+            group_results.append(neighbors)
 
     if not group_results:
-        return b""
-
-    out_df = pd.concat(group_results, ignore_index=True).drop_duplicates()
-
-    cols = ["address", "city", "state", "zipCode", "plus4Code"]
-    out_df = out_df.reindex(columns=cols)
-
-    return out_df.to_csv(index=False, header=False).encode("utf-8")
-
-
-def persist_neighbors_blob_to_history(dest_blob, run_id: str, audience_id: str) -> None:
-    container_name = os.getenv("NEIGHBORS_HISTORICAL_CONTAINER_NAME")
-
-    if not container_name:
-        return
-
-    try:
-        # Reuse SAME storage account as dest_blob
-        blob_service = BlobServiceClient(
-            account_url=f"https://{dest_blob.account_name}.blob.core.windows.net",
-            credential=dest_blob.credential,
+        return pd.DataFrame(
+            columns=_RESULT_COLUMNS
         )
 
-        container_client = blob_service.get_container_client(container_name)
+    result = pd.concat(
+        group_results,
+        ignore_index=True,
+    ).drop_duplicates()
 
-        try:
-            container_client.create_container()
-        except ResourceExistsError:
-            pass
+    return result[_RESULT_COLUMNS]
 
-        blob_filename = dest_blob.blob_name.split("/")[-1]
-        dest_path = f"neighbors-history/{audience_id}/{run_id}/{blob_filename}"
 
-        historical_blob = container_client.get_blob_client(dest_path)
+def _build_batch_payload(
+    *,
+    partitions: list[Mapping[str, Any]],
+    addresses_by_partition: dict[
+        tuple[str, str, str],
+        list[dict[str, Any]],
+    ],
+    n_per_side: int,
+    same_side_only: bool,
+    bind: str,
+) -> bytes:
+    result_frames: list[
+        pd.DataFrame
+    ] = []
 
-        # Same account → no SAS needed
-        historical_blob.start_copy_from_url(dest_blob.url)
+    # One connection/session for the entire small Durable activity.
+    with AttomPartitionReader(
+        bind=bind
+    ) as reader:
+        for partition in partitions:
+            key = _partition_key_from_definition(
+                partition
+            )
 
-    except Exception:
-        pass
-        # logging.warning(f"Historical copy failed: {e}")
+            result = _partition_neighbors(
+                partition=partition,
+                addresses=addresses_by_partition.get(
+                    key,
+                    [],
+                ),
+                reader=reader,
+                n_per_side=n_per_side,
+                same_side_only=same_side_only,
+            )
 
-@bp.activity_trigger(input_name="ingress")
-def activity_esquireAudiencesNeighbors_processBatch_blockblob(
-    ingress: Mapping[str, Any]
-) -> str:
+            if not result.empty:
+                result_frames.append(result)
 
-    partitions = ingress["partitions"]
-    source_urls = ingress.get("source_urls", [])
-    dest = ingress["destination"]
-    process = ingress.get("process", {})
-    run_id = ingress["run_id"]
-    audience_id = ingress["audience"]["id"]
-    batch_index = ingress["batch_index"]
-    bind = ingress.get("db_bind", "keystone")
+    if not result_frames:
+        return (
+            ",".join(_RESULT_COLUMNS)
+            + "\n"
+        ).encode("utf-8")
 
-    n_per_side = int(process.get("housesPerSide", 20))
-    same_side_only = not bool(process.get("bothSides", True))
-
-    conn_str = os.getenv(dest["conn_str"], dest["conn_str"])
-    container_name = dest["container_name"]
-    blob_prefix = str(dest.get("blob_prefix", "")).strip("/")
-
-    blob_name = (
-        f"{blob_prefix}/batch-{batch_index:05d}.csv"
+    output = pd.concat(
+        result_frames,
+        ignore_index=True,
     )
 
-    dest_blob = BlobClient.from_connection_string(
+    return output.to_csv(
+        index=False,
+    ).encode("utf-8")
+
+
+def _create_destination_blob(
+    *,
+    conn_str: str,
+    container_name: str,
+    blob_name: str,
+) -> BlobClient:
+    return BlobClient.from_connection_string(
         conn_str=conn_str,
         container_name=container_name,
         blob_name=blob_name,
     )
 
-    # Build address map once per activity
-    addresses_by_partition = {}
 
-    for url in source_urls:
-        bc = get_cached_blob_client(url)
-        csv_bytes = bc.download_blob().readall()
-        rows = pd.read_csv(pd.io.common.BytesIO(csv_bytes),dtype={"zipCode": "string", "plus4Code": "string"},).to_dict("records")
-
-        for row in rows:
-            key = (
-                str(row.get("city", "")).strip().upper(),
-                str(row.get("state", "")).strip().upper(),
-                str(row.get("zipCode", "")).strip().zfill(5),
-            )
-            addresses_by_partition.setdefault(key, []).append(row)
-
-    def _iter_partition_blocks() -> Iterator[bytes]:
-        header_written = False
-
-        for part in partitions:
-            city = str(part["city"]).strip().upper()
-            state = str(part["state"]).strip().upper()
-            zip_code = str(part["zip"]).strip().zfill(5)
-
-            key = (city, state, zip_code)
-            addresses = addresses_by_partition.get(key, [])
-
-            data = _partition_csv_bytes(
-                city,
-                state,
-                zip_code,
-                addresses,
-                n_per_side,
-                same_side_only,
-                bind,
-            )
-
-            if data and not header_written:
-                header = b"address,city,state,zipCode,plus4Code\n"
-                yield header
-                header_written = True
-
-            yield data
-
-    block_list = _stage_iterable_as_blocks(dest_blob, _iter_partition_blocks())
-
-    if not block_list:
-        import logging
-        logging.warning("[LOG] No block lists from neighbors, commiting empty block")
-        dest_blob.upload_blob(
-            b"",
-            overwrite=True,
-            content_settings=ContentSettings(content_type="text/csv"),
-        )
-    else:
-        dest_blob.commit_block_list(
-            block_list,
-            content_settings=ContentSettings(content_type="text/csv"),
-        )
-
-    persist_neighbors_blob_to_history(
-        dest_blob=dest_blob,
-        run_id=run_id,
-        audience_id=audience_id
+def _stage_payload_as_blocks(
+    *,
+    dest_blob: BlobClient,
+    payload: bytes,
+) -> None:
+    content_settings = ContentSettings(
+        content_type="text/csv"
     )
 
-    return (
-        dest_blob.url
-        + "?"
-        + generate_blob_sas(
-            account_name=dest_blob.account_name,
-            account_key=dest_blob.credential.account_key,
-            container_name=dest_blob.container_name,
-            blob_name=dest_blob.blob_name,
-            permission=BlobSasPermissions(read=True, write=True),
-            expiry=datetime.utcnow().replace(hour=23, minute=59),
+    block_list: list[BlobBlock] = []
+
+    for block_index, start in enumerate(
+        range(
+            0,
+            len(payload),
+            _BLOCK_SIZE_BYTES,
+        )
+    ):
+        block_id = base64.b64encode(
+            f"{block_index:08d}".encode(
+                "ascii"
+            )
+        ).decode("ascii")
+
+        dest_blob.stage_block(
+            block_id=block_id,
+            data=payload[
+                start:
+                start + _BLOCK_SIZE_BYTES
+            ],
+        )
+
+        block_list.append(
+            BlobBlock(
+                block_id=block_id
+            )
+        )
+
+    dest_blob.commit_block_list(
+        block_list,
+        content_settings=content_settings,
+    )
+
+
+def persist_neighbors_blob_to_history(
+    *,
+    dest_blob: BlobClient,
+    run_id: str,
+    audience_id: str,
+) -> None:
+    container_name = os.getenv(
+        "NEIGHBORS_HISTORICAL_CONTAINER_NAME"
+    )
+
+    if not container_name:
+        return
+
+    blob_service = None
+
+    try:
+        blob_service = BlobServiceClient(
+            account_url=(
+                f"https://"
+                f"{dest_blob.account_name}"
+                f".blob.core.windows.net"
+            ),
+            credential=dest_blob.credential,
+        )
+
+        container = (
+            blob_service
+            .get_container_client(
+                container_name
+            )
+        )
+
+        try:
+            container.create_container()
+        except ResourceExistsError:
+            pass
+
+        blob_filename = (
+            dest_blob.blob_name
+            .split("/")[-1]
+        )
+
+        dest_path = (
+            f"neighbors-history/"
+            f"{audience_id}/"
+            f"{run_id}/"
+            f"{blob_filename}"
+        )
+
+        historical_blob = (
+            container.get_blob_client(
+                dest_path
+            )
+        )
+
+        historical_blob.start_copy_from_url(
+            dest_blob.url
+        )
+
+    except Exception:
+        logging.exception(
+            "Neighbor historical copy failed"
+        )
+
+    finally:
+        if blob_service is not None:
+            try:
+                blob_service.close()
+            except Exception:
+                pass
+
+
+def _create_result_url(
+    dest_blob: BlobClient,
+) -> str:
+    sas = generate_blob_sas(
+        account_name=dest_blob.account_name,
+        account_key=(
+            dest_blob
+            .credential
+            .account_key
+        ),
+        container_name=dest_blob.container_name,
+        blob_name=dest_blob.blob_name,
+        permission=BlobSasPermissions(
+            read=True,
+            write=True,
+        ),
+        expiry=(
+            datetime.now(timezone.utc)
+            + timedelta(hours=24)
+        ),
+    )
+
+    return f"{dest_blob.url}?{sas}"
+
+
+@bp.activity_trigger(
+    input_name="ingress"
+)
+def activity_esquireAudiencesNeighbors_processBatch_blockblob(
+    ingress: Mapping[str, Any],
+) -> str:
+    partitions = ingress["partitions"]
+    source_urls = ingress.get(
+        "source_urls",
+        [],
+    )
+    dest = ingress["destination"]
+    process = ingress.get(
+        "process",
+        {},
+    )
+
+    run_id = ingress["run_id"]
+    audience_id = ingress["audience"]["id"]
+    batch_index = ingress["batch_index"]
+
+    bind = ingress.get(
+        "db_bind",
+        "keystone",
+    )
+
+    n_per_side = int(
+        process.get(
+            "housesPerSide",
+            20,
         )
     )
 
-import re
+    same_side_only = not bool(
+        process.get(
+            "bothSides",
+            True,
+        )
+    )
 
-_ORDINAL_SUFFIX_RE = re.compile(r"^(\d+)(ST|ND|RD|TH)$")
+    conn_str = os.getenv(
+        dest["conn_str"],
+        dest["conn_str"],
+    )
 
-def _normalize_street_name(value: str) -> str:
-    if not value:
-        return ""
+    container_name = (
+        dest["container_name"]
+    )
 
-    v = str(value).strip().upper()
+    blob_prefix = str(
+        dest.get(
+            "blob_prefix",
+            "",
+        )
+    ).strip("/")
 
-    match = _ORDINAL_SUFFIX_RE.match(v)
-    if match:
-        return match.group(1)  # strip suffix
+    filename = (
+        f"batch-{batch_index:05d}.csv"
+    )
 
-    return v
+    blob_name = (
+        f"{blob_prefix}/{filename}"
+        if blob_prefix
+        else filename
+    )
+
+    addresses_by_partition = (
+        _load_addresses_by_partition(
+            source_urls=source_urls,
+            partitions=partitions,
+        )
+    )
+
+    payload = _build_batch_payload(
+        partitions=partitions,
+        addresses_by_partition=(
+            addresses_by_partition
+        ),
+        n_per_side=n_per_side,
+        same_side_only=(
+            same_side_only
+        ),
+        bind=bind,
+    )
+
+    dest_blob = _create_destination_blob(
+        conn_str=conn_str,
+        container_name=container_name,
+        blob_name=blob_name,
+    )
+
+    try:
+        _stage_payload_as_blocks(
+            dest_blob=dest_blob,
+            payload=payload,
+        )
+
+        persist_neighbors_blob_to_history(
+            dest_blob=dest_blob,
+            run_id=run_id,
+            audience_id=audience_id,
+        )
+
+        return _create_result_url(
+            dest_blob
+        )
+
+    finally:
+        dest_blob.close()

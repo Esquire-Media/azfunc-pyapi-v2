@@ -16,7 +16,7 @@ T = TypeVar("T")
 _PARTITIONS_PER_ACTIVITY = int(
     os.getenv(
         "NEIGHBORS_PARTITIONS_PER_ACTIVITY",
-        "5",
+        "10",
     )
 )
 

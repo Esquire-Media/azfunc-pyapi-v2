@@ -9,14 +9,14 @@ from libs.data import from_bind
 _SQL_STATEMENT_TIMEOUT_MS = int(
     os.getenv(
         "NEIGHBORS_SQL_STATEMENT_TIMEOUT_MS",
-        "120000",
+        "240000",
     )
 )
 
 _SQL_LOCK_TIMEOUT_MS = int(
     os.getenv(
         "NEIGHBORS_SQL_LOCK_TIMEOUT_MS",
-        "5000",
+        "10000",
     )
 )
 

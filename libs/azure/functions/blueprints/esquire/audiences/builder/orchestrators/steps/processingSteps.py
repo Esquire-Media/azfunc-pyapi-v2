@@ -91,6 +91,10 @@ def orchestrator_esquireAudiences_processingSteps(
     ingress["base_prefix"] = str(ingress["working"]["blob_prefix"]).strip("/")
     # logging.warning(f"[LOG] base prefix: {ingress['base_prefix']}")
 
+    # Extra internal processing steps, such as address normalization, consume
+    # their own numbered storage path without changing the configured step list.
+    storage_step_offset = 0
+
     # Loop through each processing step
     for step, process in enumerate(processes := processing.get("steps", [])):
         logging.warning(f"[LOG] Step: {step} - {process['kind']}")
@@ -114,20 +118,21 @@ def orchestrator_esquireAudiences_processingSteps(
             )
 
         # Set up the egress data structure for the current step
+        storage_step = step + storage_step_offset
 
         egress = {
             "working": {
                 **ingress["working"],
                 "blob_prefix": "{}/{}/working".format(
                     ingress["base_prefix"],
-                    step,
+                    storage_step,
                 ),
             },
             "destination": {
                 **ingress["working"],
                 "blob_prefix": "{}/{}".format(
                     ingress["base_prefix"],
-                    step,
+                    storage_step,
                 ),
             },
             "transform": [inputType, process["outputType"]],
@@ -150,11 +155,53 @@ def orchestrator_esquireAudiences_processingSteps(
                         # logging.warning("[LOG] Addresses output type")
                         # logging.warning("[LOG] Step Type:" + egress.get("process",{}).get("kind",""))
                         if egress["process"].get("kind", "") == "Neighbors":
-                            # No specific processing required
+                            normalization = yield context.call_sub_orchestrator(
+                                "orchestrator_esquireAudiencesNeighbors_normalizeAddresses",
+                                {
+                                    "source_urls": source_urls,
+                                    "destination": egress["destination"],
+                                    "data_source": ingress["audience"]["dataSource"],
+                                },
+                            )
+
+                            neighbors_egress = egress
+
+                            if normalization.get("transformed", False):
+                                normalized_urls = normalization.get(
+                                    "results",
+                                    [],
+                                )
+
+                                if not normalized_urls:
+                                    raise RuntimeError(
+                                        "Address normalization produced no results"
+                                )
+                                storage_step_offset += 1
+                                neighbors_storage_step = storage_step + 1
+
+                                neighbors_egress = {
+                                    **egress,
+                                    "working": {
+                                        **ingress["working"],
+                                        "blob_prefix": "{}/{}/working".format(
+                                            ingress["base_prefix"],
+                                            neighbors_storage_step,
+                                        ),
+                                    },
+                                    "destination": {
+                                        **ingress["working"],
+                                        "blob_prefix": "{}/{}".format(
+                                            ingress["base_prefix"],
+                                            neighbors_storage_step,
+                                        ),
+                                    },
+                                    "source_urls": normalization.get("results", []),
+                                }
+
                             process["results"] = yield context.call_sub_orchestrator(
                                 "orchestrator_esquireAudiencesSteps_addresses2neighbors",
                                 {
-                                    **egress,
+                                    **neighbors_egress,
                                     "audience":ingress["audience"]
                                     },
                             )

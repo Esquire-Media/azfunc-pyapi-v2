@@ -101,6 +101,7 @@ _FIELD_CANDIDATES: dict[str, tuple[str, ...]] = {
         "street_number",
         "streetNumber",
         "address_number",
+        "streetnumber"
     ),
 }
 

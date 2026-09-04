@@ -200,6 +200,30 @@ def rewrite_demographic_fields(json_logic: dict | str) -> dict:
 
                 return {"all": [process(field_block), process(in_block)]}
 
+            # --- HANDLE "!" ---
+            if "!" in node:
+                inner = node["!"]
+
+                if isinstance(inner, dict) and "in" in inner:
+                    left, right = inner["in"]
+
+                    if (
+                        isinstance(left, dict)
+                        and "var" in left
+                        and isinstance(right, list)
+                    ):
+                        conditions = [
+                            {"!=": [process(left), value]}
+                            for value in right
+                        ]
+
+                        if len(conditions) == 1:
+                            return conditions[0]
+
+                        return {"and": conditions}
+
+                return {"!": process(inner)}
+
             # --- HANDLE "in" ---
             if "in" in node:
                 left, right = node["in"]

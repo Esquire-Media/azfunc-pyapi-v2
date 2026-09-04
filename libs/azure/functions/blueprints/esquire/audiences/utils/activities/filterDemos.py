@@ -13,6 +13,7 @@ from azure.storage.blob import BlobClient, BlobSasPermissions, generate_blob_sas
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from urllib.parse import unquote
+import logging
 
 bp = Blueprint()
 
@@ -21,8 +22,19 @@ bp = Blueprint()
 def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
     """
     Uses Azure Blob Query for server-side SQL pushdown filtering.
-    Only matching rows are returned from Azure Storage - no local filtering.
+
+    For large negated IN filters, such as:
+
+        !(state IN ["AL", "AK", ...])
+
+    Blob Query can fail either because:
+      - NOT (... IN (...)) is rejected by the query parser, or
+      - expanding it into many != comparisons exceeds expression complexity.
+
+    In that specific case, only the device ID and relevant demographic
+    column are queried and the exclusion is applied locally.
     """
+
     import uuid
     from io import StringIO
 
@@ -34,47 +46,106 @@ def activity_esquireAudiences_filterDemographics(ingress: dict) -> str:
     rewritten_filter = rewrite_demographic_fields(demo_filter)
     canonical_filter = _canonicalize_jsonlogic(rewritten_filter)
 
-    # 2. Convert to SQL WHERE clause for server-side filtering
-    where_clause = jsonlogic_to_sql(canonical_filter)
+    # Check for the Blob Query problem case:
+    #
+    #   !(field IN [large list])
+    #
+    negated_in_filter = _get_negated_in_filter(canonical_filter)
 
-    # 3. Build destination path
+    # 2. Build destination path
     blob_name = f"{destination['blob_prefix']}/{uuid.uuid4().hex}.csv"
 
-    # 4. Open blobs
+    # 3. Open blobs
     source_blob = BlobClient.from_blob_url(source_url)
+
     dest_blob = init_blob_client(
         conn_str=os.environ[destination["conn_str"]],
         container_name=destination["container_name"],
         blob_name=blob_name,
     )
 
-    # 5. Execute query server-side - project ONLY "hashed device id" column
-    # This minimizes data transfer since output only needs deviceids
-    query_sql = f'SELECT "hashed device id" FROM BlobStorage WHERE {where_clause}'
+    dialect = DelimitedTextDialect(
+        delimiter=",",
+        quotechar='"',
+        lineterminator="\n",
+        has_header="true",
+    )
 
-    # Collect query results
-    dialect = DelimitedTextDialect(delimiter=",", quotechar='"', lineterminator="\n", has_header="true")
-    result_data = source_blob.query_blob(query_sql, blob_format=dialect).readall()
-
-    # 6. Build output CSV with only "deviceid" header
-    result_text = result_data.decode("utf-8")
-    reader = csv.reader(StringIO(result_text))
     output_buffer = StringIO()
     writer = csv.writer(output_buffer)
     writer.writerow(["deviceid"])
 
-    next(reader, None)  # skip header
-    for row in reader:
-        if row:
-            writer.writerow([row[0]])  # hashed device id is first column
+    # ---------------------------------------------------------
+    # SPECIAL CASE: negated IN
+    # ---------------------------------------------------------
+    if negated_in_filter is not None:
+        field, excluded_values = negated_in_filter
 
-    # 7. Upload result
+        # Ask Blob Storage only for the two columns we need.
+        query_sql = (
+            f'SELECT "hashed device id", "{field}" '
+            f"FROM BlobStorage"
+        )
+        logging.warning(query_sql)
+
+        result_data = source_blob.query_blob(
+            query_sql,
+            blob_format=dialect,
+        ).readall()
+
+        result_text = result_data.decode("utf-8")
+        reader = csv.reader(StringIO(result_text))
+
+        # Skip returned CSV header
+        next(reader, None)
+
+        # Set lookup keeps this cheap even with a large exclusion list
+        excluded_values = set(str(value) for value in excluded_values)
+
+        for row in reader:
+            if len(row) < 2:
+                continue
+
+            device_id = row[0]
+            field_value = row[1]
+
+            if field_value not in excluded_values:
+                writer.writerow([device_id])
+
+    # ---------------------------------------------------------
+    # NORMAL CASE: use Blob Query WHERE pushdown
+    # ---------------------------------------------------------
+    else:
+        where_clause = jsonlogic_to_sql(canonical_filter)
+
+        query_sql = (
+            f'SELECT "hashed device id" '
+            f"FROM BlobStorage WHERE {where_clause}"
+        )
+        logging.warning(query_sql)
+
+        result_data = source_blob.query_blob(
+            query_sql,
+            blob_format=dialect,
+        ).readall()
+
+        result_text = result_data.decode("utf-8")
+        reader = csv.reader(StringIO(result_text))
+
+        # Skip returned CSV header
+        next(reader, None)
+
+        for row in reader:
+            if row:
+                writer.writerow([row[0]])
+
+    # 4. Upload result
     dest_blob.upload_blob(
         data=output_buffer.getvalue().encode("utf-8"),
         overwrite=True,
     )
 
-    # 8. Generate SAS token
+    # 5. Generate SAS token
     sas_token = generate_blob_sas(
         account_name=dest_blob.account_name,
         container_name=dest_blob.container_name,
@@ -191,38 +262,28 @@ def rewrite_demographic_fields(json_logic: dict | str) -> dict:
                     and "in" in in_block
                 ):
                     values = in_block["in"][1]
-                    conditions = [{"==": [{"var": v}, "1"]} for v in values]
+
+                    conditions = [
+                        {"==": [{"var": v}, "1"]}
+                        for v in values
+                    ]
 
                     if len(conditions) == 1:
                         return process(conditions[0])
 
-                    return {"and": [process(c) for c in conditions]}
-
-                return {"all": [process(field_block), process(in_block)]}
-
-            # --- HANDLE "!" ---
-            if "!" in node:
-                inner = node["!"]
-
-                if isinstance(inner, dict) and "in" in inner:
-                    left, right = inner["in"]
-
-                    if (
-                        isinstance(left, dict)
-                        and "var" in left
-                        and isinstance(right, list)
-                    ):
-                        conditions = [
-                            {"!=": [process(left), value]}
-                            for value in right
+                    return {
+                        "and": [
+                            process(c)
+                            for c in conditions
                         ]
+                    }
 
-                        if len(conditions) == 1:
-                            return conditions[0]
-
-                        return {"and": conditions}
-
-                return {"!": process(inner)}
+                return {
+                    "all": [
+                        process(field_block),
+                        process(in_block),
+                    ]
+                }
 
             # --- HANDLE "in" ---
             if "in" in node:
@@ -232,73 +293,204 @@ def rewrite_demographic_fields(json_logic: dict | str) -> dict:
                     field = left["var"]
 
                     # Boolean select: expand to one-hot boolean columns
-                    if field in BOOLEAN_SELECT_FIELDS and isinstance(right, list):
-                        # Special handling for creditCardCreditRating: map letter ratings to column names
+                    if (
+                        field in BOOLEAN_SELECT_FIELDS
+                        and isinstance(right, list)
+                    ):
+                        # Special handling for creditCardCreditRating:
+                        # map letter ratings to column names
                         if field == "creditCardCreditRating":
-                            right = [CREDIT_RATING_MAP.get(v, v) for v in right]
-                        conditions = [{"==": [{"var": v}, "1"]} for v in right]
+                            right = [
+                                CREDIT_RATING_MAP.get(v, v)
+                                for v in right
+                            ]
+
+                        conditions = [
+                            {"==": [{"var": v}, "1"]}
+                            for v in right
+                        ]
+
                         if len(conditions) == 1:
                             return process(conditions[0])
-                        return {"or": [process(c) for c in conditions]}
+
+                        return {
+                            "or": [
+                                process(c)
+                                for c in conditions
+                            ]
+                        }
 
                     # zipcode handling path
                     if field in ZIP_CATEGORICAL_RENAME:
                         return {
                             "in": [
-                                {"var": ZIP_CATEGORICAL_RENAME[field]},
+                                {
+                                    "var": ZIP_CATEGORICAL_RENAME[field]
+                                },
                                 _normalize_zip_list(field, right),
                             ]
                         }
-                    
-                    # Categorical rename (rare path)
+
+                    # Categorical rename
                     if field in CATEGORICAL_RENAME:
-                        return {"in": [{"var": CATEGORICAL_RENAME[field]}, right]}
+                        return {
+                            "in": [
+                                {
+                                    "var": CATEGORICAL_RENAME[field]
+                                },
+                                right,
+                            ]
+                        }
 
-                return {"in": [process(left), process(right)]}
+                return {
+                    "in": [
+                        process(left),
+                        process(right),
+                    ]
+                }
 
-            # --- HANDLE "==" (THIS is what was missing for dwellingType) ---
+            # --- HANDLE "==" ---
             if "==" in node:
                 left, right = node["=="]
 
-                # Pattern: {"==":[{"var":"dwellingType"},"dwelling_type single family"]}
-                if isinstance(left, dict) and left.get("var") in BOOLEAN_SELECT_FIELDS and isinstance(right, str):
-                    # Convert to one-hot boolean column check (use string "1" to match CSV format)
-                    return {"==": [{"var": right}, "1"]}
+                # Pattern:
+                # {"==":[{"var":"dwellingType"},
+                #         "dwelling_type single family"]}
+                if (
+                    isinstance(left, dict)
+                    and left.get("var") in BOOLEAN_SELECT_FIELDS
+                    and isinstance(right, str)
+                ):
+                    return {
+                        "==": [
+                            {"var": right},
+                            "1",
+                        ]
+                    }
 
-                # Pattern: {"==":[{"var":"hasCredit"}, 1]} -> convert 1 to "1" for CSV compatibility
-                # DIRECT_RENAME fields store boolean values as "0"/"1" strings in CSV
-                if isinstance(left, dict) and left.get("var") in DIRECT_RENAME:
+                # DIRECT_RENAME fields store boolean values
+                # as "0"/"1" strings in CSV
+                if (
+                    isinstance(left, dict)
+                    and left.get("var") in DIRECT_RENAME
+                ):
                     if isinstance(right, int):
                         right = str(right)
 
-                if isinstance(left, dict) and left.get("var") in ZIP_VALUE_FIELDS:
-                    right = _normalize_zip_scalar(left["var"], right)
+                if (
+                    isinstance(left, dict)
+                    and left.get("var") in ZIP_VALUE_FIELDS
+                ):
+                    right = _normalize_zip_scalar(
+                        left["var"],
+                        right,
+                    )
 
-                return {"==": [process(left), process(right)]}
+                return {
+                    "==": [
+                        process(left),
+                        process(right),
+                    ]
+                }
 
             # --- VAR RENAME ---
             if "var" in node:
                 var_name = node["var"]
 
                 if var_name in DIRECT_RENAME:
-                    return {"var": DIRECT_RENAME[var_name]}
+                    return {
+                        "var": DIRECT_RENAME[var_name]
+                    }
 
                 if var_name in NUMERIC_RENAME:
-                    return {"var": NUMERIC_RENAME[var_name]}
-                
+                    return {
+                        "var": NUMERIC_RENAME[var_name]
+                    }
+
                 if var_name in ZIP_CATEGORICAL_RENAME:
-                    return {"var": ZIP_CATEGORICAL_RENAME[var_name]}
+                    return {
+                        "var": ZIP_CATEGORICAL_RENAME[var_name]
+                    }
 
                 if var_name in CATEGORICAL_RENAME:
-                    return {"var": CATEGORICAL_RENAME[var_name]}
+                    return {
+                        "var": CATEGORICAL_RENAME[var_name]
+                    }
 
                 return node
 
-            return {k: process(v) for k, v in node.items()}
+            return {
+                k: process(v)
+                for k, v in node.items()
+            }
 
         if isinstance(node, list):
-            return [process(n) for n in node]
+            return [
+                process(n)
+                for n in node
+            ]
 
         return node
 
     return process(json_logic)
+
+
+def _get_negated_in_filter(node):
+    """
+    Detect the specific JsonLogic shape:
+
+        {
+            "and": [
+                {
+                    "!": {
+                        "in": [
+                            {"var": "state"},
+                            ["AL", "AK", ...]
+                        ]
+                    }
+                }
+            ]
+        }
+
+    Also supports the same filter without the outer single-item "and".
+
+    Returns:
+        (field, excluded_values) if matched
+        None otherwise
+    """
+
+    if not isinstance(node, dict):
+        return None
+
+    # Unwrap single-condition ANDs
+    if "and" in node:
+        conditions = node["and"]
+
+        if isinstance(conditions, list) and len(conditions) == 1:
+            return _get_negated_in_filter(conditions[0])
+
+        return None
+
+    if "!" not in node:
+        return None
+
+    inner = node["!"]
+
+    if not isinstance(inner, dict) or "in" not in inner:
+        return None
+
+    in_expression = inner["in"]
+
+    if not isinstance(in_expression, list) or len(in_expression) != 2:
+        return None
+
+    left, right = in_expression
+
+    if (
+        not isinstance(left, dict)
+        or "var" not in left
+        or not isinstance(right, list)
+    ):
+        return None
+
+    return left["var"], right

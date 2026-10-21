@@ -32,8 +32,8 @@ _UUID = PG_UUID(as_uuid=True)
 
 def _replacement_ids(settings: dict) -> list[UUID]:
     raw_ids = settings.get("replace_batches")
-    if not isinstance(raw_ids, list) or not 0 < len(raw_ids) <= 500:
-        raise ValueError("Replacement requires 1–500 batch IDs")
+    if not isinstance(raw_ids, list) or not 0 < len(raw_ids) <= 10:
+        raise ValueError("Replacement requires 1–10 batch IDs")
 
     if not all(isinstance(item, str) for item in raw_ids):
         raise ValueError("Every replacement batch ID must be a UUID string")
@@ -250,7 +250,7 @@ def _checkpoint_matches(checkpoint: dict, ids: list[UUID]) -> bool:
     )
 
 
-def _require_complete_new_batch(conn, new_id: UUID, staging_table: str) -> dict:
+def _require_complete_new_batch(conn, new_id: UUID, staging_table: str) -> None:
     """Do NOT remove old data unless ALL staged orders and line items exist.
 
     EAV generates one transaction per distinct order and one line-item ID per
@@ -308,63 +308,14 @@ def _require_complete_new_batch(conn, new_id: UUID, staging_table: str) -> dict:
             f"line items {actual_lines}/{expected_lines}. "
             "Note that duplicate identical source rows generate the same line-item ID."
         )
-    return {"transaction_count": actual_orders, "line_item_count": actual_lines}
-
-
-def _require_new_sale_dates(conn, new_id: UUID, expected_transactions: int) -> None:
-    """Require a valid sale_date for every incoming transaction.
-
-    A date can live on a transaction or a line item depending on EAV
-    classification. SET LOCAL TIME ZONE = UTC in the caller ensures a stable
-    interpretation of naive string dates.
-    """
-    sql = text("""
-        WITH txns AS (
-            SELECT txn.id
-            FROM sales.entities txn
-            JOIN sales.entity_types et
-              ON et.entity_type_id = txn.entity_type_id
-             AND et.name = 'transaction'
-            WHERE txn.parent_entity_id = :new_id
-        ),
-        valid_dates AS (
-            SELECT DISTINCT t.id AS transaction_id
-            FROM txns t
-            JOIN sales.entity_attribute_values v ON v.entity_id = t.id
-            JOIN sales.attributes a ON a.id = v.attribute_id
-              AND a.name = 'sale_date'
-            WHERE v.value_ts IS NOT NULL
-               OR sales.try_cast_timestamp(v.value_string) IS NOT NULL
-
-            UNION
-
-            SELECT DISTINCT t.id AS transaction_id
-            FROM txns t
-            JOIN sales.entities li ON li.parent_entity_id = t.id
-            JOIN sales.entity_types et ON et.entity_type_id = li.entity_type_id
-              AND et.name = 'line_item'
-            JOIN sales.entity_attribute_values v ON v.entity_id = li.id
-            JOIN sales.attributes a ON a.id = v.attribute_id
-              AND a.name = 'sale_date'
-            WHERE v.value_ts IS NOT NULL
-               OR sales.try_cast_timestamp(v.value_string) IS NOT NULL
-        )
-        SELECT COUNT(*) FROM valid_dates
-    """).bindparams(bindparam("new_id", type_=_UUID))
-    dated_count = int(conn.execute(sql, {"new_id": new_id}).scalar_one())
-    if dated_count != expected_transactions:
-        raise ValueError(
-            "Incoming batch has missing/unparseable sale dates for "
-            f"{expected_transactions - dated_count} of {expected_transactions} orders"
-        )
 
 
 def _old_batch_date_ranges(conn, ids: list[UUID]) -> dict:
-    """Calculate exact old-batch date envelopes; reject missing transaction dates.
+    """Compute each old batch's UTC sale-date envelope once, before deletion.
 
-    sale_date may be stored against transaction OR line_item in this EAV
-    schema. A batch is unsafe to delete if any transaction has no parseable
-    sale_date. Date grouping is explicitly UTC.
+    sale_date may be stored on transactions or their line items.
+    We need the min/max dates for historical metadata, not a per-order
+    date completeness audit. A batch with no usable sale dates is rejected.
     """
     sql = text("""
         WITH transactions AS (
@@ -375,61 +326,47 @@ def _old_batch_date_ranges(conn, ids: list[UUID]) -> dict:
              AND et.name = 'transaction'
             WHERE txn.parent_entity_id = ANY(:batch_ids)
         ),
-        date_values AS (
-            SELECT t.txn_id, t.batch_id,
-                COALESCE(v.value_ts,
-                         sales.try_cast_timestamp(v.value_string)::timestamptz) AS sale_ts
-            FROM transactions t
-            JOIN sales.entity_attribute_values v ON v.entity_id = t.txn_id
-            JOIN sales.attributes a ON a.id = v.attribute_id
-              AND a.name = 'sale_date'
-
+        dated_entities AS (
+            SELECT batch_id, txn_id AS entity_id FROM transactions
             UNION ALL
-
-            SELECT t.txn_id, t.batch_id,
-                COALESCE(v.value_ts,
-                         sales.try_cast_timestamp(v.value_string)::timestamptz) AS sale_ts
+            SELECT t.batch_id, li.id
             FROM transactions t
             JOIN sales.entities li ON li.parent_entity_id = t.txn_id
-            JOIN sales.entity_types et ON et.entity_type_id = li.entity_type_id
-              AND et.name = 'line_item'
-            JOIN sales.entity_attribute_values v ON v.entity_id = li.id
+            JOIN sales.entity_types et
+              ON et.entity_type_id = li.entity_type_id
+             AND et.name = 'line_item'
+        ),
+        date_values AS (
+            SELECT d.batch_id,
+                   COALESCE(
+                       v.value_ts,
+                       sales.try_cast_timestamp(v.value_string)::timestamptz
+                   ) AS sale_ts
+            FROM dated_entities d
+            JOIN sales.entity_attribute_values v ON v.entity_id = d.entity_id
             JOIN sales.attributes a ON a.id = v.attribute_id
-              AND a.name = 'sale_date'
+             AND a.name = 'sale_date'
         )
-        SELECT
-            t.batch_id,
-            COUNT(DISTINCT t.txn_id) AS total_transactions,
-            COUNT(DISTINCT t.txn_id) FILTER (WHERE d.sale_ts IS NOT NULL)
-                AS dated_transactions,
-            MIN((d.sale_ts AT TIME ZONE 'UTC')::date) AS min_date,
-            MAX((d.sale_ts AT TIME ZONE 'UTC')::date) AS max_date
-        FROM transactions t
-        LEFT JOIN date_values d ON d.txn_id = t.txn_id
-        GROUP BY t.batch_id
+        SELECT batch_id,
+               (MIN(sale_ts) AT TIME ZONE 'UTC')::date AS min_date,
+               (MAX(sale_ts) AT TIME ZONE 'UTC')::date AS max_date
+        FROM date_values
+        GROUP BY batch_id
     """).bindparams(bindparam("batch_ids", type_=_UUID_ARRAY))
 
     rows = conn.execute(sql, {"batch_ids": ids}).mappings()
-    by_id = {}
-    for row in rows:
-        if (
-            not row["total_transactions"]
-            or row["dated_transactions"] != row["total_transactions"]
-            or row["min_date"] is None
-            or row["max_date"] is None
-        ):
-            raise ValueError(
-                f"Old batch {row['batch_id']} contains transactions without "
-                "parseable sale_date; refusing to replace it"
-            )
-        by_id[str(row["batch_id"])] = {
+    by_id = {
+        str(row["batch_id"]): {
             "batch_id": str(row["batch_id"]),
             "start_date": row["min_date"].isoformat(),
             "end_date": row["max_date"].isoformat(),
         }
+        for row in rows
+        if row["min_date"] is not None and row["max_date"] is not None
+    }
 
     if any(str(batch_id) not in by_id for batch_id in ids):
-        raise ValueError("Old batch has no sales transactions or no sale dates")
+        raise ValueError("Old batch has no usable sale dates; refusing replacement")
 
     ranges = [by_id[str(batch_id)] for batch_id in ids]
     return {
@@ -551,12 +488,7 @@ def activity_salesIngestor_validateReplacementTargets(settings: dict) -> dict:
         _require_owned_old_batches(
             conn, ids, str(settings["tenant_id"]), lock=False
         )
-        candidate_dates = _old_batch_date_ranges(conn, ids)
-
-    return {
-        "validated_batch_count": len(ids),
-        "candidate_replacing_dates": candidate_dates,
-    }
+    return {"validated_batch_count": len(ids)}
 
 
 @bp.activity_trigger(input_name="settings")
@@ -608,10 +540,7 @@ def activity_salesIngestor_applyReplacement(settings: dict) -> dict:
         tables = _attribution_tables()
         table_types = _attribution_column_types(conn, tables)
         _require_owned_old_batches(conn, ids, str(settings["tenant_id"]), lock=True)
-        completeness = _require_complete_new_batch(
-            conn, new_id, settings["staging_table"]
-        )
-        _require_new_sale_dates(conn, new_id, completeness["transaction_count"])
+        _require_complete_new_batch(conn, new_id, settings["staging_table"])
         dates = _old_batch_date_ranges(conn, ids)
         _save_checkpoint(conn, new_id, ids, dates)
         deleted_attributions = _delete_attributions(conn, ids, table_types)

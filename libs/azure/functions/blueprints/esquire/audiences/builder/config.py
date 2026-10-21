@@ -37,6 +37,40 @@ if not from_bind("audiences"):
     )
 
 MAPPING_DATASOURCE = {
+    # Manual address lists
+    "cmtilyglp004wchqb6lqzc23x": {
+        "dbType": "postgres",
+        "bind": "keystone",
+        "table": {
+            "schema": "utils",
+            "name": "address_lists",
+        },
+        "query": {
+            "select": """
+                id,
+                CONCAT_WS(
+                    ' ',
+                    COALESCE(
+                        NULLIF((address).address_alphanumeric, ''),
+                        (address).address::text
+                    ),
+                    NULLIF((address).predirabbrev, ''),
+                    NULLIF((address).streetname, ''),
+                    NULLIF((address).streettypeabbrev, ''),
+                    NULLIF((address).postdirabbrev, ''),
+                    NULLIF((address).internal, '')
+                ) AS address,
+                (address).location AS city,
+                (address).stateabbrev AS state,
+                (address).zip AS "zipCode",
+                COALESCE(
+                    NULLIF((address).address_alphanumeric, ''),
+                    (address).address::text
+                ) AS street_number,
+                (address).streetname AS streetname
+            """
+        },
+    },
     # Deepsync mover - can use for testing
     "clwjn2q4s0056rw04ra44j8k9": {
         "dbType": "postgres",

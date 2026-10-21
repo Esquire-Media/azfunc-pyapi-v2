@@ -12,5 +12,6 @@
   },
   "jupyter.notebookFileRoot": "${workspaceFolder}",
   "python-envs.defaultEnvManager": "ms-python.python:venv",
-  "python-envs.pythonProjects": []
+  "python-envs.pythonProjects": [],
+  "remote.autoForwardPortsFallback": 0
 }

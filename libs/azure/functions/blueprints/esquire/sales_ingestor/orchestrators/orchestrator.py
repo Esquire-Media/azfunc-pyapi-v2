@@ -22,6 +22,23 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         retry = RetryOptions(15000, 3)
 
         table_name = f"staging_{settings['metadata']['upload_id']}"
+        replace_batches = settings.get("replace_batches") or []
+
+        if replace_batches:
+            # EAV prelude stores metadata as a sales_batch EAV string. This
+            # distinguishes a pending replacement from a usable legacy batch.
+            settings["metadata"]["replacement_status"] = "pending"
+
+            # Read-only check. The destructive activity rechecks under locks.
+            yield context.call_activity_with_retry(
+                "activity_salesIngestor_validateReplacementTargets",
+                retry,
+                {
+                    "new_batch_id": str(settings["metadata"]["upload_id"]),
+                    "tenant_id": settings["metadata"]["tenant_id"],
+                    "replace_batches": replace_batches,
+                },
+            )
 
         yield context.call_activity_with_retry(
             "activity_salesIngestor_createStagingTable", 
@@ -97,6 +114,48 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
                 **settings
                 }
         )
+
+        if replace_batches:
+            replacement_input = {
+                "new_batch_id": str(settings["metadata"]["upload_id"]),
+                "tenant_id": settings["metadata"]["tenant_id"],
+                "replace_batches": replace_batches,
+                "staging_table": table_name,
+            }
+            try:
+                yield context.call_sub_orchestrator(
+                    "suborchestrator_salesIngestor_replaceBatches",
+                    replacement_input,
+                )
+            except Exception as replacement_error:
+                # The DB may have committed even if Durable lost its completion
+                # acknowledgment. Compensation holds the SAME new-batch row
+                # lock and never deletes an already-applied replacement.
+                try:
+                    resolution = yield context.call_activity_with_retry(
+                        "activity_salesIngestor_compensateFailedReplacement",
+                        retry,
+                        replacement_input,
+                    )
+                except Exception:
+                    logger.exception(
+                        "Replacement recovery requires manual reconciliation: %s",
+                        replacement_input["new_batch_id"],
+                    )
+                    raise replacement_error
+
+                if resolution["status"] != "replacement_already_committed":
+                    raise replacement_error
+
+                # The SQL checkpoint is the authoritative proof of success.
+                logger.warning(
+                    "Recovered committed replacement after lost activity result: %s",
+                    replacement_input["new_batch_id"],
+                )
+
+        # Attribution dispatch belongs HERE, after the successful replacement
+        # transaction (or its replay-safe reconciliation). The supplied code
+        # does not include the target attribution call contract.
 
     except Exception as e:
         logger.error(msg=e, extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})

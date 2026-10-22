@@ -19,7 +19,7 @@ from azure.durable_functions import Blueprint
 from sqlalchemy import bindparam, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TEXT as PG_TEXT, UUID as PG_UUID
 
-from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import db, qtbl
+from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import db
 
 bp = Blueprint()
 logger = logging.getLogger("salesIngestor.logger")
@@ -282,7 +282,7 @@ def _require_complete_new_batch(conn, new_id: UUID, staging_table: str) -> None:
     expected_table = f"staging_{new_id}"
     if staging_table != expected_table:
         raise ValueError("Staging table does not match incoming batch upload ID")
-    staging = qtbl(staging_table)
+    staging = f'"sales"."{expected_table}"'
     expected = conn.execute(
         text(f"""
             SELECT
@@ -383,8 +383,8 @@ def _save_checkpoint(conn, new_id: UUID, ids: list[UUID], dates: dict) -> None:
     """Persist JSONB batch lineage/date ranges in the same transaction as deletion."""
     conn.execute(text("""
         INSERT INTO sales.attributes (id, entity_type_id, name, data_type, description)
-        SELECT gen_random_uuid(), et.entity_type_id, n.name,
-               'jsonb'::attr_data_type, NULL::text
+        SELECT pg_catalog.gen_random_uuid(), et.entity_type_id, n.name,
+               'jsonb'::sales.attr_data_type, NULL::text
         FROM sales.entity_types et
         CROSS JOIN (VALUES ('replaced_batch_ids'), ('replacing_dates')) AS n(name)
         WHERE et.name = 'sales_batch'
@@ -509,7 +509,6 @@ def activity_salesIngestor_applyReplacement(settings: dict) -> dict:
     new_id = UUID(str(settings["new_batch_id"]))
 
     with db() as conn:
-        conn.execute(text("SET LOCAL search_path TO sales, public"))
         conn.execute(text("SET LOCAL lock_timeout = '10s'"))
         conn.execute(text("SET LOCAL statement_timeout = '15min'"))
         conn.execute(text("SET LOCAL TIME ZONE 'UTC'"))
@@ -586,7 +585,6 @@ def activity_salesIngestor_compensateFailedReplacement(settings: dict) -> dict:
     tenant_id = str(settings["tenant_id"])
 
     with db() as conn:
-        conn.execute(text("SET LOCAL search_path TO sales, public"))
         conn.execute(text("SET LOCAL lock_timeout = '10s'"))
         conn.execute(text("SET LOCAL statement_timeout = '15min'"))
 

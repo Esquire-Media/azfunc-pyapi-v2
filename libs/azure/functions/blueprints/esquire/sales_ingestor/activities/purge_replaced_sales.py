@@ -1,33 +1,49 @@
-"""Durable activities for atomic replacement of completed sales batches.
+"""Durable activities for atomic sales-batch replacement.
 
-Requires SALES_ATTRIBUTION_TABLES as a comma-separated allowlist of schema.table
-names. Every configured table must have a batch_id column (UUID or text).
-Only the trusted deployment environment determines which tables are deleted.
-
-Assumes attribution rows, sales entities and EAV metadata live in the same
-PostgreSQL database / SQLAlchemy connection.
+All tables use fixed, schema-qualified names. The ``keystone`` binding must
+connect to one PostgreSQL database containing both the ``sales`` and
+``attribution`` schemas. Deletion, replacement metadata, and compensation
+each use one database transaction.
 """
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import logging
-import os
-import re
 from uuid import UUID
 
 from azure.durable_functions import Blueprint
 from sqlalchemy import bindparam, text
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TEXT as PG_TEXT, UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PG_UUID
 
-from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import db
+from libs.data import from_bind
 
 bp = Blueprint()
 logger = logging.getLogger("salesIngestor.logger")
 
-_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-
 _UUID_ARRAY = ARRAY(PG_UUID(as_uuid=True))
 _UUID = PG_UUID(as_uuid=True)
+
+
+@contextmanager
+def _transaction():
+    """Use the registered keystone SQLAlchemy Session and one atomic transaction."""
+    provider = from_bind("keystone")
+    if provider is None:
+        raise RuntimeError("The 'keystone' data binding is not registered")
+
+    with provider.connect() as session:
+        with session.begin():
+            yield session.connection()
+
+
+def _check_attribution_tables(conn) -> None:
+    """Fail early if the fixed attribution tables/columns are inaccessible.
+
+    LIMIT 0 inspects metadata only; no attribution records need to exist.
+    """
+    conn.execute(text("SELECT batch_id FROM attribution.match_relationship LIMIT 0"))
+    conn.execute(text("SELECT batch_id FROM attribution.match_geoframe_relationship LIMIT 0"))
 
 
 def _replacement_ids(settings: dict) -> list[UUID]:
@@ -48,66 +64,6 @@ def _replacement_ids(settings: dict) -> list[UUID]:
         raise ValueError("A sales batch cannot replace itself")
 
     return sorted(ids)
-
-
-def _attribution_tables() -> list[tuple[str, str]]:
-    """Use a deployment-owned table allowlist; never read table names from HTTP."""
-    configured = os.environ.get("SALES_ATTRIBUTION_TABLES", "").strip()
-    if not configured:
-        raise RuntimeError(
-            "SALES_ATTRIBUTION_TABLES must list ALL attribution tables "
-            "before sales replacement is enabled"
-        )
-
-    parsed = []
-    for item in configured.split(","):
-        parts = item.strip().split(".")
-        if len(parts) != 2 or not all(_IDENT.fullmatch(part) for part in parts):
-            raise ValueError(
-                "SALES_ATTRIBUTION_TABLES must contain comma-separated schema.table names"
-            )
-        parsed.append((parts[0], parts[1]))
-
-    if len(parsed) != len(set(parsed)):
-        raise ValueError("Duplicate entries in SALES_ATTRIBUTION_TABLES")
-
-    return parsed
-
-
-def _attribution_column_types(conn, tables: list[tuple[str, str]]) -> list[tuple[str, str, str]]:
-    """
-    Verify every requested DELETE target before modifying any rows.
-    Retain column type to permit either UUID or text batch_id columns.
-    """
-    sql = text("""
-        SELECT data_type
-        FROM information_schema.columns
-        WHERE table_schema = :schema
-          AND table_name = :table
-          AND column_name = 'batch_id'
-    """)
-    base_table_sql = text("""
-        SELECT table_type
-        FROM information_schema.tables
-        WHERE table_schema = :schema
-          AND table_name = :table
-    """)
-    result = []
-    for schema, table in tables:
-        table_type = conn.execute(
-            base_table_sql, {"schema": schema, "table": table}
-        ).scalar_one_or_none()
-        if table_type != "BASE TABLE":
-            raise RuntimeError(
-                f"{schema}.{table} is missing or is not a base table"
-            )
-        row = conn.execute(sql, {"schema": schema, "table": table}).scalar_one_or_none()
-        if row not in ("uuid", "text", "character varying"):
-            raise RuntimeError(
-                f"{schema}.{table}.batch_id is missing or has an unsupported type: {row}"
-            )
-        result.append((schema, table, row))
-    return result
 
 
 def _require_owned_old_batches(conn, ids: list[UUID], tenant_id: str, lock: bool) -> None:
@@ -448,43 +404,45 @@ def _save_checkpoint(conn, new_id: UUID, ids: list[UUID], dates: dict) -> None:
         raise RuntimeError("Missing internal replacement_status EAV attribute")
 
 
-def _delete_attributions(
-    conn, ids: list[UUID], table_types: list[tuple[str, str, str]]
-) -> dict[str, int]:
-    """
-    Delete attribution rows BEFORE cascading parent entities; all operations
-    remain in the same open SQL transaction.
-    """
-    deleted = {}
-    for schema, table, data_type in table_types:
-        identifier = f'"{schema}"."{table}"'
-        if data_type == "uuid":
-            parameters = ids
-            array_type = _UUID_ARRAY
-        else:
-            parameters = [str(batch_id) for batch_id in ids]
-            array_type = ARRAY(PG_TEXT)
+def _delete_attributions(conn, ids: list[UUID]) -> dict[str, int]:
+    """Remove fixed attribution rows in the SAME transaction as sales deletion.
 
-        stmt = text(f"DELETE FROM {identifier} WHERE batch_id = ANY(:batch_ids)").bindparams(
-            bindparam("batch_ids", type_=array_type)
-        )
-        deleted[f"{schema}.{table}"] = conn.execute(
-            stmt, {"batch_ids": parameters}
-        ).rowcount
-    return deleted
+    Missing matches are normal: DELETE returns a rowcount of zero.
+    """
+    params = {"batch_ids": ids}
+    bind = bindparam("batch_ids", type_=_UUID_ARRAY)
+
+    geoframe = conn.execute(
+        text("""
+            DELETE FROM attribution.match_geoframe_relationship
+            WHERE batch_id = ANY(:batch_ids)
+        """).bindparams(bind),
+        params,
+    ).rowcount
+
+    relationship = conn.execute(
+        text("""
+            DELETE FROM attribution.match_relationship
+            WHERE batch_id = ANY(:batch_ids)
+        """).bindparams(bind),
+        params,
+    ).rowcount
+
+    return {
+        "attribution.match_geoframe_relationship": geoframe,
+        "attribution.match_relationship": relationship,
+    }
 
 
 @bp.activity_trigger(input_name="settings")
 def activity_salesIngestor_validateReplacementTargets(settings: dict) -> dict:
     """Read-only early validation; it does NOT reserve or delete old batches."""
     ids = _replacement_ids(settings)
-    tables = _attribution_tables()
-
-    with db() as conn:
+    with _transaction() as conn:
         conn.execute(text("SET LOCAL lock_timeout = '10s'"))
         conn.execute(text("SET LOCAL statement_timeout = '5min'"))
         conn.execute(text("SET LOCAL TIME ZONE 'UTC'"))
-        _attribution_column_types(conn, tables)
+        _check_attribution_tables(conn)
         _require_owned_old_batches(
             conn, ids, str(settings["tenant_id"]), lock=False
         )
@@ -508,7 +466,7 @@ def activity_salesIngestor_applyReplacement(settings: dict) -> dict:
     ids = _replacement_ids(settings)
     new_id = UUID(str(settings["new_batch_id"]))
 
-    with db() as conn:
+    with _transaction() as conn:
         conn.execute(text("SET LOCAL lock_timeout = '10s'"))
         conn.execute(text("SET LOCAL statement_timeout = '15min'"))
         conn.execute(text("SET LOCAL TIME ZONE 'UTC'"))
@@ -536,13 +494,12 @@ def activity_salesIngestor_applyReplacement(settings: dict) -> dict:
                 "refusing destructive operation"
             )
 
-        tables = _attribution_tables()
-        table_types = _attribution_column_types(conn, tables)
+        _check_attribution_tables(conn)
         _require_owned_old_batches(conn, ids, str(settings["tenant_id"]), lock=True)
         _require_complete_new_batch(conn, new_id, settings["staging_table"])
         dates = _old_batch_date_ranges(conn, ids)
         _save_checkpoint(conn, new_id, ids, dates)
-        deleted_attributions = _delete_attributions(conn, ids, table_types)
+        deleted_attributions = _delete_attributions(conn, ids)
 
         stmt = text("""
             DELETE FROM sales.entities AS b
@@ -555,7 +512,6 @@ def activity_salesIngestor_applyReplacement(settings: dict) -> dict:
         if deleted_batches != len(ids):
             raise RuntimeError("Replacement batch deletion count mismatch; transaction aborted")
 
-        conn.commit()
 
     logger.info(
         "[LOG] Replacement committed: new_batch_id=%s, old_batch_count=%s",
@@ -584,7 +540,7 @@ def activity_salesIngestor_compensateFailedReplacement(settings: dict) -> dict:
     new_id = UUID(str(settings["new_batch_id"]))
     tenant_id = str(settings["tenant_id"])
 
-    with db() as conn:
+    with _transaction() as conn:
         conn.execute(text("SET LOCAL lock_timeout = '10s'"))
         conn.execute(text("SET LOCAL statement_timeout = '15min'"))
 
@@ -628,9 +584,8 @@ def activity_salesIngestor_compensateFailedReplacement(settings: dict) -> dict:
 
         # Attribution should never have been dispatched before replacement, but
         # removing any rows keyed to the incoming ID makes compensation robust.
-        tables = _attribution_tables()
-        table_types = _attribution_column_types(conn, tables)
-        removed_attr = _delete_attributions(conn, [new_id], table_types)
+        _check_attribution_tables(conn)
+        removed_attr = _delete_attributions(conn, [new_id])
 
         deleted = conn.execute(
             text("""
@@ -641,7 +596,6 @@ def activity_salesIngestor_compensateFailedReplacement(settings: dict) -> dict:
         ).rowcount
         if deleted != 1:
             raise RuntimeError("Incoming batch deletion count mismatch")
-        conn.commit()
 
     return {
         "status": "compensated",

@@ -1,9 +1,8 @@
 """Durable activities for atomic sales-batch replacement.
 
-All tables use fixed, schema-qualified names. The ``keystone`` binding must
-connect to one PostgreSQL database containing both the ``sales`` and
-``attribution`` schemas. Deletion, replacement metadata, and compensation
-each use one database transaction.
+All tables use fixed, schema-qualified names. The sales ingestor binding
+points to the Keystone PostgreSQL database with sales and attribution schemas.
+Deletion, replacement metadata, and compensation each use one transaction.
 """
 
 from __future__ import annotations
@@ -17,6 +16,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PG_UUID
 
 from libs.data import from_bind
+
 
 bp = Blueprint()
 logger = logging.getLogger("salesIngestor.logger")
@@ -67,49 +67,35 @@ def _replacement_ids(settings: dict) -> list[UUID]:
 
 
 def _require_owned_old_batches(conn, ids: list[UUID], tenant_id: str, lock: bool) -> None:
-    """Validate entity type + batch tenant. Row locks serialize competing replacements."""
+    """Validate target type and tenant; lock old rows during the destructive swap."""
     lock_clause = "FOR UPDATE OF b" if lock else ""
-    sql = text(f"""
-        SELECT
-            b.id,
-            EXISTS (
-                SELECT 1
-                FROM sales.entity_attribute_values v
-                JOIN sales.attributes a ON a.id = v.attribute_id
-                WHERE v.entity_id = b.id
-                  AND a.name = 'tenant_id'
-                  AND a.entity_type_id = b.entity_type_id
-                  AND a.data_type = 'string'
-                  AND v.value_string = :tenant_id
-            ) AS same_tenant,
-            NOT EXISTS (
-                SELECT 1
-                FROM sales.entity_attribute_values v
-                JOIN sales.attributes a ON a.id = v.attribute_id
-                WHERE v.entity_id = b.id
-                  AND a.name = 'replacement_status'
-                  AND a.entity_type_id = b.entity_type_id
-                  AND a.data_type = 'string'
-                  AND v.value_string IS DISTINCT FROM 'completed'
-            ) AS is_ready
-        FROM sales.entities b
-        JOIN sales.entity_types et
+    stmt = text(f"""
+        SELECT b.id
+        FROM sales.entities AS b
+        JOIN sales.entity_types AS et
           ON et.entity_type_id = b.entity_type_id
          AND et.name = 'sales_batch'
         WHERE b.id = ANY(:batch_ids)
+          AND EXISTS (
+              SELECT 1
+              FROM sales.entity_attribute_values AS v
+              JOIN sales.attributes AS a
+                ON a.id = v.attribute_id
+               AND a.entity_type_id = b.entity_type_id
+               AND a.name = 'tenant_id'
+               AND a.data_type = 'string'
+              WHERE v.entity_id = b.id
+                AND v.value_string = :tenant_id
+          )
         ORDER BY b.id
         {lock_clause}
     """).bindparams(bindparam("batch_ids", type_=_UUID_ARRAY))
+    owned = set(conn.execute(
+        stmt, {"batch_ids": ids, "tenant_id": str(tenant_id)}
+    ).scalars())
 
-    rows = conn.execute(sql, {"batch_ids": ids, "tenant_id": str(tenant_id)}).mappings().all()
-    if {row["id"] for row in rows} != set(ids) or not all(
-        row["same_tenant"] and row["is_ready"] for row in rows
-    ):
-        raise ValueError(
-            "Replacement targets are missing, not owned by the tenant, "
-            "or are themselves pending replacements"
-        )
-
+    if owned != set(ids):
+        raise ValueError("Replacement targets are missing or belong to another tenant")
 
 def _lock_new_batch(conn, new_id: UUID, tenant_id: str) -> None:
     sql = text("""
@@ -136,19 +122,6 @@ def _lock_new_batch(conn, new_id: UUID, tenant_id: str) -> None:
         raise ValueError("Incoming batch has not been ingested or has an invalid tenant")
 
 
-def _read_replacement_state(conn, new_id: UUID) -> str | None:
-    """Read internal state; legacy batches have no replacement_status attribute."""
-    stmt = text("""
-        SELECT v.value_string
-        FROM sales.entity_attribute_values v
-        JOIN sales.attributes a ON a.id = v.attribute_id
-        JOIN sales.entity_types et ON et.entity_type_id = a.entity_type_id
-        WHERE v.entity_id = :new_id
-          AND et.name = 'sales_batch'
-          AND a.name = 'replacement_status'
-          AND a.data_type = 'string'
-    """).bindparams(bindparam("new_id", type_=_UUID))
-    return conn.execute(stmt, {"new_id": new_id}).scalar_one_or_none()
 
 
 def _read_checkpoint(conn, new_id: UUID) -> dict:
@@ -267,73 +240,105 @@ def _require_complete_new_batch(conn, new_id: UUID, staging_table: str) -> None:
 
 
 def _old_batch_date_ranges(conn, ids: list[UUID]) -> dict:
-    """Compute each old batch's UTC sale-date envelope once, before deletion.
+    """Find old transaction sale-date ranges using transaction-scoped EAV attributes.
 
-    sale_date may be stored on transactions or their line items.
-    We need the min/max dates for historical metadata, not a per-order
-    date completeness audit. A batch with no usable sale dates is rejected.
+    This follows the same entity/attribute scoping as
+    sales.fn_find_matching_transactions: sale_date belongs to the transaction
+    entity type. Value_ts is preferred; string values are parsed as a fallback.
+    No line-item scan is necessary for the transaction sale_date contract.
     """
-    sql = text("""
-        WITH transactions AS (
-            SELECT txn.parent_entity_id AS batch_id, txn.id AS txn_id
-            FROM sales.entities txn
-            JOIN sales.entity_types et
-              ON et.entity_type_id = txn.entity_type_id
-             AND et.name = 'transaction'
-            WHERE txn.parent_entity_id = ANY(:batch_ids)
+    stmt = text("""
+        WITH transaction_type AS (
+            SELECT entity_type_id
+            FROM sales.entity_types
+            WHERE name = 'transaction'
         ),
-        dated_entities AS (
-            SELECT batch_id, txn_id AS entity_id FROM transactions
-            UNION ALL
-            SELECT t.batch_id, li.id
-            FROM transactions t
-            JOIN sales.entities li ON li.parent_entity_id = t.txn_id
-            JOIN sales.entity_types et
-              ON et.entity_type_id = li.entity_type_id
-             AND et.name = 'line_item'
+        sale_date_attributes AS (
+            SELECT a.id
+            FROM sales.attributes AS a
+            JOIN transaction_type AS tt ON tt.entity_type_id = a.entity_type_id
+            WHERE a.name = 'sale_date'
         ),
-        date_values AS (
-            SELECT d.batch_id,
-                   COALESCE(
-                       v.value_ts,
-                       sales.try_cast_timestamp(v.value_string)::timestamptz
-                   ) AS sale_ts
-            FROM dated_entities d
-            JOIN sales.entity_attribute_values v ON v.entity_id = d.entity_id
-            JOIN sales.attributes a ON a.id = v.attribute_id
-             AND a.name = 'sale_date'
+        candidate_transactions AS (
+            SELECT t.parent_entity_id AS batch_id, t.id AS transaction_id
+            FROM sales.entities AS t
+            JOIN transaction_type AS tt ON tt.entity_type_id = t.entity_type_id
+            WHERE t.parent_entity_id = ANY(:batch_ids)
+        ),
+        dated AS (
+            SELECT
+                t.batch_id,
+                t.transaction_id,
+                v.attribute_id,
+                v.value_ts,
+                v.value_string,
+                COALESCE(
+                    v.value_ts,
+                    sales.try_cast_timestamp(NULLIF(BTRIM(v.value_string), ''))::timestamptz
+                ) AS sale_ts
+            FROM candidate_transactions AS t
+            LEFT JOIN sales.entity_attribute_values AS v
+              ON v.entity_id = t.transaction_id
+             AND v.attribute_id IN (SELECT id FROM sale_date_attributes)
         )
-        SELECT batch_id,
-               (MIN(sale_ts) AT TIME ZONE 'UTC')::date AS min_date,
-               (MAX(sale_ts) AT TIME ZONE 'UTC')::date AS max_date
-        FROM date_values
+        SELECT
+            batch_id,
+            COUNT(*) AS candidate_rows,
+            COUNT(attribute_id) AS date_attribute_rows,
+            COUNT(value_ts) AS timestamp_values,
+            COUNT(value_string) AS string_values,
+            COUNT(sale_ts) AS usable_dates,
+            MIN((sale_ts AT TIME ZONE 'UTC')::date) AS min_date,
+            MAX((sale_ts AT TIME ZONE 'UTC')::date) AS max_date
+        FROM dated
         GROUP BY batch_id
     """).bindparams(bindparam("batch_ids", type_=_UUID_ARRAY))
 
-    rows = conn.execute(sql, {"batch_ids": ids}).mappings()
-    by_id = {
-        str(row["batch_id"]): {
-            "batch_id": str(row["batch_id"]),
-            "start_date": row["min_date"].isoformat(),
-            "end_date": row["max_date"].isoformat(),
-        }
-        for row in rows
-        if row["min_date"] is not None and row["max_date"] is not None
+    rows = {
+        str(row["batch_id"]): row
+        for row in conn.execute(stmt, {"batch_ids": ids}).mappings()
     }
+    missing = [
+        str(batch_id)
+        for batch_id in ids
+        if str(batch_id) not in rows
+        or rows[str(batch_id)]["min_date"] is None
+        or rows[str(batch_id)]["max_date"] is None
+    ]
+    if missing:
+        diagnostics = {
+            batch_id: (
+                {
+                    "date_attribute_rows": int(rows[batch_id]["date_attribute_rows"]),
+                    "timestamp_values": int(rows[batch_id]["timestamp_values"]),
+                    "string_values": int(rows[batch_id]["string_values"]),
+                    "usable_dates": int(rows[batch_id]["usable_dates"]),
+                }
+                if batch_id in rows
+                else {"candidate_transactions": 0}
+            )
+            for batch_id in missing
+        }
+        raise ValueError(
+            f"No usable transaction sale_date for old batch(es): {diagnostics}"
+        )
 
-    if any(str(batch_id) not in by_id for batch_id in ids):
-        raise ValueError("Old batch has no usable sale dates; refusing replacement")
-
-    ranges = [by_id[str(batch_id)] for batch_id in ids]
+    ranges = [
+        {
+            "batch_id": str(batch_id),
+            "start_date": rows[str(batch_id)]["min_date"].isoformat(),
+            "end_date": rows[str(batch_id)]["max_date"].isoformat(),
+        }
+        for batch_id in ids
+    ]
     return {
         "timezone": "UTC",
         "batches": ranges,
         "overall": {
-            "start_date": min(item["start_date"] for item in ranges),
-            "end_date": max(item["end_date"] for item in ranges),
+            "start_date": min(row["start_date"] for row in ranges),
+            "end_date": max(row["end_date"] for row in ranges),
         },
     }
-
 
 def _save_checkpoint(conn, new_id: UUID, ids: list[UUID], dates: dict) -> None:
     """Persist JSONB batch lineage/date ranges in the same transaction as deletion."""
@@ -384,24 +389,6 @@ def _save_checkpoint(conn, new_id: UUID, ids: list[UUID], dates: dict) -> None:
                 "value_jsonb": value,
             },
         )
-
-    # Commit "completed" in the very same database transaction as deletes.
-    # Readers can opt to filter out "pending" replacements.
-    result = conn.execute(text("""
-        INSERT INTO sales.entity_attribute_values (
-            entity_id, attribute_id, value_string
-        )
-        SELECT :new_id, a.id, 'completed'
-        FROM sales.attributes a
-        JOIN sales.entity_types et ON et.entity_type_id = a.entity_type_id
-        WHERE et.name = 'sales_batch'
-          AND a.name = 'replacement_status'
-          AND a.data_type = 'string'
-        ON CONFLICT (entity_id, attribute_id) DO UPDATE
-            SET value_string = 'completed'
-    """).bindparams(bindparam("new_id", type_=_UUID)), {"new_id": new_id})
-    if result.rowcount != 1:
-        raise RuntimeError("Missing internal replacement_status EAV attribute")
 
 
 def _delete_attributions(conn, ids: list[UUID]) -> dict[str, int]:
@@ -472,27 +459,18 @@ def activity_salesIngestor_applyReplacement(settings: dict) -> dict:
         conn.execute(text("SET LOCAL TIME ZONE 'UTC'"))
 
         _lock_new_batch(conn, new_id, str(settings["tenant_id"]))
-        replacement_status = _read_replacement_state(conn, new_id)
         checkpoint = _read_checkpoint(conn, new_id)
         if checkpoint:
-            if replacement_status != "completed":
-                raise RuntimeError("Replacement checkpoint/state mismatch; manual reconciliation required")
             if not _checkpoint_matches(checkpoint, ids):
                 raise ValueError(
-                    "Incoming sales batch has inconsistent or conflicting "
-                    "replacement checkpoint metadata"
+                    "Incoming batch has an inconsistent or conflicting replacement "
+                    "checkpoint; refusing to repeat deletion"
                 )
             return {
                 "status": "already_applied",
                 "new_batch_id": str(new_id),
                 "replacing_dates": checkpoint["replacing_dates"],
             }
-
-        if replacement_status != "pending":
-            raise RuntimeError(
-                "Incoming batch is not marked as pending replacement; "
-                "refusing destructive operation"
-            )
 
         _check_attribution_tables(conn)
         _require_owned_old_batches(conn, ids, str(settings["tenant_id"]), lock=True)
@@ -530,13 +508,12 @@ def activity_salesIngestor_applyReplacement(settings: dict) -> dict:
 
 @bp.activity_trigger(input_name="settings")
 def activity_salesIngestor_compensateFailedReplacement(settings: dict) -> dict:
-    """Delete only an uncommitted incoming batch after replacement failure.
+    """Delete an incoming batch only when no replacement checkpoint was committed.
 
-    A committed replacement must NEVER be compensated here: the same-transaction
-    checkpoint distinguishes a successful swap even when Azure lost the activity
-    acknowledgment. This routine is itself idempotent.
+    Checkpoint and old-batch deletion share a transaction. The new-batch row
+    lock serializes compensation with a replacement that is still committing.
     """
-    _replacement_ids(settings)  # validate request shape; do not delete on malformed settings
+    ids = _replacement_ids(settings)  # do not compensate malformed input
     new_id = UUID(str(settings["new_batch_id"]))
     tenant_id = str(settings["tenant_id"])
 
@@ -567,20 +544,12 @@ def activity_salesIngestor_compensateFailedReplacement(settings: dict) -> dict:
         # its ID. The original preflight is not a substitute for this check.
         _lock_new_batch(conn, new_id, tenant_id)
         checkpoint = _read_checkpoint(conn, new_id)
-        replacement_status = _read_replacement_state(conn, new_id)
         if checkpoint:
-            if replacement_status != "completed" or not _checkpoint_matches(
-                checkpoint, _replacement_ids(settings)
-            ):
+            if not _checkpoint_matches(checkpoint, ids):
                 raise RuntimeError(
-                    "Conflicting replacement checkpoint/state; manual reconciliation required"
+                    "Conflicting replacement checkpoint; manual reconciliation required"
                 )
             return {"status": "replacement_already_committed", "new_batch_id": str(new_id)}
-
-        if replacement_status != "pending":
-            raise RuntimeError(
-                "Incoming batch is not pending replacement; refusing compensation"
-            )
 
         # Attribution should never have been dispatched before replacement, but
         # removing any rows keyed to the incoming ID makes compensation robust.

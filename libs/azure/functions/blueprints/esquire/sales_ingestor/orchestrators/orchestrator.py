@@ -25,10 +25,6 @@ def orchestrator_salesIngestor(context: DurableOrchestrationContext):
         replace_batches = settings.get("replace_batches") or []
 
         if replace_batches:
-            # EAV prelude stores metadata as a sales_batch EAV string. This
-            # distinguishes a pending replacement from a usable legacy batch.
-            settings["metadata"]["replacement_status"] = "pending"
-
             # Read-only check. The destructive activity rechecks under locks.
             yield context.call_activity_with_retry(
                 "activity_salesIngestor_validateReplacementTargets",

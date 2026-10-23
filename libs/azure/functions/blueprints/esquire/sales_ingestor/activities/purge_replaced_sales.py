@@ -28,9 +28,9 @@ _UUID = PG_UUID(as_uuid=True)
 @contextmanager
 def _transaction():
     """Use the registered keystone SQLAlchemy Session and one atomic transaction."""
-    provider = from_bind("keystone")
+    provider = from_bind("sales_ingestor_keystone")
     if provider is None:
-        raise RuntimeError("The 'keystone' data binding is not registered")
+        raise RuntimeError("The 'sales_ingestor_keystone' data binding is not registered")
 
     with provider.connect() as session:
         with session.begin():

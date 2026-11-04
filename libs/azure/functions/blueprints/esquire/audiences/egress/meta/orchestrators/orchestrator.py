@@ -7,6 +7,10 @@ from typing import Any, Dict, List, Optional
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 
+from libs.azure.functions.blueprints.esquire.audiences.egress.meta.userPage import (
+    plan_ranges,
+)
+
 bp = Blueprint()
 
 # ---- Activity name constants (prevents typos; helps deterministic behavior) ----
@@ -18,7 +22,7 @@ ACT_PUT_AUDIENCE = "activity_esquireAudienceMeta_putAudience"
 ACT_GET_SESSIONS = "activity_esquireAudienceMeta_customAudienceSessions_get"
 ACT_FORCE_END = "activity_esquireAudienceMeta_customAudienceSession_forceEnd"
 ACT_NEWEST_PREFIX = "activity_esquireAudiencesUtils_newestAudienceBlobPrefix"
-ACT_SYNAPSE_QUERY = "activity_synapse_query"
+ACT_INDEX_BLOBS = "activity_esquireAudienceMeta_indexAudienceBlobs"
 ACT_REPLACE_USERS = "activity_esquireAudienceMeta_customAudience_replaceUsers"
 ACT_ADD_USERS = "activity_esquireAudienceMeta_customAudience_addUsers"
 
@@ -144,29 +148,16 @@ def meta_customaudience_orchestrator(context: DurableOrchestrationContext):
         },
     )
 
-    # ---- 5) Count distinct MAIDs (deterministic read) ----
-    response: List[Dict[str, Any]] = yield context.call_activity(
-        ACT_SYNAPSE_QUERY,
+    # ---- 5) Index the audience blobs (metadata only; no full read) ----
+    index: Dict[str, Any] = yield context.call_activity(
+        ACT_INDEX_BLOBS,
         {
-            "bind": "audiences",
-            "query": """
-                SELECT COUNT(DISTINCT LOWER(LTRIM(RTRIM(deviceid)))) AS [count]
-                FROM OPENROWSET(
-                    BULK '{}/{}/*',
-                    DATA_SOURCE = '{}',
-                    FORMAT = 'CSV',
-                    PARSER_VERSION = '2.0',
-                    HEADER_ROW = TRUE
-                ) AS [data]
-                WHERE LEN(deviceid) = 36
-            """.format(
-                ingress["destination"]["container_name"],
-                ingress["destination"]["blob_prefix"],
-                ingress["destination"]["data_source"],
-            ),
+            "conn_str": ingress["destination"]["conn_str"],
+            "container_name": ingress["destination"]["container_name"],
+            "blob_prefix": ingress["destination"]["blob_prefix"],
         },
     )
-    total = int(response[0]["count"])
+    total = int(index.get("total", 0))
 
     # ---- 6) Upload users via REPLACE in deterministic batches ----
     if total <= 0:
@@ -186,38 +177,36 @@ def meta_customaudience_orchestrator(context: DurableOrchestrationContext):
 
         session_payload = {
             "session_id": session_id,
+            # Total records read from the audience blobs. The builder
+            # de-duplicates within a source blob, so this can marginally exceed
+            # the number of distinct MAIDs.
             "estimated_num_total": total,
             "batch_seq": sequence + 1,  # 1-based for FB REPLACE session API
             "last_batch_flag": is_last,
         }
 
+        # Map the batch onto byte ranges of the audience blobs. Pure
+        # function, so replaying the orchestration yields the same ranges.
+        ranges = plan_ranges(
+            index,
+            sequence * batch_size,
+            min(batch_size, total - (sequence * batch_size)),
+        )
+
         while True:
             context.set_custom_status("Adding users to Meta Audience (REPLACE).")
+
             session = yield context.call_activity(
                 ACT_REPLACE_USERS,
                 {
                     **ingress,
-                    "sql": {
-                        "bind": "audiences",
-                        "query": """
-                            SELECT DISTINCT LOWER(LTRIM(RTRIM(deviceid)))
-                            FROM OPENROWSET(
-                                BULK '{}/{}/*',
-                                DATA_SOURCE = '{}',
-                                FORMAT = 'CSV',
-                                PARSER_VERSION = '2.0',
-                                HEADER_ROW = TRUE
-                            ) WITH (deviceid VARCHAR(80)) AS [data]
-                            WHERE LEN(deviceid) = 36
-                            ORDER BY LOWER(LTRIM(RTRIM(deviceid)))
-                        """,
-                    },
+                    "ranges": ranges,
                     "batch": session_payload,
                     "batch_size": batch_size,
                 },
             )
 
-            # Some pages can be empty due to DISTINCT and paging math; safe and idempotent.
+            # Guard against an empty page; safe and idempotent.
             if session.get("skipped"):
                 last_session = session
                 break

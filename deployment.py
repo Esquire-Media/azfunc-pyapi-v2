@@ -14,7 +14,6 @@ BLUEPRINTS = {
     "esquire-meta": [
         "libs/azure/functions/blueprints/esquire/audiences/egress/meta/*",
         "libs/azure/functions/blueprints/esquire/audiences/utils/activities/newestAudienceBlobPrefix",
-        "libs/azure/functions/blueprints/azure/synapse/*",
     ],
     "esquire-freewheel": [
         "libs/azure/functions/blueprints/esquire/audiences/egress/freewheel/*",

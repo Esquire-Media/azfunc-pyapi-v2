@@ -23,7 +23,6 @@ async def starter_http_freewheel_audience(req: HttpRequest, client: DurableOrche
             "destination": {
                 "conn_str": "AzureWebJobsStorage",
                 "container_name": "general",
-                "data_source": "esquire-audiences",
                 "blob_prefix": "audiences",
             },
         }

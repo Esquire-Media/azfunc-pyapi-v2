@@ -19,7 +19,6 @@ BLUEPRINTS = {
     "esquire-freewheel": [
         "libs/azure/functions/blueprints/esquire/audiences/egress/freewheel/*",
         "libs/azure/functions/blueprints/esquire/audiences/utils/activities/newestAudienceBlobPaths",
-        "libs/azure/functions/blueprints/azure/synapse/*",
     ],
     "esquire-autopolygon": [
         "libs/azure/functions/blueprints/esquire/rooftop_polys/*",

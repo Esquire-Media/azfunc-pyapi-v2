@@ -39,13 +39,13 @@ except ImportError:  # pragma: no cover
     _stub.Blueprint = _Blueprint
     sys.modules["azure.durable_functions"] = _stub
 
-from libs.azure.functions.blueprints.esquire.audiences.egress.meta.activities import (
-    indexAudienceBlobs,
-)
 from libs.azure.functions.blueprints.esquire.audiences.egress.meta.blobReader import (
     fetch_users_page,
 )
-from libs.azure.functions.blueprints.esquire.audiences.egress.meta.userPage import (
+from libs.azure.functions.blueprints.esquire.audiences.utils.activities import (
+    indexAudienceBlobs,
+)
+from libs.azure.functions.blueprints.esquire.audiences.utils.audienceBlobs import (
     MAID_HEADER_BYTES,
     MAID_RECORD_BYTES,
     plan_ranges,

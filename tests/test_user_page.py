@@ -12,7 +12,7 @@ tested without the Azure SDK installed.
 
 import pytest
 
-from libs.azure.functions.blueprints.esquire.audiences.egress.meta.userPage import (
+from libs.azure.functions.blueprints.esquire.audiences.utils.audienceBlobs import (
     MAID_HEADER_BYTES,
     MAID_LENGTH,
     MAID_RECORD_BYTES,

@@ -8,30 +8,10 @@ if not from_bind("keystone"):
         "sql",
         url=os.environ["DATABIND_SQL_KEYSTONE"],
         schemas={
-            "keystone":None, 
-            "sales":None, 
+            "keystone":None,
+            "sales":None,
             "utils":["attom"]
             },
-        pool_size=1000,
-        max_overflow=100,
-    )
-if not from_bind("general"):
-    register_binding(
-        "general",
-        "Structured",
-        "sql",
-        url=os.environ["DATABIND_SQL_GENERAL"],
-        schemas={"dbo":None},
-        pool_size=1000,
-        max_overflow=100,
-    )
-if not from_bind("audiences"):
-    register_binding(
-        "audiences",
-        "Structured",
-        "sql",
-        url=os.environ["DATABIND_SQL_AUDIENCES"],
-        schemas={"dbo":None},
         pool_size=1000,
         max_overflow=100,
     )

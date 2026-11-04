@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from azure.durable_functions import Blueprint, DurableOrchestrationContext
 
-from libs.azure.functions.blueprints.esquire.audiences.egress.meta.userPage import (
+from libs.azure.functions.blueprints.esquire.audiences.utils.audienceBlobs import (
     plan_ranges,
 )
 
@@ -22,7 +22,7 @@ ACT_PUT_AUDIENCE = "activity_esquireAudienceMeta_putAudience"
 ACT_GET_SESSIONS = "activity_esquireAudienceMeta_customAudienceSessions_get"
 ACT_FORCE_END = "activity_esquireAudienceMeta_customAudienceSession_forceEnd"
 ACT_NEWEST_PREFIX = "activity_esquireAudiencesUtils_newestAudienceBlobPrefix"
-ACT_INDEX_BLOBS = "activity_esquireAudienceMeta_indexAudienceBlobs"
+ACT_INDEX_BLOBS = "activity_esquireAudiencesUtils_indexAudienceBlobs"
 ACT_REPLACE_USERS = "activity_esquireAudienceMeta_customAudience_replaceUsers"
 ACT_ADD_USERS = "activity_esquireAudienceMeta_customAudience_addUsers"
 

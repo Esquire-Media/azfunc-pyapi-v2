@@ -14,8 +14,8 @@ The `deployment.py` file maps Function App names to their blueprint paths. When 
 
 | Function App | Blueprints |
 |-------------|------------|
-| `esquire-auto-audience` | Data lake, Postgres, Synapse, Audiences builder/activities, Microsoft Graph, Meta, OnSpot, S3 |
-| `esquire-meta` | Meta egress, newest audience blob prefix, Synapse |
+| `esquire-auto-audience` | Data lake, Postgres, Audiences builder/activities, Microsoft Graph, Meta, OnSpot, S3 |
+| `esquire-meta` | Meta egress, newest audience blob prefix |
 | `esquire-freewheel` | Freewheel egress, newest audience blob paths |
 | `esquire-autopolygon` | Rooftop polygons |
 | `esquire-campaign-proposal` | Keep alive, Data lake, Campaign proposal reporting, Microsoft Graph |

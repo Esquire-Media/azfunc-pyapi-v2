@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from libs.azure.functions.blueprints.esquire.audiences.egress.meta.userPage import (
+from libs.azure.functions.blueprints.esquire.audiences.utils.audienceBlobs import (
     parse_records,
 )
 from libs.utils.azure_storage import init_blob_client

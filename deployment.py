@@ -2,7 +2,6 @@ BLUEPRINTS = {
     "esquire-auto-audience": [
         "libs/azure/functions/blueprints/azure/datalake/*",
         "libs/azure/functions/blueprints/azure/postgres/*",
-        "libs/azure/functions/blueprints/azure/synapse/*",
         "libs/azure/functions/blueprints/esquire/audiences/builder/*",
         "libs/azure/functions/blueprints/esquire/audiences/utils/activities/*",
         "libs/azure/functions/blueprints/microsoft/graph/*",
@@ -13,6 +12,7 @@ BLUEPRINTS = {
     ],
     "esquire-meta": [
         "libs/azure/functions/blueprints/esquire/audiences/egress/meta/*",
+        "libs/azure/functions/blueprints/esquire/audiences/utils/activities/indexAudienceBlobs",
         "libs/azure/functions/blueprints/esquire/audiences/utils/activities/newestAudienceBlobPrefix",
     ],
     "esquire-freewheel": [

@@ -201,9 +201,7 @@ def test_index_ignores_non_audience_blobs(blob_store):
     )
 
     assert index["total"] == 5
-    assert [entry["name"] for entry in index["blobs"]] == [
-        PREFIX + "/final_00000.csv"
-    ]
+    assert [entry["name"] for entry in index["blobs"]] == [PREFIX + "/final_00000.csv"]
 
 
 def test_index_on_an_empty_folder(blob_store):
@@ -310,4 +308,3 @@ def test_batch_count_and_paged_records_stay_in_agreement(blob_store):
     assert last_flags[-1] is True
     assert sum(last_flags) == 1
     assert all(flag is False for flag in last_flags[:-1])
-

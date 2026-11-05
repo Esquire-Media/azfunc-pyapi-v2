@@ -105,7 +105,9 @@ def test_choose_data_offset_with_no_blobs():
 
 
 def test_plan_ranges_within_a_single_blob():
-    index = make_index([("final_00000.csv", MAID_HEADER_BYTES + MAID_RECORD_BYTES * 10)])
+    index = make_index(
+        [("final_00000.csv", MAID_HEADER_BYTES + MAID_RECORD_BYTES * 10)]
+    )
 
     ranges = plan_ranges(index, 0, 3)
 
@@ -120,7 +122,9 @@ def test_plan_ranges_within_a_single_blob():
 
 
 def test_plan_ranges_offsets_by_record_index():
-    index = make_index([("final_00000.csv", MAID_HEADER_BYTES + MAID_RECORD_BYTES * 10)])
+    index = make_index(
+        [("final_00000.csv", MAID_HEADER_BYTES + MAID_RECORD_BYTES * 10)]
+    )
 
     ranges = plan_ranges(index, 4, 2)
 
@@ -166,7 +170,9 @@ def test_plan_ranges_on_an_exact_blob_boundary():
 def test_plan_ranges_covers_every_record_exactly_once():
     blob_a = make_blob([MAID_A] * 4)
     blob_b = make_blob([MAID_B] * 6)
-    index = make_index([("final_00000.csv", len(blob_a)), ("final_00001.csv", len(blob_b))])
+    index = make_index(
+        [("final_00000.csv", len(blob_a)), ("final_00001.csv", len(blob_b))]
+    )
 
     seen = []
     for start in range(0, index["total"], 2):

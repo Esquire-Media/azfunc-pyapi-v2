@@ -30,6 +30,30 @@ except ImportError:  # pragma: no cover
         route = _identity
         durable_client_input = _identity
         timer_trigger = _identity
+        generic_trigger = _identity
+
+    class _Stub:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    class _OrchestrationRuntimeStatus:
+        Completed = "Completed"
+        Failed = "Failed"
+        Canceled = "Canceled"
+        Terminated = "Terminated"
+        Running = "Running"
+        Pending = "Pending"
+        Suspended = "Suspended"
+        Listening = "Listening"
 
     _stub.Blueprint = _Blueprint
+    _stub.DurableOrchestrationClient = _Stub
+    _stub.DurableOrchestrationContext = _Stub
+    _stub.DurableClientContext = _Stub
+    _stub.DurableOrchestrationStatus = _Stub
+    _stub.EntityBackend = _Stub
+    _stub.OrchestrationRuntimeStatus = _OrchestrationRuntimeStatus
+    _stub.RetryOptions = _Stub
+    _stub.TaskHubClient = _Stub
+    _stub.WorkItem = _Stub
     sys.modules["azure.durable_functions"] = _stub

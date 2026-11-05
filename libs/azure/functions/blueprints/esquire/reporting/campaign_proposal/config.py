@@ -11,14 +11,3 @@ if not from_bind("keystone"):
         pool_size=1000,
         max_overflow=100,
     )
-
-if not from_bind("legacy"):
-    register_binding(
-        "legacy",
-        "Structured",
-        "sql",
-        url=os.environ["DATABIND_SQL_UNIVERSAL"],
-        schemas=["dbo","esquire"],
-        pool_size=1000,
-        max_overflow=100
-)

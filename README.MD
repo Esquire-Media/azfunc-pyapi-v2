@@ -19,7 +19,7 @@ The `deployment.py` file maps Function App names to their blueprint paths. When 
 | `esquire-freewheel` | Freewheel egress, newest audience blob paths |
 | `esquire-autopolygon` | Rooftop polygons |
 | `esquire-campaign-proposal` | Keep alive, Data lake, Campaign proposal reporting, Microsoft Graph |
-| `esquire-location-insights` | Keep alive, Data lake, Synapse, Location insights, OnSpot, Microsoft Graph |
+| `esquire-location-insights` | Keep alive, Data lake, Location insights, OnSpot, Microsoft Graph |
 | `esquire-docs` | OpenAPI documentation |
 | `esquire-oneview-tasks` | OneView tasks |
 | `esquire-redshift-sync` | AWS Redshift sync |
@@ -32,7 +32,7 @@ The `deployment.py` file maps Function App names to their blueprint paths. When 
 ## Directory Structure
 
 - `libs/azure/functions/blueprints/` - All Azure Function blueprints organized by provider
-  - `azure/` - Azure-specific blueprints (datalake, postgres, synapse)
+  - `azure/` - Azure-specific blueprints (datalake, postgres)
   - `esquire/` - Esquire-specific blueprints (audiences, reporting, dashboard, etc.)
   - `microsoft/` - Microsoft integrations (Graph API)
   - `meta/` - Meta/Facebook integrations

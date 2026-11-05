@@ -11,12 +11,3 @@ if not from_bind("keystone"):
         pool_size=1000,
         max_overflow=100,
     )
-    
-if not from_bind("synapse-general"):
-    register_binding(
-        "synapse-general",
-        "Structured",
-        "sql",
-        url=os.environ["DATABIND_SQL_GENERAL"],
-        schemas=["dbo"],
-)

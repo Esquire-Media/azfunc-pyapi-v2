@@ -32,7 +32,6 @@ BLUEPRINTS = {
     "esquire-location-insights": [
         "libs/azure/functions/blueprints/keep_alive",
         "libs/azure/functions/blueprints/azure/datalake/*",
-        "libs/azure/functions/blueprints/azure/synapse/*",
         "libs/azure/functions/blueprints/esquire/reporting/location_insights/*",
         "libs/azure/functions/blueprints/onspot/*",
         "libs/azure/functions/blueprints/microsoft/graph/*",

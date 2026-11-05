@@ -20,7 +20,6 @@ The `deployment.py` file maps Function App names to their blueprint paths. When 
 | `esquire-autopolygon` | Rooftop polygons |
 | `esquire-campaign-proposal` | Keep alive, Data lake, Campaign proposal reporting, Microsoft Graph |
 | `esquire-location-insights` | Keep alive, Data lake, Synapse, Location insights, OnSpot, Microsoft Graph |
-| `esquire-dashboard-data` | Data lake, Dashboard OnSpot, Keep alive, Meta creative preview, OnSpot, Synapse |
 | `esquire-docs` | OpenAPI documentation |
 | `esquire-oneview-tasks` | OneView tasks |
 | `esquire-redshift-sync` | AWS Redshift sync |

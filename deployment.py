@@ -38,15 +38,6 @@ BLUEPRINTS = {
         "libs/azure/functions/blueprints/microsoft/graph/*",
         "libs/azure/functions/blueprints/purge_instance_history",
     ],
-    "esquire-dashboard-data": [
-        "libs/azure/functions/blueprints/azure/datalake/*",
-        "libs/azure/functions/blueprints/esquire/dashboard/onspot/*",
-        "libs/azure/functions/blueprints/keep_alive",
-        "libs/azure/functions/blueprints/meta/endpoints/creative_preview",
-        "libs/azure/functions/blueprints/onspot/*",
-        "libs/azure/functions/blueprints/purge_instance_history",
-        "libs/azure/functions/blueprints/azure/synapse/*",
-    ],
     "esquire-docs": [
         "libs/azure/functions/blueprints/esquire/openapi/*",
     ],

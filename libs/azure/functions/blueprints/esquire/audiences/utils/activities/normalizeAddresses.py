@@ -65,6 +65,7 @@ _FIELD_CANDIDATES: dict[str, tuple[str, ...]] = {
         "delivery_line_2",
         "unit",
         "suite",
+        "internal",  # PostGIS norm_addy secondary unit
     ),
     "city": (
         "city",
@@ -138,13 +139,34 @@ def _find_column(
 def _resolve_fields(
     columns: Sequence[str],
 ) -> dict[str, str | None]:
-    return {
-        role: _find_column(
-            columns,
-            candidates,
-        )
+    fields = {
+        role: _find_column(columns, candidates)
         for role, candidates in _FIELD_CANDIDATES.items()
     }
+
+    # PostGIS norm_addy.address is the HOUSE NUMBER, not an address line.
+    # Its output may also contain address_alphanumeric and streetName. Rebuild
+    # the complete street before passing it to AddrAll; do not geocode "123"
+    # as if it were a standalone address.
+    names = {str(column).lower() for column in columns}
+    is_norm_addy = (
+        "streetname" in names
+        and ("address" in names or "address_alphanumeric" in names)
+        and bool(names.intersection({
+            "stateabbrev", "location", "predirabbrev",
+            "streettypeabbrev", "postdirabbrev", "address_alphanumeric", "zip",
+        }))
+    )
+    if is_norm_addy:
+        fields["line1"] = _find_column(
+            columns,
+            ("delivery_line_1", "address_line_1", "address1", "add1", "street_address"),
+        )
+        fields["primary_number"] = _find_column(
+            columns, ("address_alphanumeric", "address", "primary_number"),
+        )
+
+    return fields
 
 
 def _enriched_column(
@@ -181,8 +203,23 @@ def _reconstruct_street(
         )
     )
     columns = [p for p in parts if p]
-    return frame[columns].astype("string").fillna("").agg(
-        lambda values: " ".join(value.strip() for value in values if value.strip()),
+    values = frame[columns].astype("string").fillna("")
+
+    # A non-empty address_alphanumeric is the canonical house number. When
+    # the parser supplied only a numeric address, fill the missing value from
+    # that field for this row (not from a different address or an invented key).
+    number_col = fields.get("primary_number")
+    numeric_col = _find_column(frame.columns, ("address",))
+    if (number_col and numeric_col and number_col != numeric_col
+            and number_col.lower() == "address_alphanumeric"):
+        number = values[number_col]
+        values[number_col] = number.where(
+            number.str.strip().ne(""),
+            frame[numeric_col].astype("string").fillna(""),
+        )
+
+    return values.agg(
+        lambda row: " ".join(part.strip() for part in row if part.strip()),
         axis=1,
     )
 

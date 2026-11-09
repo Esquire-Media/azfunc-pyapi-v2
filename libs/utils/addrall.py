@@ -32,6 +32,21 @@ NORM_FIELDS = (
     "postdir_abbrev", "internal", "location", "state_abbrev", "zip",
     "parsed", "zip4", "address_alphanumeric",
 )
+# Exact norm_addy JSON keys with their internal SQL result aliases.
+# Keep the geocoder-returned object distinct from post-normalization results.
+GEOCODER_NORM_ADDY_FIELDS = {
+    "address": "norm_address",
+    "predirAbbrev": "norm_predir_abbrev",
+    "streetName": "norm_street_name",
+    "streetTypeAbbrev": "norm_street_type_abbrev",
+    "postdirAbbrev": "norm_postdir_abbrev",
+    "internal": "norm_internal",
+    "location": "norm_location",
+    "stateAbbrev": "norm_state_abbrev",
+    "zip": "norm_zip",
+    "zip4": "norm_zip4",
+    "address_alphanumeric": "norm_address_alphanumeric",
+}
 SMARTY_COLUMNS = (
     "delivery_line_1", "delivery_line_2", "city_name", "state_abbreviation",
     "zipcode", "plus4_code", "full_zipcode", "latitude", "longitude",
@@ -300,11 +315,8 @@ def build_address_text(
 ) -> str:
     """Database validation and geocoding input (without a secondary unit)."""
     building, _ = split_secondary(street)
-    return " ".join(
-        part for part in (
-            building, as_text(city), as_text(state),
-            normalize_zipcode(zipcode) or "",
-        ) if part
+    return _join_address_fields(
+        building, city, state, normalize_zipcode(zipcode)
     )
 
 
@@ -611,46 +623,37 @@ def _usable_candidate(
 
 
 def _choose_geocode(
-    raw: dict[str, Any], request: tuple[str, str, str, str | None],
+    raw: dict[str, Any], request: tuple | None = None,
 ) -> dict[str, Any] | None:
-    """Use unambiguous stored-address hits to correct street and locality.
+    """Project an actual geocoder hit, not a source='none' placeholder.
 
-    The geocoder has already selected the best candidate. Preserve its
-    street-level spelling corrections, ZIP-consistent city aliases, and
-    ZIP-consistent wrong-state corrections. Changing the input ZIP requires
-    stronger proof: an exact street match plus agreement on city and state.
-
-    No TIGER interpolation or street-only/locality-only fallback is treated
-    as a stored, ZIP+4-eligible postal address.
+    Do not reject database matches for input locality disagreements. They are
+    often the precise corrections the enrichment pipeline is intended to make.
+    TIGER is not postal confirmation and cannot supply a verified ZIP+4.
     """
-    if raw.get("source") not in {"address", "openaddresses"}:
+    source = as_text(raw.get("source")).lower()
+    if source in {"", "none"}:
         return None
-    parts = {
-        part.strip().lower()
-        for part in as_text(raw.get("geocode_match")).split(",")
+    result = _record_to_address(raw)
+    # Preserve the exact typed composite fields from the geocoder. Do not
+    # derive identity from _record_to_address's display normalization.
+    result["geocoder_norm_addy"] = {
+        name: raw.get(field)
+        for name, field in GEOCODER_NORM_ADDY_FIELDS.items()
     }
-    if not parts.intersection({"street", "street_name", "street_corrected"}):
-        return None
-    if "interpolated" in parts or "locality" in parts:
-        return None
-    if "zip_city_differs" in parts and not request[3]:
-        return None
-
-    candidate = _record_to_address(raw)
-    if not _usable_candidate(
-        candidate, request,
-        allow_state_correction="state_differs" in parts,
-        allow_zip_correction=(
-            "city_zip_differs" in parts and "street" in parts
-        ),
-    ):
-        return None
-    # A matched building without the requested secondary unit cannot prove
-    # which ZIP+4 belongs to that secondary unit.
-    if parts.intersection({"any_unit", "missing_unit", "building"}):
-        candidate["zip4"] = None
-    candidate["match_status"] = "geocoded"
-    return candidate
+    parts = {part.strip().lower() for part in as_text(raw.get("geocode_match")).split(",")}
+    if source == "tiger":
+        result["match_status"] = (
+            "tiger_interpolated" if "interpolated" in parts else "tiger_approximate"
+        )
+    else:
+        result["match_status"] = "geocoded"
+    result["legacy_compatible"] = source in {"address", "openaddresses"}
+    if source == "tiger" or parts.intersection({"any_unit", "missing_unit", "building"}):
+        # A building-level or uncertain-secondary hit does not establish a
+        # secondary unit's ZIP+4. TIGER also cannot prove a postal extension.
+        result["zip4"] = None
+    return result
 
 
 
@@ -691,7 +694,7 @@ def _load_zip_localities(conn: Any, requests: list[tuple]) -> dict[str, tuple[st
         zip5 for _, city, state, zip5 in requests
         if zip5 and (not city or not state)
     })
-    if not zips or os.getenv("ADDRALL_ZIP_LOCALITY", "1") == "0":
+    if not zips or os.getenv("ADDRALL_ZIP_LOCALITY", "0").lower() not in {"1", "true", "yes", "on"}:
         return {}
     started = perf_counter()
     try:
@@ -712,16 +715,100 @@ def _load_zip_localities(conn: Any, requests: list[tuple]) -> dict[str, tuple[st
     return result
 
 
+_TRAILING_US_COUNTRY = re.compile(
+    r"(?<![A-Z0-9])"
+    r"(?:UNITED\s+STATES(?:\s+OF\s+AMERICA)?"
+    r"|U\.?\s*S\.?\s*A\.?"
+    r"|U\.?\s*S\.?)"
+    r"[\s,;.]*$",
+    flags=re.IGNORECASE,
+)
+
+
+def _sql_address_text(value: Any) -> str:
+    """Remove country suffix for database lookup/normalization text only."""
+    text = as_text(value)
+    match = _TRAILING_US_COUNTRY.search(text)
+    return text[:match.start()].rstrip(" \t\r\n,;") if match else text
+
+
+def _join_address_fields(*parts: Any) -> str:
+    """Comma-join supplied parts, excluding country-only fields and tails."""
+    return ", ".join(
+        text for part in parts if (text := _sql_address_text(part))
+    )
+
+
+def _geocode_text_variants(
+    request: tuple[str, str, str, str | None],
+    originals: Sequence[str],
+    locality: dict[str, tuple[str, str]] | None,
+) -> list[tuple[str, str]]:
+    """Keep useful complete-address alternatives, not redundant street-only calls.
+
+    If locality is supplied in separate columns, the first query already
+    contains the building street plus that locality. Retrying only the street
+    (even with a trailing secondary unit or country suffix) drops information
+    and needlessly loads the geocoder. Preserve genuinely complete, different
+    address representations and all single-field address variants.
+    """
+    street, city, state, zip5 = request
+    variants = [("combined_fields", _query_text(request, locality))]
+    has_separate_locality = any(as_text(part) for part in (city, state, zip5))
+    building_street = prepare_street_apostrophes(
+        _sql_address_text(street)
+    ).strip(" ,;.")
+    for original in originals:
+        raw = _sql_address_text(original)
+        if not raw or raw == variants[0][1]:
+            continue
+        if has_separate_locality:
+            original_building, _ = split_secondary(raw)
+            original_street_only = prepare_street_apostrophes(
+                _sql_address_text(original_building)
+            ).strip(" ,;.")
+            if original_street_only == building_street:
+                # No new city, state or ZIP: this is just the street again.
+                continue
+        variants.append(("preserved_input", raw))
+    return list(dict((text, (label, text)) for label, text in variants if text).values())
+
+
+def _geocode_richness(candidate: dict[str, Any]) -> tuple[int, int, int]:
+    """Rank returned DB data by enrichment, never by similarity to the input."""
+    return (
+        int(bool(normalize_zip4(candidate.get("zip4")))),
+        sum(bool(candidate.get(k)) for k in (
+            "standardized_street", "standardized_city",
+            "standardized_state", "standardized_zipcode"
+        )),
+        int(bool(candidate.get("standardized_zipcode"))),
+    )
+
+
+def _normalization_richness(candidate: dict[str, Any]) -> tuple[int, int]:
+    """Compare parser outputs by useful fields, never against source input."""
+    return (
+        5 * int(bool(candidate.get("standardized_street")))
+        + 5 * int(bool(candidate.get("standardized_zipcode")))
+        + 2 * int(bool(candidate.get("standardized_city")))
+        + 2 * int(bool(candidate.get("standardized_state"))),
+        sum(bool(candidate.get(k)) for k in (
+            "standardized_street", "standardized_city",
+            "standardized_state", "standardized_zipcode"
+        )),
+    )
+
+
 def _query_text(
     request: tuple[str, str, str, str | None],
-    locality: dict[str, tuple[str, str]],
+    locality: dict[str, tuple[str, str]] | None = None,
 ) -> str:
+    """Join populated columns for the geocoder; never parse single-field text."""
     street, city, state, zip5 = request
-    guessed_city, guessed_state = locality.get(zip5, ("", ""))
-    return " ".join(
-        part for part in (street, city or guessed_city,
-                          state or guessed_state, zip5 or "")
-        if part
+    inferred_city, inferred_state = (locality or {}).get(zip5, ("", ""))
+    return _join_address_fields(
+        street, city or inferred_city, state or inferred_state, zip5
     )
 
 
@@ -805,222 +892,255 @@ def _lookup_batch(
     sources: list[str],
     use_geocode: bool,
     conn: Any,
-    retry_keys: set[tuple] | None = None,
-    skip_invalid_geocode_regex: bool = False,
+    original_texts: dict[tuple, list[str]] | None = None,
+    skip_invalid_geocode_regex: bool = True,
+    compact: bool = False,
+    postal_retry: bool = False,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Geocode -> optional ZIP+4 recovery -> normalize final address.
+    """Geocode informative input variants, then normalize DB-selected fields.
 
-    No independent Python alias substitution is applied to parser results.
-    Stored-address evidence and ZIP+4 remain available if parsing fails.
+    Keep DB evidence ahead of parser interpretations, original text only as
+    fallback, and avoid redundant street-only geocoder calls. This operates
+    on the bounded batch passed by the Azure Function, not an entire blob.
     """
-    results: list[dict[str, Any]] = [
-        {"validated": None, "match_status": "input_formatted",
-         "legacy_compatible": False}
-        for _ in batch
+    options = [
+        [(label, text) for label, text in _geocode_text_variants(
+            key, (original_texts or {}).get(key, ()), locality
+        ) if len(text) <= _MAX_SQL_ADDRESS_LENGTH]
+        for key in batch
     ]
-    texts = [_query_text(req, locality) for req in batch]
-    geocode_seconds = normalize_seconds = retry_seconds = 0.0
-    attempted_geo = matched_geo = parsed_from_geo = retry_matches = 0
+    results = [
+        {"match_status": "input_formatted", "legacy_compatible": False,
+         "geocode_input_text": variants[0][1] if variants and use_geocode else None,
+         "normalize_status": None}
+        for variants in options
+    ]
+    chosen: dict[int, dict[str, Any]] = {}
+    observed: dict[int, dict[str, Any]] = {}
+    attempted: dict[int, dict[str, None]] = {}
+    timings = {"geocode_seconds": 0.0, "normalize_seconds": 0.0}
+    counts = {"geocoded": 0, "matched": 0, "normalized": 0}
 
-
-    # Step 1: Geocode eligible building addresses.
     if use_geocode:
-        eligible = [
-            i for i, (street, city, state, zip5) in enumerate(batch)
-            if any(ch.isdigit() for ch in (_house_number(street) or ""))
-            and (city or state or zip5 or re.search(r"\b\d{5}(?:-\d{4})?\b", street))
-            and len(texts[i]) <= _MAX_SQL_ADDRESS_LENGTH
-        ]
-        if eligible:
-            started = perf_counter()
-            geos, regex_skipped = _select_geocode_rows(
-                conn, [texts[i] for i in eligible], sources,
+        for attempt_no in range(max(map(len, options), default=0)):
+            query_to_input: dict[str, list[int]] = {}
+            labels: dict[tuple[int, str], str] = {}
+            for idx, variants in enumerate(options):
+                if attempt_no >= len(variants):
+                    continue
+                previous = chosen.get(idx)
+                if previous:
+                    complete = all(previous.get(field) for field in (
+                        "standardized_street", "standardized_city",
+                        "standardized_state", "standardized_zipcode",
+                    ))
+                    # Stored addresses are already good; a postal-only retry
+                    # (when requested) happens later with final delivery text.
+                    if complete and (postal_retry or
+                        previous.get("source") in {"address", "openaddresses"}):
+                        continue
+                label, query = variants[attempt_no]
+                seen = attempted.setdefault(idx, {})
+                if query in seen:
+                    continue
+                seen[query] = None
+                query_to_input.setdefault(query, []).append(idx)
+                labels[(idx, query)] = label
+            if not query_to_input:
+                continue
+            texts = list(query_to_input)
+            start = perf_counter()
+            geos, skipped = _select_geocode_rows(
+                conn, texts, sources,
                 skip_invalid_regex=skip_invalid_geocode_regex,
             )
-            geocode_seconds = perf_counter() - started
-            attempted_geo = len(eligible)
-            if regex_skipped:
-                print(
-                    f"\t\t\t\tAddrAll: {regex_skipped} geocode "
-                    "regex error(s); those streets will still be normalized."
-                )
-            for geo in geos:
-                idx = int(geo["input_index"]) - 1
-                if not 0 <= idx < len(eligible):
+            timings["geocode_seconds"] += perf_counter() - start
+            counts["geocoded"] += len(texts)
+            if skipped and os.getenv("ADDRALL_PROFILE", "0") == "1":
+                print(f"AddrAll: {skipped} malformed geocode inputs skipped")
+            # One SQL input can return multiple candidates; ignore explicit
+            # misses and use the most informative actual database response.
+            selected: dict[int, dict[str, Any]] = {}
+            for raw in geos:
+                pos = int(raw["input_index"]) - 1
+                if not 0 <= pos < len(texts):
                     raise ValueError("Unexpected geocode input_index")
-                i = eligible[idx]
-                selected = _choose_geocode(geo, batch[i])
-                if selected is not None:
-                    selected["legacy_compatible"] = True
-                    matched_geo += 1
-                else:
-                    selected = _choose_tiger_street(geo, batch[i])
-                    if selected is None:
-                        selected = _choose_normalized(geo, batch[i])
-                    if selected is not None:
-                        parsed_from_geo += 1
-                if selected is not None:
-                    results[i].update(selected)
-                    results[i]["geocode_street_pre_normalize"] = (
-                        selected.get("standardized_street")
-                    )
-                results[i]["geocode_source"] = geo.get("source")
-                results[i]["geocode_match"] = geo.get("geocode_match")
-                results[i]["geocode_rating"] = geo.get("geocode_rating")
+                result = _choose_geocode(raw)
+                if result is None:
+                    for idx in query_to_input[texts[pos]]:
+                        observed.setdefault(idx, raw)
+                    continue
+                if (pos not in selected or
+                    _geocode_richness(result) > _geocode_richness(selected[pos])):
+                    selected[pos] = result
+            for pos, candidate in selected.items():
+                query = texts[pos]
+                for idx in query_to_input[query]:
+                    prior = chosen.get(idx)
+                    if prior is None or _geocode_richness(candidate) > _geocode_richness(prior):
+                        chosen[idx] = candidate
+                        if not compact:
+                            results[idx]["geocode_success_input_text"] = query
+                            results[idx]["geocode_success_variant"] = labels[idx, query]
+        for idx, result in enumerate(results):
+            candidate = chosen.get(idx)
+            if candidate:
+                result.update(candidate)
+                # Keep the geocoder's returned norm_addy distinct from the
+                # later addresses.normalize() pass and from raw-input fallbacks.
+                # Sales identity uses this original returned structure.
+                result["geocoder_norm_addy"] = candidate.get("geocoder_norm_addy")
+                result["geocode_source"] = candidate.get("source")
+                result["geocode_match"] = candidate.get("geocode_match")
+                result["geocode_rating"] = candidate.get("geocode_rating")
+                result["geocode_street_pre_normalize"] = candidate.get("standardized_street")
+            elif idx in observed:
+                result["geocode_source"] = observed[idx].get("source")
+                result["geocode_match"] = observed[idx].get("geocode_match")
+            if not compact:
+                result["geocode_attempted_texts"] = " || ".join(attempted.get(idx, ()))
+    counts["matched"] = len(chosen)
 
-    # Step 2: Retry *corrected* first-pass addresses still missing ZIP+4.
-    # The second pass deliberately excludes TIGER.
-    retry: list[tuple[int, str]] = []
-    if use_geocode and retry_keys:
-        for i, (request, result) in enumerate(zip(batch, results)):
-            if request not in retry_keys or normalize_zip4(result.get("zip4")):
-                continue
-            street = result.get("standardized_street")
-            city = result.get("standardized_city")
-            state = result.get("standardized_state")
-            zip5 = result.get("standardized_zipcode")
-            if not all((street, city, state, zip5)):
-                continue
-            if _house_number(street) != _house_number(request[0]):
-                continue
-            if request[3] and zip5 != request[3]:
-                continue
-            if request[2] and state != request[2]:
-                continue
-            corrected = " ".join((street, city, state, zip5))
-            if len(corrected) > _MAX_SQL_ADDRESS_LENGTH:
-                continue
-            if " ".join(corrected.upper().split()) == " ".join(texts[i].upper().split()):
-                continue
-            retry.append((i, corrected))
-
-    if retry:
-        started = perf_counter()
-        retry_rows, _ = _select_geocode_rows(
-            conn, [text for _, text in retry], ["usps", "openaddresses"],
-            skip_invalid_regex=skip_invalid_geocode_regex,
-        )
-        retry_seconds = perf_counter() - started
-        for row in retry_rows:
-            idx = int(row["input_index"]) - 1
-            if not 0 <= idx < len(retry):
-                raise ValueError("Unexpected ZIP+4 retry input_index")
-            i = retry[idx][0]
-            selected = _choose_geocode(row, batch[i])
-            if selected is None or not normalize_zip4(selected.get("zip4")):
-                continue
-            selected["legacy_compatible"] = True
-            selected["match_status"] = "geocoded_retry"
-            results[i].update(selected)
-            results[i]["geocode_street_pre_normalize"] = (
-                selected.get("standardized_street")
+    # The formatter receives the geocoded address when available. A single
+    # free-form input retains its own SQL text rather than being split in Python.
+    parser_options: dict[int, list[tuple[str, str]]] = {}
+    for idx, (key, result) in enumerate(zip(batch, results)):
+        if idx in chosen:
+            text = _join_address_fields(
+                result.get("standardized_street") or key[0],
+                result.get("standardized_city") or key[1],
+                result.get("standardized_state") or key[2],
+                result.get("standardized_zipcode") or key[3],
             )
-            results[i]["geocode_source"] = row.get("source")
-            results[i]["geocode_match"] = row.get("geocode_match")
-            results[i]["geocode_rating"] = row.get("geocode_rating")
-            retry_matches += 1
-
-    # Step 3: Let the database parser create the final street representation.
-    # Feed the corrected street/locality instead of the original misspelling.
-    #
-    # Parsing may never introduce a ZIP+4. Preserve it from the geocoder
-    # (or supplied input) independently of normalized_address.
-    to_parse: list[tuple[int, str]] = []
-    for i, (request, result) in enumerate(zip(batch, results)):
-        street = result.get("standardized_street") or request[0]
-        if not as_text(street):
+        else:
+            text = options[idx][0][1] if options[idx] else ""
+        if not compact:
+            result["normalize_input_text"] = text or None
+        if not text:
+            if batch[idx][0] and not options[idx]:
+                result["normalize_status"] = "skipped_overlong"
             continue
-        # Normalize all street-bearing inputs, including PO boxes.
-        city = result.get("standardized_city") or request[1]
-        state = result.get("standardized_state") or request[2]
-        zip5 = result.get("standardized_zipcode") or request[3]
-        # Do not give the street parser ZIP+4; keep extensions independently
-        # from the standardized street/locality representation.
-        parse_text = " ".join(
-            part for part in (street, city, state, zip5 or "") if part
-        )
-        result["normalize_input_text"] = parse_text
-        if len(parse_text) > _MAX_SQL_ADDRESS_LENGTH:
-            # Upstream address_standardizer may crash its backend with very
-            # long input; keep the original address instead.
+        variants = [("geocoded_or_combined", text)]
+        current = chosen.get(idx, {})
+        if not current or not all(current.get(k) for k in (
+            "standardized_street", "standardized_city",
+            "standardized_state", "standardized_zipcode",
+        )):
+            for label, query in options[idx]:
+                if query != text:
+                    variants.append((label, query))
+        # Length guard protects the address_standardizer backend; skipped text
+        # is retained as original input in the final delivery fields.
+        variants = [(label, query) for label, query in variants
+                    if len(query) <= _MAX_SQL_ADDRESS_LENGTH]
+        if variants:
+            parser_options[idx] = variants
+        elif text:
             result["normalize_status"] = "skipped_overlong"
-            continue
-        to_parse.append((i, parse_text))
 
-    if to_parse:
-        started = perf_counter()
-        normalized = _select_normalized_rows(
-            conn, [text for _, text in to_parse],
+    address_fields = (
+        "standardized_street", "standardized_city",
+        "standardized_state", "standardized_zipcode",
+    )
+    normalized_cache: dict[str, dict[str, Any]] = {}
+    best: dict[int, dict[str, Any]] = {}
+    primary: dict[int, dict[str, Any]] = {}
+    alternate_values: dict[int, list[dict[str, Any]]] = {}
+    normalized_attempts: dict[int, list[str]] = {}
+    for attempt_no in range(max(map(len, parser_options.values()), default=0)):
+        query_to_input: dict[str, list[int]] = {}
+        for idx, variants in parser_options.items():
+            if attempt_no >= len(variants):
+                continue
+            if attempt_no:
+                parsed = best.get(idx, {})
+                stored = chosen.get(idx, {})
+                if all(parsed.get(field) or stored.get(field) for field in address_fields):
+                    continue
+            query = variants[attempt_no][1]
+            query_to_input.setdefault(query, []).append(idx)
+            if not compact:
+                normalized_attempts.setdefault(idx, []).append(query)
+        missing = [text for text in query_to_input if text not in normalized_cache]
+        if missing:
+            start = perf_counter()
+            parsed_rows = _select_normalized_rows(conn, missing)
+            timings["normalize_seconds"] += perf_counter() - start
+            counts["normalized"] += len(missing)
+            normalized_cache.update({
+                text: _choose_final_normalize(raw)
+                for text, raw in zip(missing, parsed_rows)
+            })
+            # Preserve an isolated per-address parser error separately.
+            for text, raw in zip(missing, parsed_rows):
+                if raw.get("normalize_error"):
+                    normalized_cache[text]["normalize_error"] = True
+        for text, indices in query_to_input.items():
+            candidate = normalized_cache[text]
+            for idx in indices:
+                alternate_values.setdefault(idx, []).append(candidate)
+                primary.setdefault(idx, candidate)
+                if idx not in best or _normalization_richness(candidate) > _normalization_richness(best[idx]):
+                    best[idx] = candidate
+                    if not compact:
+                        results[idx]["normalize_input_text"] = text
+
+    for idx, candidate in best.items():
+        result = results[idx]
+        candidate = dict(candidate)
+        for alternate in alternate_values[idx]:
+            for field in address_fields:
+                if not candidate.get(field) and alternate.get(field):
+                    candidate[field] = alternate[field]
+        if idx in chosen:
+            building = (primary.get(idx, {}).get("standardized_street")
+                        or result.get("standardized_street"))
+        else:
+            building = candidate.get("standardized_street")
+        result["normalize_status"] = (
+            "applied" if building else
+            "parser_input_error" if candidate.get("normalize_error") else "unstructured"
         )
-        normalize_seconds = perf_counter() - started
-        for row in normalized:
-            idx = int(row["input_index"]) - 1
-            if not 0 <= idx < len(to_parse):
-                raise ValueError("Unexpected normalize input_index")
-            i, _ = to_parse[idx]
-            result = results[i]
-            selected = _choose_final_normalize(row)
-
-            result["normalize_raw_street"] = selected.get("standardized_street")
-            # This is the SAME writeback for geocoded sales and target-only
-            # addresses. Do not reject changed street names or ordinals.
-            if selected.get("standardized_street"):
-                result["standardized_street"] = selected["standardized_street"]
-                result["normalize_status"] = "applied"
-            else:
-                # norm_addy may be returned without parseable street fields
-                # (e.g. non-street PO boxes). Keep the original string, not
-                # a Python abbreviation, and make this visible in debug.
-                result["normalize_status"] = (
-                    "parser_input_error" if row.get("normalize_error")
-                    else "unstructured"
-                )
-
-            # Database geocoding (sales) supplies corrected locality/ZIP,
-            # while direct parser results fill target locality. Never allow
-            # the formatter to discard a verified ZIP or its ZIP+4.
-            for field in (
-                "standardized_city", "standardized_state",
-                "standardized_zipcode",
-            ):
-                if selected.get(field) and not result.get(field):
-                    result[field] = selected[field]
-            for field in NORM_FIELDS:
-                name = f"norm_{field}"
-                if name in selected:
-                    result[name] = selected[name]
-            result["normalized_after_geocode"] = bool(result.get("geocode_street_pre_normalize"))
-            if result["match_status"] == "input_formatted" and result.get("normalize_status") == "applied":
-                result["match_status"] = "normalized_only"
-                result["legacy_compatible"] = False
-
+        if building:
+            result["standardized_street"] = building
+        for field in address_fields[1:]:
+            if candidate.get(field) and not result.get(field):
+                result[field] = candidate[field]
+        # Preserve the parser's original structured fields for Smarty consumers.
+        # Components and canonical street must describe the same parse.
+        # Other representations may fill missing locality, not replace the
+        # structured street of a successful geocode.
+        structured = (
+            primary.get(idx, {})
+            if idx in chosen and primary.get(idx, {}).get("standardized_street")
+            else candidate
+        )
+        for name in NORM_FIELDS:
+            field = f"norm_{name}"
+            if field in structured:
+                result[field] = structured[field]
+        if not compact:
+            result["normalize_raw_street"] = building
+            result["normalize_attempted_texts"] = " || ".join(normalized_attempts.get(idx, ()))
+        result["normalized_after_geocode"] = idx in chosen
+        if result["match_status"] == "input_formatted" and building:
+            result["match_status"] = "normalized_only"
+    if compact:
+        fields = (
+            "standardized_street", "standardized_city", "standardized_state",
+            "standardized_zipcode", "zip4", "norm_internal", "norm_address",
+            "norm_address_alphanumeric", "norm_street_name",
+            "norm_street_type_abbrev", "norm_predir_abbrev",
+            "norm_postdir_abbrev", "latitude", "longitude",
+            "geocode_source", "geocode_match", "geocode_rating",
+            "match_status", "legacy_compatible", "normalize_status",
+        )
+        results = [{field: row.get(field) for field in fields} for row in results]
     metrics = {
-        "zip4_retried": len(retry),
-        "zip4_recovered": retry_matches,
-        "zip4_retry_seconds": retry_seconds,
-        "geocoded": attempted_geo,
-        "matched": matched_geo,
-        "parsed_from_geocoder": parsed_from_geo,
-        "normalized": len(to_parse),
-        "normalize_applied": sum(
-            result.get("normalize_status") == "applied" for result in results
-        ),
-        "normalize_unstructured": sum(
-            result.get("normalize_status") == "unstructured"
-            for result in results
-        ),
-        "geocode_seconds": geocode_seconds,
-        "normalize_seconds": normalize_seconds,
+        **timings, **counts,
+        "normalize_applied": sum(r.get("normalize_status") == "applied" for r in results),
+        "normalize_unstructured": sum(r.get("normalize_status") == "unstructured" for r in results),
     }
-    if os.getenv("ADDRALL_PROFILE", "").lower() in {"1", "true", "yes"}:
-        print(
-            f"\t\t\t\tAddrAll batch: {len(batch):,}, "
-            f"geocode {geocode_seconds:.3f}s ({attempted_geo:,}), "
-            f"ZIP+4 retry {retry_seconds:.3f}s ({len(retry):,} attempted, "
-            f"{retry_matches:,} recovered), "
-            f"normalize {normalize_seconds:.3f}s ({len(to_parse):,}), "
-            # f"stored {matched_geo:,}, parsed {parsed_from_geo:,}"
-        )
     return results, metrics
 
 
@@ -1029,61 +1149,253 @@ def _resolve_buildings(
     *, conn: Any, batch_size: int, use_geocode: bool,
     sources: list[str], workers: int, database_url: str | None = None,
     locality: dict[str, tuple[str, str]] | None = None,
-    retry_keys: set[tuple] | None = None,
-    skip_invalid_geocode_regex: bool = False,
+    original_texts: dict[tuple, list[str]] | None = None,
+    skip_invalid_geocode_regex: bool = True,
+    compact: bool = False, postal_retry: bool = False,
 ) -> list[dict[str, Any]]:
-    """Batched SQL with one warm connection per worker and ordered results."""
+    """Batch geocode/normalize, gathering batches without retaining duplicates."""
     if not requests:
         return []
+    locality = locality or {}
+    batches = [requests[i:i + batch_size] for i in range(0, len(requests), batch_size)]
 
-    locality = locality if locality is not None else _load_zip_localities(conn, requests)
-    batches = [
-        requests[start:start + batch_size]
-        for start in range(0, len(requests), batch_size)
-    ]
-
-    def lookup(batch: list[tuple]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    def lookup(batch):
         if conn is not None:
             return _lookup_batch(
                 batch, locality=locality, sources=sources,
                 use_geocode=use_geocode, conn=conn,
-                retry_keys=retry_keys,
+                original_texts=original_texts,
                 skip_invalid_geocode_regex=skip_invalid_geocode_regex,
+                compact=compact, postal_retry=postal_retry,
             )
         with keystone_connection(database_url) as worker_conn:
             return _lookup_batch(
                 batch, locality=locality, sources=sources,
                 use_geocode=use_geocode, conn=worker_conn,
-                retry_keys=retry_keys,
+                original_texts=original_texts,
                 skip_invalid_geocode_regex=skip_invalid_geocode_regex,
+                compact=compact, postal_retry=postal_retry,
             )
 
     started = perf_counter()
+    found: list[dict[str, Any]] = []
+    metrics: list[dict[str, Any]] = []
     if workers == 1:
-        completed = [lookup(batch) for batch in batches]
+        completed = map(lookup, batches)
+        for batch_found, batch_metrics in completed:
+            found.extend(batch_found)
+            metrics.append(batch_metrics)
     else:
         with ThreadPoolExecutor(max_workers=workers) as executor:
-            completed = list(executor.map(lookup, batches))
-
-    metrics = [summary for _, summary in completed]
-    elapsed = perf_counter() - started
-    if os.getenv("ADDRALL_PROFILE", "").lower() in {"1", "true", "yes"}:
+            for batch_found, batch_metrics in executor.map(lookup, batches):
+                found.extend(batch_found)
+                metrics.append(batch_metrics)
+    if os.getenv("ADDRALL_PROFILE", "0").lower() in {"1", "true", "yes"}:
         print(
-            f"\t\t\t\tAddrAll SQL: {len(requests):,} distinct addresses, "
-            f"{len(batches)} batches, {workers} workers, elapsed {elapsed:.2f}s; "
-            f"\n\t\t\t\t\tgeocode={sum(m['geocode_seconds'] for m in metrics):.2f}s "
-            f"({sum(m['geocoded'] for m in metrics):,} inputs, "
-            f"{sum(m['matched'] for m in metrics):,} stored, "
-            f"{sum(m['parsed_from_geocoder'] for m in metrics):,} parsed); "
-            f"\n\t\t\t\t\tZIP+4 retry={sum(m['zip4_retry_seconds'] for m in metrics):.2f}s "
-            f"({sum(m['zip4_retried'] for m in metrics):,} attempted, "
-            f"{sum(m['zip4_recovered'] for m in metrics):,} recovered); "
-            f"\n\t\t\t\t\tnormalize={sum(m['normalize_seconds'] for m in metrics):.2f}s "
-            f"({sum(m['normalized'] for m in metrics):,} inputs, "
-            f"{sum(m['normalize_applied'] for m in metrics):,} applied, "
-            f"{sum(m['normalize_unstructured'] for m in metrics):,} unstructured)"
+            f"AddrAll: {len(requests)} distinct, {len(batches)} batches, "
+            f"{workers} DB workers, {perf_counter() - started:.2f}s; "
+            f"geocode {sum(m['geocode_seconds'] for m in metrics):.2f}s; "
+            f"normalize {sum(m['normalize_seconds'] for m in metrics):.2f}s"
         )
-    return [record for batch, _ in completed for record in batch]
+    return found
+
+
+def _retry_zip4_by_key(
+    keys: list[tuple[str, str, str, str | None]],
+    by_key: dict[tuple, dict[str, Any]],
+    *,
+    original_texts: dict[tuple, list[str]],
+    conn: Any,
+    batch_size: int,
+    skip_invalid_geocode_regex: bool,
+    eligible_keys: set[tuple] | None = None,
+) -> None:
+    """Recover stored ZIP+4 after normalization, without a sales-only record pass.
+
+    Try corrected delivery first, then complete preserved geocoder input, then
+    a genuinely different full original address. Re-normalize successful postal
+    results. Missing ZIP+4 never causes an existing address to be replaced.
+    """
+    unresolved = {
+        key for key in keys
+        if key[0] and (eligible_keys is None or key in eligible_keys)
+        and not normalize_zip4(by_key[key].get("zip4"))
+    }
+    seen: dict[tuple, set[str]] = {key: set() for key in unresolved}
+    variants = ("normalized_delivery", "initial_geocode", "original_raw")
+    for variant in variants:
+        if not unresolved:
+            break
+        query_to_keys: dict[str, list[tuple]] = {}
+        for key in unresolved:
+            row = by_key[key]
+            if variant == "normalized_delivery":
+                query = _join_address_fields(
+                    row.get("standardized_street") or key[0],
+                    row.get("standardized_city") or key[1],
+                    row.get("standardized_state") or key[2],
+                    row.get("standardized_zipcode") or key[3],
+                )
+            elif variant == "initial_geocode":
+                query = row.get("geocode_input_text") or _query_text(key, {})
+            else:
+                choices = _geocode_text_variants(key, original_texts.get(key, ()), {})
+                preserved = [text for label, text in choices if label == "preserved_input"]
+                query = next((text for text in preserved if text not in seen[key]), "")
+            if not query or len(query) > _MAX_SQL_ADDRESS_LENGTH or query in seen[key]:
+                continue
+            seen[key].add(query)
+            query_to_keys.setdefault(query, []).append(key)
+        if not query_to_keys:
+            continue
+        queries = list(query_to_keys)
+        for start in range(0, len(queries), batch_size):
+            chunk = queries[start:start + batch_size]
+            geos, _ = _select_geocode_rows(
+                conn, chunk, ["usps", "openaddresses"],
+                skip_invalid_regex=skip_invalid_geocode_regex,
+            )
+            # Choose a real postal candidate carrying ZIP+4. No fabricated
+            # postal extension from the parser or TIGER interpolation.
+            candidates: dict[int, dict[str, Any]] = {}
+            for geo in geos:
+                idx = int(geo["input_index"]) - 1
+                if not 0 <= idx < len(chunk):
+                    raise ValueError("Unexpected postal retry input_index")
+                candidate = _choose_geocode(geo)
+                if (candidate is not None and
+                    candidate.get("source") in {"address", "openaddresses"} and
+                    normalize_zip4(candidate.get("zip4"))):
+                    candidates.setdefault(idx, candidate)
+            if not candidates:
+                continue
+            hits = sorted(candidates.items())
+            norm_queries = [
+                _join_address_fields(
+                    candidate.get("standardized_street") or chunk[idx],
+                    candidate.get("standardized_city"),
+                    candidate.get("standardized_state"),
+                    candidate.get("standardized_zipcode"),
+                )
+                for idx, candidate in hits
+            ]
+            valid_idx = [i for i, text in enumerate(norm_queries) if len(text) <= _MAX_SQL_ADDRESS_LENGTH]
+            parsed = {}
+            if valid_idx:
+                parsed_rows = _select_normalized_rows(conn, [norm_queries[i] for i in valid_idx])
+                parsed = {valid_idx[i]: _choose_final_normalize(row)
+                          for i, row in enumerate(parsed_rows)}
+            for hit_idx, (idx, candidate) in enumerate(hits):
+                parsed_fields = parsed.get(hit_idx, {})
+                for key in query_to_keys[chunk[idx]]:
+                    if key not in unresolved:
+                        continue
+                    previous = by_key[key]
+                    # Recovered postal match overrides the first-pass ZIP5
+                    # only together with its own ZIP+4, not an old extension.
+                    for field in ("standardized_street", "standardized_city",
+                                  "standardized_state", "standardized_zipcode"):
+                        value = (parsed_fields.get(field) if field == "standardized_street"
+                                 else None) or candidate.get(field) or previous.get(field)
+                        if value:
+                            previous[field] = value
+                    for name in NORM_FIELDS:
+                        field = f"norm_{name}"
+                        if field in parsed_fields:
+                            previous[field] = parsed_fields[field]
+                    for field in ("latitude", "longitude"):
+                        if candidate.get(field) is not None:
+                            previous[field] = candidate[field]
+                    previous["zip4"] = normalize_zip4(candidate["zip4"])
+                    previous["match_status"] = "geocoded_retry"
+                    previous["legacy_compatible"] = True
+                    previous["source"] = candidate.get("source")
+                    previous["address_id"] = candidate.get("address_id")
+                    previous["geocode_source"] = candidate.get("source")
+                    previous["geocode_match"] = candidate.get("geocode_match")
+                    previous["geocode_rating"] = candidate.get("geocode_rating")
+                    previous["normalize_status"] = (
+                        "applied" if parsed_fields.get("standardized_street")
+                        else previous.get("normalize_status")
+                    )
+                    previous["zip4_retry_variant"] = variant
+                    unresolved.remove(key)
+
+
+
+def _secondary_lookup_text(inline_unit: Any, address2: Any) -> str:
+    """Keep original secondary identifiers; suppress duplicated line1/line2."""
+    a, b = as_text(inline_unit), as_text(address2)
+    if a and b and a.upper() == b.upper():
+        return a
+    return " ".join(part for part in (a, b) if part)
+
+
+def _recover_secondary_zip4(
+    *,
+    keys: list[tuple[str, str, str, str | None]],
+    bases: list[tuple[str, str]],
+    address2_values: list[str],
+    zip_parts: list[tuple[str | None, str | None]],
+    by_key: dict[tuple, dict[str, Any]],
+    conn: Any,
+    batch_size: int,
+    skip_invalid_geocode_regex: bool,
+    require_zip4: bool = True,
+    include_supplied_zip4: bool = False,
+) -> dict[tuple, dict[str, Any]]:
+    """Recover explicit unit-level geocoder matches (and, usually, ZIP+4).
+
+    First-pass geocoding deduplicates buildings and cannot establish a specific
+    unit's ZIP+4. Query distinct *complete unit addresses* via postal sources,
+    and accept only geocoder match codes containing `unit`. Unrecognized or
+    unknown units keep the original ZIP+4 (or remain missing).
+    """
+    text_to_units: dict[str, list[tuple]] = {}
+    for key, (_, unit), address2, (_, supplied_four) in zip(
+        keys, bases, address2_values, zip_parts
+    ):
+        supplied_unit = _secondary_lookup_text(unit, address2)
+        if not key[0] or not supplied_unit or (supplied_four and not include_supplied_zip4):
+            continue
+        candidate = by_key.get(key, {})
+        query = _join_address_fields(
+            " ".join(x for x in (
+                candidate.get("standardized_street") or key[0], supplied_unit
+            ) if x),
+            candidate.get("standardized_city") or key[1],
+            candidate.get("standardized_state") or key[2],
+            candidate.get("standardized_zipcode") or key[3],
+        )
+        if query and len(query) <= _MAX_SQL_ADDRESS_LENGTH:
+            text_to_units.setdefault(query, []).append((key, supplied_unit))
+    if not text_to_units:
+        return {}
+    resolved: dict[tuple, dict[str, Any]] = {}
+    queries = list(text_to_units)
+    for start in range(0, len(queries), batch_size):
+        chunk = queries[start:start + batch_size]
+        raw_rows, _ = _select_geocode_rows(
+            conn, chunk, ["usps", "openaddresses"],
+            skip_invalid_regex=skip_invalid_geocode_regex,
+        )
+        for raw in raw_rows:
+            idx = int(raw["input_index"]) - 1
+            if not 0 <= idx < len(chunk):
+                raise ValueError("Unexpected secondary ZIP+4 input_index")
+            match = {part.strip().lower() for part in
+                     as_text(raw.get("geocode_match")).split(",")}
+            if "unit" not in match:
+                continue
+            selected = _choose_geocode(raw)
+            if (selected is None or
+                selected.get("source") not in {"address", "openaddresses"} or
+                (require_zip4 and not normalize_zip4(selected.get("zip4")))):
+                continue
+            for unit_key in text_to_units[chunk[idx]]:
+                resolved.setdefault(unit_key, selected)
+    return resolved
+
 
 
 def clean_addresses(
@@ -1097,6 +1409,7 @@ def clean_addresses(
     skip_invalid_geocode_regex: bool = True,
     geocode_sources: Sequence[str] | None = None,
     output_mode: str = "full",
+    canonical_geocoder_output: bool = False,
 ) -> pd.DataFrame:
     """Return standardized address, coordinates and provenance with all input rows.
 
@@ -1126,11 +1439,22 @@ def clean_addresses(
     raw_street, raw_city = values(ADDRESS), values(CITY)
     raw_state, raw_zip = values(STATE), values(ZIPCODE)
     raw_zip4 = values(ZIP4)
+    raw_full_zipcode = values("full_zipcode")
     raw_address2 = values(ADDRESS2)
     raw_latitude = values("latitude")
     raw_longitude = values("longitude")
     bases = [split_secondary(street) for street in raw_street]
-    zip_parts = [split_zip_parts(z, ext) for z, ext in zip(raw_zip, raw_zip4)]
+    zip_parts = []
+    for z, ext, full in zip(raw_zip, raw_zip4, raw_full_zipcode):
+        five, four = split_zip_parts(z, ext)
+        full_five = normalize_zipcode(full)
+        if not five:
+            five = full_five
+        # An existing full_zipcode is another input field, but never borrow
+        # its extension when it belongs to a different ZIP5.
+        if not four and five and five == full_five:
+            four = zip4_from_full_zip(full)
+        zip_parts.append((five, four))
     keys = [
         (base.upper(), city.upper(), state.upper(), five)
         for (base, _), city, state, (five, _) in zip(
@@ -1138,10 +1462,15 @@ def clean_addresses(
         )
     ]
     unique = list(dict.fromkeys(key for key in keys if key[0]))
-    retry_keys = (
-        {key for key, (_, four) in zip(keys, zip_parts) if key[0] and not four}
-        if retry_missing_zip4 and use_geocode else set()
-    )
+    preserved_streets = values("addrall_original_street") if "addrall_original_street" in df else raw_street
+    original_texts: dict[tuple, list[str]] = {}
+    for key, supplied, original in zip(keys, raw_street, preserved_streets):
+        if not key[0]:
+            continue
+        choices = original_texts.setdefault(key, [])
+        for text in (supplied, original):
+            if text and text not in choices:
+                choices.append(text)
     # Azure hosts may run several activities at once; do not allocate a thread
     # pool and four DB sessions per invocation unless explicitly requested.
     workers = max(1, int(os.getenv("ADDRALL_WORKERS", "1")))
@@ -1151,12 +1480,13 @@ def clean_addresses(
         # All slots are available after the single ZIP-locality query.
         pool_size = max(1, int(os.getenv("ADDRALL_POOL_SIZE", "4")))
         workers = min(workers, pool_size)
-    sources = [
-        source.strip() for source in (
-            geocode_sources if geocode_sources is not None
-            else os.getenv("ADDRALL_GEOCODE_SOURCES", "usps,openaddresses").split(",")
-        ) if source.strip()
-    ]
+    configured_sources = (
+        geocode_sources if geocode_sources is not None
+        else os.getenv("ADDRALL_GEOCODE_SOURCES", "usps,openaddresses")
+    )
+    if isinstance(configured_sources, str):
+        configured_sources = configured_sources.split(",")
+    sources = [str(source).strip().lower() for source in configured_sources if str(source).strip()]
     if not sources or any(s not in {"usps", "openaddresses", "tiger"} for s in sources):
         raise ValueError("Invalid ADDRALL_GEOCODE_SOURCES")
     started = perf_counter()
@@ -1170,19 +1500,73 @@ def clean_addresses(
                 unique, conn=None, batch_size=size, locality=locality,
                 use_geocode=use_geocode, sources=sources,
                 workers=workers, database_url=database_url,
-                retry_keys=retry_keys,
+                original_texts=original_texts,
                 skip_invalid_geocode_regex=skip_invalid_geocode_regex,
+                compact=(output_mode == "audience"),
+                postal_retry=retry_missing_zip4,
             )
         else:
             found = _resolve_buildings(
                 unique, conn=connection, batch_size=size,
                 use_geocode=use_geocode, sources=sources, workers=1,
-                retry_keys=retry_keys,
+                original_texts=original_texts,
                 skip_invalid_geocode_regex=skip_invalid_geocode_regex,
+                compact=(output_mode == "audience"),
+                postal_retry=retry_missing_zip4,
             )
         by_key = dict(zip(unique, found))
+        if use_geocode and retry_missing_zip4:
+            if connection is None:
+                with keystone_connection(database_url) as conn:
+                    _retry_zip4_by_key(
+                        unique, by_key, original_texts=original_texts,
+                        conn=conn, batch_size=size,
+                        skip_invalid_geocode_regex=skip_invalid_geocode_regex,
+                        eligible_keys={
+                            key for key, (_, unit), address2, (_, ext) in zip(
+                                keys, bases, raw_address2, zip_parts
+                            ) if not ext and not (unit or address2)
+                        },
+                    )
+            else:
+                _retry_zip4_by_key(
+                    unique, by_key, original_texts=original_texts,
+                    conn=connection, batch_size=size,
+                    skip_invalid_geocode_regex=skip_invalid_geocode_regex,
+                    eligible_keys={
+                        key for key, (_, unit), address2, (_, ext) in zip(
+                            keys, bases, raw_address2, zip_parts
+                        ) if not ext and not (unit or address2)
+                    },
+                )
     else:
         by_key = {}
+
+    # Only explicit secondary-unit matches can supplement an apartment's ZIP+4.
+    # Bounded by the caller's current CSV chunk and distinct unit keys.
+    unit_matches: dict[tuple, dict[str, Any]] = {}
+    if use_geocode and (retry_missing_zip4 or canonical_geocoder_output) and unique and any(
+        unit or address2 for (_, unit), address2 in zip(bases, raw_address2)
+    ):
+        if connection is None:
+            with keystone_connection(database_url) as conn:
+                unit_matches = _recover_secondary_zip4(
+                    keys=keys, bases=bases, address2_values=raw_address2,
+                    zip_parts=zip_parts, by_key=by_key, conn=conn,
+                    batch_size=size,
+                    skip_invalid_geocode_regex=skip_invalid_geocode_regex,
+                    require_zip4=not canonical_geocoder_output,
+                    include_supplied_zip4=canonical_geocoder_output,
+                )
+        else:
+            unit_matches = _recover_secondary_zip4(
+                keys=keys, bases=bases, address2_values=raw_address2,
+                zip_parts=zip_parts, by_key=by_key, conn=connection,
+                batch_size=size,
+                skip_invalid_geocode_regex=skip_invalid_geocode_regex,
+                require_zip4=not canonical_geocoder_output,
+                include_supplied_zip4=canonical_geocoder_output,
+            )
 
     records: list[dict[str, Any]] = []
     for i, key in enumerate(keys):
@@ -1210,13 +1594,33 @@ def clean_addresses(
         # existing matchback joins; the input key is retained for diagnostics
         # and possible secondary matching when the database changes it.
         input_zip5, input_zip4 = zip_parts[i]
-        # We geocode the *building*, not the supplied apartment/suite. A
-        # building-level extension must not be applied to all of its units.
+        # Building hits cannot supply apartment ZIP+4; an explicit unit hit can.
         has_secondary = bool(unit or raw_address2[i])
-        verified_zip4 = (
-            normalize_zip4(match.get("zip4")) if not has_secondary else None
+        matched_unit = unit_matches.get((key, _secondary_lookup_text(unit, raw_address2[i])))
+        postal_match = matched_unit if has_secondary else match
+        # A building-level geocode cannot identify a specific unit. When
+        # requested, expose ONLY the explicitly matched unit's canonical
+        # structure; an unrecognized unit has no canonical identity.
+        geocoder_norm_addy = (
+            matched_unit.get("geocoder_norm_addy")
+            if matched_unit and (
+                not canonical_geocoder_output or as_text(matched_unit.get("norm_internal"))
+            ) else
+            None if has_secondary and canonical_geocoder_output else
+            match.get("geocoder_norm_addy")
         )
-        stored_zip5 = normalize_zipcode(match.get("standardized_zipcode"))
+        verified_zip4 = normalize_zip4(postal_match.get("zip4")) if postal_match else None
+        stored_zip5 = normalize_zipcode(postal_match.get("standardized_zipcode")) if postal_match else None
+        if matched_unit and stored_zip5:
+            zip5 = stored_zip5
+        row_status = "geocoded_retry" if matched_unit else match.get("match_status")
+        row_geo_source = matched_unit.get("source") if matched_unit else match.get("geocode_source")
+        row_geo_match = matched_unit.get("geocode_match") if matched_unit else match.get("geocode_match")
+        row_geo_rating = matched_unit.get("geocode_rating") if matched_unit else match.get("geocode_rating")
+        row_secondary_status = (
+            "postal_unit_match" if matched_unit else
+            "unverified" if has_secondary else "absent"
+        )
         input_full_zipcode = full_zipcode(input_zip5, input_zip4)
         database_full_zipcode = full_zipcode(stored_zip5, verified_zip4)
         input_zip4_compatible = not stored_zip5 or stored_zip5 == input_zip5
@@ -1240,14 +1644,17 @@ def clean_addresses(
                 # treating it as a valid postal join key.
                 zip4 = raw_zip4[i]
                 zip4_source = "input_unparsed"
-        coord_lat = match.get("latitude")
-        coord_lon = match.get("longitude")
+        coord_lat = (matched_unit.get("latitude") if matched_unit else None)
+        coord_lon = (matched_unit.get("longitude") if matched_unit else None)
+        if coord_lat is None or coord_lon is None:
+            coord_lat = match.get("latitude")
+            coord_lon = match.get("longitude")
         if coord_lat is None or coord_lon is None:
             coord_lat = raw_latitude[i] or None
             coord_lon = raw_longitude[i] or None
             coord_source = "input" if coord_lat is not None and coord_lon is not None else None
         else:
-            coord_source = match.get("geocode_source") or match.get("source")
+            coord_source = row_geo_source or match.get("source")
         if output_mode == "audience":
             # Neighbor processing needs these components, not the full Smarty
             # metadata/AddrAll debug records. The input DataFrame stays with
@@ -1282,7 +1689,7 @@ def clean_addresses(
                 "street_predirection": match.get("norm_predir_abbrev"),
                 "street_postdirection": match.get("norm_postdir_abbrev"),
                 "delivery_line_1": delivery_line_1 or None,
-                "delivery_line_2": raw_address2[i] or None,
+                "delivery_line_2": raw_address2[i] or (match.get("norm_internal") if not unit else None),
                 "last_line": last_line or None,
                 "city_name": city or None,
                 "state_abbreviation": state or None,
@@ -1291,37 +1698,45 @@ def clean_addresses(
                 "full_zipcode": full_zipcode(zip5, zip4),
                 "latitude": coord_lat,
                 "longitude": coord_lon,
-                "addrall_match_status": match.get("match_status"),
-                "addrall_geocode_source": match.get("geocode_source"),
-                "addrall_geocode_match": match.get("geocode_match"),
-                "addrall_geocode_rating": match.get("geocode_rating"),
+                "addrall_match_status": row_status,
+                "addrall_geocode_source": row_geo_source,
+                "addrall_geocode_match": row_geo_match,
+                "addrall_geocode_rating": row_geo_rating,
                 "addrall_coordinate_source": coord_source,
                 "addrall_zip4_source": zip4_source,
                 "addrall_normalize_status": match.get("normalize_status"),
-                "addrall_secondary_status": "unverified" if unit or raw_address2[i] else "absent",
+                "addrall_secondary_status": row_secondary_status,
             })
             continue
         result = {
             "addrall_validated": match.get("validated"),
-            "addrall_match_status": match.get("match_status"),
+            "addrall_match_status": row_status,
             "addrall_legacy_key_compatible": legacy_key,
             "addrall_source": match.get("source"),
             "addrall_address_id": match.get("address_id"),
-            "addrall_geocode_source": match.get("geocode_source"),
-            "addrall_geocode_match": match.get("geocode_match"),
-            "addrall_geocode_rating": match.get("geocode_rating"),
+            "addrall_geocode_source": row_geo_source,
+            "addrall_geocode_match": row_geo_match,
+            "addrall_geocode_rating": row_geo_rating,
+            "addrall_geocode_input_text": match.get("geocode_input_text"),
+            "addrall_geocode_attempted_texts": match.get("geocode_attempted_texts"),
+            "addrall_geocode_success_variant": match.get("geocode_success_variant"),
+            "addrall_zip4_retry_variant": match.get("zip4_retry_variant"),
+            "addrall_normalize_attempted_texts": match.get("normalize_attempted_texts"),
             "addrall_coordinate_source": coord_source,
             "addrall_unit_count": match.get("unit_count"),
-            "addrall_secondary_status": "unverified" if unit or raw_address2[i] else "absent",
+            "addrall_secondary_status": row_secondary_status,
             "addrall_zip4_source": zip4_source,
             "addrall_input_full_zipcode": input_full_zipcode,
             "addrall_database_full_zipcode": database_full_zipcode,
-            "addrall_original_street": raw_street[i],
+            "addrall_original_street": preserved_streets[i] or raw_street[i],
             "addrall_original_address2": raw_address2[i],
             "addrall_original_city": raw_city[i],
             "addrall_original_state": raw_state[i],
             "addrall_original_zipcode": raw_zip[i],
             "addrall_original_zip4": raw_zip4[i],
+            "addrall_original_full_zipcode": raw_full_zipcode[i],
+            "addrall_original_latitude": raw_latitude[i],
+            "addrall_original_longitude": raw_longitude[i],
             "addrall_building_street": std_street or None,
             "addrall_geocode_street_pre_normalize": match.get("geocode_street_pre_normalize"),
             "addrall_normalize_input_text": match.get("normalize_input_text"),
@@ -1329,7 +1744,7 @@ def clean_addresses(
             "addrall_normalize_status": match.get("normalize_status"),
             "addrall_normalize_raw_street": match.get("normalize_raw_street"),
             "delivery_line_1": delivery_line_1 or None,
-            "delivery_line_2": raw_address2[i] or None,
+            "delivery_line_2": raw_address2[i] or (match.get("norm_internal") if not unit else None),
             "city_name": city or None,
             "state_abbreviation": state or None,
             "zipcode": zip5,
@@ -1338,6 +1753,8 @@ def clean_addresses(
             "latitude": coord_lat,
             "longitude": coord_lon,
         }
+        if canonical_geocoder_output:
+            result["addrall_geocoder_norm_addy"] = geocoder_norm_addy
         result.update({f"addrall_{name}": match.get(name) for name in (
             "norm_address", "norm_predir_abbrev", "norm_street_name",
             "norm_street_type_abbrev", "norm_postdir_abbrev", "norm_internal",
@@ -1368,15 +1785,20 @@ def clean_addresses(
         for key in (records[0].keys() if records else (
             "addrall_validated", "addrall_match_status",
             "addrall_legacy_key_compatible", "addrall_source",
-            "addrall_address_id", "addrall_geocode_source",
+            "addrall_address_id", "addrall_geocoder_norm_addy",
+            "addrall_geocode_source",
             "addrall_geocode_match", "addrall_geocode_rating",
-            "addrall_coordinate_source", "addrall_unit_count",
+            "addrall_geocode_input_text", "addrall_geocode_attempted_texts",
+            "addrall_geocode_success_variant", "addrall_zip4_retry_variant",
+            "addrall_normalize_attempted_texts", "addrall_coordinate_source",
+            "addrall_unit_count",
             "addrall_secondary_status", "addrall_zip4_source",
             "addrall_input_full_zipcode", "addrall_database_full_zipcode",
             "addrall_original_street", "addrall_original_address2",
             "addrall_original_city", "addrall_original_state",
             "addrall_original_zipcode", "addrall_original_zip4",
-            "addrall_building_street",
+            "addrall_original_full_zipcode", "addrall_original_latitude",
+            "addrall_original_longitude", "addrall_building_street",
             "addrall_geocode_street_pre_normalize",
             "addrall_normalize_input_text",
             "addrall_normalized_after_geocode",

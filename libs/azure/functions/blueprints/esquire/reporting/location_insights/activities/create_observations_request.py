@@ -17,8 +17,9 @@ def activity_locationInsights_createObservationsRequest(settings: dict):
     start_date_local = dt.fromisoformat(settings["endDate"]) - timedelta(
         days=111
     )  # 16 weeks minus one day
-    end_date_local = (
-        dt.fromisoformat(settings["endDate"]) + timedelta(days=8) - timedelta(seconds=1)
+    end_date_local = min(
+        dt.fromisoformat(settings["endDate"]) + timedelta(days=8) - timedelta(seconds=1),
+        settings['today'] - timedelta(days=2)
     )  # EOD on the endDate specified
 
     # load the locations blob into Pandas using SAS

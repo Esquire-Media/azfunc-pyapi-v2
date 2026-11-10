@@ -373,10 +373,10 @@ def load_estated_data_db(
                 state,
                 "zipCode",
                 "plus4Code"
-            FROM utils.estated
-            WHERE city = %s
+            FROM utils.attom
+            WHERE "zipCode" = %s
+                AND city = %s
                 AND state = %s
-                AND "zipCode" = %s
                 AND NULLIF(
                     regexp_replace(
                         street_number, 
@@ -387,7 +387,7 @@ def load_estated_data_db(
                     ''
                 )::bigint < 999999
             """,
-            (city, state, zip_code),
+            (zip_code, city, state),
         )
 
         rows = cur.fetchall()

@@ -75,21 +75,17 @@ class Observations:
         data["LatestDate"] = data["EarliestDate"] + pd.to_timedelta(6, unit="D")
         data["RefDate"] = data["EarliestDate"] + pd.to_timedelta(3, unit="D")
 
-<<<<<<< Updated upstream
-        data = data[data['Week'] != data['Week'].max()]
-
-        data['EarliestDate'] = base - pd.to_timedelta(base.dt.weekday, unit='D')
-        data['LatestDate'] = data['EarliestDate'] + pd.to_timedelta(6, unit='D')
-        data['RefDate'] = data['EarliestDate'] + pd.to_timedelta(3, unit='D')
-        # enforce datetime format
-        data['EarliestDate'] = pd.to_datetime(data['EarliestDate'])
-        data['LatestDate'] = pd.to_datetime(data['LatestDate'])
-        data['RefDate'] = pd.to_datetime(data['RefDate'])
-=======
+        # Enforce datetime format on the derived week boundaries.
+        #
+        # The maximum week used to be dropped here to keep the incomplete
+        # current week out of the report. That is now handled after the pivot,
+        # by keeping only complete weeks whose LatestDate falls on or before
+        # the requested report end and then taking the final 16. Filtering
+        # here would also have been wrong across a year boundary, because the
+        # ISO week number repeats every year.
         data["EarliestDate"] = pd.to_datetime(data["EarliestDate"])
         data["LatestDate"] = pd.to_datetime(data["LatestDate"])
         data["RefDate"] = pd.to_datetime(data["RefDate"])
->>>>>>> Stashed changes
 
         self.obs = data.pivot_table(
             index=["ISOYear", "Week", "RefDate", "EarliestDate", "LatestDate"],

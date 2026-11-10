@@ -2,7 +2,6 @@ BLUEPRINTS = {
     "esquire-auto-audience": [
         "libs/azure/functions/blueprints/azure/datalake/*",
         "libs/azure/functions/blueprints/azure/postgres/*",
-        "libs/azure/functions/blueprints/azure/synapse/*",
         "libs/azure/functions/blueprints/esquire/audiences/builder/*",
         "libs/azure/functions/blueprints/esquire/audiences/utils/activities/*",
         "libs/azure/functions/blueprints/microsoft/graph/*",
@@ -13,13 +12,12 @@ BLUEPRINTS = {
     ],
     "esquire-meta": [
         "libs/azure/functions/blueprints/esquire/audiences/egress/meta/*",
+        "libs/azure/functions/blueprints/esquire/audiences/utils/activities/indexAudienceBlobs",
         "libs/azure/functions/blueprints/esquire/audiences/utils/activities/newestAudienceBlobPrefix",
-        "libs/azure/functions/blueprints/azure/synapse/*",
     ],
     "esquire-freewheel": [
         "libs/azure/functions/blueprints/esquire/audiences/egress/freewheel/*",
         "libs/azure/functions/blueprints/esquire/audiences/utils/activities/newestAudienceBlobPaths",
-        "libs/azure/functions/blueprints/azure/synapse/*",
     ],
     "esquire-autopolygon": [
         "libs/azure/functions/blueprints/esquire/rooftop_polys/*",
@@ -34,20 +32,10 @@ BLUEPRINTS = {
     "esquire-location-insights": [
         "libs/azure/functions/blueprints/keep_alive",
         "libs/azure/functions/blueprints/azure/datalake/*",
-        "libs/azure/functions/blueprints/azure/synapse/*",
         "libs/azure/functions/blueprints/esquire/reporting/location_insights/*",
         "libs/azure/functions/blueprints/onspot/*",
         "libs/azure/functions/blueprints/microsoft/graph/*",
         "libs/azure/functions/blueprints/purge_instance_history",
-    ],
-    "esquire-dashboard-data": [
-        "libs/azure/functions/blueprints/azure/datalake/*",
-        "libs/azure/functions/blueprints/esquire/dashboard/onspot/*",
-        "libs/azure/functions/blueprints/keep_alive",
-        "libs/azure/functions/blueprints/meta/endpoints/creative_preview",
-        "libs/azure/functions/blueprints/onspot/*",
-        "libs/azure/functions/blueprints/purge_instance_history",
-        "libs/azure/functions/blueprints/azure/synapse/*",
     ],
     "esquire-docs": [
         "libs/azure/functions/blueprints/esquire/openapi/*",

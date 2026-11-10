@@ -91,6 +91,10 @@ def orchestrator_esquireAudiences_processingSteps(
     ingress["base_prefix"] = str(ingress["working"]["blob_prefix"]).strip("/")
     # logging.warning(f"[LOG] base prefix: {ingress['base_prefix']}")
 
+    # Extra internal processing steps, such as address normalization, consume
+    # their own numbered storage path without changing the configured step list.
+    storage_step_offset = 0
+
     # Loop through each processing step
     for step, process in enumerate(processes := processing.get("steps", [])):
         logging.warning(f"[LOG] Step: {step} - {process['kind']}")
@@ -114,20 +118,21 @@ def orchestrator_esquireAudiences_processingSteps(
             )
 
         # Set up the egress data structure for the current step
+        storage_step = step + storage_step_offset
 
         egress = {
             "working": {
                 **ingress["working"],
                 "blob_prefix": "{}/{}/working".format(
                     ingress["base_prefix"],
-                    step,
+                    storage_step,
                 ),
             },
             "destination": {
                 **ingress["working"],
                 "blob_prefix": "{}/{}".format(
                     ingress["base_prefix"],
-                    step,
+                    storage_step,
                 ),
             },
             "transform": [inputType, process["outputType"]],
@@ -150,10 +155,55 @@ def orchestrator_esquireAudiences_processingSteps(
                         # logging.warning("[LOG] Addresses output type")
                         # logging.warning("[LOG] Step Type:" + egress.get("process",{}).get("kind",""))
                         if egress["process"].get("kind", "") == "Neighbors":
-                            # No specific processing required
+                            normalization = yield context.call_sub_orchestrator(
+                                "orchestrator_esquireAudiencesNeighbors_normalizeAddresses",
+                                {
+                                    "source_urls": source_urls,
+                                    "destination": egress["destination"],
+                                    "data_source": ingress["audience"]["dataSource"],
+                                },
+                            )
+
+                            neighbors_egress = egress
+
+                            if normalization.get("transformed", False):
+                                normalized_urls = normalization.get(
+                                    "results",
+                                    [],
+                                )
+
+                                if not normalized_urls:
+                                    raise RuntimeError(
+                                        "Address normalization produced no results"
+                                )
+                                storage_step_offset += 1
+                                neighbors_storage_step = storage_step + 1
+
+                                neighbors_egress = {
+                                    **egress,
+                                    "working": {
+                                        **ingress["working"],
+                                        "blob_prefix": "{}/{}/working".format(
+                                            ingress["base_prefix"],
+                                            neighbors_storage_step,
+                                        ),
+                                    },
+                                    "destination": {
+                                        **ingress["working"],
+                                        "blob_prefix": "{}/{}".format(
+                                            ingress["base_prefix"],
+                                            neighbors_storage_step,
+                                        ),
+                                    },
+                                    "source_urls": normalization.get("results", []),
+                                }
+
                             process["results"] = yield context.call_sub_orchestrator(
                                 "orchestrator_esquireAudiencesSteps_addresses2neighbors",
-                                egress,
+                                {
+                                    **neighbors_egress,
+                                    "audience":ingress["audience"]
+                                    },
                             )
                         elif egress["process"].get("kind", "") == "Proximity":
                             process["results"] = yield context.call_sub_orchestrator(
@@ -176,17 +226,14 @@ def orchestrator_esquireAudiences_processingSteps(
                                 egress,
                             )
                     case "polygons":  # addresses -> polygons
-                        process["results"] = yield context.task_all(
-                            [
-                                context.call_sub_orchestrator(
-                                    "orchestrator_esquireAudienceMaidsAddresses_footprint",
-                                    {
-                                        **egress,
-                                        "source": source_url,
-                                    },
-                                )
-                                for source_url in source_urls
-                            ]
+                        # The rooftop polygon generation this step performed lived
+                        # in the retired utils/maids blueprint. That blueprint was
+                        # never deployed to any Function App and could not resolve
+                        # its rooftop polygon dependency across app boundaries, so
+                        # this step has been unreachable. Fail loudly rather than
+                        # silently producing an empty audience.
+                        raise RuntimeError(
+                            "Unsupported processing step: addresses -> polygons."
                         )
             case "device_ids":
                 match process["outputType"]:
@@ -196,24 +243,11 @@ def orchestrator_esquireAudiences_processingSteps(
                             egress,
                         )
                     case "device_ids":  # deviceids -> deviceids
-                        process["results"] = yield context.task_all(
-                            [
-                                context.call_sub_orchestrator(
-                                    "orchestrator_esquireAudienceMaidsDeviceIds_todevids",
-                                    {
-                                        "working": egress["working"],
-                                        "source": source_url,
-                                        "destination": {
-                                            **egress["destination"],
-                                            "blob_name": "{}/results/{}.csv".format(
-                                                egress["destination"]["blob_prefix"],
-                                                index,
-                                            ),
-                                        },
-                                    },
-                                )
-                                for index, source_url in enumerate(source_urls)
-                            ]
+                        # See the addresses -> polygons note above: the retired
+                        # utils/maids blueprint provided this conversion and was
+                        # never deployed to any Function App.
+                        raise RuntimeError(
+                            "Unsupported processing step: device_ids -> device_ids."
                         )
                     case "polygons":  # deviceids -> polygons
                         # No specific processing required

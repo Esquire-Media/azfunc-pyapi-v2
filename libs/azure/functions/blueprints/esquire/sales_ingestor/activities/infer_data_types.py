@@ -109,16 +109,50 @@ def infer_schema_to_df(conn, staging_table: str, upload_id) -> pd.DataFrame:
         LOOP
             dyn_sql := format($f$
                 INSERT INTO tmp_type_inference_results_{upload_id}
-                WITH base AS (
+                    WITH normalized AS (
+                    SELECT
+                        (%1$I)::TEXT AS raw_value,
+                        CASE
+                            WHEN btrim((%1$I)::TEXT) ~ '^\\(.*\\)$'
+                            THEN '-' || regexp_replace(
+                                btrim((%1$I)::TEXT),
+                                '[()$,[:space:]]',
+                                '',
+                                'g'
+                            )
+                            ELSE regexp_replace(
+                                btrim((%1$I)::TEXT),
+                                '[$,[:space:]]',
+                                '',
+                                'g'
+                            )
+                        END AS numeric_value
+                    FROM sales."{staging_table}"
+                ),
+                base AS (
                     SELECT
                         COUNT(*) AS total_rows,
-                        COUNT(*) FILTER (WHERE (%1$I)::TEXT IS NULL OR (%1$I)::TEXT = '') AS null_count,
-                        COUNT(*) FILTER (WHERE (%1$I)::TEXT IS NOT NULL AND (%1$I)::TEXT <> '') AS non_null_count,
-                        COUNT(*) FILTER (WHERE LOWER((%1$I)::TEXT) IN ('true','false'))::FLOAT AS bool_matches,
-                        COUNT(*) FILTER (WHERE (%1$I)::TEXT ~ '^[+-]?\\d+$')::FLOAT AS int_matches,
-                        COUNT(*) FILTER (WHERE (%1$I)::TEXT ~ '^[+-]?(\\d+\\.\\d*|\\.\\d+)([eE][+-]?\\d+)?$')::FLOAT AS float_matches,
-                        COUNT(*) FILTER (WHERE sales.try_cast_timestamp((%1$I)::TEXT) IS NOT NULL)::FLOAT AS datetime_matches
-                    FROM sales."{staging_table}"
+                        COUNT(*) FILTER (
+                            WHERE raw_value IS NULL
+                               OR btrim(raw_value) = ''
+                        ) AS null_count,
+                        COUNT(*) FILTER (
+                            WHERE raw_value IS NOT NULL
+                              AND btrim(raw_value) <> ''
+                        ) AS non_null_count,
+                        COUNT(*) FILTER (
+                            WHERE LOWER(btrim(raw_value)) IN ('true','false')
+                        )::FLOAT AS bool_matches,
+                        COUNT(*) FILTER (
+                            WHERE numeric_value ~ '^[+-]?\\d+$'
+                        )::FLOAT AS int_matches,
+                        COUNT(*) FILTER (
+                            WHERE numeric_value ~ '^[+-]?(\\d+\\.\\d*|\\.\\d+)([eE][+-]?\\d+)?$'
+                        )::FLOAT AS float_matches,
+                        COUNT(*) FILTER (
+                            WHERE sales.try_cast_timestamp(btrim(raw_value)) IS NOT NULL
+                        )::FLOAT AS datetime_matches
+                    FROM normalized
                 )
                 SELECT
                     '%1$s' AS column_name,
@@ -130,6 +164,7 @@ def infer_schema_to_df(conn, staging_table: str, upload_id) -> pd.DataFrame:
                     float_matches / GREATEST(non_null_count, 1) AS float_ratio,
                     datetime_matches / GREATEST(non_null_count, 1) AS datetime_ratio,
                     CASE
+                        WHEN non_null_count = 0 THEN 'TEXT'
                         WHEN bool_matches = non_null_count THEN 'BOOLEAN'
                         WHEN int_matches = non_null_count THEN 'BIGINT'
                         WHEN int_matches + float_matches = non_null_count THEN 'NUMERIC'
@@ -177,10 +212,28 @@ def generate_alter_statements(inferred_schema: dict, table_name: str, settings: 
         if pg_type == "INTEGER":
             pg_type = "BIGINT"
 
+        if pg_type in {"BIGINT", "NUMERIC"}:
+            using_value = (
+                f"""NULLIF("""
+                f"""CASE """
+                f"""WHEN btrim("{col}"::TEXT) ~ '^\\(.*\\)$' """
+                f"""THEN '-' || regexp_replace("""
+                f"""btrim("{col}"::TEXT), """
+                f"""'[()$,[:space:]]', '', 'g'"""
+                f""") """
+                f"""ELSE regexp_replace("""
+                f"""btrim("{col}"::TEXT), """
+                f"""'[$,[:space:]]', '', 'g'"""
+                f""") """
+                f"""END, '')"""
+            )
+        else:
+            using_value = f'"{col}"'
+
         stmt = (
             f'ALTER TABLE {table_name} '
             f'ALTER COLUMN "{col}" TYPE {pg_type} '
-            f'USING "{col}"::{pg_type};'
+            f"USING {using_value}::{pg_type};"
         )
         alter_statements.append(stmt)
 

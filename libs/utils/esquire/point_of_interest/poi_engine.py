@@ -24,7 +24,7 @@ class POIEngine:
         Returns:
         poi_data     : Pandas DataFrame of POI data (with associated category lists) within the given polygon.
         """
-        # connect to the Synapse tables necessary to pull POI data and cross-reference with ESQ locations
+        # connect to the POI tables necessary to pull POI data and cross-reference with ESQ locations
         session: Session = self.provider.connect()
 
         # find H3 hexes which intersect with the query area

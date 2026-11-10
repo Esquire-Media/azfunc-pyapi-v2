@@ -44,15 +44,24 @@ pre-commit run --all-files
 
 ### Testing
 
-Tests are located in `libs/azure/functions/blueprints/esquire/audiences/utils/maids/starters/tests/`. To run a single test:
+Tests live in `tests/` at the repository root. To run them:
 
 ```bash
-# Run pytest on specific test file
-pytest libs/azure/functions/blueprints/esquire/audiences/utils/maids/starters/tests/fetch.py -v
+# Run the whole suite
+pytest tests/ -v
 
-# Run specific test function
-pytest libs/azure/functions/blueprints/esquire/audiences/utils/maids/starters/tests/fetch.py::starter_esquireAudiencesMaidsTest_fetch -v
+# Run a single test file
+pytest tests/test_user_page.py -v
+
+# Run a single test function
+pytest tests/test_user_page.py::test_plan_ranges_spanning_two_blobs -v
 ```
+
+> Note: the root `tests/` directory is listed in `.gitignore`, so new test files
+> need `git add -f tests/<file>.py`. Test files must stay **outside** the
+> blueprint directories - `function_app.find_blueprints` walks those recursively
+> and would import them into the Function App at startup, where `pytest` is not
+> installed.
 
 ## Code Style
 
@@ -188,10 +197,9 @@ Blueprints are loaded dynamically based on `WEBSITE_SITE_NAME` or `FUNCTION_NAME
 
 | Function App | Blueprints |
 |-------------|------------|
-| `esquire-auto-audience` | Data lake, Postgres, Synapse, Audiences, Meta, OnSpot, S3 |
+| `esquire-auto-audience` | Data lake, Postgres, Audiences, Meta, OnSpot, S3 |
 | `esquire-campaign-proposal` | Campaign proposal reporting |
 | `esquire-location-insights` | Location-based reporting |
-| `esquire-dashboard-data` | Dashboard endpoints |
 | `esquire-docs` | OpenAPI documentation |
 | `esquire-oneview-tasks` | OneView task management |
 | `esquire-redshift-sync` | AWS Redshift sync |

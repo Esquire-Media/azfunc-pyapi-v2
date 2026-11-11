@@ -21,7 +21,11 @@ def orchestrator_locationInsights_report(context: DurableOrchestrationContext):
     # commonly used variables
     settings = context.get_input()
     retry = RetryOptions(15000, 1)
-    egress = {**settings, "instance_id": context.instance_id}
+    egress = {
+        **settings, 
+        "instance_id": context.instance_id,
+        "today": context.current_utc_datetime.isoformat()
+        }
 
     location_data_list = yield context.task_all(
         [

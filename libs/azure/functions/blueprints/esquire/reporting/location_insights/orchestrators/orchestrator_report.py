@@ -24,7 +24,7 @@ def orchestrator_locationInsights_report(context: DurableOrchestrationContext):
     egress = {
         **settings, 
         "instance_id": context.instance_id,
-        "today":context.current_utc_datetime
+        "today": context.current_utc_datetime.isoformat()
         }
 
     location_data_list = yield context.task_all(

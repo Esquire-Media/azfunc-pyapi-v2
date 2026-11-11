@@ -4,6 +4,7 @@ from datetime import datetime as dt, timedelta
 from libs.utils.azure_storage import get_blob_sas
 from libs.utils.time import get_local_timezone, local_time_to_utc
 import orjson as json, os, pandas as pd
+from datetime import datetime as dt, timedelta
 
 # Create a Blueprint instance for defining Azure Functions
 bp = Blueprint()
@@ -12,6 +13,8 @@ bp = Blueprint()
 # Define an activity function
 @bp.activity_trigger(input_name="settings")
 def activity_locationInsights_createObservationsRequest(settings: dict):
+
+    today = dt.fromisoformat(settings["today"])
     
     # calculate local start and end datetimes in UTC time
     start_date_local = dt.fromisoformat(settings["endDate"]) - timedelta(
@@ -19,8 +22,8 @@ def activity_locationInsights_createObservationsRequest(settings: dict):
     )  # 16 weeks minus one day
     end_date_local = min(
         dt.fromisoformat(settings["endDate"]) + timedelta(days=8) - timedelta(seconds=1),
-        settings['today'] - timedelta(days=2)
-    )  # EOD on the endDate specified
+        today - timedelta(days=2),
+    )
 
     # load the locations blob into Pandas using SAS
     blob_client = BlobClient.from_connection_string(

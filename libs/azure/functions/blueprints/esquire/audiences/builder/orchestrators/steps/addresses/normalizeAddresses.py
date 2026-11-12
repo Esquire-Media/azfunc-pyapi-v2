@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 from typing import Any, Iterator, TypeVar
 
@@ -21,6 +22,15 @@ _MAX_CONCURRENT_NORMALIZATIONS = int(
         "3",
     )
 )
+
+_MAX_CONCURRENT_SPLITS = int(
+    os.getenv("ADDRESS_NORMALIZATION_MAX_CONCURRENT_SPLITS", "2")
+)
+
+_ROWS_PER_ACTIVITY = int(
+    os.getenv("ADDRESS_NORMALIZATION_ROWS_PER_ACTIVITY", "500")
+)
+
 
 _ACTIVITY_RETRY_ATTEMPTS = int(
     os.getenv(
@@ -84,8 +94,45 @@ def orchestrator_esquireAudiencesNeighbors_normalizeAddresses(
         _ACTIVITY_RETRY_ATTEMPTS,
     )
 
+    if _ROWS_PER_ACTIVITY < 1:
+        raise ValueError("ADDRESS_NORMALIZATION_ROWS_PER_ACTIVITY must be positive")
+
+    # All chunk names are deterministic within this orchestration instance.
+    # Do not put SAS-bearing source URLs into blob names or logs.
+    run_key = hashlib.sha256(context.instance_id.encode("utf-8")).hexdigest()[:20]
+    working = ingress.get("working")
+    if not isinstance(working, dict) or not all(
+        key in working for key in ("conn_str", "container_name")
+    ):
+        working = ingress["destination"]
+    prefix = str(working.get("blob_prefix", "")).strip("/")
+    chunk_prefix = "/".join(
+        part for part in (prefix, "address-normalization-input", run_key) if part
+    )
+    chunk_destination = {**working, "blob_prefix": chunk_prefix}
+
+    chunk_urls: list[str] = []
+    for group in _chunked(list(enumerate(source_urls)), _MAX_CONCURRENT_SPLITS):
+        tasks = [
+            context.call_activity_with_retry(
+                "activity_esquireAudiencesNeighbors_splitAddressBlob",
+                retry,
+                {
+                    "source_index": source_index,
+                    "source_url": source_url,
+                    "destination": chunk_destination,
+                    "rows_per_chunk": _ROWS_PER_ACTIVITY,
+                },
+            )
+            for source_index, source_url in group
+        ]
+        for result in (yield context.task_all(tasks)):
+            chunk_urls.extend(str(url) for url in result["urls"])
+
+    # Existing normalization activity and concurrency limit are unchanged.
+    # Its source files now contain at most _ROWS_PER_ACTIVITY CSV rows.
     indexed_sources = list(
-        enumerate(source_urls)
+        enumerate(chunk_urls)
     )
 
     output_urls: list[str] = []

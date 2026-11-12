@@ -58,13 +58,15 @@ SMARTY_FIELDS = (
     'hashed_address_id',
 )
 STORED_ADDRESS_TYPES = {**{name: 'string' for name in SMARTY_FIELDS},
-                        'norm_addy': 'jsonb'}
+                        'norm_addy': 'jsonb', 'esquireSource': 'string'}
 
 
 # Keep the existing UUID seed for identical 11-field norm_addy results.
 # The provider changed from geocode to autocomplete; the structured identity
 # format did not. A change in the actual normalized components changes the ID.
 ID_FIELDS = tuple(NORM_ADDY_TYPES)
+# Best known source per canonical UUID, independent of concurrent batch order.
+_SOURCE_RANK = {'smarty': 0, 'standardize': 1, 'autocomplete': 2}
 
 _SECONDARY_WHITESPACE = re.compile(r'\s+')
 _UNIT_ALIASES = re.compile(r'^(?:APARTMENT|APT\.?|UNIT|#)\s*#?\s*', re.I)
@@ -162,10 +164,8 @@ def norm_addy_from_enriched(enriched: Mapping[str, Any], _raw: Mapping[str, Any]
     normalized = _norm_values({
         field: enriched.get(alias) for field, alias in _NORMALIZED_FIELDS.items()
     })
-    if enriched.get('addrall_match_status') == 'completed' and not any(
-        normalized.get(field) not in (None, '') for field in ID_FIELDS
-    ):
-        raise ValueError('AddrAll completed an address without normalized_address')
+    # A malformed or empty provider result does not justify a fabricated ID.
+    # canonical_address_id() returns None when the street is unidentified.
     return normalized
 
 
@@ -252,6 +252,12 @@ def enrich_norm_addy(
     for raw, enriched in zip(inputs.to_dict('records'), cleaned.to_dict('records')):
         norm = norm_addy_from_enriched(enriched, raw)
         norm['address_id'] = canonical_address_id(norm)
+        if norm['address_id']:
+            # AddrAll has already run the normalize/standardize fallback.
+            norm['esquireSource'] = (
+                'autocomplete' if enriched.get('addrall_match_status') == 'completed'
+                else 'standardize'
+            )
         norm['_smarty'] = smarty_from_enriched(enriched, norm)
         records.append(norm)
     return records
@@ -310,8 +316,33 @@ def smarty_from_enriched(enriched: Mapping[str, Any], norm: Mapping[str, Any]) -
 
 
 def ensure_norm_addy_attributes(conn: Any) -> dict[str, str]:
-    """Require the Smarty + norm_addy JSONB attributes from the bootstrap SQL."""
+    """Create missing address EAV definitions idempotently; values are optional.
+
+    The definitions are schema metadata, not proof that a particular address
+    has a ZIP+4 or a complete norm_addy. Use the caller's current transaction.
+    """
     from sqlalchemy import text
+
+    # Same attribute registration scheme used by the existing EAV prelude.
+    # ON CONFLICT makes concurrent address batches safe without DDL changes.
+    definition_rows = [
+        {'name': name, 'data_type': dtype}
+        for name, dtype in STORED_ADDRESS_TYPES.items()
+    ]
+    conn.execute(text("""
+        INSERT INTO sales.attributes
+            (id, entity_type_id, name, data_type, description)
+        SELECT pg_catalog.gen_random_uuid(), CAST(:etype AS uuid),
+               required.name, CAST(required.data_type AS sales.attr_data_type),
+               NULL::text
+        FROM jsonb_to_recordset(CAST(:definitions AS jsonb))
+             AS required(name text, data_type text)
+        WHERE TRUE
+        ON CONFLICT (entity_type_id, name, data_type) DO NOTHING
+    """), {
+        'etype': str(ADDRESS_TYPE_ID),
+        'definitions': json.dumps(definition_rows),
+    })
 
     found = conn.execute(text("""
         SELECT id::text AS id, name, data_type::text AS dtype
@@ -323,8 +354,8 @@ def ensure_norm_addy_attributes(conn: Any) -> dict[str, str]:
               if STORED_ADDRESS_TYPES.get(row['name']) == row['dtype']}
     if set(mapped) != set(STORED_ADDRESS_TYPES):
         raise RuntimeError(
-            'Apply sales Smarty + norm_addy JSONB schema bootstrap first; '
-            f'missing attributes: {set(STORED_ADDRESS_TYPES) - set(mapped)}'
+            f'Missing address EAV attribute definitions: '
+            f'{set(STORED_ADDRESS_TYPES) - set(mapped)}'
         )
     return mapped
 
@@ -356,6 +387,13 @@ def upsert_norm_addy_records(conn: Any, records: list[dict[str, Any]]) -> int:
         for name, value in (row.get('_smarty') or {}).items():
             if stored_smarty.get(name) in (None, '') and value not in (None, ''):
                 stored_smarty[name] = value
+        source = row.get('esquireSource')
+        if source is not None:
+            if source not in _SOURCE_RANK:
+                raise ValueError(f'Unsupported address source: {source!r}')
+            previous = retained.get('esquireSource')
+            if previous is None or _SOURCE_RANK[source] > _SOURCE_RANK[previous]:
+                retained['esquireSource'] = source
     if not canonical:
         return 0
 
@@ -410,6 +448,14 @@ def upsert_norm_addy_records(conn: Any, records: list[dict[str, Any]]) -> int:
                 'entity_id': aid, 'attribute_id': attrs[field],
                 'value_string': str(value), 'value_jsonb': None,
             })
+        source = row.get('esquireSource')
+        if source is not None:
+            if source not in _SOURCE_RANK:
+                raise ValueError(f'Unsupported address source: {source!r}')
+            eav_rows.append({
+                'entity_id': aid, 'attribute_id': attrs['esquireSource'],
+                'value_string': source, 'value_jsonb': None,
+            })
 
     if eav_rows:
         stmt = text("""
@@ -418,12 +464,28 @@ def upsert_norm_addy_records(conn: Any, records: list[dict[str, Any]]) -> int:
             VALUES (CAST(:entity_id AS uuid), CAST(:attribute_id AS uuid),
                     :value_string, :value_jsonb)
             ON CONFLICT (entity_id, attribute_id) DO UPDATE SET
-                value_string = COALESCE(EXCLUDED.value_string,
-                                        sales.entity_attribute_values.value_string),
+                value_string = CASE
+                    WHEN EXCLUDED.attribute_id = CAST(:source_attr AS uuid) THEN
+                        CASE
+                            WHEN sales.entity_attribute_values.value_string = 'autocomplete'
+                                 OR EXCLUDED.value_string = 'autocomplete'
+                                THEN 'autocomplete'
+                            WHEN sales.entity_attribute_values.value_string = 'standardize'
+                                 OR EXCLUDED.value_string = 'standardize'
+                                THEN 'standardize'
+                            ELSE COALESCE(EXCLUDED.value_string,
+                                          sales.entity_attribute_values.value_string)
+                        END
+                    ELSE COALESCE(EXCLUDED.value_string,
+                                  sales.entity_attribute_values.value_string)
+                END,
                 value_jsonb = CASE WHEN EXCLUDED.value_jsonb IS NOT NULL THEN
                     COALESCE(sales.entity_attribute_values.value_jsonb, '{}'::jsonb)
                     || EXCLUDED.value_jsonb
                     ELSE sales.entity_attribute_values.value_jsonb END
-        """).bindparams(bindparam('value_jsonb', type_=JSONB()))
+        """).bindparams(
+            bindparam('value_jsonb', type_=JSONB()),
+            bindparam('source_attr', value=attrs['esquireSource']),
+        )
         conn.execute(stmt, eav_rows)
     return len(canonical)

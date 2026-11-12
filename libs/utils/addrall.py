@@ -2,7 +2,7 @@
 
 Autocomplete is the authoritative backend completion operation (including ZIP+4).
 One SQL statement batches scalar autocomplete calls using unnest/LATERAL.
-Only autocomplete misses are sent to addresses.geocode(text[]) in one batch;
+Only autocomplete misses are sent to addresses.geocode_address(text[]) in one batch;
 its returned `addy` norm_addy is the normalized fallback result.
 
 Targets may alternatively use geocode without autocomplete.
@@ -77,10 +77,10 @@ inputs AS MATERIALIZED (
 geocoded AS MATERIALIZED (
     SELECT g.input_index::integer AS input_index,
            g.addy AS normalized_address,
-           public.ST_Y(public.ST_Transform(g.geomout, 4326)) AS latitude,
-           public.ST_X(public.ST_Transform(g.geomout, 4326)) AS longitude
+           public.ST_Y(g.geomout) AS latitude,
+           public.ST_X(g.geomout) AS longitude
     FROM source AS s
-    CROSS JOIN LATERAL addresses.geocode(s.texts) AS g
+    CROSS JOIN LATERAL addresses.geocode_address(s.texts) AS g
 ),
 resolved AS MATERIALIZED (
     SELECT i.input_index, i.input_text,
@@ -111,7 +111,7 @@ STANDARDIZE_SQL = GEOCODE_SQL
 
 # The SQL receives one text[] parameter per batch. Autocomplete remains
 # scalar; only misses are collected into a second text[] and passed to
-# addresses.geocode once. Join geocode's 1-based input_index back to original
+# addresses.geocode_address once. Join geocode_address's 1-based input_index back to original
 # input positions; never geocode autocomplete hits.
 AUTOCOMPLETE_SQL = f"""
 WITH inputs AS MATERIALIZED (
@@ -149,12 +149,12 @@ fallback_texts AS MATERIALIZED (
 fallback_geocoded AS MATERIALIZED (
     SELECT g.input_index::integer AS fallback_index,
            g.addy AS normalized_address,
-           public.ST_Y(public.ST_Transform(g.geomout, 4326)) AS latitude,
-           public.ST_X(public.ST_Transform(g.geomout, 4326)) AS longitude
+           public.ST_Y(g.geomout) AS latitude,
+           public.ST_X(g.geomout) AS longitude
     FROM (
         SELECT texts FROM fallback_texts WHERE cardinality(texts) > 0
     ) AS f
-    CROSS JOIN LATERAL addresses.geocode(f.texts) AS g
+    CROSS JOIN LATERAL addresses.geocode_address(f.texts) AS g
 ),
 resolved AS MATERIALIZED (
     SELECT c.input_index, c.input_text,
@@ -509,40 +509,14 @@ def build_address_text(
 
 
 def _select_rows(conn: Any, sql: str, params: tuple) -> list[dict[str, Any]]:
-    """Run autocomplete/geocode with Tiger visible to its internal functions.
-
-    Tiger's geocoder uses unqualified norm_addy declarations. Keep its schema
-    on the transaction-local search_path, without altering database functions
-    or changing the caller's session settings after this query completes.
-    """
-    own_transaction = bool(getattr(conn, "autocommit", False))
+    """Read the selected address results without changing session settings."""
     with conn.cursor() as cursor:
-        if own_transaction:
-            cursor.execute("BEGIN")
-        try:
-            cursor.execute("""
-                SELECT pg_catalog.set_config(
-                    'search_path',
-                    CASE WHEN 'tiger' = ANY(pg_catalog.current_schemas(false))
-                         THEN pg_catalog.current_setting('search_path')
-                         ELSE 'tiger, ' || pg_catalog.current_setting('search_path')
-                    END,
-                    true
-                )
-            """)
-            cursor.execute(sql, params)
-            names = [
-                getattr(d, "name", d[0] if isinstance(d, tuple) else None)
-                for d in cursor.description
-            ]
-            results = [dict(zip(names, values)) for values in cursor.fetchall()]
-        except Exception:
-            if own_transaction:
-                cursor.execute("ROLLBACK")
-            raise
-        if own_transaction:
-            cursor.execute("COMMIT")
-        return results
+        cursor.execute(sql, params)
+        names = [
+            getattr(d, "name", d[0] if isinstance(d, tuple) else None)
+            for d in cursor.description
+        ]
+        return [dict(zip(names, values)) for values in cursor.fetchall()]
 
 
 def _record_to_address(record: dict[str, Any]) -> dict[str, Any]:
@@ -618,7 +592,7 @@ def _lookup_batch(
     batch: list[tuple[str, str, str, str | None, str]], *,
     conn: Any, use_autocomplete: bool, candidate_limit: int,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Batched autocomplete, with one geocode(text[]) call for misses."""
+    """Batched autocomplete, with one geocode_address(text[]) call for misses."""
     queries = [_query_text(item[:4], item[4]) for item in batch]
     if not queries:
         return [], {"sql_seconds": 0.0, "completed": 0, "fallback": 0, "unmatched": 0, "ambiguous": 0}
@@ -797,7 +771,7 @@ def clean_addresses(
 
     `use_geocode` remains the historical alias for `use_autocomplete`.
     Regardless of that setting, the non-autocomplete path now calls
-    addresses.geocode(text[]). Retired flags still do not add SQL passes.
+    addresses.geocode_address(text[]). Retired flags still do not add SQL passes.
     """
     if ADDRESS not in df:
         raise KeyError(f"Missing address column {ADDRESS!r}")

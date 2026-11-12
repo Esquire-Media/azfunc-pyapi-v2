@@ -66,7 +66,7 @@ def activity_salesIngestor_planAddressBatches(settings: dict):
         extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
     )
 
-    with safe_engine_connect(_engine()) as conn:
+    with _engine().begin() as conn:
         conn.execute(
             text(
                 f"""

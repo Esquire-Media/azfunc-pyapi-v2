@@ -27,7 +27,7 @@ bp = Blueprint()
 _NORMALIZATION_BATCH_SIZE = int(
     os.getenv(
         "ADDRESS_NORMALIZATION_BATCH_SIZE",
-        "500",
+        "1000",
     )
 )
 
@@ -146,7 +146,7 @@ def _resolve_fields(
 
     # PostGIS norm_addy.address is the HOUSE NUMBER, not an address line.
     # Its output may also contain address_alphanumeric and streetName. Rebuild
-    # the complete street before passing it to AddrAll; do not geocode "123"
+    # the complete street before passing it to AddrAll; do not autocomplete "123"
     # as if it were a standalone address.
     names = {str(column).lower() for column in columns}
     is_norm_addy = (
@@ -178,7 +178,11 @@ def _enriched_column(
     existing_name: str | None,
 ) -> pd.Series:
     """Use standardization when present; never lose an unmatched input value."""
-    canonical = enriched[enriched_name].astype("string").fillna("").str.strip()
+    canonical = (
+        enriched[enriched_name].astype("string").fillna("").str.strip()
+        if enriched_name in enriched.columns
+        else pd.Series("", index=enriched.index, dtype="string")
+    )
     original_col = target if target in frame else existing_name
     if original_col and original_col in frame:
         original = frame[original_col].astype("string").fillna("")
@@ -257,13 +261,10 @@ def _normalize_frame(
         ZIP4=fields.get("zip4"),
         connection=session.connection().connection,
         batch_size=int(os.getenv("ADDRALL_BATCH_SIZE", "250")),
-        use_geocode=use_geocode,
-        retry_missing_zip4=retry_missing_zip4,
-        geocode_sources=(
-            geocode_sources if geocode_sources is not None
-            else ("usps", "openaddresses")
-        ),
-        output_mode="audience",
+        use_autocomplete=use_geocode,
+        # This backend handles ZIP+4 in autocomplete. It has no retry/source
+        # selector, and normalized-only fallbacks are performed by AddrAll.
+        compact=False,
     )
     # A previously supplied full last line is better than a newly assembled
     # *partial* locality. Do not replace full input information with less.
@@ -289,14 +290,15 @@ def _normalize_frame(
 
     for field in (
         "delivery_line_1", "delivery_line_2", "last_line", "full_zipcode",
-        "street_suffix", "street_predirection", "street_postdirection",
-        "addrall_match_status", "addrall_geocode_source",
-        "addrall_geocode_match", "addrall_geocode_rating",
-        "addrall_coordinate_source", "addrall_zip4_source",
+        "addrall_match_status", "addrall_autocomplete_source",
+        "addrall_autocomplete_display_address", "addrall_zip4_source",
         "addrall_normalize_status", "addrall_secondary_status",
     ):
         if field.startswith("addrall_"):
-            out[field] = enriched[field]
+            out[field] = (
+                enriched[field] if field in enriched.columns
+                else pd.Series(None, index=enriched.index)
+            )
         else:
             out[field] = _enriched_column(
                 frame, enriched, target=field,
@@ -304,8 +306,11 @@ def _normalize_frame(
             )
 
     for target, enriched_name, existing_name in (
-        ("primary_number", "primary_number", fields.get("primary_number")),
-        ("street_name", "street_name", fields.get("street_name")),
+        ("primary_number", "addrall_norm_address_alphanumeric", fields.get("primary_number")),
+        ("street_name", "addrall_norm_street_name", fields.get("street_name")),
+        ("street_suffix", "addrall_norm_street_type_abbrev", "street_suffix"),
+        ("street_predirection", "addrall_norm_predir_abbrev", "street_predirection"),
+        ("street_postdirection", "addrall_norm_postdir_abbrev", "street_postdirection"),
         ("city", "city_name", fields.get("city")),
         ("state", "state_abbreviation", fields.get("state")),
         ("zipCode", "zipcode", fields.get("zip")),
@@ -317,6 +322,32 @@ def _normalize_frame(
             frame, enriched, target=target,
             enriched_name=enriched_name, existing_name=existing_name,
         )
+    # Prefer the canonical numeric PostGIS house number when the alpha field
+    # is empty; preserve existing input values when no parse is possible.
+    if "addrall_norm_address" in enriched.columns:
+        numeric = enriched["addrall_norm_address"].astype("string").fillna("")
+        alphanumeric = (
+            enriched["addrall_norm_address_alphanumeric"].astype("string").fillna("")
+            if "addrall_norm_address_alphanumeric" in enriched.columns
+            else pd.Series("", index=enriched.index, dtype="string")
+        )
+        canonical_number = alphanumeric.where(alphanumeric.str.strip().ne(""), numeric)
+        out["primary_number"] = canonical_number.where(
+            canonical_number.str.strip().ne(""), out["primary_number"]
+        )
+    # The autocomplete API does not emit Smarty's `last_line`. Build it from
+    # the AddrAll locality only where all three fields were resolved.
+    complete = enriched[["city_name", "state_abbreviation", "zipcode"]].astype("string").fillna("")
+    fully_resolved = complete.apply(lambda col: col.str.strip().ne("")).all(axis=1)
+    postal = enriched["full_zipcode"].astype("string").fillna("")
+    postal = postal.where(postal.ne(""), complete["zipcode"])
+    locality = complete["city_name"] + " " + complete["state_abbreviation"] + " " + postal
+    original_last = out["last_line"].astype("string").fillna("")
+    out["last_line"] = locality.where(
+        fully_resolved & original_last.str.strip().eq(""), original_last
+    )
+    # No coordinates are emitted by autocomplete. Existing source coordinates
+    # are preserved by _enriched_column, never overwritten with blanks.
     return out
 
 

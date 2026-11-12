@@ -78,15 +78,15 @@ geocoded AS MATERIALIZED (
     SELECT g.input_index::integer AS input_index,
            g.addy AS normalized_address,
            CASE WHEN g.geomout IS NOT NULL
-                 AND NOT ST_IsEmpty(g.geomout)
-                 AND ST_SRID(g.geomout) > 0
-                 AND ST_GeometryType(g.geomout) = 'ST_Point'
-            THEN ST_Y(ST_Transform(g.geomout, 4326)) END AS latitude,
+                 AND NOT public.ST_IsEmpty(g.geomout)
+                 AND public.ST_SRID(g.geomout) > 0
+                 AND public.ST_GeometryType(g.geomout) = 'ST_Point'
+            THEN public.ST_Y(public.ST_Transform(g.geomout, 4326)) END AS latitude,
            CASE WHEN g.geomout IS NOT NULL
-                 AND NOT ST_IsEmpty(g.geomout)
-                 AND ST_SRID(g.geomout) > 0
-                 AND ST_GeometryType(g.geomout) = 'ST_Point'
-            THEN ST_X(ST_Transform(g.geomout, 4326)) END AS longitude
+                 AND NOT public.ST_IsEmpty(g.geomout)
+                 AND public.ST_SRID(g.geomout) > 0
+                 AND public.ST_GeometryType(g.geomout) = 'ST_Point'
+            THEN public.ST_X(public.ST_Transform(g.geomout, 4326)) END AS longitude
     FROM source AS s
     CROSS JOIN LATERAL addresses.geocode(s.texts) AS g
 ),
@@ -158,15 +158,15 @@ fallback_geocoded AS MATERIALIZED (
     SELECT g.input_index::integer AS fallback_index,
            g.addy AS normalized_address,
            CASE WHEN g.geomout IS NOT NULL
-                 AND NOT ST_IsEmpty(g.geomout)
-                 AND ST_SRID(g.geomout) > 0
-                 AND ST_GeometryType(g.geomout) = 'ST_Point'
-            THEN ST_Y(ST_Transform(g.geomout, 4326)) END AS latitude,
+                 AND NOT public.ST_IsEmpty(g.geomout)
+                 AND public.ST_SRID(g.geomout) > 0
+                 AND public.ST_GeometryType(g.geomout) = 'ST_Point'
+            THEN public.ST_Y(public.ST_Transform(g.geomout, 4326)) END AS latitude,
            CASE WHEN g.geomout IS NOT NULL
-                 AND NOT ST_IsEmpty(g.geomout)
-                 AND ST_SRID(g.geomout) > 0
-                 AND ST_GeometryType(g.geomout) = 'ST_Point'
-            THEN ST_X(ST_Transform(g.geomout, 4326)) END AS longitude
+                 AND NOT public.ST_IsEmpty(g.geomout)
+                 AND public.ST_SRID(g.geomout) > 0
+                 AND public.ST_GeometryType(g.geomout) = 'ST_Point'
+            THEN public.ST_X(public.ST_Transform(g.geomout, 4326)) END AS longitude
     FROM (
         SELECT texts FROM fallback_texts WHERE cardinality(texts) > 0
     ) AS f

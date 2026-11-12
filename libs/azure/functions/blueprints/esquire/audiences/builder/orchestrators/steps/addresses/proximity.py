@@ -29,18 +29,16 @@ def orchestrator_esquireAudiencesSteps_ownedLocationRadius(
     for start in range(0, len(source_urls), 3):
         tasks = [
             context.call_activity_with_retry(
-                "activity_esquireAudiencesNeighbors_geocodeAddressBlob",
+                "activity_esquireAudiences_geocodeMissingCoordinates",
                 retry,
                 {
                     "source_url": url,
-                    "source_index": source_index,
+                    "output_name": f"source-{source_index:05d}.csv",
                     "destination": {
                         "conn_str": working.get("conn_str", "AzureWebJobsStorage"),
                         "container_name": working["container_name"],
                         "blob_prefix": f"{working['blob_prefix']}/latlon/radius",
                     },
-                    "sources": ["usps", "openaddresses", "tiger"],
-                    "quality": "radius",
                 },
             )
             for source_index, url in enumerate(

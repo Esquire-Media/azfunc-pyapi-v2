@@ -1,7 +1,7 @@
 from azure.durable_functions import Blueprint, DurableOrchestrationClient
 from azure.functions import HttpRequest, AuthLevel
 from fuzzywuzzy import fuzz
-from libs.utils.smarty import bulk_validate
+from libs.utils.addrall import clean_addresses
 import pandas as pd, io
 
 bp: Blueprint = Blueprint()
@@ -16,15 +16,15 @@ async def starter_rooftopPoly(req: HttpRequest, client: DurableOrchestrationClie
         if isinstance((mapped_chunk := detect_column_names(chunk)), pd.DataFrame):
             if isinstance(
                 (
-                    valid_chunk := bulk_validate(
+                    valid_chunk := clean_addresses(
                         df=mapped_chunk,
-                        address_col=(
+                        ADDRESS=(
                             "street" if "street" in mapped_chunk.columns else None
                         ),
-                        city_col="city" if "city" in mapped_chunk.columns else None,
-                        state_col="state" if "state" in mapped_chunk.columns else None,
-                        zip_col=(
-                            "zipcode" if "zipcode" in mapped_chunk.columns else None
+                        CITY="city" if "city" in mapped_chunk.columns else None,
+                        STATE="state" if "state" in mapped_chunk.columns else None,
+                        ZIPCODE=(
+                            "zip" if "zip" in mapped_chunk.columns else None
                         ),
                     )
                     .dropna(subset=["delivery_line_1"])

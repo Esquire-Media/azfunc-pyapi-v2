@@ -76,7 +76,7 @@ inputs AS MATERIALIZED (
 ),
 geocoded AS MATERIALIZED (
     SELECT g.input_index::integer AS input_index,
-           g.addy AS normalized_address,
+           g.normalized_address AS normalized_address,
            public.ST_Y(g.geomout) AS latitude,
            public.ST_X(g.geomout) AS longitude
     FROM source AS s
@@ -148,7 +148,7 @@ fallback_texts AS MATERIALIZED (
 ),
 fallback_geocoded AS MATERIALIZED (
     SELECT g.input_index::integer AS fallback_index,
-           g.addy AS normalized_address,
+           g.normalized_address AS normalized_address,
            public.ST_Y(g.geomout) AS latitude,
            public.ST_X(g.geomout) AS longitude
     FROM (

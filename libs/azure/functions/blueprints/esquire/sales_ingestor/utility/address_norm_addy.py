@@ -1,7 +1,7 @@
 """Shared sales address IDs; Smarty EAV plus norm_addy JSONB.
 
 Identity follows AddrAll's single enrichment path: autocomplete normalized_address
-when completed, otherwise addresses.normalize -> addresses.standardize. Ingestion,
+when completed, otherwise addresses.geocode(text[]). Ingestion,
 preview and backfill must all use this helper, not separate ID policies.
 """
 from __future__ import annotations
@@ -62,11 +62,11 @@ STORED_ADDRESS_TYPES = {**{name: 'string' for name in SMARTY_FIELDS},
 
 
 # Keep the existing UUID seed for identical 11-field norm_addy results.
-# The provider changed from geocode to autocomplete; the structured identity
-# format did not. A change in the actual normalized components changes the ID.
+# The source can be autocomplete or geocode; the structured identity
+# format is unchanged. Different normalized components change the ID.
 ID_FIELDS = tuple(NORM_ADDY_TYPES)
 # Best known source per canonical UUID, independent of concurrent batch order.
-_SOURCE_RANK = {'smarty': 0, 'standardize': 1, 'autocomplete': 2}
+_SOURCE_RANK = {'smarty': 0, 'standardize': 1, 'geocode': 2, 'autocomplete': 3}
 
 _SECONDARY_WHITESPACE = re.compile(r'\s+')
 _UNIT_ALIASES = re.compile(r'^(?:APARTMENT|APT\.?|UNIT|#)\s*#?\s*', re.I)
@@ -119,7 +119,7 @@ def _normalized_house_number(value: Any) -> int | float | None:
 
 
 # Use the normalized-address projection emitted by the installed AddrAll.
-# The address source (autocomplete vs. normalize/standardize) is decided inside
+# The address source (autocomplete vs. geocode fallback) is decided inside
 # clean_addresses(), not here. PostGIS JSON keys and AddrAll column aliases
 # differ only by their documented camelCase/snake_case spellings.
 _POSTGIS_TO_ADDRALL = {
@@ -157,8 +157,8 @@ def _norm_values(values: Mapping[str, Any]) -> dict[str, Any]:
 def norm_addy_from_enriched(enriched: Mapping[str, Any], _raw: Mapping[str, Any]) -> dict[str, Any]:
     """Return only the standardized norm_addy projected by AddrAll.
 
-    Autocomplete provides its selected normalized_address. SQL normalization and
-    standardization provide the same columns for misses. Client input and the
+    Autocomplete provides its selected normalized_address; geocode provides
+    the `addy` norm_addy for misses. Client input and the
     Smarty display fallback must not masquerade as a normalized component.
     """
     normalized = _norm_values({
@@ -203,7 +203,7 @@ def enrich_norm_addy(
 ) -> list[dict[str, Any]]:
     """Use the production AddrAll path for every incoming or historical row.
 
-    Autocomplete and normalize/standardize fallback live inside clean_addresses().
+    Autocomplete and geocode fallback live inside clean_addresses().
     Sales only projects its returned structure and creates deterministic UUIDs.
     The migration and preview call this same function.
     """
@@ -229,7 +229,7 @@ def enrich_norm_addy(
     # The Azure project uses psycopg3 via SQLAlchemy. Supply its DBAPI
     # connection instead of opening AddrAll's matchback-specific psycopg2 pool.
     # A preview supplies its own read-only DBAPI connection here and keeps the
-    # entire autocomplete/normalize/standardize SQL within that transaction.
+    # entire autocomplete/geocode SQL within that transaction.
     if connection is None:
         from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import _ENGINE
         with _ENGINE.connect() as db_conn:
@@ -253,10 +253,10 @@ def enrich_norm_addy(
         norm = norm_addy_from_enriched(enriched, raw)
         norm['address_id'] = canonical_address_id(norm)
         if norm['address_id']:
-            # AddrAll has already run the normalize/standardize fallback.
+            # AddrAll uses autocomplete first and geocode only on misses.
             norm['esquireSource'] = (
                 'autocomplete' if enriched.get('addrall_match_status') == 'completed'
-                else 'standardize'
+                else 'geocode'
             )
         norm['_smarty'] = smarty_from_enriched(enriched, norm)
         records.append(norm)
@@ -470,6 +470,9 @@ def upsert_norm_addy_records(conn: Any, records: list[dict[str, Any]]) -> int:
                             WHEN sales.entity_attribute_values.value_string = 'autocomplete'
                                  OR EXCLUDED.value_string = 'autocomplete'
                                 THEN 'autocomplete'
+                            WHEN sales.entity_attribute_values.value_string = 'geocode'
+                                 OR EXCLUDED.value_string = 'geocode'
+                                 THEN 'geocode'
                             WHEN sales.entity_attribute_values.value_string = 'standardize'
                                  OR EXCLUDED.value_string = 'standardize'
                                 THEN 'standardize'

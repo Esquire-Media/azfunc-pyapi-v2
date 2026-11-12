@@ -2,11 +2,11 @@
 
 Autocomplete is the authoritative backend completion operation (including ZIP+4).
 One SQL statement batches scalar autocomplete calls using unnest/LATERAL.
-Only autocomplete misses are parsed using normalize(text[]) and then
-standardized using standardize(norm_addy[]), once per batch of misses.
+Only autocomplete misses are sent to addresses.geocode(text[]) in one batch;
+its returned `addy` norm_addy is the normalized fallback result.
 
-Targets may alternatively normalize/standardize without autocomplete.
-No geocoding, ZIP+4 retries, or Python street repair.
+Targets may alternatively use geocode without autocomplete.
+No ZIP+4 retries or Python street repair.
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ NORM_FIELDS = (
 )
 SMARTY_COLUMNS = (
     "delivery_line_1", "delivery_line_2", "city_name", "state_abbreviation",
-    "zipcode", "plus4_code", "full_zipcode",
+    "zipcode", "plus4_code", "full_zipcode", "latitude", "longitude",
 )
 
 # Autocomplete accepts one address string. A single text[] parameter batches
@@ -39,8 +39,8 @@ SMARTY_COLUMNS = (
 # backend result order. The current function orders lexically by completion_key
 # and source origin, not by a match-quality score. Signature is confirmed:
 # addresses.autocomplete(text, integer DEFAULT 10, text DEFAULT NULL).
-# The normalized_address returned by autocomplete is already standardized;
-# normalize/standardize only the unmatched inputs.
+# The normalized_address returned by autocomplete is authoritative;
+# geocode only the unmatched inputs.
 AUTOCOMPLETE_OUTPUT_COLUMNS = frozenset({
     "input_index", "match_status", "delivery_line_1", "city_name",
     "state_abbreviation", "zipcode", "plus4_code",
@@ -61,10 +61,10 @@ _NORM_PROJECTION = """
     (r.normalized_address).address_alphanumeric AS norm_address_alphanumeric
 """
 
-# Both fallback and standardize-only mode must pass norm_addy[] into
-# addresses.standardize. Normalize accepts text[]; neither function requires
-# a per-address network round trip. Preserve each array element's 1-based index.
-STANDARDIZE_SQL = f"""
+# Non-autocomplete callers also resolve a whole text[] batch through geocode.
+# The result's `addy` is the corrected norm_addy; `input_addy`, `geomout`,
+# and `rating` are not canonical address components.
+GEOCODE_SQL = f"""
 WITH source AS MATERIALIZED (
     SELECT %s::text[] AS texts
 ),
@@ -74,39 +74,53 @@ inputs AS MATERIALIZED (
     CROSS JOIN LATERAL unnest(s.texts)
         WITH ORDINALITY AS i(input_text, input_index)
 ),
-parsed AS MATERIALIZED (
-    SELECT addresses.normalize(s.texts) AS addys
+geocoded AS MATERIALIZED (
+    SELECT g.input_index::integer AS input_index,
+           g.addy AS normalized_address,
+           CASE WHEN g.geomout IS NOT NULL
+                 AND NOT ST_IsEmpty(g.geomout)
+                 AND ST_SRID(g.geomout) > 0
+                 AND ST_GeometryType(g.geomout) = 'ST_Point'
+            THEN ST_Y(ST_Transform(g.geomout, 4326)) END AS latitude,
+           CASE WHEN g.geomout IS NOT NULL
+                 AND NOT ST_IsEmpty(g.geomout)
+                 AND ST_SRID(g.geomout) > 0
+                 AND ST_GeometryType(g.geomout) = 'ST_Point'
+            THEN ST_X(ST_Transform(g.geomout, 4326)) END AS longitude
     FROM source AS s
-),
-standardized AS MATERIALIZED (
-    SELECT addresses.standardize(p.addys) AS addys
-    FROM parsed AS p
+    CROSS JOIN LATERAL addresses.geocode(s.texts) AS g
 ),
 resolved AS MATERIALIZED (
     SELECT i.input_index, i.input_text,
-           z.addys[i.input_index] AS normalized_address,
-           'normalized_only'::text AS match_status,
+           g.normalized_address,
+           CASE WHEN NULLIF(BTRIM((g.normalized_address).streetName::text), '')
+                     IS NOT NULL THEN 'normalized_only'::text
+                ELSE 'unmatched'::text END AS match_status,
            0::integer AS candidate_count,
            NULL AS address_id,
            NULL::text AS display_address,
            NULL::text AS completion_zip4,
            NULL::integer AS unit_count,
-           NULL::text AS source
+           NULL::text AS source,
+           g.latitude, g.longitude
     FROM inputs AS i
-    CROSS JOIN standardized AS z
+    LEFT JOIN geocoded AS g ON g.input_index = i.input_index
 )
 SELECT r.input_index, r.input_text, r.match_status, r.candidate_count,
        r.address_id, r.display_address, r.completion_zip4,
-       r.unit_count, r.source,
+       r.unit_count, r.source, r.latitude, r.longitude,
        {_NORM_PROJECTION}
 FROM resolved AS r
 ORDER BY r.input_index
 """
 
-# The SQL receives one text[] parameter per batch. Autocomplete itself is
-# scalar; retain its first returned candidate. All zero-result inputs become
-# one ordered fallback array for normalize(text[]) -> standardize(norm_addy[])
-# in the SAME round trip. Never re-standardize autocomplete hits.
+# Preserve the old imported name for callers that referenced the SQL constant.
+STANDARDIZE_SQL = GEOCODE_SQL
+
+# The SQL receives one text[] parameter per batch. Autocomplete remains
+# scalar; only misses are collected into a second text[] and passed to
+# addresses.geocode once. Join geocode's 1-based input_index back to original
+# input positions; never geocode autocomplete hits.
 AUTOCOMPLETE_SQL = f"""
 WITH inputs AS MATERIALIZED (
     SELECT i.input_text, i.input_index::integer AS input_index
@@ -140,19 +154,23 @@ fallback_texts AS MATERIALIZED (
     ) AS texts
     FROM fallback_requests AS f
 ),
-fallback_parsed AS MATERIALIZED (
-    SELECT CASE WHEN cardinality(f.texts) = 0
-                THEN ARRAY[]::tiger.norm_addy[]
-                ELSE addresses.normalize(f.texts)
-           END AS addys
-    FROM fallback_texts AS f
-),
-fallback_standardized AS MATERIALIZED (
-    SELECT CASE WHEN cardinality(p.addys) = 0
-                THEN ARRAY[]::tiger.norm_addy[]
-                ELSE addresses.standardize(p.addys)
-           END AS addys
-    FROM fallback_parsed AS p
+fallback_geocoded AS MATERIALIZED (
+    SELECT g.input_index::integer AS fallback_index,
+           g.addy AS normalized_address,
+           CASE WHEN g.geomout IS NOT NULL
+                 AND NOT ST_IsEmpty(g.geomout)
+                 AND ST_SRID(g.geomout) > 0
+                 AND ST_GeometryType(g.geomout) = 'ST_Point'
+            THEN ST_Y(ST_Transform(g.geomout, 4326)) END AS latitude,
+           CASE WHEN g.geomout IS NOT NULL
+                 AND NOT ST_IsEmpty(g.geomout)
+                 AND ST_SRID(g.geomout) > 0
+                 AND ST_GeometryType(g.geomout) = 'ST_Point'
+            THEN ST_X(ST_Transform(g.geomout, 4326)) END AS longitude
+    FROM (
+        SELECT texts FROM fallback_texts WHERE cardinality(texts) > 0
+    ) AS f
+    CROSS JOIN LATERAL addresses.geocode(f.texts) AS g
 ),
 resolved AS MATERIALIZED (
     SELECT c.input_index, c.input_text,
@@ -162,17 +180,18 @@ resolved AS MATERIALIZED (
            CASE WHEN c.has_completion THEN c.unit_count END AS unit_count,
            CASE WHEN c.has_completion THEN c.source END AS source,
            CASE WHEN c.has_completion THEN c.normalized_address
-                ELSE s.addys[f.fallback_index]
+                ELSE g.normalized_address
            END AS normalized_address,
            CASE WHEN c.has_completion THEN 'completed'::text
-                WHEN NULLIF(BTRIM((s.addys[f.fallback_index]).streetName::text), '')
+                WHEN NULLIF(BTRIM((g.normalized_address).streetName::text), '')
                      IS NOT NULL THEN 'normalized_only'::text
                 ELSE 'unmatched'::text
            END AS match_status,
-           c.candidate_count, c.has_completion
+           c.candidate_count, c.has_completion,
+           g.latitude, g.longitude
     FROM classified AS c
-    CROSS JOIN fallback_standardized AS s
     LEFT JOIN fallback_requests AS f ON f.input_index = c.input_index
+    LEFT JOIN fallback_geocoded AS g ON g.fallback_index = f.fallback_index
 ),
 formatted AS MATERIALIZED (
     SELECT r.*,
@@ -203,6 +222,7 @@ SELECT r.input_index, r.input_text, r.match_status, r.candidate_count,
            COALESCE(NULLIF(BTRIM(r.completion_zip4::text), ''),
                     NULLIF(BTRIM((r.normalized_address).zip4::text), ''))
        END AS plus4_code,
+       r.latitude, r.longitude,
        {_NORM_PROJECTION}
 FROM formatted AS r
 ORDER BY r.input_index
@@ -269,7 +289,7 @@ def _connect_with_retries(connect: Any, *, operation: str) -> Any:
 def keystone_connection(database_url: str | None = None):
     """Borrow a pooled raw DBAPI connection (psycopg2 or Azure psycopg3).
 
-    Autocomplete/normalize/standardize SQL is unchanged. Azure primarily uses
+    Autocomplete/geocode SQL uses the caller connection. Azure primarily uses
     psycopg3; do not require an extra psycopg2 install for callers that do not
     supply their own DBAPI connection.
     """
@@ -448,7 +468,7 @@ _UNIT_END = re.compile(
 
 
 def split_secondary(street: Any) -> tuple[str, str]:
-    """Separate raw trailing unit only for standardize-only fallback."""
+    """Separate raw trailing unit on the fallback path."""
     raw = as_text(street).strip()
     match = _UNIT_END.search(raw)
     if not match:
@@ -515,7 +535,7 @@ def _select_rows(conn: Any, sql: str, params: tuple) -> list[dict[str, Any]]:
 
 
 def _record_to_address(record: dict[str, Any]) -> dict[str, Any]:
-    """Convert an addresses.standardize result to matchback address fields."""
+    """Convert a fallback norm_addy to matchback address fields."""
     out = dict(record)
     for field in NORM_FIELDS:
         if field not in {"parsed", "address"}:
@@ -536,8 +556,8 @@ def _record_to_address(record: dict[str, Any]) -> dict[str, Any]:
     out["standardized_city"] = out.get("norm_location")
     out["standardized_state"] = out.get("norm_state_abbrev")
     out["standardized_zipcode"] = normalize_zipcode(out.get("norm_zip"))
-    # Standardize is not a ZIP+4 enrichment operation. Embedded ZIP+4 is
-    # recovered only as supplied source data by _delivery_parts.
+    # Do not treat a geocoded composite as a verified ZIP+4 completion.
+    # _delivery_parts separately handles supplied ZIP+4.
     out["zip4"] = None
     return out
 
@@ -563,8 +583,8 @@ def _completion_to_address(record: dict[str, Any]) -> dict[str, Any]:
         out["standardized_zipcode"] = normalize_zipcode(record.get("zipcode"))
         out["zip4"] = normalize_zip4(record.get("plus4_code"))
     else:
-        # The SQL returns standardized norm_addy fields for autocomplete misses.
-        # Use the same converter as the explicit standardize-only path.
+        # The SQL returns geocoded norm_addy fields for autocomplete misses.
+        # Use the same converter as the explicit geocode-only path.
         out = _record_to_address(out)
         out["match_status"] = status
     return out
@@ -587,7 +607,7 @@ def _lookup_batch(
     batch: list[tuple[str, str, str, str | None, str]], *,
     conn: Any, use_autocomplete: bool, candidate_limit: int,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Batched autocomplete; normalize/standardize only misses in SQL."""
+    """Batched autocomplete, with one geocode(text[]) call for misses."""
     queries = [_query_text(item[:4], item[4]) for item in batch]
     if not queries:
         return [], {"sql_seconds": 0.0, "completed": 0, "fallback": 0, "unmatched": 0, "ambiguous": 0}
@@ -595,7 +615,7 @@ def _lookup_batch(
     if use_autocomplete:
         rows = _select_rows(conn, AUTOCOMPLETE_SQL, (queries,))
     else:
-        rows = _select_rows(conn, STANDARDIZE_SQL, (queries,))
+        rows = _select_rows(conn, GEOCODE_SQL, (queries,))
     received = [int(row["input_index"]) for row in rows]
     if received != list(range(1, len(queries) + 1)):
         raise AddrAllConfigurationError(
@@ -644,7 +664,7 @@ def _resolve_addresses(
                 f"\t\t\t\tAddrAll worker {threading.current_thread().name} "
                 f"batch {n}/{len(batches)}: {len(batch):,} inputs, "
                 f"completed={metrics['completed']:,}, "
-                f"standardized={metrics['fallback']:,}, "
+                f"geocoded={metrics['fallback']:,}, "
                 f"unmatched={metrics['unmatched']:,}, "
                 f"SQL={metrics['sql_seconds']:.3f}s, "
                 f"elapsed={perf_counter() - started:.3f}s", flush=True,
@@ -661,9 +681,9 @@ def _resolve_addresses(
     print(
         f"\t\t\t\tAddrAll SQL: {len(requests):,} distinct inputs, "
         f"{len(batches)} batches, {workers} workers, "
-        f"mode={'autocomplete' if use_autocomplete else 'standardize'}, "
+        f"mode={'autocomplete' if use_autocomplete else 'geocode'}, "
         f"completed={sum(x['completed'] for _, x in outputs):,}, "
-        f"standardized={sum(x['fallback'] for _, x in outputs):,}, "
+        f"geocoded={sum(x['fallback'] for _, x in outputs):,}, "
         f"unmatched={sum(x['unmatched'] for _, x in outputs):,}, "
         f"SQL={sum(x['sql_seconds'] for _, x in outputs):.2f}s, "
         f"elapsed={perf_counter() - started:.2f}s"
@@ -675,20 +695,21 @@ def _delivery_parts(
     raw_street: str, raw_city: str, raw_state: str,
     raw_address2: str, zip_parts: tuple[str | None, str | None],
     match: dict[str, Any], *, preserve_supplied_zip4: bool,
+    raw_latitude: Any = None, raw_longitude: Any = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Use completed fields directly; preserve independently supplied postal data."""
     completed = match.get("match_status") == "completed"
     building, unit = split_secondary(raw_street)
     if completed:
         # Autocomplete owns canonicalization, unit placement, and locality.
-        # No Python spelling repairs and no addresses.standardize after it.
+        # No Python spelling repairs or fallback geocode after it.
         line1 = as_text(match.get("delivery_line_1")) or raw_street
         line2 = as_text(match.get("delivery_line_2")) or raw_address2
         city = as_text(match.get("city_name")) or raw_city
         state = as_text(match.get("state_abbreviation")) or raw_state
     else:
-        # Standardize-only or autocomplete miss: the SQL has already run
-        # normalize(text[]) -> standardize(norm_addy[]) for this record.
+        # Geocode-only or autocomplete miss: SQL returned the corrected
+        # `addy` composite for this record.
         standardized = as_text(match.get("standardized_street")) or building
         line1 = " ".join(piece for piece in (standardized, unit) if piece).upper() or None
         line2 = raw_address2 or (match.get("norm_internal") if not unit else None)
@@ -718,6 +739,15 @@ def _delivery_parts(
         zip4 = None
         zip4_source = "input_zip_mismatch" if zip4_input else "missing"
 
+    # A geocode result supplies coordinates as a pair. Autocomplete and
+    # missing geometries leave existing source coordinates untouched.
+    has_geocoded_point = (
+        match.get("latitude") is not None and match.get("longitude") is not None
+    )
+    latitude = (match["latitude"] if has_geocoded_point
+                else raw_latitude if as_text(raw_latitude) else None)
+    longitude = (match["longitude"] if has_geocoded_point
+                 else raw_longitude if as_text(raw_longitude) else None)
     parts = {
         "delivery_line_1": line1,
         "delivery_line_2": line2 or None,
@@ -726,6 +756,8 @@ def _delivery_parts(
         "zipcode": zip5,
         "plus4_code": zip4,
         "full_zipcode": full_zipcode(zip5, zip4),
+        "latitude": latitude,
+        "longitude": longitude,
     }
     extra = {
         "addrall_building_street": line1 or None,
@@ -752,9 +784,9 @@ def clean_addresses(
 ) -> pd.DataFrame:
     """Return Smarty-compatible columns and optional full AddrAll debug columns.
 
-    `use_geocode` is the historical name for `use_autocomplete` and does NOT
-    call the geocoder. Retired retry/candidate flags remain accepted for
-    call-site compatibility without triggering extra SQL passes.
+    `use_geocode` remains the historical alias for `use_autocomplete`.
+    Regardless of that setting, the non-autocomplete path now calls
+    addresses.geocode(text[]). Retired flags still do not add SQL passes.
     """
     if ADDRESS not in df:
         raise KeyError(f"Missing address column {ADDRESS!r}")
@@ -764,7 +796,7 @@ def clean_addresses(
     autocomplete = use_geocode if use_autocomplete is None else use_autocomplete
     # Legacy ADDRALL_ZIP_LOCALITY remains recognized for configuration
     # visibility, but its extra SQL pass is retired: autocomplete supplies
-    # city/state/ZIP, while normalization-only does not enrich locality.
+    # city/state/ZIP; geocode now repairs fallback locality as well.
     if (os.getenv("ADDRALL_ZIP_LOCALITY", "0").strip().lower()
             in {"1", "true", "yes", "on"}
             and os.getenv("ADDRALL_PROFILE", "0").strip().lower()
@@ -777,6 +809,8 @@ def clean_addresses(
 
     raw_street, raw_city, raw_state = values(ADDRESS), values(CITY), values(STATE)
     raw_zip, raw_zip4, raw_address2 = values(ZIPCODE), values(ZIP4), values(ADDRESS2)
+    raw_latitude = df["latitude"].tolist() if "latitude" in df else [None] * len(df)
+    raw_longitude = df["longitude"].tolist() if "longitude" in df else [None] * len(df)
     raw_full_zip = values("full_zipcode")
     original_streets = values("addrall_original_street") if "addrall_original_street" in df else raw_street
     postal = [
@@ -810,13 +844,15 @@ def clean_addresses(
         # Keep memory use low for large target lists; debug-enabled target
         # callers disable compact mode to retain full diagnostics.
         columns: dict[str, list[Any]] = {name: [] for name in SMARTY_COLUMNS}
-        for key, street, city, state, address2, parts in zip(
-            keys, raw_street, raw_city, raw_state, raw_address2, postal
+        for key, street, city, state, address2, parts, lat, lon in zip(
+            keys, raw_street, raw_city, raw_state, raw_address2, postal,
+            raw_latitude, raw_longitude,
         ):
             delivery, _ = _delivery_parts(
                 street, city, state, address2, parts,
                 by_key.get(key) or {},
                 preserve_supplied_zip4=preserve_supplied_zip4,
+                raw_latitude=lat, raw_longitude=lon,
             )
             for name in SMARTY_COLUMNS:
                 columns[name].append(delivery[name])
@@ -833,6 +869,7 @@ def clean_addresses(
         delivery, extra = _delivery_parts(
             raw_street[i], raw_city[i], raw_state[i], raw_address2[i],
             postal[i], match, preserve_supplied_zip4=preserve_supplied_zip4,
+            raw_latitude=raw_latitude[i], raw_longitude=raw_longitude[i],
         )
         status = match.get("match_status") or "input_formatted"
         if status == "normalized_only" and not match.get("standardized_street"):
@@ -860,8 +897,8 @@ def clean_addresses(
             "addrall_normalize_attempted_texts": None,
             "addrall_normalize_raw_street": match.get("standardized_street"),
             "addrall_normalized_after_geocode": False,
-            # Legacy fields remain for existing debug tooling, but no geocode
-            # or ZIP+4-retry call is made.
+            # Legacy debug fields remain available. Coordinates from the
+            # geocoder are emitted as latitude/longitude above.
             "addrall_geocode_source": None,
             "addrall_geocode_match": None,
             "addrall_geocode_input_text": None,
@@ -933,7 +970,7 @@ def normalize_target_addresses(
     batch_size: int | None = None, geocode: bool = False,
     compact: bool = False, autocomplete: bool | None = None,
 ) -> pd.DataFrame:
-    """Target join keys with either autocomplete or standardize-only mode.
+    """Target join keys with either autocomplete or geocode-only mode.
 
     Provided target ZIP+4 always wins; autocomplete supplies completed ZIP+4
     when available. ZIP+4-only rows bypass this wrapper in import_targets.
@@ -968,8 +1005,8 @@ def strip_enrichment_columns(
     df: pd.DataFrame, *, preserve: Sequence[str] = (),
 ) -> pd.DataFrame:
     """Drop diagnostic/Smarty aliases without deleting full_zipcode."""
-    keep = set(preserve) | {"full_zipcode"}
-    temporary = set(SMARTY_COLUMNS) - {"full_zipcode"}
+    keep = set(preserve) | {"full_zipcode", "latitude", "longitude"}
+    temporary = set(SMARTY_COLUMNS) - keep
     return df.loc[:, [
         col for col in df.columns
         if col in keep or not (col.startswith("addrall_") or col in temporary)

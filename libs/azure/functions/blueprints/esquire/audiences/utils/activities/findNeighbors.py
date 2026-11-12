@@ -2,6 +2,7 @@ import base64
 import logging
 import os
 import re
+import tempfile
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 
@@ -17,6 +18,7 @@ from azure.storage.blob import (
     generate_blob_sas,
 )
 
+from libs.utils.addrall import canonical_street_key
 from libs.utils.azure_storage import get_cached_blob_client
 from libs.utils.esquire.neighbors.logic_async import (
     find_neighbors_for_street,
@@ -44,6 +46,13 @@ _BLOCK_SIZE_BYTES = int(
     )
 )
 
+_SOURCE_READ_CHUNK_ROWS = int(
+    os.getenv("NEIGHBORS_SOURCE_READ_CHUNK_ROWS", "2000")
+)
+_RESULT_WRITE_CHUNK_ROWS = int(
+    os.getenv("NEIGHBORS_RESULT_WRITE_CHUNK_ROWS", "2000")
+)
+
 _ORDINAL_SUFFIX_RE = re.compile(
     r"^(\d+)(ST|ND|RD|TH)$"
 )
@@ -55,7 +64,9 @@ def _normalize_street_name(
     if not value:
         return ""
 
-    normalized = str(value).strip().upper()
+    # Apply the same apostrophe/spacing comparison key on source and
+    # ATTOM streets; original client fields remain in the source blob.
+    normalized = canonical_street_key(value)
     match = _ORDINAL_SUFFIX_RE.match(normalized)
 
     return match.group(1) if match else normalized
@@ -84,18 +95,24 @@ def _partition_key_from_definition(
     )
 
 
-def _download_source_blob(
-    url: str,
-) -> bytes:
-    blob = get_cached_blob_client(url)
+def _iter_source_rows(url: str):
+    """Read source CSV in bounded chunks, spilling the download to disk.
 
-    return (
-        blob
-        .download_blob(
-            max_concurrency=1,
-        )
-        .readall()
-    )
+    A neighbor batch previously held the entire source blob as bytes *and*
+    the parsed DataFrame/row dictionaries simultaneously. Azure activities can
+    process several partition batches concurrently, so avoid that replication.
+    """
+    blob = get_cached_blob_client(url)
+    with tempfile.TemporaryFile(mode="w+b") as temp:
+        blob.download_blob(max_concurrency=1).readinto(temp)
+        temp.seek(0)
+        for chunk in pd.read_csv(
+            temp,
+            dtype="string",
+            keep_default_na=False,
+            chunksize=_SOURCE_READ_CHUNK_ROWS,
+        ):
+            yield from chunk.to_dict("records")
 
 
 def _load_addresses_by_partition(
@@ -117,17 +134,7 @@ def _load_addresses_by_partition(
     ] = {}
 
     for url in source_urls:
-        csv_bytes = _download_source_blob(url)
-
-        rows = pd.read_csv(
-            pd.io.common.BytesIO(csv_bytes),
-            dtype={
-                "zipCode": "string",
-                "plus4Code": "string",
-            },
-        ).to_dict("records")
-
-        for row in rows:
+        for row in _iter_source_rows(url):
             key = _partition_key(
                 city=row.get("city", ""),
                 state=row.get("state", ""),
@@ -269,58 +276,35 @@ def _partition_neighbors(
     return result[_RESULT_COLUMNS]
 
 
-def _build_batch_payload(
+def _iter_batch_csv_payloads(
     *,
     partitions: list[Mapping[str, Any]],
-    addresses_by_partition: dict[
-        tuple[str, str, str],
-        list[dict[str, Any]],
-    ],
+    addresses_by_partition: dict,
     n_per_side: int,
     same_side_only: bool,
     bind: str,
-) -> bytes:
-    result_frames: list[
-        pd.DataFrame
-    ] = []
-
-    # One connection/session for the entire small Durable activity.
-    with AttomPartitionReader(
-        bind=bind
-    ) as reader:
+):
+    """Yield one partition at a time; never concatenate all neighbor results."""
+    has_rows = False
+    with AttomPartitionReader(bind=bind) as reader:
         for partition in partitions:
-            key = _partition_key_from_definition(
-                partition
-            )
-
+            key = _partition_key_from_definition(partition)
             result = _partition_neighbors(
                 partition=partition,
-                addresses=addresses_by_partition.get(
-                    key,
-                    [],
-                ),
+                addresses=addresses_by_partition.get(key, []),
                 reader=reader,
                 n_per_side=n_per_side,
                 same_side_only=same_side_only,
             )
-
-            if not result.empty:
-                result_frames.append(result)
-
-    if not result_frames:
-        return (
-            ",".join(_RESULT_COLUMNS)
-            + "\n"
-        ).encode("utf-8")
-
-    output = pd.concat(
-        result_frames,
-        ignore_index=True,
-    )
-
-    return output.to_csv(
-        index=False,
-    ).encode("utf-8")
+            if result.empty:
+                continue
+            for start in range(0, len(result), _RESULT_WRITE_CHUNK_ROWS):
+                yield result.iloc[start:start + _RESULT_WRITE_CHUNK_ROWS][
+                    _RESULT_COLUMNS
+                ].to_csv(index=False, header=not has_rows).encode("utf-8")
+                has_rows = True
+    if not has_rows:
+        yield (",".join(_RESULT_COLUMNS) + "\n").encode("utf-8")
 
 
 def _create_destination_blob(
@@ -339,7 +323,7 @@ def _create_destination_blob(
 def _stage_payload_as_blocks(
     *,
     dest_blob: BlobClient,
-    payload: bytes,
+    payload,
 ) -> None:
     content_settings = ContentSettings(
         content_type="text/csv"
@@ -347,13 +331,11 @@ def _stage_payload_as_blocks(
 
     block_list: list[BlobBlock] = []
 
-    for block_index, start in enumerate(
-        range(
-            0,
-            len(payload),
-            _BLOCK_SIZE_BYTES,
-        )
-    ):
+    buffered = bytearray()
+    block_index = 0
+
+    def stage(block: bytes) -> None:
+        nonlocal block_index
         block_id = base64.b64encode(
             f"{block_index:08d}".encode(
                 "ascii"
@@ -362,10 +344,7 @@ def _stage_payload_as_blocks(
 
         dest_blob.stage_block(
             block_id=block_id,
-            data=payload[
-                start:
-                start + _BLOCK_SIZE_BYTES
-            ],
+            data=block,
         )
 
         block_list.append(
@@ -373,6 +352,15 @@ def _stage_payload_as_blocks(
                 block_id=block_id
             )
         )
+        block_index += 1
+
+    for part in (payload,) if isinstance(payload, bytes) else payload:
+        buffered.extend(part)
+        while len(buffered) >= _BLOCK_SIZE_BYTES:
+            stage(bytes(buffered[:_BLOCK_SIZE_BYTES]))
+            del buffered[:_BLOCK_SIZE_BYTES]
+    if buffered:
+        stage(bytes(buffered))
 
     dest_blob.commit_block_list(
         block_list,
@@ -550,18 +538,6 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
         )
     )
 
-    payload = _build_batch_payload(
-        partitions=partitions,
-        addresses_by_partition=(
-            addresses_by_partition
-        ),
-        n_per_side=n_per_side,
-        same_side_only=(
-            same_side_only
-        ),
-        bind=bind,
-    )
-
     dest_blob = _create_destination_blob(
         conn_str=conn_str,
         container_name=container_name,
@@ -571,7 +547,13 @@ def activity_esquireAudiencesNeighbors_processBatch_blockblob(
     try:
         _stage_payload_as_blocks(
             dest_blob=dest_blob,
-            payload=payload,
+            payload=_iter_batch_csv_payloads(
+                partitions=partitions,
+                addresses_by_partition=addresses_by_partition,
+                n_per_side=n_per_side,
+                same_side_only=same_side_only,
+                bind=bind,
+            ),
         )
 
         persist_neighbors_blob_to_history(

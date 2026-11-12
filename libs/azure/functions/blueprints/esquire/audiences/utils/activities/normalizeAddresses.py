@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-import json
 import os
 import tempfile
 from datetime import datetime, timedelta, timezone
@@ -17,10 +16,8 @@ from azure.storage.blob import (
     generate_blob_sas,
 )
 
-from libs.azure.functions.blueprints.esquire.audiences.builder.config import (
-    MAPPING_DATASOURCE,
-)
 from libs.data import from_bind
+from libs.utils.addrall import clean_addresses
 from libs.utils.azure_storage import get_cached_blob_client
 
 
@@ -30,7 +27,7 @@ bp = Blueprint()
 _NORMALIZATION_BATCH_SIZE = int(
     os.getenv(
         "ADDRESS_NORMALIZATION_BATCH_SIZE",
-        "10000",
+        "1000",
     )
 )
 
@@ -44,7 +41,7 @@ _OUTPUT_BLOCK_SIZE_BYTES = int(
 _SQL_STATEMENT_TIMEOUT_MS = int(
     os.getenv(
         "ADDRESS_NORMALIZATION_SQL_STATEMENT_TIMEOUT_MS",
-        "240000",
+        "60000",
     )
 )
 
@@ -56,6 +53,8 @@ _FIELD_CANDIDATES: dict[str, tuple[str, ...]] = {
         "address1",
         "address_1",
         "address_line_1",
+        "delivery_line_1",
+        "street",
         "street_address",
     ),
     "line2": (
@@ -63,16 +62,20 @@ _FIELD_CANDIDATES: dict[str, tuple[str, ...]] = {
         "address2",
         "address_2",
         "address_line_2",
+        "delivery_line_2",
         "unit",
         "suite",
+        "internal",  # PostGIS norm_addy secondary unit
     ),
     "city": (
         "city",
+        "city_name",
         "location",
         "municipality",
     ),
     "state": (
         "state",
+        "state_abbreviation",
         "st",
         "state_abbrev",
         "stateabbrev",
@@ -84,9 +87,11 @@ _FIELD_CANDIDATES: dict[str, tuple[str, ...]] = {
         "zip_code",
         "postal_code",
         "postalcode",
+        "full_zipcode",
     ),
     "zip4": (
         "plus4Code",
+        "plus4_code",
         "zip4",
         "zip_4",
         "plus4",
@@ -104,38 +109,6 @@ _FIELD_CANDIDATES: dict[str, tuple[str, ...]] = {
         "streetnumber"
     ),
 }
-
-
-_TABLE_COLUMNS_SQL = """
-SELECT column_name
-FROM information_schema.columns
-WHERE table_schema = %s
-  AND table_name = %s
-ORDER BY ordinal_position
-"""
-
-
-_NORMALIZE_BATCH_SQL = """
-WITH input AS (
-    SELECT *
-    FROM jsonb_to_recordset(%s::jsonb)
-        AS x(row_id bigint, full_address text)
-)
-SELECT
-    input.row_id,
-    normalized.address AS primary_number,
-    normalized.streetname AS street_name,
-    normalized.location AS city,
-    normalized.stateabbrev AS state,
-    normalized.zip AS zip_code,
-    normalized.zip4 AS zip4
-FROM input
-LEFT JOIN LATERAL addresses.normalize(
-    input.full_address
-) AS normalized
-    ON TRUE
-ORDER BY input.row_id
-"""
 
 
 def _column_lookup(
@@ -166,450 +139,215 @@ def _find_column(
 def _resolve_fields(
     columns: Sequence[str],
 ) -> dict[str, str | None]:
-    return {
-        role: _find_column(
-            columns,
-            candidates,
-        )
+    fields = {
+        role: _find_column(columns, candidates)
         for role, candidates in _FIELD_CANDIDATES.items()
     }
 
-
-def _is_neighbor_ready(
-    columns: Sequence[str],
-) -> bool:
-    lookup = _column_lookup(columns)
-
-    return (
-        (
-            "primary_number" in lookup
-            or "street_number" in lookup
+    # PostGIS norm_addy.address is the HOUSE NUMBER, not an address line.
+    # Its output may also contain address_alphanumeric and streetName. Rebuild
+    # the complete street before passing it to AddrAll; do not autocomplete "123"
+    # as if it were a standalone address.
+    names = {str(column).lower() for column in columns}
+    is_norm_addy = (
+        "streetname" in names
+        and ("address" in names or "address_alphanumeric" in names)
+        and bool(names.intersection({
+            "stateabbrev", "location", "predirabbrev",
+            "streettypeabbrev", "postdirabbrev", "address_alphanumeric", "zip",
+        }))
+    )
+    if is_norm_addy:
+        fields["line1"] = _find_column(
+            columns,
+            ("delivery_line_1", "address_line_1", "address1", "add1", "street_address"),
         )
-        and "street_name" in lookup
-        and "city" in lookup
-        and "state" in lookup
-        and "zipcode" in lookup
-    )
-
-
-def _source_metadata(
-    data_source_id: str,
-) -> dict[str, str]:
-    config = MAPPING_DATASOURCE.get(
-        data_source_id,
-        {},
-    )
-
-    table = config.get(
-        "table",
-        {},
-    )
-
-    bind = str(
-        config.get("bind") or ""
-    ).strip()
-
-    schema = str(
-        table.get("schema") or ""
-    ).strip()
-
-    table_name = str(
-        table.get("name") or ""
-    ).strip()
-
-    if not bind or not schema or not table_name:
-        raise ValueError(
-            "Unable to resolve source table for "
-            f"dataSource {data_source_id!r}"
+        fields["primary_number"] = _find_column(
+            columns, ("address_alphanumeric", "address", "primary_number"),
         )
 
-    return {
-        "bind": bind,
-        "schema": schema,
-        "table": table_name,
-    }
+    return fields
 
 
-def _load_table_columns(
-    *,
-    session,
-    schema: str,
-    table: str,
-) -> list[str]:
-    connection = session.connection()
-    raw = connection.connection
-    cursor = raw.cursor()
-
-    try:
-        cursor.execute(
-            _TABLE_COLUMNS_SQL,
-            (
-                schema,
-                table,
-            ),
-        )
-
-        return [
-            str(row[0])
-            for row in cursor.fetchall()
-        ]
-    finally:
-        cursor.close()
-        session.rollback()
-
-
-def _string_value(
-    row: Mapping[str, Any],
-    column: str | None,
-) -> str:
-    if not column:
-        return ""
-
-    value = row.get(column)
-
-    if value is None or value is pd.NA:
-        return ""
-
-    value = str(value).strip()
-
-    return (
-        ""
-        if value.lower() == "nan"
-        else value
-    )
-
-
-def _build_address_string(
-    row: Mapping[str, Any],
-    fields: Mapping[str, str | None],
-) -> str:
-    zip_code = _string_value(
-        row,
-        fields.get("zip"),
-    )
-
-    zip4 = _string_value(
-        row,
-        fields.get("zip4"),
-    )
-
-    postal_code = (
-        f"{zip_code}-{zip4}"
-        if zip_code and zip4
-        else zip_code
-    )
-
-    return " ".join(
-        part
-        for part in (
-            _string_value(
-                row,
-                fields.get("line1"),
-            ),
-            _string_value(
-                row,
-                fields.get("line2"),
-            ),
-            _string_value(
-                row,
-                fields.get("city"),
-            ),
-            _string_value(
-                row,
-                fields.get("state"),
-            ),
-            postal_code,
-        )
-        if part
-    )
-
-
-def _validate_fields(
-    *,
-    fields: Mapping[str, str | None],
-    blob_columns: Sequence[str],
-    table_columns: Sequence[str],
-    source_metadata: Mapping[str, str],
-) -> None:
-    if fields.get("line1"):
-        return
-
-    raise ValueError(
-        "Unable to identify an address field in source blob. "
-        f"blob_columns={sorted(blob_columns)!r}; "
-        f"source="
-        f"{source_metadata['schema']}."
-        f"{source_metadata['table']}; "
-        f"table_columns={sorted(table_columns)!r}"
-    )
-
-
-def _normalize_batch(
-    *,
-    session,
-    addresses: Sequence[str],
-) -> list[
-    tuple[
-        int,
-        int | None,
-        str | None,
-        str | None,
-        str | None,
-        str | None,
-        str | None,
-    ]
-]:
-    payload = json.dumps(
-        [
-            {
-                "row_id": row_id,
-                "full_address": address,
-            }
-            for row_id, address in enumerate(
-                addresses
-            )
-        ],
-        separators=(",", ":"),
-    )
-
-    connection = session.connection()
-    raw = connection.connection
-    cursor = raw.cursor()
-
-    try:
-        cursor.execute(
-            "SET LOCAL statement_timeout = "
-            f"'{_SQL_STATEMENT_TIMEOUT_MS}ms'"
-        )
-
-        cursor.execute(
-            _NORMALIZE_BATCH_SQL,
-            (payload,),
-        )
-
-        return [
-            (
-                int(row_id),
-                primary_number,
-                street_name,
-                city,
-                state,
-                zip_code,
-                zip4,
-            )
-            for (
-                row_id,
-                primary_number,
-                street_name,
-                city,
-                state,
-                zip_code,
-                zip4,
-            ) in cursor.fetchall()
-        ]
-    finally:
-        cursor.close()
-        session.rollback()
-
-
-def _canonicalize_geo_fields(
+def _enriched_column(
     frame: pd.DataFrame,
-    fields: Mapping[str, str | None],
-) -> pd.DataFrame:
-    out = frame.copy()
-
-    for target, source in {
-        "city": fields.get("city"),
-        "state": fields.get("state"),
-        "zipCode": fields.get("zip"),
-        "plus4Code": fields.get("zip4"),
-    }.items():
-        if target in out.columns:
-            continue
-
-        out[target] = (
-            out[source]
-            if source and source in out.columns
-            else ""
-        )
-
-    return out
-
-
-def _project_existing_street_fields(
-    frame: pd.DataFrame,
-    fields: Mapping[str, str | None],
-) -> pd.DataFrame:
-    out = _canonicalize_geo_fields(
-        frame,
-        fields,
-    )
-
-    street_name = fields.get(
-        "street_name"
-    )
-
-    primary_number = fields.get(
-        "primary_number"
-    )
-
-    if (
-        "street_name" not in out.columns
-        and street_name
-    ):
-        out["street_name"] = out[
-            street_name
-        ]
-
-    if (
-        "primary_number" not in out.columns
-        and primary_number
-    ):
-        out["primary_number"] = out[
-            primary_number
-        ]
-
-    return out
-
-
-def _normalized_value(
-    values: Sequence[tuple[Any, ...]],
+    enriched: pd.DataFrame,
     *,
-    position: int,
-    row_count: int,
-) -> list[Any]:
-    by_row_id = {
-        row[0]: row[position]
-        for row in values
-    }
-
-    return [
-        by_row_id.get(row_id)
-        for row_id in range(
-            row_count
-        )
-    ]
-
-
-def _apply_geo_fallback(
-    *,
-    out: pd.DataFrame,
     target: str,
-    source: str | None,
-    normalized_values: Sequence[Any],
-) -> None:
-    if target in out.columns:
-        current = (
-            out[target]
-            .astype("string")
-            .fillna("")
-        )
-    elif source and source in out.columns:
-        current = (
-            out[source]
-            .astype("string")
-            .fillna("")
-        )
-    else:
-        current = pd.Series(
-            [""] * len(out),
-            index=out.index,
-            dtype="string",
-        )
-
-    fallback = pd.Series(
-        [
-            ""
-            if value is None
-            else str(value)
-            for value in normalized_values
-        ],
-        index=out.index,
-        dtype="string",
+    enriched_name: str,
+    existing_name: str | None,
+) -> pd.Series:
+    """Use standardization when present; never lose an unmatched input value."""
+    canonical = (
+        enriched[enriched_name].astype("string").fillna("").str.strip()
+        if enriched_name in enriched.columns
+        else pd.Series("", index=enriched.index, dtype="string")
     )
+    original_col = target if target in frame else existing_name
+    if original_col and original_col in frame:
+        original = frame[original_col].astype("string").fillna("")
+    else:
+        original = pd.Series("", index=frame.index, dtype="string")
+    return canonical.where(canonical.ne(""), original)
 
-    out[target] = current.where(
-        current.str.strip().ne(""),
-        fallback,
+
+def _reconstruct_street(
+    frame: pd.DataFrame,
+    fields: Mapping[str, str | None],
+) -> pd.Series:
+    """Allow already-separated neighbor input to receive the same enrichment."""
+    parts = [fields["primary_number"]]
+    parts.extend(
+        _find_column(frame.columns, candidates)
+        for candidates in (
+            ("street_predirection", "predirabbrev", "predir"),
+            ("street_name", "streetName", "streetname"),
+            ("street_suffix", "streetTypeAbbrev", "streettypeabbrev"),
+            ("street_postdirection", "postdirabbrev", "postdir"),
+        )
+    )
+    columns = [p for p in parts if p]
+    values = frame[columns].astype("string").fillna("")
+
+    # A non-empty address_alphanumeric is the canonical house number. When
+    # the parser supplied only a numeric address, fill the missing value from
+    # that field for this row (not from a different address or an invented key).
+    number_col = fields.get("primary_number")
+    numeric_col = _find_column(frame.columns, ("address",))
+    if (number_col and numeric_col and number_col != numeric_col
+            and number_col.lower() == "address_alphanumeric"):
+        number = values[number_col]
+        values[number_col] = number.where(
+            number.str.strip().ne(""),
+            frame[numeric_col].astype("string").fillna(""),
+        )
+
+    return values.agg(
+        lambda row: " ".join(part.strip() for part in row if part.strip()),
+        axis=1,
     )
 
 
 def _normalize_frame(
-    *,
-    frame: pd.DataFrame,
-    fields: Mapping[str, str | None],
-    session,
+    *, frame: pd.DataFrame,
+    fields: Mapping[str, str | None], session,
+    use_geocode: bool = True,
+    retry_missing_zip4: bool = True,
+    geocode_sources: Sequence[str] | None = None,
 ) -> pd.DataFrame:
-    records = frame.to_dict(
-        "records"
+    """Enrich every address, not only records missing canonical column names."""
+    # read_csv(chunksize=...) retains global row indexes on later chunks;
+    # bulk_validate returns zero-based indexes. Keep assignments positional.
+    frame = frame.reset_index(drop=True)
+    query_frame = frame
+    address_column = fields.get("line1")
+    if not address_column:
+        query_frame = frame.copy()
+        address_column = "__addrall_working_street"
+        if address_column in query_frame.columns:
+            raise ValueError(f"Reserved intermediate column already exists: {address_column}")
+        query_frame[address_column] = _reconstruct_street(frame, fields)
+
+    # The normal Smarty bridge would allocate dozens of diagnostic/USPS fields
+    # only for this activity to discard them. Query the same AddrAll pipeline
+    # with its bounded audience projection instead.
+    enriched = clean_addresses(
+        df=query_frame,
+        ADDRESS=address_column,
+        ADDRESS2=fields.get("line2"),
+        CITY=fields.get("city"),
+        STATE=fields.get("state"),
+        ZIPCODE=fields.get("zip"),
+        ZIP4=fields.get("zip4"),
+        connection=session.connection().connection,
+        batch_size=int(os.getenv("ADDRALL_BATCH_SIZE", "250")),
+        use_autocomplete=use_geocode,
+        # This backend handles ZIP+4 in autocomplete. It has no retry/source
+        # selector, and normalized-only fallbacks are performed by AddrAll.
+        compact=False,
     )
-
-    normalized = _normalize_batch(
-        session=session,
-        addresses=[
-            _build_address_string(
-                row,
-                fields,
-            )
-            for row in records
-        ],
-    )
-
-    row_count = len(frame)
-
+    # A previously supplied full last line is better than a newly assembled
+    # *partial* locality. Do not replace full input information with less.
+    if "last_line" in frame.columns:
+        complete = (
+            enriched[["city_name", "state_abbreviation", "zipcode"]]
+            .astype("string").fillna("").apply(lambda col: col.str.strip().ne(""))
+            .all(axis=1)
+        )
+        enriched.loc[~complete, "last_line"] = ""
+    # The source is copied once. Preserve canonical input fields before
+    # replacing them with improved address components.
     out = frame.copy()
-
-    out["primary_number"] = pd.array(
-        _normalized_value(
-            normalized,
-            position=1,
-            row_count=row_count,
-        ),
-        dtype="Int64",
-    )
-
-    out["street_name"] = [
-        value or ""
-        for value in _normalized_value(
-            normalized,
-            position=2,
-            row_count=row_count,
-        )
-    ]
-
-    for target, source, position in (
-        (
-            "city",
-            fields.get("city"),
-            3,
-        ),
-        (
-            "state",
-            fields.get("state"),
-            4,
-        ),
-        (
-            "zipCode",
-            fields.get("zip"),
-            5,
-        ),
-        (
-            "plus4Code",
-            fields.get("zip4"),
-            6,
-        ),
+    for target in (
+        "primary_number", "street_name", "street_suffix", "city", "state",
+        "street_predirection", "street_postdirection",
+        "zipCode", "plus4Code", "latitude", "longitude",
+        "delivery_line_1", "delivery_line_2", "last_line", "full_zipcode",
     ):
-        _apply_geo_fallback(
-            out=out,
-            target=target,
-            source=source,
-            normalized_values=_normalized_value(
-                normalized,
-                position=position,
-                row_count=row_count,
-            ),
-        )
+        original = f"addrall_original_{target}"
+        if target in frame.columns and original not in frame.columns:
+            out[original] = frame[target]
 
+    for field in (
+        "delivery_line_1", "delivery_line_2", "last_line", "full_zipcode",
+        "addrall_match_status", "addrall_autocomplete_source",
+        "addrall_autocomplete_display_address", "addrall_zip4_source",
+        "addrall_normalize_status", "addrall_secondary_status",
+    ):
+        if field.startswith("addrall_"):
+            out[field] = (
+                enriched[field] if field in enriched.columns
+                else pd.Series(None, index=enriched.index)
+            )
+        else:
+            out[field] = _enriched_column(
+                frame, enriched, target=field,
+                enriched_name=field, existing_name=field,
+            )
+
+    for target, enriched_name, existing_name in (
+        ("primary_number", "addrall_norm_address_alphanumeric", fields.get("primary_number")),
+        ("street_name", "addrall_norm_street_name", fields.get("street_name")),
+        ("street_suffix", "addrall_norm_street_type_abbrev", "street_suffix"),
+        ("street_predirection", "addrall_norm_predir_abbrev", "street_predirection"),
+        ("street_postdirection", "addrall_norm_postdir_abbrev", "street_postdirection"),
+        ("city", "city_name", fields.get("city")),
+        ("state", "state_abbreviation", fields.get("state")),
+        ("zipCode", "zipcode", fields.get("zip")),
+        ("plus4Code", "plus4_code", fields.get("zip4")),
+        ("latitude", "latitude", "latitude"),
+        ("longitude", "longitude", "longitude"),
+    ):
+        out[target] = _enriched_column(
+            frame, enriched, target=target,
+            enriched_name=enriched_name, existing_name=existing_name,
+        )
+    # Prefer the canonical numeric PostGIS house number when the alpha field
+    # is empty; preserve existing input values when no parse is possible.
+    if "addrall_norm_address" in enriched.columns:
+        numeric = enriched["addrall_norm_address"].astype("string").fillna("")
+        alphanumeric = (
+            enriched["addrall_norm_address_alphanumeric"].astype("string").fillna("")
+            if "addrall_norm_address_alphanumeric" in enriched.columns
+            else pd.Series("", index=enriched.index, dtype="string")
+        )
+        canonical_number = alphanumeric.where(alphanumeric.str.strip().ne(""), numeric)
+        out["primary_number"] = canonical_number.where(
+            canonical_number.str.strip().ne(""), out["primary_number"]
+        )
+    # The autocomplete API does not emit Smarty's `last_line`. Build it from
+    # the AddrAll locality only where all three fields were resolved.
+    complete = enriched[["city_name", "state_abbreviation", "zipcode"]].astype("string").fillna("")
+    fully_resolved = complete.apply(lambda col: col.str.strip().ne("")).all(axis=1)
+    postal = enriched["full_zipcode"].astype("string").fillna("")
+    postal = postal.where(postal.ne(""), complete["zipcode"])
+    locality = complete["city_name"] + " " + complete["state_abbreviation"] + " " + postal
+    original_last = out["last_line"].astype("string").fillna("")
+    out["last_line"] = locality.where(
+        fully_resolved & original_last.str.strip().eq(""), original_last
+    )
+    # No coordinates are emitted by autocomplete. Existing source coordinates
+    # are preserved by _enriched_column, never overwritten with blanks.
     return out
 
 
@@ -761,81 +499,62 @@ def _read_columns(
 
 
 def _write_transformed_blob(
-    *,
-    temp,
-    dest_blob: BlobClient,
-    fields: Mapping[str, str | None],
-    session,
-    use_normalizer: bool,
+    *, temp, dest_blob: BlobClient,
+    fields: Mapping[str, str | None], session,
+    use_geocode: bool,
+    retry_missing_zip4: bool,
+    geocode_sources: Sequence[str] | None,
+    source_columns: Sequence[str],
 ) -> None:
-    block_list: list[
-        BlobBlock
-    ] = []
-
+    block_list: list[BlobBlock] = []
     block_index = 0
     include_header = True
-
+    # Aggregate small CSV chunks into full-size Azure blocks. Staging one block
+    # per 500-row chunk would exhaust the 50,000-block limit on large files.
+    pending = bytearray()
     temp.seek(0)
 
     for frame in pd.read_csv(
-        temp,
-        dtype="string",
-        keep_default_na=False,
+        temp, dtype="string", keep_default_na=False,
         chunksize=_NORMALIZATION_BATCH_SIZE,
     ):
-        out = (
-            _normalize_frame(
-                frame=frame,
-                fields=fields,
-                session=session,
-            )
-            if use_normalizer
-            else _project_existing_street_fields(
-                frame,
-                fields,
-            )
+        out = _normalize_frame(
+            frame=frame, fields=fields, session=session,
+            use_geocode=use_geocode,
+            retry_missing_zip4=retry_missing_zip4,
+            geocode_sources=geocode_sources,
         )
-
-        payload = out.to_csv(
-            index=False,
-            header=include_header,
-        ).encode("utf-8")
-
-        block_index = _stage_bytes(
-            dest_blob=dest_blob,
-            payload=payload,
-            block_index=block_index,
-            block_list=block_list,
-        )
-
+        payload = out.to_csv(index=False, header=include_header).encode("utf-8")
+        pending.extend(payload)
+        while len(pending) >= _OUTPUT_BLOCK_SIZE_BYTES:
+            block_index = _stage_bytes(
+                dest_blob=dest_blob,
+                payload=bytes(pending[:_OUTPUT_BLOCK_SIZE_BYTES]),
+                block_index=block_index, block_list=block_list,
+            )
+            del pending[:_OUTPUT_BLOCK_SIZE_BYTES]
         include_header = False
+        del out, payload
 
-    if not block_list:
-        payload = pd.DataFrame(
-            columns=[
-                "primary_number",
-                "street_name",
-                "city",
-                "state",
-                "zipCode",
-                "plus4Code",
-            ]
-        ).to_csv(
-            index=False
-        ).encode("utf-8")
+    if include_header:
+        # Preserve the input schema even when the CSV contains zero records.
+        empty = _normalize_frame(
+            frame=pd.DataFrame(columns=list(source_columns)),
+            fields=fields, session=session,
+            use_geocode=use_geocode,
+            retry_missing_zip4=retry_missing_zip4,
+            geocode_sources=geocode_sources,
+        )
+        pending.extend(empty.to_csv(index=False).encode("utf-8"))
 
+    if pending:
         _stage_bytes(
-            dest_blob=dest_blob,
-            payload=payload,
-            block_index=0,
-            block_list=block_list,
+            dest_blob=dest_blob, payload=bytes(pending),
+            block_index=block_index, block_list=block_list,
         )
 
     dest_blob.commit_block_list(
-        block_list,
-        content_settings=ContentSettings(
-            content_type="text/csv"
-        ),
+        block_list, content_settings=ContentSettings(content_type="text/csv"),
     )
 
 
@@ -857,18 +576,8 @@ def activity_esquireAudiencesNeighbors_normalizeAddressBlob(
         "destination"
     ]
 
-    data_source_id = str(
-        ingress.get(
-            "data_source",
-            {},
-        ).get("id") or ""
-    ).strip()
-
-    if not data_source_id:
-        raise ValueError(
-            "Normalization requires data_source.id"
-        )
-
+    # AddrAll is installed on Keystone; data_source's table bind is not
+    # necessarily the same database and is not used for address enrichment.
     temp = _download_to_tempfile(
         source_url
     )
@@ -881,51 +590,19 @@ def activity_esquireAudiencesNeighbors_normalizeAddressBlob(
             temp
         )
 
-        if _is_neighbor_ready(
-            blob_columns
+        fields = _resolve_fields(blob_columns)
+        if not fields.get("line1") and not (
+            fields.get("primary_number") and fields.get("street_name")
         ):
-            return {
-                "url": source_url,
-                "transformed": False,
-            }
-
-        metadata = _source_metadata(
-            data_source_id
-        )
-
-        provider = from_bind(
-            metadata["bind"]
-        )
-
-        session = provider.connect()
-
-        table_columns = _load_table_columns(
-            session=session,
-            schema=metadata["schema"],
-            table=metadata["table"],
-        )
-
-        fields = _resolve_fields(
-            blob_columns
-        )
-
-        has_existing_street_parts = bool(
-            fields.get("street_name")
-            and fields.get(
-                "primary_number"
+            raise ValueError(
+                "Unable to identify a source street address or existing "
+                f"street parts: {sorted(blob_columns)!r}"
             )
-        )
 
-        use_normalizer = not (
-            has_existing_street_parts
-        )
-
-        if use_normalizer:
-            _validate_fields(
-                fields=fields,
-                blob_columns=blob_columns,
-                table_columns=table_columns,
-                source_metadata=metadata,
+        session = from_bind("keystone").connect()
+        with session.connection().connection.cursor() as cursor:
+            cursor.execute(
+                f"SET LOCAL statement_timeout = '{_SQL_STATEMENT_TIMEOUT_MS}ms'"
             )
 
         dest_blob = _create_destination_blob(
@@ -938,7 +615,10 @@ def activity_esquireAudiencesNeighbors_normalizeAddressBlob(
             dest_blob=dest_blob,
             fields=fields,
             session=session,
-            use_normalizer=use_normalizer,
+            use_geocode=bool(ingress.get("use_geocode", True)),
+            retry_missing_zip4=bool(ingress.get("retry_missing_zip4", True)),
+            geocode_sources=ingress.get("geocode_sources"),
+            source_columns=blob_columns,
         )
 
         return {

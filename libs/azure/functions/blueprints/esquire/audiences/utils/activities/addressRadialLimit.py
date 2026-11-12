@@ -1,5 +1,6 @@
 
 import csv
+import math
 from io import StringIO
 from azure.durable_functions import Blueprint
 from azure.storage.blob import BlobClient
@@ -30,9 +31,14 @@ def filter_by_radius(sales_records, owned_locations, radius_miles):
 
     def to_coords(record):
         try:
-            return float(record["latitude"]), float(record["longitude"])
-        except Exception:
+            latitude, longitude = float(record["latitude"]), float(record["longitude"])
+        except (KeyError, TypeError, ValueError):
             return None
+        if (not math.isfinite(latitude) or not math.isfinite(longitude)
+                or not -90 <= latitude <= 90 or not -180 <= longitude <= 180
+                or (latitude, longitude) == (0.0, 0.0)):
+            return None
+        return latitude, longitude
 
     sales_coords = [to_coords(r) for r in sales_records]
     owned_coords = [to_coords(o) for o in owned_locations]

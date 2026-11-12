@@ -1,0 +1,494 @@
+"""Shared sales address IDs; Smarty EAV plus norm_addy JSONB.
+
+Identity follows AddrAll's single enrichment path: autocomplete normalized_address
+when completed, otherwise addresses.geocode(text[]). Ingestion,
+preview and backfill must all use this helper, not separate ID policies.
+"""
+from __future__ import annotations
+
+import json
+import re
+import uuid
+from decimal import Decimal, InvalidOperation
+from typing import Any, Mapping
+
+import pandas as pd
+
+from libs.utils.addrall import (
+    NORM_FIELDS,
+    as_text,
+    clean_addresses,
+    normalize_zip4,
+    normalize_zipcode,
+    full_zipcode,
+    split_secondary,
+)
+
+from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.generate_ids import (
+    NAMESPACE_ADDRESS,
+)
+
+ADDRESS_TYPE_ID = uuid.UUID('fe694dd2-2dc4-452f-910c-7023438bb0ac')
+# Retain historical UUIDv5 namespace/version: changing this would break existing EAV references.
+ADDRESS_ID_VERSION = 'geocoder_norm_addy_v2'
+
+# Exact PostGIS norm_addy JSON keys; these are NOT separate EAV attributes.
+NORM_ADDY_TYPES = {
+    'address': 'numeric',
+    'predirAbbrev': 'string',
+    'streetName': 'string',
+    'streetTypeAbbrev': 'string',
+    'postdirAbbrev': 'string',
+    'internal': 'string',
+    'location': 'string',
+    'stateAbbrev': 'string',
+    'zip': 'string',
+    'zip4': 'string',
+    'address_alphanumeric': 'string',
+}
+
+# Preserve the existing EAV query contract for sales.fn_find_matching_addresses
+# and other Smarty-based consumers. These are individual string EAV values.
+# The structured address is one JSONB EAV attribute named 'norm_addy'.
+SMARTY_FIELDS = (
+    'delivery_line_1', 'delivery_line_2', 'city_name',
+    'state_abbreviation', 'zipcode', 'plus4_code', 'full_zipcode',
+    'latitude', 'longitude', 'last_line', 'primary_number', 'street_name',
+    'street_predirection', 'street_suffix', 'street_postdirection',
+    'hashed_address_id',
+)
+STORED_ADDRESS_TYPES = {**{name: 'string' for name in SMARTY_FIELDS},
+                        'norm_addy': 'jsonb', 'esquireSource': 'string'}
+
+
+# Keep the existing UUID seed for identical 11-field norm_addy results.
+# The source can be autocomplete or geocode; the structured identity
+# format is unchanged. Different normalized components change the ID.
+ID_FIELDS = tuple(NORM_ADDY_TYPES)
+# Best known source per canonical UUID, independent of concurrent batch order.
+_SOURCE_RANK = {'smarty': 0, 'standardize': 1, 'geocode': 2, 'autocomplete': 3}
+
+_SECONDARY_WHITESPACE = re.compile(r'\s+')
+_UNIT_ALIASES = re.compile(r'^(?:APARTMENT|APT\.?|UNIT|#)\s*#?\s*', re.I)
+_SUITE_ALIASES = re.compile(r'^(?:SUITE|STE\.?)\s*#?\s*', re.I)
+
+
+def _value(value: Any) -> str | None:
+    text = as_text(value)
+    return text.upper() if text else None
+
+
+def _unit_key(value: Any) -> str:
+    text = _SECONDARY_WHITESPACE.sub(' ', as_text(value).upper()).strip()
+    text = _UNIT_ALIASES.sub('APT ', text)
+    text = _SUITE_ALIASES.sub('STE ', text)
+    return text.strip()
+
+
+_UNUSABLE_STREETS = frozenset({
+    '-', '--', '---', '.', '...', '?', '???', '/', '\\',
+    '\u2014', '\u2013', '\ufffd', '\u00e2\u20ac\u201d',
+    '\u00e2\u20ac\u201c', 'N/A', 'NA', 'NULL', 'NONE',
+})
+
+
+def _usable_component(value: Any) -> str | None:
+    """Suppress known empty/garbled placeholders in derived address fields."""
+    text = _value(value)
+    return (text if text and text not in _UNUSABLE_STREETS
+            and re.search(r'[A-Z0-9]', text, flags=re.ASCII) else None)
+
+
+def _normalized_house_number(value: Any) -> int | float | None:
+    """Serialize the numeric PostGIS field as a JSON number, not a string."""
+    raw = as_text(value)
+    if not raw:
+        return None
+    try:
+        number = Decimal(raw)
+    except (InvalidOperation, ValueError) as exc:
+        raise ValueError(f'Unexpected AddrAll numeric house number: {raw!r}') from exc
+    if not number.is_finite():
+        raise ValueError(f'Non-finite AddrAll house number: {raw!r}')
+    if number == number.to_integral_value():
+        return int(number)
+    rendered = float(number)
+    if Decimal(str(rendered)) != number:
+        raise ValueError(f'AddrAll house number loses JSON precision: {raw!r}')
+    return rendered
+
+
+# Use the normalized-address projection emitted by the installed AddrAll.
+# The address source (autocomplete vs. geocode fallback) is decided inside
+# clean_addresses(), not here. PostGIS JSON keys and AddrAll column aliases
+# differ only by their documented camelCase/snake_case spellings.
+_POSTGIS_TO_ADDRALL = {
+    'address': 'address',
+    'predirAbbrev': 'predir_abbrev',
+    'streetName': 'street_name',
+    'streetTypeAbbrev': 'street_type_abbrev',
+    'postdirAbbrev': 'postdir_abbrev',
+    'internal': 'internal',
+    'location': 'location',
+    'stateAbbrev': 'state_abbrev',
+    'zip': 'zip',
+    'zip4': 'zip4',
+    'address_alphanumeric': 'address_alphanumeric',
+}
+if tuple(_POSTGIS_TO_ADDRALL[field] for field in NORM_ADDY_TYPES) != tuple(
+    field for field in NORM_FIELDS if field != 'parsed'
+):
+    raise RuntimeError('AddrAll norm_addy fields differ from the sales ID contract')
+_NORMALIZED_FIELDS = {
+    field: f'addrall_norm_{alias}'
+    for field, alias in _POSTGIS_TO_ADDRALL.items()
+}
+
+
+def _norm_values(values: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep the provider's components, without address-equivalence heuristics."""
+    return {
+        field: (_normalized_house_number(values.get(field)) if field == 'address'
+                else (as_text(values.get(field)) or None))
+        for field in NORM_ADDY_TYPES
+    }
+
+
+def norm_addy_from_enriched(enriched: Mapping[str, Any], _raw: Mapping[str, Any]) -> dict[str, Any]:
+    """Return only the standardized norm_addy projected by AddrAll.
+
+    Autocomplete provides its selected normalized_address; geocode provides
+    the `addy` norm_addy for misses. Client input and the
+    Smarty display fallback must not masquerade as a normalized component.
+    """
+    normalized = _norm_values({
+        field: enriched.get(alias) for field, alias in _NORMALIZED_FIELDS.items()
+    })
+    # A malformed or empty provider result does not justify a fabricated ID.
+    # canonical_address_id() returns None when the street is unidentified.
+    return normalized
+
+
+def canonical_address_id(address: Mapping[str, Any]) -> str | None:
+    """UUIDv5 over the 11 final AddrAll components (not the source address).
+
+    `NAMESPACE_ADDRESS` is the original 30000000-... UUID namespace. A
+    normalized street is required; an autocomplete miss with a usable
+    standardized street is still a valid address identity.
+    """
+    if not _usable_component(address.get('streetName')):
+        # ZIP-only, city-only, and other unidentifiable inputs must not collapse
+        # into a shared address identity. Original sales fields remain staged.
+        return None
+    payload = {
+        field: address.get(field)
+        for field in ID_FIELDS
+    }
+    encoded = json.dumps(payload, sort_keys=True, ensure_ascii=False,
+                         separators=(',', ':'), allow_nan=False)
+    return str(uuid.uuid5(NAMESPACE_ADDRESS, ADDRESS_ID_VERSION + '|' + encoded))
+
+
+def enrich_norm_addy(
+    source: pd.DataFrame,
+    *,
+    street_col: str | None = 'street',
+    addr2_col: str | None = 'addr2',
+    city_col: str | None = 'city',
+    state_col: str | None = 'state',
+    zip_col: str | None = 'zipcode',
+    zip4_col: str | None = None,
+    batch_size: int = 200,
+    connection: Any = None,
+) -> list[dict[str, Any]]:
+    """Use the production AddrAll path for every incoming or historical row.
+
+    Autocomplete and geocode fallback live inside clean_addresses().
+    Sales only projects its returned structure and creates deterministic UUIDs.
+    The migration and preview call this same function.
+    """
+    def source_values(col: str | None) -> list[Any]:
+        return source[col].tolist() if col and col in source else [None] * len(source)
+
+    inputs = pd.DataFrame({
+        'street': source_values(street_col),
+        'addr2': source_values(addr2_col),
+        'city': source_values(city_col),
+        'state': source_values(state_col),
+        'zipcode': source_values(zip_col),
+        'zip4': source_values(zip4_col),
+        'latitude': source_values('latitude'),
+        'longitude': source_values('longitude'),
+    })
+    if source.empty:
+        return []
+    for name in ('primary_number', 'street_name', 'street_suffix',
+                 'street_predirection', 'street_postdirection'):
+        if name in source:
+            inputs[name] = source[name].tolist()
+    # The Azure project uses psycopg3 via SQLAlchemy. Supply its DBAPI
+    # connection instead of opening AddrAll's matchback-specific psycopg2 pool.
+    # A preview supplies its own read-only DBAPI connection here and keeps the
+    # entire autocomplete/geocode SQL within that transaction.
+    if connection is None:
+        from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import _ENGINE
+        with _ENGINE.connect() as db_conn:
+            return enrich_norm_addy(
+                source, street_col=street_col, addr2_col=addr2_col,
+                city_col=city_col, state_col=state_col, zip_col=zip_col,
+                zip4_col=zip4_col, batch_size=batch_size,
+                connection=db_conn.connection.driver_connection,
+            )
+    cleaned = clean_addresses(
+        inputs, 'street', 'city', 'state', 'zipcode',
+        ADDRESS2='addr2', ZIP4='zip4',
+        batch_size=batch_size, keep_invalid=True,
+        use_autocomplete=True, compact=False,
+        connection=connection,
+    )
+    if len(cleaned) != len(source):
+        raise ValueError('AddrAll changed the number of address rows')
+    records = []
+    for raw, enriched in zip(inputs.to_dict('records'), cleaned.to_dict('records')):
+        norm = norm_addy_from_enriched(enriched, raw)
+        norm['address_id'] = canonical_address_id(norm)
+        if norm['address_id']:
+            # AddrAll uses autocomplete first and geocode only on misses.
+            norm['esquireSource'] = (
+                'autocomplete' if enriched.get('addrall_match_status') == 'completed'
+                else 'geocode'
+            )
+        norm['_smarty'] = smarty_from_enriched(enriched, norm)
+        records.append(norm)
+    return records
+
+
+def smarty_from_enriched(enriched: Mapping[str, Any], norm: Mapping[str, Any]) -> dict[str, str | None]:
+    """Project standardized components into legacy Smarty EAV field names.
+
+    Address filters use the canonical locality/ZIP. Unit components are
+    separated into delivery_line_2; no geocoder coordinates are synthesized.
+    """
+    postal_zip = normalize_zipcode(norm.get('zip'))
+    displayed_zip = normalize_zipcode(enriched.get('zipcode'))
+    # AddrAll already rejects raw ZIP+4 when autocomplete changes ZIP5.
+    postal_zip4 = (
+        (normalize_zip4(enriched.get('plus4_code')) if displayed_zip == postal_zip else None)
+        or normalize_zip4(norm.get('zip4'))
+    )
+    primary = _value(norm.get('address_alphanumeric')) or (
+        str(norm['address']) if norm.get('address') is not None else None
+    )
+    street_parts = (
+        primary, _value(norm.get('predirAbbrev')), _value(norm.get('streetName')),
+        _value(norm.get('streetTypeAbbrev')), _value(norm.get('postdirAbbrev')),
+    )
+    standardized_building = ' '.join(part for part in street_parts if part)
+    # Smarty keeps the primary street in line 1 and the secondary in line 2.
+    # AddrAll's display line may include the unit inline; do not duplicate it.
+    formatted_building, inline_unit = split_secondary(enriched.get('delivery_line_1'))
+    line1 = _usable_component(standardized_building) or _usable_component(formatted_building)
+    line2 = (_usable_component(norm.get('internal'))
+             or _usable_component(enriched.get('delivery_line_2'))
+             or _usable_component(inline_unit))
+    return {
+        'delivery_line_1': line1,
+        'delivery_line_2': line2,
+        'city_name': _usable_component(norm.get('location')),
+        'state_abbreviation': _usable_component(norm.get('stateAbbrev')),
+        'zipcode': postal_zip,
+        'plus4_code': postal_zip4,
+        'full_zipcode': full_zipcode(postal_zip, postal_zip4),
+        'latitude': _value(enriched.get('latitude')),
+        'longitude': _value(enriched.get('longitude')),
+        'last_line': ' '.join(part for part in (
+            _usable_component(norm.get('location')),
+            _usable_component(norm.get('stateAbbrev')),
+            full_zipcode(postal_zip, postal_zip4) or postal_zip,
+        ) if part) or None,
+        'primary_number': primary,
+        'street_name': _usable_component(norm.get('streetName')),
+        'street_predirection': _usable_component(norm.get('predirAbbrev')),
+        'street_suffix': _usable_component(norm.get('streetTypeAbbrev')),
+        'street_postdirection': _usable_component(norm.get('postdirAbbrev')),
+        'hashed_address_id': None,  # filled after canonical UUID assignment
+    }
+
+
+def ensure_norm_addy_attributes(conn: Any) -> dict[str, str]:
+    """Create missing address EAV definitions idempotently; values are optional.
+
+    The definitions are schema metadata, not proof that a particular address
+    has a ZIP+4 or a complete norm_addy. Use the caller's current transaction.
+    """
+    from sqlalchemy import text
+
+    # Same attribute registration scheme used by the existing EAV prelude.
+    # ON CONFLICT makes concurrent address batches safe without DDL changes.
+    definition_rows = [
+        {'name': name, 'data_type': dtype}
+        for name, dtype in STORED_ADDRESS_TYPES.items()
+    ]
+    conn.execute(text("""
+        INSERT INTO sales.attributes
+            (id, entity_type_id, name, data_type, description)
+        SELECT pg_catalog.gen_random_uuid(), CAST(:etype AS uuid),
+               required.name, CAST(required.data_type AS sales.attr_data_type),
+               NULL::text
+        FROM jsonb_to_recordset(CAST(:definitions AS jsonb))
+             AS required(name text, data_type text)
+        WHERE TRUE
+        ON CONFLICT (entity_type_id, name, data_type) DO NOTHING
+    """), {
+        'etype': str(ADDRESS_TYPE_ID),
+        'definitions': json.dumps(definition_rows),
+    })
+
+    found = conn.execute(text("""
+        SELECT id::text AS id, name, data_type::text AS dtype
+        FROM sales.attributes
+        WHERE entity_type_id = CAST(:etype AS uuid)
+          AND name = ANY(:names)
+    """), {'etype': str(ADDRESS_TYPE_ID), 'names': list(STORED_ADDRESS_TYPES)}).mappings()
+    mapped = {row['name']: row['id'] for row in found
+              if STORED_ADDRESS_TYPES.get(row['name']) == row['dtype']}
+    if set(mapped) != set(STORED_ADDRESS_TYPES):
+        raise RuntimeError(
+            f'Missing address EAV attribute definitions: '
+            f'{set(STORED_ADDRESS_TYPES) - set(mapped)}'
+        )
+    return mapped
+
+
+def upsert_norm_addy_records(conn: Any, records: list[dict[str, Any]]) -> int:
+    """Create/reuse canonical address IDs; upsert Smarty values + norm_addy JSONB.
+
+    Called inside the caller's DB transaction. Existing non-null fields remain
+    available when another source supplies only a partial address.
+    """
+    from sqlalchemy import bindparam, text
+    from sqlalchemy.dialects.postgresql import JSONB
+
+    canonical: dict[str, dict[str, Any]] = {}
+    for row in records:
+        aid = row.get('address_id')
+        if not aid:
+            continue
+        aid = str(aid)
+        if aid not in canonical:
+            canonical[aid] = dict(row)
+            canonical[aid]['_smarty'] = dict(row.get('_smarty') or {})
+            continue
+        retained = canonical[aid]
+        for name in NORM_ADDY_TYPES:
+            if retained.get(name) in (None, '') and row.get(name) not in (None, ''):
+                retained[name] = row[name]
+        stored_smarty = retained['_smarty']
+        for name, value in (row.get('_smarty') or {}).items():
+            if stored_smarty.get(name) in (None, '') and value not in (None, ''):
+                stored_smarty[name] = value
+        source = row.get('esquireSource')
+        if source is not None:
+            if source not in _SOURCE_RANK:
+                raise ValueError(f'Unsupported address source: {source!r}')
+            previous = retained.get('esquireSource')
+            if previous is None or _SOURCE_RANK[source] > _SOURCE_RANK[previous]:
+                retained['esquireSource'] = source
+    if not canonical:
+        return 0
+
+    attrs = ensure_norm_addy_attributes(conn)
+    conn.execute(text("""
+        INSERT INTO sales.entities (id, entity_type_id, parent_entity_id)
+        VALUES (CAST(:id AS uuid), CAST(:etype AS uuid), NULL)
+        ON CONFLICT (id) DO NOTHING
+    """), [{'id': aid, 'etype': str(ADDRESS_TYPE_ID)} for aid in canonical])
+    owners = conn.execute(text("""
+        SELECT id::text AS id, entity_type_id::text AS entity_type_id
+        FROM sales.entities WHERE id = ANY(CAST(:ids AS uuid[]))
+    """), {'ids': list(canonical)}).mappings().all()
+    if len(owners) != len(canonical) or any(
+        owner['entity_type_id'] != str(ADDRESS_TYPE_ID) for owner in owners
+    ):
+        raise RuntimeError('Canonical address UUID already belongs to another entity type')
+
+    # New ingestion may have written the target address before the migration.
+    # Such entities are valid; verify their stored structured identity rather
+    # than refusing snapshot or overwriting conflicting JSONB on conflict.
+    existing = conn.execute(text("""
+        SELECT v.entity_id::text AS id, v.value_jsonb AS norm
+        FROM sales.entity_attribute_values v
+        WHERE v.entity_id = ANY(CAST(:ids AS uuid[]))
+          AND v.attribute_id = CAST(:attr_id AS uuid)
+    """), {'ids': list(canonical), 'attr_id': attrs['norm_addy']}).mappings().all()
+    for stored in existing:
+        aid = stored['id']
+        expected = {k: v for k in NORM_ADDY_TYPES
+                    if (v := canonical[aid].get(k)) is not None and v != ''}
+        if stored['norm'] != expected:
+            raise RuntimeError(f'Existing canonical UUID has a different norm_addy: {aid}')
+
+    eav_rows = []
+    for aid, row in canonical.items():
+        # Use only the 11 canonical address components, never parser status.
+        payload = {key: val for key in NORM_ADDY_TYPES
+                   if (val := row.get(key)) is not None and val != ''}
+        if not any(row.get(key) not in (None, '') for key in ID_FIELDS):
+            raise RuntimeError('Cannot persist an entirely empty address')
+        eav_rows.append({
+            'entity_id': aid, 'attribute_id': attrs['norm_addy'],
+            'value_string': None, 'value_jsonb': payload,
+        })
+        smarty = row.get('_smarty') or {}
+        for field in SMARTY_FIELDS:
+            value = aid.upper() if field == 'hashed_address_id' else smarty.get(field)
+            if value is None or value == '':
+                continue
+            eav_rows.append({
+                'entity_id': aid, 'attribute_id': attrs[field],
+                'value_string': str(value), 'value_jsonb': None,
+            })
+        source = row.get('esquireSource')
+        if source is not None:
+            if source not in _SOURCE_RANK:
+                raise ValueError(f'Unsupported address source: {source!r}')
+            eav_rows.append({
+                'entity_id': aid, 'attribute_id': attrs['esquireSource'],
+                'value_string': source, 'value_jsonb': None,
+            })
+
+    if eav_rows:
+        stmt = text("""
+            INSERT INTO sales.entity_attribute_values
+                (entity_id, attribute_id, value_string, value_jsonb)
+            VALUES (CAST(:entity_id AS uuid), CAST(:attribute_id AS uuid),
+                    :value_string, :value_jsonb)
+            ON CONFLICT (entity_id, attribute_id) DO UPDATE SET
+                value_string = CASE
+                    WHEN EXCLUDED.attribute_id = CAST(:source_attr AS uuid) THEN
+                        CASE
+                            WHEN sales.entity_attribute_values.value_string = 'autocomplete'
+                                 OR EXCLUDED.value_string = 'autocomplete'
+                                THEN 'autocomplete'
+                            WHEN sales.entity_attribute_values.value_string = 'geocode'
+                                 OR EXCLUDED.value_string = 'geocode'
+                                 THEN 'geocode'
+                            WHEN sales.entity_attribute_values.value_string = 'standardize'
+                                 OR EXCLUDED.value_string = 'standardize'
+                                THEN 'standardize'
+                            ELSE COALESCE(EXCLUDED.value_string,
+                                          sales.entity_attribute_values.value_string)
+                        END
+                    ELSE COALESCE(EXCLUDED.value_string,
+                                  sales.entity_attribute_values.value_string)
+                END,
+                value_jsonb = CASE WHEN EXCLUDED.value_jsonb IS NOT NULL THEN
+                    COALESCE(sales.entity_attribute_values.value_jsonb, '{}'::jsonb)
+                    || EXCLUDED.value_jsonb
+                    ELSE sales.entity_attribute_values.value_jsonb END
+        """).bindparams(
+            bindparam('value_jsonb', type_=JSONB()),
+            bindparam('source_attr', value=attrs['esquireSource']),
+        )
+        conn.execute(stmt, eav_rows)
+    return len(canonical)

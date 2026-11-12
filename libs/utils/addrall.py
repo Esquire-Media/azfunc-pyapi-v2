@@ -77,16 +77,8 @@ inputs AS MATERIALIZED (
 geocoded AS MATERIALIZED (
     SELECT g.input_index::integer AS input_index,
            g.addy AS normalized_address,
-           CASE WHEN g.geomout IS NOT NULL
-                 AND NOT public.ST_IsEmpty(g.geomout)
-                 AND public.ST_SRID(g.geomout) > 0
-                 AND public.ST_GeometryType(g.geomout) = 'ST_Point'
-            THEN public.ST_Y(public.ST_Transform(g.geomout, 4326)) END AS latitude,
-           CASE WHEN g.geomout IS NOT NULL
-                 AND NOT public.ST_IsEmpty(g.geomout)
-                 AND public.ST_SRID(g.geomout) > 0
-                 AND public.ST_GeometryType(g.geomout) = 'ST_Point'
-            THEN public.ST_X(public.ST_Transform(g.geomout, 4326)) END AS longitude
+           public.ST_Y(public.ST_Transform(g.geomout, 4326)) AS latitude,
+           public.ST_X(public.ST_Transform(g.geomout, 4326)) AS longitude
     FROM source AS s
     CROSS JOIN LATERAL addresses.geocode(s.texts) AS g
 ),
@@ -157,16 +149,8 @@ fallback_texts AS MATERIALIZED (
 fallback_geocoded AS MATERIALIZED (
     SELECT g.input_index::integer AS fallback_index,
            g.addy AS normalized_address,
-           CASE WHEN g.geomout IS NOT NULL
-                 AND NOT public.ST_IsEmpty(g.geomout)
-                 AND public.ST_SRID(g.geomout) > 0
-                 AND public.ST_GeometryType(g.geomout) = 'ST_Point'
-            THEN public.ST_Y(public.ST_Transform(g.geomout, 4326)) END AS latitude,
-           CASE WHEN g.geomout IS NOT NULL
-                 AND NOT public.ST_IsEmpty(g.geomout)
-                 AND public.ST_SRID(g.geomout) > 0
-                 AND public.ST_GeometryType(g.geomout) = 'ST_Point'
-            THEN public.ST_X(public.ST_Transform(g.geomout, 4326)) END AS longitude
+           public.ST_Y(public.ST_Transform(g.geomout, 4326)) AS latitude,
+           public.ST_X(public.ST_Transform(g.geomout, 4326)) AS longitude
     FROM (
         SELECT texts FROM fallback_texts WHERE cardinality(texts) > 0
     ) AS f
@@ -525,13 +509,40 @@ def build_address_text(
 
 
 def _select_rows(conn: Any, sql: str, params: tuple) -> list[dict[str, Any]]:
+    """Run autocomplete/geocode with Tiger visible to its internal functions.
+
+    Tiger's geocoder uses unqualified norm_addy declarations. Keep its schema
+    on the transaction-local search_path, without altering database functions
+    or changing the caller's session settings after this query completes.
+    """
+    own_transaction = bool(getattr(conn, "autocommit", False))
     with conn.cursor() as cursor:
-        cursor.execute(sql, params)
-        names = [
-            getattr(d, "name", d[0] if isinstance(d, tuple) else None)
-            for d in cursor.description
-        ]
-        return [dict(zip(names, values)) for values in cursor.fetchall()]
+        if own_transaction:
+            cursor.execute("BEGIN")
+        try:
+            cursor.execute("""
+                SELECT pg_catalog.set_config(
+                    'search_path',
+                    CASE WHEN 'tiger' = ANY(pg_catalog.current_schemas(false))
+                         THEN pg_catalog.current_setting('search_path')
+                         ELSE 'tiger, ' || pg_catalog.current_setting('search_path')
+                    END,
+                    true
+                )
+            """)
+            cursor.execute(sql, params)
+            names = [
+                getattr(d, "name", d[0] if isinstance(d, tuple) else None)
+                for d in cursor.description
+            ]
+            results = [dict(zip(names, values)) for values in cursor.fetchall()]
+        except Exception:
+            if own_transaction:
+                cursor.execute("ROLLBACK")
+            raise
+        if own_transaction:
+            cursor.execute("COMMIT")
+        return results
 
 
 def _record_to_address(record: dict[str, Any]) -> dict[str, Any]:

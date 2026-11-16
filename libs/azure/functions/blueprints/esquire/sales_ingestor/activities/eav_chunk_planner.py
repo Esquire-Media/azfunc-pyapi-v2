@@ -24,7 +24,6 @@ def activity_salesIngestor_getOrderBuckets(settings: dict):
     """
 
     with db() as conn:
-        conn.execute(text("SET search_path TO sales"))
         rows = conn.execute(text(sql)).mappings().all()
 
     buckets, cur, curn = [], [], 0

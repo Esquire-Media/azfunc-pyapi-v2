@@ -73,7 +73,6 @@ def activity_salesIngestor_standardizeColumns(settings: dict):
     """
 
     with db() as conn:
-        conn.execute(text("SET search_path TO sales"))
         conn.execute(text(sql))
 
         order_col = normalized_fields["order_info"]["order_num"]

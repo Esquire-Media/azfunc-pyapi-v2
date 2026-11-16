@@ -37,7 +37,6 @@ def activity_salesIngestor_intermediate_processing(settings: dict):
     )
 
     with db() as conn:
-        conn.execute(text("SET search_path TO sales"))
         deleted_count = conn.execute(stmt).scalar()
         if deleted_count > 0:
             logger.info(

@@ -55,7 +55,6 @@ async def starter_http_esquire_audience(
         "destination": {
             "conn_str": "ESQUIRE_AUDIENCE_CONN_STR",
             "container_name": "general",
-            "data_source": os.environ["ESQUIRE_AUDIENCE_DATA_SOURCE"],
             "blob_prefix": "audiences",
         },
         "forceRebuild": True if req.params.get("force", False) else False,

@@ -5,9 +5,6 @@ import logging
 import uuid
 import orjson as json
 from azure.storage.blob import BlobClient
-from libs.azure.functions.blueprints.esquire.reporting.location_insights.helpers import (
-    cetas_query_unique_deviceids,
-)
 
 bp = Blueprint()
 
@@ -69,30 +66,14 @@ def orchestrator_locationInsights_location(context: DurableOrchestrationContext)
             f"Device Observations job failed for the following job_id: {json.dumps([job for job in onspot_job['jobs'] if job['id'] in failed_callbacks])}"
         )
 
-    # use Synapse to extract unique deviceids from the device observations file
+    # extract the unique deviceids from the device observations file
     egress["runtime_container"]["unique_devices_blob"] = f"{egress['batch_instance_id']}/{egress['pull_id']}/{locationID}/unique_devices"
     unique_device_urls = yield context.call_activity_with_retry(
-        "synapse_activity_cetas",
+        "activity_locationInsights_uniqueDeviceIds",
         retry,
-        {
-            "instance_id": context.instance_id,
-            "bind": "synapse-general",
-            "table": {"name": "unique_deviceids"},
-            "destination": {
-                "conn_str": egress["runtime_container"]["conn_str"],
-                "container_name": egress["runtime_container"]["container_name"],
-                "handle": "sa_esquirereports",
-                "path": egress["runtime_container"]["unique_devices_blob"],
-                "format": "CSV",
-            },
-            "query": cetas_query_unique_deviceids(
-                paths=f"{egress['runtime_container']['container_name']}/{egress['runtime_container']['observations_blob']}/*",
-                handle="sa_esquirereports",
-            ),
-            "return_urls": True,
-        },
+        {**egress},
     )
-    # send a request for demographics data based on the unique devices which were partitioned out by Synapse
+    # send a request for demographics data based on the unique devices which were partitioned out above
     egress["runtime_container"]["demographics_blob"] = f"{egress['batch_instance_id']}/{egress['pull_id']}/{locationID}/demographics"
     yield context.call_sub_orchestrator(
         "onspot_orchestrator",

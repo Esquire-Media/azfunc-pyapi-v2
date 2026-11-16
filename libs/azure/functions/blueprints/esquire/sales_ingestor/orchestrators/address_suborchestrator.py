@@ -45,6 +45,7 @@ def suborchestrator_salesIngestor_enrichAddresses(context: DurableOrchestrationC
                     "scope": settings["scope"],
                     "staging_table": settings["staging_table"],
                     "range": r,
+                    "cols": plan["cols"],
                     "fields": settings["fields"],
                     "metadata": settings["metadata"],
                     "tenant_id": settings.get("tenant_id"),

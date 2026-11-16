@@ -1,7 +1,5 @@
 from azure.durable_functions import Blueprint
-from sqlalchemy import create_engine, MetaData, Table, text
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-import uuid
+from sqlalchemy import create_engine, text
 import pandas as pd
 import os
 from math import ceil
@@ -10,12 +8,11 @@ from sqlalchemy.exc import OperationalError
 from functools import lru_cache
 import time
 
-from libs.utils.smarty import bulk_validate
-from libs.utils.text import format_zipcode
-from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.generate_ids import (
-    NAMESPACE_ADDRESS,
-    generate_deterministic_id,
+from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.address_norm_addy import (
+    enrich_norm_addy,
+    upsert_norm_addy_records,
 )
+
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.db import qtbl
 from libs.azure.functions.blueprints.esquire.sales_ingestor.utility.field_mapping import (
     normalize_fields_to_standardized,
@@ -26,16 +23,13 @@ logger.setLevel(logging.INFO)
 
 bp = Blueprint()
 
-ADDRESS_TYPE_ID = uuid.UUID("fe694dd2-2dc4-452f-910c-7023438bb0ac")
-
-
 @lru_cache()
 def _engine():
     return create_engine(
         os.environ["DATABIND_SQL_KEYSTONE"].replace("psycopg2", "psycopg"),
         pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20,
+        pool_size=2,
+        max_overflow=2,
         future=True,
     )
 
@@ -72,7 +66,7 @@ def activity_salesIngestor_planAddressBatches(settings: dict):
         extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
     )
 
-    with safe_engine_connect(_engine()) as conn:
+    with _engine().begin() as conn:
         conn.execute(
             text(
                 f"""
@@ -93,7 +87,7 @@ def activity_salesIngestor_planAddressBatches(settings: dict):
             )
         ).fetchone()
 
-    expected_keys = ["street", "addr2", "city", "state", "zipcode"]
+    expected_keys = ["street", "addr2", "city", "state", "zipcode", "zip4"]
     cols = [
         addr_map[k]
         for k in expected_keys
@@ -146,15 +140,9 @@ def activity_salesIngestor_planAddressBatches(settings: dict):
         extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
     )
 
-    min_p, max_p = 2, 10
-    if total < 5000:
-        suggested_parallelism = min_p
-    elif total < 50000:
-        suggested_parallelism = 4
-    elif total < 250000:
-        suggested_parallelism = 8
-    else:
-        suggested_parallelism = max_p
+    # AddrAll performs multiple batched SQL passes: prevent host fan-out from
+    # multiplying its connection and statement cost uncontrollably.
+    suggested_parallelism = max(1, min(4, int(settings.get('parallelism', 2))))
 
     return {
         "ranges": ranges,
@@ -175,12 +163,16 @@ def activity_salesIngestor_enrichAddresses_batch(payload: dict):
     offset = int(payload["range"]["offset"])
     limit = int(payload["range"]["limit"])
 
-    expected_keys = ["street", "addr2", "city", "state", "zipcode"]
+    expected_keys = ["street", "addr2", "city", "state", "zipcode", "zip4"]
     cols = [
         addr_map[k]
         for k in expected_keys
         if k in addr_map and addr_map[k]
     ]
+    # The plan already checked which mapped headers really exist in staging.
+    cols = payload.get('cols', cols)
+    addr_map = {key: (column if column in cols else None)
+                for key, column in addr_map.items()}
     quoted_cols = [f'"{c}"' for c in cols]
     select_list = ", ".join(quoted_cols)
     order_by = ", ".join(quoted_cols)
@@ -213,60 +205,36 @@ def activity_salesIngestor_enrichAddresses_batch(payload: dict):
 
 @bp.activity_trigger(input_name="settings")
 def activity_salesIngestor_enrichAddresses(settings: dict):
-    standardized_fields = normalize_fields_to_standardized(settings["fields"])
+    """Legacy single-activity entry point, bounded to planned SQL pages."""
+    settings = dict(settings)
+    settings.setdefault('staging_table', settings.get('table_name'))
+    plan = activity_salesIngestor_planAddressBatches(settings)
+    for address_range in plan['ranges']:
+        activity_salesIngestor_enrichAddresses_batch({
+            'fields': settings['fields'],
+            'scope': settings['scope'],
+            'staging_table': settings['staging_table'],
+            'range': address_range,
+            'cols': plan['cols'],
+            'metadata': settings['metadata'],
+        })
+    return f"{settings['scope']} enrichment complete"
 
-    logger.warning(
-        msg=f"[LOG] Enriching {settings['scope']} Addresses (single-activity path)",
-        extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}},
-    )
 
-    scope = settings["scope"]
-    addr_map = standardized_fields[scope]
+def _bind_value(value):
+    """Return a Python NULL for Pandas NA values, without stringifying them."""
+    if value is None:
+        return None
+    try:
+        if bool(pd.isna(value)):
+            return None
+    except (TypeError, ValueError):
+        pass
+    return value
 
-    eng = _engine()
-    col_name = f"{scope}_address_id"
 
-    with eng.begin() as conn:
-        conn.execute(
-            text(
-                f"""
-                ALTER TABLE {qtbl(settings["staging_table"])}
-                ADD COLUMN IF NOT EXISTS "{col_name}" UUID;
-                """
-            )
-        )
-
-    expected_keys = ["street", "addr2", "city", "state", "zipcode"]
-    cols = [
-        addr_map[k]
-        for k in expected_keys
-        if k in addr_map and addr_map[k]
-    ]
-    if not cols:
-        return f"{scope} enrichment complete (no address columns)"
-
-    quoted_cols = [f'"{c}"' for c in cols]
-    select_list = ", ".join(quoted_cols)
-    order_by = ", ".join(quoted_cols)
-
-    with eng.connect() as conn:
-        rs = conn.execute(
-            text(
-                f"""
-                SELECT DISTINCT {select_list}
-                  FROM {qtbl(settings["staging_table"])}
-                 ORDER BY {order_by}
-                """
-            )
-        )
-        df = pd.DataFrame(rs.fetchall(), columns=[c.strip('"') for c in cols])
-
-    return process_batch_fast(
-        raw_df=df,
-        addr_map=addr_map,
-        scope=scope,
-        staging_table=qtbl(settings["staging_table"]),
-    )
+def _quoted_identifier(name: str) -> str:
+    return '"' + name.replace('"', '""') + '"'
 
 
 def process_batch_fast(
@@ -275,271 +243,64 @@ def process_batch_fast(
     scope: str,
     staging_table: str,
 ):
+    """Upsert canonical norm_addy entities, then assign their IDs to staging.
+
+    Original staged fields remain untouched. Include addr2 and optional ZIP4
+    in the row match; use IS NOT DISTINCT FROM for SQL NULLs. Clear stale IDs
+    when an input has no identifiable address.
     """
-    A fast, set-based batch UPDATE that mirrors your original logic but is
-    now called by parallel batch activities. Idempotent via address_id.
-    """
-    col_name = f"{scope}_address_id"
+    if raw_df.empty:
+        return f'{scope} enrichment complete (0 addresses)'
+    col_name = f'{scope}_address_id'
+    fields = ('street', 'addr2', 'city', 'state', 'zipcode', 'zip4')
+    records = enrich_norm_addy(
+        raw_df,
+        street_col=addr_map.get('street'),
+        addr2_col=addr_map.get('addr2'),
+        city_col=addr_map.get('city'),
+        state_col=addr_map.get('state'),
+        zip_col=addr_map.get('zipcode'),
+        zip4_col=addr_map.get('zip4'),
+        batch_size=200,
+    )
+    mapped_cols = {key: addr_map.get(key) for key in fields}
+    source_rows = raw_df.to_dict('records')
+    mapping = [
+        {**{key: _bind_value(raw.get(mapped_cols[key])) if mapped_cols[key] else None
+             for key in fields}, 'address_id': enriched['address_id']}
+        for raw, enriched in zip(source_rows, records)
+    ]
 
     with _engine().begin() as conn:
-        conn.execute(
-            text(
-                f"""
-                ALTER TABLE {staging_table}
-                ADD COLUMN IF NOT EXISTS "{col_name}" UUID;
-                """
-            )
-        )
-
-    for key in ["street", "city", "state", "zipcode"]:
-        col = addr_map.get(key)
-        if col and (col not in raw_df.columns):
-            raw_df[col] = ""
-
-    cleaned = bulk_validate(
-        raw_df,
-        address_col=addr_map["street"] if addr_map.get("street") else None,
-        addr2_col=addr_map.get("addr2") if addr_map.get("addr2") else None,
-        city_col=addr_map.get("city") if addr_map.get("city") else None,
-        state_col=addr_map.get("state") if addr_map.get("state") else None,
-        zip_col=addr_map.get("zipcode") if addr_map.get("zipcode") else None,
-    )
-
-    cleaned["address_id"] = cleaned.apply(
-        lambda entry: generate_deterministic_id(
-            NAMESPACE_ADDRESS,
-            [
-                entry.get("delivery_line_1", ""),
-                entry.get("delivery_line_2", ""),
-                entry.get("city_name", ""),
-                entry.get("state_abbreviation", ""),
-                entry.get("zipcode", ""),
-            ],
-        ),
-        axis=1,
-    )
-
-    batch = raw_df.copy()
-    batch["address_id"] = cleaned["address_id"].values
-    records = batch.to_dict("records")
-    sub_chunk_size = 100
-
-    for i in range(0, len(records), sub_chunk_size):
-        chunk = records[i : i + sub_chunk_size]
-
-        vals_sql = []
-        params = {}
-
-        for j, rec in enumerate(chunk, start=1):
-            phs = []
-            street_col = addr_map.get("street")
-            params[f"street_{j}"] = rec.get(street_col, "") if street_col else None
-            phs.append(f":street_{j}")
-
-            for key in ("city", "state", "zipcode"):
-                col = addr_map.get(key)
-                params[f"{key}_{j}"] = rec.get(col) if col else None
-                phs.append(f":{key}_{j}")
-
-            params[f"address_id_{j}"] = str(rec["address_id"])
-            phs.append(f":address_id_{j}")
-
-            vals_sql.append(f"({', '.join(phs)})")
-
-        if not vals_sql:
-            continue
-
-        values_clause = ",\n    ".join(vals_sql)
-
-        where_parts = []
-        if addr_map.get("street"):
-            where_parts.append(f'st."{addr_map["street"]}" = m.street')
-        for key in ("city", "state", "zipcode"):
-            col = addr_map.get(key)
-            if col:
-                where_parts.append(f'st."{col}" = m.{key}')
-        where_sql = " AND ".join(where_parts) if where_parts else "TRUE"
-
-        sql = f"""
-        WITH mapping (street, city, state, zipcode, address_id) AS (
-        VALUES
-        {values_clause}
-        )
-        UPDATE {staging_table} AS st
-        SET "{col_name}" = m.address_id::uuid
-        FROM mapping AS m
-        WHERE {where_sql};
-        """
-
-        with _engine().begin() as conn:
-            conn.execute(text(sql), params)
-
-    eng = _engine()
-    meta = MetaData()
-
-    entities_table = Table("entities", meta, autoload_with=eng, schema="sales")
-    unique_ids = cleaned["address_id"].unique().tolist()
-    rows = [
-        {
-            "id": str(aid),
-            "entity_type_id": ADDRESS_TYPE_ID,
-            "parent_entity_id": None,
-        }
-        for aid in unique_ids
-    ]
-
-    if rows:
-        stmt = pg_insert(entities_table).values(rows)
-        with eng.begin() as conn2:
-            conn2.execute(stmt.on_conflict_do_nothing(index_elements=["id"]))
-
-    cleaned["hashed_address_id"] = cleaned["address_id"].astype(str)
-
-    upsert_address_attributes(cleaned)
-
-    return f"{scope} enrichment complete"
-
-
-def upsert_address_attributes(cleaned: pd.DataFrame):
-    eng = _engine()
-
-    attribute_names = [
-        "delivery_line_1",
-        "delivery_line_2",
-        "city_name",
-        "state_abbreviation",
-        "zipcode",
-        "plus4_code",
-        "latitude",
-        "longitude",
-        "addressee",
-        "default_city_name",
-        "last_line",
-        "delivery_point_barcode",
-        "urbanization",
-        "primary_number",
-        "street_name",
-        "street_predirection",
-        "street_postdirection",
-        "street_suffix",
-        "secondary_number",
-        "secondary_designator",
-        "extra_secondary_number",
-        "extra_secondary_designator",
-        "pmb_designator",
-        "pmb_number",
-        "delivery_point",
-        "delivery_point_check_digit",
-        "record_type",
-        "zip_type",
-        "county_fips",
-        "county_name",
-        "carrier_route",
-        "congressional_district",
-        "building_default_indicator",
-        "rdi",
-        "elot_sequence",
-        "elot_sort",
-        "coordinate_license",
-        "precision",
-        "time_zone",
-        "utc_offset",
-        "obeys_dst",
-        "is_ews_match",
-        "dpv_match_code",
-        "dpv_footnotes",
-        "cmra",
-        "vacant",
-        "active",
-        "dpv_no_stat",
-        "footnotes",
-        "lacs_link_code",
-        "lacs_link_indicator",
-        "is_suite_link_match",
-        "enhanced_match",
-        "hashed_address_id",
-    ]
-
-    rows = [
-        {
-            "entity_type_id": ADDRESS_TYPE_ID,
-            "name": name,
-            "data_type": "string",
-        }
-        for name in attribute_names
-    ]
-
-    attr_table = Table("attributes", MetaData(), autoload_with=eng, schema="sales")
-    stmt = pg_insert(attr_table).values(rows).on_conflict_do_nothing(
-        index_elements=["entity_type_id", "name", "data_type"]
-    )
-
-    with eng.begin() as conn:
-        conn.execute(stmt)
-
-    meta = MetaData()
-    attr_table = Table("attributes", meta, autoload_with=eng, schema="sales")
-    eav_table = Table("entity_attribute_values", meta, autoload_with=eng, schema="sales")
-
-    with eng.connect() as conn:
-        rows = conn.execute(
-            text(
-                """
-                SELECT name, id
-                FROM sales.attributes
-                WHERE entity_type_id = :etype
-                  AND name = ANY(:names)
-                """
-            ),
-            {"etype": ADDRESS_TYPE_ID, "names": attribute_names},
-        ).mappings().all()
-
-    attr_map = {row["name"]: row["id"] for row in rows}
-
-    cleaned["address_id"] = cleaned["address_id"].astype(str)
-    for col in attribute_names:
-        if col in cleaned.columns:
-            cleaned[col] = cleaned[col].astype(str)
-    if "zipcode" in cleaned.columns:
-        cleaned["zipcode"] = cleaned["zipcode"].apply(format_zipcode)
-
-    available_attribute_names = [col for col in attribute_names if col in cleaned.columns]
-
-    eav_rows = []
-
-    for entry in cleaned[available_attribute_names + ["address_id"]].itertuples(index=False):
-        aid = str(getattr(entry, "address_id"))
-
-        for col in available_attribute_names:
-            val = getattr(entry, col, None)
-
-            if pd.notna(val) and str(val).strip():
-                eav_rows.append(
-                    {
-                        "entity_id": aid,
-                        "attribute_id": attr_map[col],
-                        "value_string": str(val).upper(),
-                    }
-                )
-
-    unique = {}
-    for row in eav_rows:
-        key = (row["entity_id"], row["attribute_id"])
-        unique[key] = row
-    eav_rows = list(unique.values())
-
-    cols_per_row = 3
-    max_params = 65000
-    batch_size = max(1000, (max_params // cols_per_row) - 1000)
-
-    with eng.begin() as conn:
-        for i in range(0, len(eav_rows), batch_size):
-            chunk = eav_rows[i : i + batch_size]
-            if not chunk:
+        upsert_norm_addy_records(conn, records)
+        for start in range(0, len(mapping), 100):
+            chunk = mapping[start:start + 100]
+            params = {}
+            placeholders = []
+            for index, row in enumerate(chunk):
+                names = []
+                for field in (*fields, 'address_id'):
+                    param = f'{field}_{index}'
+                    params[param] = row[field]
+                    names.append(f':{param}')
+                placeholders.append('(' + ', '.join(names) + ')')
+            if not placeholders:
                 continue
-            stmt = pg_insert(eav_table).values(chunk)
-            upsert = stmt.on_conflict_do_update(
-                index_elements=["entity_id", "attribute_id"],
-                set_={"value_string": stmt.excluded.value_string},
+            predicate = ' AND '.join(
+                f'st.{_quoted_identifier(mapped_cols[field])} '
+                f'IS NOT DISTINCT FROM m.{field}'
+                for field in fields if mapped_cols[field]
             )
-            conn.execute(upsert)
+            if not predicate:
+                raise ValueError('No mapped address columns exist in staging')
+            statement = f'''
+                WITH mapping (street, addr2, city, state, zipcode, zip4, address_id) AS (
+                    VALUES {', '.join(placeholders)}
+                )
+                UPDATE {staging_table} AS st
+                SET {_quoted_identifier(col_name)} = CAST(m.address_id AS uuid)
+                FROM mapping AS m
+                WHERE {predicate}
+            '''
+            conn.execute(text(statement), params)
+    return f'{scope} enrichment complete'

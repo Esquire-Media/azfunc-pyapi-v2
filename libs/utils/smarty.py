@@ -1,209 +1,203 @@
-from smartystreets_python_sdk import StaticCredentials, ClientBuilder, Batch
-from smartystreets_python_sdk.us_street import Lookup as StreetLookup
+"""Compatibility boundary for legacy Smarty consumers; powered by AddrAll.
+
+This module enriches addresses. `dpv_match_code` and other USPS/Smarty-only
+fields are intentionally null; AddrAll store membership is not deliverability.
+Use `libs.utils.addrall.clean_addresses` for new callers.
+"""
+from __future__ import annotations
+
+import re
+from typing import Any, Sequence
+
 import pandas as pd
-import os
-from libs.azure.key_vault import KeyVaultClient
-from fuzzywuzzy import fuzz
 
-def get_items_recursive(obj, dict={}):
-    """
-    Iterates through all key-value pairs of an object and returns those pairs as a dictionary.
-    If any pair's value is itself an object, recursively iterates through that object also.
-    """
-    # iterate through the dict items at this level
-    for k, val in obj.__dict__.items():
-        # if an item has its own dict, iterate through that recursively
-        if hasattr(obj.__dict__[k], "__dict__"):
-            get_items_recursive(obj.__dict__[k], dict)
-        else:
-            # for the items at this level, add them to the persistent list
-            if not "__" in k:  # ignore a few metadata categories like '__doc__'
-                dict[k] = val
+from libs.utils.addrall import clean_addresses, as_text
 
-    return dict
+
+# Flattened columns consumed by legacy Smarty callers.
+SMARTY_FIELDS = (
+    "input_index", "candidate_index", "delivery_line_1", "delivery_line_2",
+    "last_line", "delivery_point_barcode", "smarty_key", "smarty_key_ext",
+    "primary_number", "street_predirection", "street_name", "street_suffix",
+    "street_postdirection", "secondary_number", "secondary_designator",
+    "city_name", "default_city_name", "state_abbreviation", "zipcode",
+    "plus4_code", "full_zipcode", "delivery_point", "delivery_point_check_digit",
+    "record_type", "zip_type", "county_fips", "county_name", "carrier_route",
+    "congressional_district", "rdi", "elot_sequence", "elot_sort",
+    "latitude", "longitude", "precision", "time_zone", "utc_offset", "dst",
+    "dpv_match_code", "dpv_footnotes", "dpv_cmra", "dpv_vacant",
+    "dpv_no_stat", "active", "footnotes", "enhanced_match",
+)
+
+# Avoid calling an unstructured street a confidently parsed street number.
+_NUMBER_STREET = re.compile(
+    r"^\s*((?:\d+[A-Z0-9-]*|[A-Z]+\d+[A-Z0-9-]*))\s+(.+?)\s*$",
+    flags=re.I,
+)
+_UNIT_END = re.compile(
+    r"(?<!\w)(?P<designator>APARTMENT|APT|SUITE|STE|UNIT|ROOM|RM|LOT|#)\s*#?\s*"
+    r"(?P<number>[A-Z0-9]+(?:-[A-Z0-9]+)*)\s*$", re.I,
+)
+
+
+def _smarty_components(row: pd.Series) -> dict[str, Any]:
+    """Project AddrAll's canonical parts, with conservative input fallback."""
+    norm_number = as_text(row.get("addrall_norm_address_alphanumeric")) or as_text(
+        row.get("addrall_norm_address")
+    )
+    norm_name = as_text(row.get("addrall_norm_street_name"))
+    input_street = as_text(row.get("addrall_original_street"))
+    unit = _UNIT_END.search(input_street) or _UNIT_END.search(
+        as_text(row.get("addrall_original_address2"))
+    )
+    inline_unit = _UNIT_END.search(input_street)
+    line_without_unit = input_street[:inline_unit.start()].strip() if inline_unit else input_street
+    raw_parts = _NUMBER_STREET.match(line_without_unit)
+    number = norm_number or as_text(row.get("primary_number")) or (
+        raw_parts.group(1) if raw_parts else None
+    )
+    street_name = norm_name or as_text(row.get("street_name")) or (
+        raw_parts.group(2) if raw_parts else None
+    )
+    secondary = unit.group("number") if unit else None
+    secondary_type = unit.group("designator").upper() if unit else None
+    secondary_type = {"APARTMENT": "APT", "SUITE": "STE", "ROOM": "RM"}.get(
+        secondary_type, secondary_type
+    )
+    return {
+        "primary_number": number or None,
+        "street_name": street_name or None,
+        "street_predirection": (as_text(row.get("addrall_norm_predir_abbrev"))
+                                or as_text(row.get("street_predirection")) or None),
+        "street_suffix": (as_text(row.get("addrall_norm_street_type_abbrev"))
+                          or as_text(row.get("street_suffix")) or None),
+        "street_postdirection": (as_text(row.get("addrall_norm_postdir_abbrev"))
+                                 or as_text(row.get("street_postdirection")) or None),
+        "secondary_number": secondary or as_text(row.get("secondary_number")) or None,
+        "secondary_designator": (secondary_type
+                                 or as_text(row.get("secondary_designator")) or None),
+    }
 
 
 def bulk_validate(
-    df:pd.DataFrame,
-    address_col:str,
-    addr2_col:str=None,
-    city_col:str=None,
-    state_col:str=None,
-    zip_col:str=None,
+    df: pd.DataFrame,
+    address_col: str,
+    addr2_col: str | None = None,
+    city_col: str | None = None,
+    state_col: str | None = None,
+    zip_col: str | None = None,
+    *,
+    zip4_col: str | None = None,
+    connection: Any = None,
+    database_url: str | None = None,
+    batch_size: int | None = None,
+    candidate_limit: int = 100,
+    geocode_sources: Sequence[str] | None = None,
+    use_geocode: bool = True,
+    retry_missing_zip4: bool = True,
+    drop_address: bool = False,
 ) -> pd.DataFrame:
+    """Fill and normalize all rows while retaining unresolved/original addresses.
+
+    `candidate_limit` is kept for old call signatures but has no effect:
+    the AddrAll engine uses batched geocoding, not autocomplete.
     """
-    Accepts a dataframe containing address data in one or more component columns. Returns a dataframe with all returned Smarty columns.
-    Smarty credentials will be read as environmental variables `SMARTY_APP_ID`, `SMARTY_APP_TOKEN`, and `SMARTY_LICENSE_ID`.
-    If any of these variables are not set, credentials will be pulled from the `smarty-service` keyvault instead, in which case authorization is required to access the vault.
+    if not 1 <= candidate_limit <= 100:
+        raise ValueError("candidate_limit must be 1..100")
 
-    * df : The dataframe containing addresses to clean
-
-    * address_col : The name of the column containing address data (If only this column is set, freeform address will be assumed)
-    * city_col : The name of the column containing city data
-    * state_col : The name of the column containing state data
-    * zip_col : The name of the column containing zipcode data
-
-    ---
-    match codes glossary:
-        * Y - Confirmed in USPS data.
-        * N - Not confirmed in USPS data.
-        * S - Confirmed by ignoring secondary info.
-        * D - Confirmed but missing secondary info.
-        * None - Not present in USPS database.
-
-    For more info on match codes: https://www.smarty.com/docs/cloud/us-street-api#dpvmatchcode
-    """
-
-    if not len(df):
-        raise IndexError("Empty Dataframe passed to the bulk_validate function")
-
-    # use environmental variables if all exist
-    if all([os.environ.get("SMARTY_APP_ID"), os.environ.get("SMARTY_APP_TOKEN"), os.environ.get("SMARTY_LICENSE_ID"),]):
-        smarty_id = os.environ.get("SMARTY_APP_ID")
-        smarty_token = os.environ.get("SMARTY_APP_TOKEN")
-        smarty_license = os.environ.get("SMARTY_LICENSE_ID")
-    # if no env are set, connect to the keyvault to load auth variables instead
-    else:
-        client = KeyVaultClient("smarty-service")
-        smarty_id = client.get_secret("smarty-id").value
-        smarty_token = client.get_secret("smarty-token").value
-        smarty_license = client.get_secret("smarty-license").value
-
-    # reset index (because we merge on this later)
-    df = df.reset_index(drop=True)
-
-    # convert all address data to strings
-    for col in address_col, addr2_col, city_col, state_col, zip_col:
-        if col:
-            df[col] = df[col].astype(str)
-
-    # authentication
-    credentials = StaticCredentials(smarty_id, smarty_token)
-    # launch the street lookup client
-    client = (
-        ClientBuilder(credentials)
-        .with_licenses([smarty_license])
-        .build_us_street_api_client()
+    result = clean_addresses(
+        df, ADDRESS=address_col, CITY=city_col, STATE=state_col,
+        ZIPCODE=zip_col, ADDRESS2=addr2_col, ZIP4=zip4_col,
+        connection=connection, database_url=database_url,
+        batch_size=batch_size, use_geocode=use_geocode,
+        retry_missing_zip4=retry_missing_zip4,
+        geocode_sources=geocode_sources,
     )
 
-    # initialize the first batch and the list to store results
-    batch = Batch()
-    data_list = []
+    parts = [_smarty_components(row) for _, row in result.iterrows()]
+    for name in ("primary_number", "street_name", "street_predirection",
+                 "street_suffix", "street_postdirection", "secondary_number",
+                 "secondary_designator"):
+        result[name] = [row[name] for row in parts]
 
-    # build batches and send lookups
-    for i, row in df.reset_index(drop=True).iterrows():
-        lookup = StreetLookup()
-
-        # add data for the address field
-        lookup.street = row[address_col]
-
-        # check if we have an address2
-        if addr2_col != None:
-            val = row.get(addr2_col)
-            if val and len(val.strip()) > 0:
-                lookup.street2 = row[addr2_col]
-
-        # check that city field is specified and data is not empty, then set data
-        if city_col != None:
-            if len(row[city_col]) > 0:
-                lookup.city = row[city_col]
-        # check that state field is specified and data is not empty, then set data
-        if state_col != None:
-            if len(row[state_col]) > 0:
-                lookup.state = row[state_col]
-        # check that zipcode field is specified and data is not empty, then set data
-        if zip_col != None:
-            if len(row[zip_col]) > 0:
-                lookup.zipcode = row[zip_col]
-
-        # set lookup settings and add to batch
-        lookup.candidates = 1  # return only the best candidate
-        lookup.match = (
-            "invalid"  # include best match even if not a valid mailable address
-        )
-        batch.add(lookup)
-
-        # send batch once it hits the max batch size (100) or the last row
-        if batch.is_full() or i == len(df) - 1:
-            # send the batch
-            client.send_batch(batch)
-
-            for i, b in enumerate(batch):
-                candidates = b.result
-                if len(candidates) > 0:
-                    best = candidates[0]
-                    # recursively get the info at all levels of the cleaned data (there is a multi-level dict hierarchy containing the data)
-                    # Important to make this a copy, otherwise all dicts will end up as pointers to the last item in the batch
-                    info_dict = get_items_recursive(best)
-                    data_list.append(info_dict.copy())
-                else:
-                    data_list.append(
-                        {
-                            "dpv_match_code": None,
-                        }
-                    )
-
-            # restart an empty Batch
-            batch = Batch()
-
-    # prevent duplicate columns in the output by dropping the original column for any name conflicts
-    dupe_cols = [col for col in list(data_list[0].keys()) if col in df.columns]
-    original = df.drop(columns=[address_col] + dupe_cols)
-
-    # return the cleaned data merged with any non-duplicated columns from the original data
-    cleaned = pd.merge(
-        original, pd.DataFrame(data_list), right_index=True, left_index=True
-    )
-
-    return cleaned
-
-def detect_column_names(cols:list, override_mappings:dict={}) -> dict:
-    """
-    Detects and maps column names from a list to predefined address components, optionally applying custom mappings.
-
-    This function attempts to match each provided column name to a set of common address components
-    ('street', 'city', 'state', 'zip') using fuzzy matching. The user can override default mappings by
-    providing a `column_mappings` dictionary. If the `inverted` flag is set to True, the function
-    inverts the resulting mapping, swapping keys with their corresponding values.
-
-    Parameters:
-    - cols (list): A list of column names from which to detect address components.
-    - override_mappings (dict, optional): A dictionary where keys are address components and values are
-      the column names to be explicitly mapped to these components. Defaults to an empty dictionary.
-
-    Returns:
-    - dict: A dictionary mapping address components to detected column names. If `inverted` is True,
-      the dictionary maps column names to address components instead.
-
-    Note:
-    The function uses fuzzy logic to determine the best match for each address component. This may not
-    always result in perfect matches, especially with unconventional or highly abbreviated column names.
-    Providing explicit `override_mappings` can help ensure accuracy.
-    """
-    # dictionary of common column headers for address components
-    # this will be modified in-place to build the output dictionary
-    mapping = {
-        "street": ["address", "street", "delivery_line_1"],
-        "city": ["city"],
-        "state": ["state"],
-        "zip": ["zip", "zipcode", "postal", "postalcode"],
-    }
-
-    # find best fit for each address field
-    for key, defaults in mapping.items():
-        # if key is in the column mappings dictionary, use that default value
-        if key in override_mappings and override_mappings[key] in cols:
-            mapping[key] = override_mappings[key]
-        # otherwise, use fuzzy matching to find the best match
+    last_line = []
+    for city, state, code, full_code in zip(
+        result["city_name"], result["state_abbreviation"],
+        result["zipcode"], result["full_zipcode"],
+    ):
+        value = " ".join(x for x in (
+            as_text(city), as_text(state), as_text(full_code) or as_text(code)
+        ) if x)
+        # The caller may already carry a useful last_line that cannot be
+        # reconstructed from the supplied component columns.
+        existing = result["last_line"].iloc[len(last_line)] if "last_line" in result else None
+        if all(as_text(part) for part in (city, state, code)):
+            last_line.append(value or None)
         else:
-            column_scores = [
-                max([fuzz.WRatio(column.upper(), default.upper()) for default in defaults])
-                for column in cols
-            ]
-            if key == 'state':
-                print([*zip(cols, column_scores)])
-            best_fit_idx = column_scores.index(max(column_scores))
-            best_fit = cols[best_fit_idx]
-            mapping[key] = best_fit
+            last_line.append(as_text(existing) or value or None)
+    result["last_line"] = last_line
+    result["input_index"] = list(range(len(result)))
+    result["candidate_index"] = [
+        0 if as_text(line) else None for line in result["delivery_line_1"]
+    ]
 
-    return mapping
+    # USPS-specific signals cannot be reconstructed from parser/store hits.
+    for name in SMARTY_FIELDS:
+        if name not in result:
+            result[name] = None
+
+    if drop_address:
+        result = result.drop(columns=[address_col])
+    return result
+
+
+def detect_column_names(
+    cols: Sequence[str], override_mappings: dict[str, str] | None = None,
+) -> dict[str, str | None]:
+    """Map present address columns without guessing unavailable locality roles."""
+    aliases = {
+        "street": ("address", "street", "streetaddress", "deliveryline1",
+                   "add1", "address1", "street1", "addressline1"),
+        "addr2": ("address2", "addressline2", "street2", "add2", "unit", "suite"),
+        "city": ("city", "cityname", "municipality", "location"),
+        "state": ("state", "stateabbreviation", "stateabbrev", "st"),
+        "zip": ("zip", "zipcode", "postalcode", "postal", "zip5", "fullzipcode"),
+        "zip4": ("zip4", "plus4", "plus4code", "zipcode4"),
+    }
+    normalized = {str(col): re.sub(r"[^a-z0-9]", "", str(col).lower()) for col in cols}
+    mappings: dict[str, str | None] = {}
+    overrides = override_mappings or {}
+    used: set[str] = set()
+    for role, names in aliases.items():
+        if role in overrides:
+            column = overrides[role]
+            if column not in normalized:
+                raise KeyError(f"Unknown column_mapping.{role}: {column!r}")
+            mappings[role] = column
+            used.add(column)
+            continue
+        match = next((col for key in names for col, normalized_name in normalized.items()
+                      if col not in used and normalized_name == key), None)
+        if match is None:
+            match = next((col for key in names for col, normalized_name in normalized.items()
+                          if col not in used and len(key) >= 4 and
+                          normalized_name.endswith(key) and not normalized_name.endswith("id")), None)
+        mappings[role] = match
+        if match:
+            used.add(match)
+    if mappings["street"] is None:
+        raise ValueError("No street address field; supply column_mapping.street")
+    return mappings
+
+
+def get_items_recursive(obj: Any, dict: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Legacy object flattener maintained for callers outside the provided files."""
+    result = {} if dict is None else dict
+    for key, value in vars(obj).items():
+        if key.startswith("__"):
+            continue
+        if hasattr(value, "__dict__"):
+            get_items_recursive(value, result)
+        else:
+            result[key] = value
+    return result

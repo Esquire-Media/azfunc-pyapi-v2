@@ -1,10 +1,19 @@
+from __future__ import annotations
+
 from azure.storage.blob import BlobClient, BlobServiceClient, ContainerClient, BlobSasPermissions, generate_blob_sas
 from azure.core.pipeline.transport import RequestsTransport
 from functools import lru_cache
+from typing import TYPE_CHECKING
 from urllib.parse import unquote
-import datetime, os, pandas as pd, uuid, requests
+import datetime, os, uuid, requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+if TYPE_CHECKING:  # pragma: no cover
+    # pandas is only needed for the DataFrame helpers below. Importing it is
+    # expensive (tens of MB of resident memory), so it is imported lazily by
+    # the functions that need it and only referenced for typing here.
+    import pandas as pd
 
 
 @lru_cache(maxsize=1)
@@ -250,6 +259,10 @@ def load_dataframe(source: str | dict | list) -> pd.DataFrame:
     - This function requires pandas, os, and from azure.storage.blob import BlobClient, generate_blob_sas, BlobSasPermissions
       libraries, and assumes the environment is correctly configured for their use.
     """
+    # pandas is imported lazily: it is a heavy import and most workers that
+    # touch blob storage never need it.
+    import pandas as pd
+
     # Load DataFrame based on the source type specified in ingress
     if isinstance(source, str):
         return pd.read_csv(source)

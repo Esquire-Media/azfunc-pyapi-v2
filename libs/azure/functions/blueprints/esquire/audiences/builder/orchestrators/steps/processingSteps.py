@@ -226,17 +226,14 @@ def orchestrator_esquireAudiences_processingSteps(
                                 egress,
                             )
                     case "polygons":  # addresses -> polygons
-                        process["results"] = yield context.task_all(
-                            [
-                                context.call_sub_orchestrator(
-                                    "orchestrator_esquireAudienceMaidsAddresses_footprint",
-                                    {
-                                        **egress,
-                                        "source": source_url,
-                                    },
-                                )
-                                for source_url in source_urls
-                            ]
+                        # The rooftop polygon generation this step performed lived
+                        # in the retired utils/maids blueprint. That blueprint was
+                        # never deployed to any Function App and could not resolve
+                        # its rooftop polygon dependency across app boundaries, so
+                        # this step has been unreachable. Fail loudly rather than
+                        # silently producing an empty audience.
+                        raise RuntimeError(
+                            "Unsupported processing step: addresses -> polygons."
                         )
             case "device_ids":
                 match process["outputType"]:
@@ -246,24 +243,11 @@ def orchestrator_esquireAudiences_processingSteps(
                             egress,
                         )
                     case "device_ids":  # deviceids -> deviceids
-                        process["results"] = yield context.task_all(
-                            [
-                                context.call_sub_orchestrator(
-                                    "orchestrator_esquireAudienceMaidsDeviceIds_todevids",
-                                    {
-                                        "working": egress["working"],
-                                        "source": source_url,
-                                        "destination": {
-                                            **egress["destination"],
-                                            "blob_name": "{}/results/{}.csv".format(
-                                                egress["destination"]["blob_prefix"],
-                                                index,
-                                            ),
-                                        },
-                                    },
-                                )
-                                for index, source_url in enumerate(source_urls)
-                            ]
+                        # See the addresses -> polygons note above: the retired
+                        # utils/maids blueprint provided this conversion and was
+                        # never deployed to any Function App.
+                        raise RuntimeError(
+                            "Unsupported processing step: device_ids -> device_ids."
                         )
                     case "polygons":  # deviceids -> polygons
                         # No specific processing required

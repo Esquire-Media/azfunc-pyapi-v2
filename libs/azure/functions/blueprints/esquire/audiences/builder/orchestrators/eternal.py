@@ -303,32 +303,19 @@ def orchestrator_esquire_audience(context: DurableOrchestrationContext):
             ran_at = datetime.datetime(1970, 1, 1)
         ran_at_iso = _safe_iso(ran_at)
 
-        # Count distinct MAIDs in that folder (Synapse OPENROWSET)
+        # Count the MAIDs in that folder. The index is built from blob
+        # metadata only, so this reads no audience data.
         device_count = None
         try:
-            count_resp = yield context.call_activity(
-                "activity_synapse_query",
+            index = yield context.call_activity(
+                "activity_esquireAudiencesUtils_indexAudienceBlobs",
                 {
-                    "bind": "audiences",
-                    "query": """
-                        SELECT COUNT(DISTINCT deviceid) AS [count]
-                        FROM OPENROWSET(
-                            BULK '{}/{}/*',
-                            DATA_SOURCE = '{}',
-                            FORMAT = 'CSV',
-                            PARSER_VERSION = '2.0',
-                            HEADER_ROW = TRUE
-                        ) AS [data]
-                        WHERE LEN(deviceid) = 36
-                    """.format(
-                        ingress["destination"]["container_name"],
-                        audience_blob_prefix,
-                        ingress["destination"]["data_source"],
-                    ),
+                    "conn_str": ingress["destination"]["conn_str"],
+                    "container_name": ingress["destination"]["container_name"],
+                    "blob_prefix": audience_blob_prefix,
                 },
             )
-            if isinstance(count_resp, list) and count_resp:
-                device_count = count_resp[0].get("count")
+            device_count = int(index.get("total", 0))
         except Exception:
             device_count = None
 

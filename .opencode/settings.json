@@ -8,13 +8,13 @@
         "apiKey": "{env:MINIMAX_API_KEY}"
       },
       "models": {
-        "MiniMax-M2.7": {
-          "name": "MiniMax-M2.7"
+        "MiniMax-M3.1-Flash": {
+          "name": "MiniMax-M3.1-Flash"
         }
       }
     }
   },
-  "model": "minimax/MiniMax-M2.7",
+  "model": "minimax/MiniMax-M3.1-Flash",
   "formatter": {
     "deno-fmt": {
       "command": ["deno", "fmt", "$FILE"],

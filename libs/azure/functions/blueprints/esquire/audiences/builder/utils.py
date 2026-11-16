@@ -265,26 +265,6 @@ def enforce_bindings():
             pool_size=1000,
             max_overflow=100,
         )
-    if not from_bind("general"):
-        register_binding(
-            "general",
-            "Structured",
-            "sql",
-            url=os.environ["DATABIND_SQL_GENERAL"],
-            schemas=["dbo"],
-            pool_size=1000,
-            max_overflow=100,
-        )
-    if not from_bind("audiences"):
-        register_binding(
-            "audiences",
-            "Structured",
-            "sql",
-            url=os.environ["DATABIND_SQL_AUDIENCES"],
-            schemas=["dbo"],
-            pool_size=1000,
-            max_overflow=100,
-        )
 
     MAPPING_DATASOURCE = {
         # Deepsync mover - can use for testing

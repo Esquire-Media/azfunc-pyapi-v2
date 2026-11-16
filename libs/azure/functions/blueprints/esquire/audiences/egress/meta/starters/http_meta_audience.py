@@ -1,5 +1,3 @@
-import os
-
 from azure.durable_functions import Blueprint, DurableOrchestrationClient
 from azure.functions import HttpRequest, HttpResponse
 
@@ -25,7 +23,6 @@ async def starter_http_meta_audience(req: HttpRequest, client: DurableOrchestrat
             "destination": {
                 "conn_str": "AzureWebJobsStorage",
                 "container_name": "general",
-                "data_source": os.environ.get("ESQUIRE_AUDIENCE_DATA_SOURCE", "esquire-audiences"),
                 "blob_prefix": "audiences",
             },
         }

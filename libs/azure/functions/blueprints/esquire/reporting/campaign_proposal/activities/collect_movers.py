@@ -39,8 +39,8 @@ def activity_campaignProposal_collectMovers(settings: dict):
     address_to_zipcodes = []
     unique_zipcodes_list = []
     radii = settings['moverRadii']
-    zipcode_engine = ZipcodeEngine(from_bind("legacy"))
-    mover_engine = MoverEngine(from_bind("audiences"))
+    zipcode_engine = ZipcodeEngine(from_bind("keystone"))
+    mover_engine = MoverEngine(from_bind("keystone"))
 
     # INDIVIDUAL LOCATION COUNTS
     # on the first run-through, we grab all the unique zipcodes and map each addr/radius with its associated zipcodes 

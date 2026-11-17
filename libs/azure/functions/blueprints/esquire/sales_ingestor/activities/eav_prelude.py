@@ -36,10 +36,10 @@ def activity_salesIngestor_eavPrelude(settings: dict):
 
     -- 1) Create or get the sales_batch entity
     WITH inserted_sales_batch AS (
-        INSERT INTO entities (id, entity_type_id)
+        INSERT INTO sales.entities (id, entity_type_id)
         VALUES (
             :upload_id,
-            (SELECT entity_type_id FROM entity_types WHERE name = 'sales_batch')
+            (SELECT entity_type_id FROM sales.entity_types WHERE name = 'sales_batch')
         )
         ON CONFLICT (id) DO NOTHING
         RETURNING id
@@ -47,7 +47,7 @@ def activity_salesIngestor_eavPrelude(settings: dict):
     sales_batch_entity AS (
         SELECT id FROM inserted_sales_batch
         UNION ALL
-        SELECT id FROM entities WHERE id = :upload_id
+        SELECT id FROM sales.entities WHERE id = :upload_id
     ),
 
     -- 2) Metadata → attributes → EAV (idempotent)
@@ -58,26 +58,26 @@ def activity_salesIngestor_eavPrelude(settings: dict):
     sales_batch_attributes AS (
         SELECT
             gen_random_uuid() AS id,
-            (SELECT entity_type_id FROM entity_types WHERE name = 'sales_batch'),
+            (SELECT entity_type_id FROM sales.entity_types WHERE name = 'sales_batch'),
             name,
-            'string'::attr_data_type,
+            'string'::sales.attr_data_type,
             NULL::text
         FROM metadata_fields
     ),
     insert_sales_batch_attributes AS (
-        INSERT INTO attributes (id, entity_type_id, name, data_type, description)
+        INSERT INTO sales.attributes (id, entity_type_id, name, data_type, description)
         SELECT * FROM sales_batch_attributes
         ON CONFLICT (entity_type_id, name, data_type) DO NOTHING
         RETURNING id, name
     ),
     sb_attribute_info AS (
         SELECT a.id AS attribute_id, mf.value
-        FROM attributes a
+        FROM sales.attributes a
         JOIN metadata_fields mf ON a.name = mf.name
-        WHERE a.entity_type_id = (SELECT entity_type_id FROM entity_types WHERE name = 'sales_batch')
+        WHERE a.entity_type_id = (SELECT entity_type_id FROM sales.entity_types WHERE name = 'sales_batch')
     ),
     upsert_sales_batch_metadata AS (
-        INSERT INTO entity_attribute_values (entity_id, attribute_id, value_string)
+        INSERT INTO sales.entity_attribute_values (entity_id, attribute_id, value_string)
         SELECT (SELECT id FROM sales_batch_entity), attribute_id, value
         FROM sb_attribute_info
         ON CONFLICT (entity_id, attribute_id) DO UPDATE
@@ -119,7 +119,7 @@ def activity_salesIngestor_eavPrelude(settings: dict):
     transaction_attributes AS (
         SELECT
             gen_random_uuid() AS id,
-            (SELECT entity_type_id FROM entity_types WHERE name = 'transaction'),
+            (SELECT entity_type_id FROM sales.entity_types WHERE name = 'transaction'),
             column_name AS name,
             CASE
                 WHEN data_type IN ('character varying','text') THEN 'string'
@@ -128,7 +128,7 @@ def activity_salesIngestor_eavPrelude(settings: dict):
                 WHEN data_type LIKE 'timestamp%' THEN 'timestamptz'
                 WHEN data_type IN ('json','jsonb') THEN 'jsonb'
                 ELSE 'string'
-            END::attr_data_type,
+            END::sales.attr_data_type,
             NULL::text
         FROM column_classification
         WHERE always_constant = TRUE
@@ -136,7 +136,7 @@ def activity_salesIngestor_eavPrelude(settings: dict):
     line_item_attributes AS (
         SELECT
             gen_random_uuid() AS id,
-            (SELECT entity_type_id FROM entity_types WHERE name = 'line_item'),
+            (SELECT entity_type_id FROM sales.entity_types WHERE name = 'line_item'),
             column_name AS name,
             CASE
                 WHEN data_type IN ('character varying','text') THEN 'string'
@@ -145,13 +145,13 @@ def activity_salesIngestor_eavPrelude(settings: dict):
                 WHEN data_type LIKE 'timestamp%' THEN 'timestamptz'
                 WHEN data_type IN ('json','jsonb') THEN 'jsonb'
                 ELSE 'string'
-            END::attr_data_type,
+            END::sales.attr_data_type,
             NULL::text
         FROM column_classification
         WHERE always_constant = FALSE
     ),
     insert_new_attributes AS (
-        INSERT INTO attributes (id, entity_type_id, name, data_type, description)
+        INSERT INTO sales.attributes (id, entity_type_id, name, data_type, description)
         SELECT * FROM transaction_attributes
         UNION ALL
         SELECT * FROM line_item_attributes
@@ -171,7 +171,7 @@ def activity_salesIngestor_eavPrelude(settings: dict):
         JOIN column_classification cc
           ON cc.column_name = fm.key
         JOIN (
-            SELECT id, name, entity_type_id, data_type FROM attributes
+            SELECT id, name, entity_type_id, data_type FROM sales.attributes
             UNION ALL
             SELECT id, name, entity_type_id, data_type FROM insert_new_attributes
         ) a
@@ -185,15 +185,15 @@ def activity_salesIngestor_eavPrelude(settings: dict):
          )
          AND (
             (cc.always_constant = TRUE AND a.entity_type_id = (
-                SELECT entity_type_id FROM entity_types WHERE name = 'transaction'
+                SELECT entity_type_id FROM sales.entity_types WHERE name = 'transaction'
             ))
             OR
             (cc.always_constant = FALSE AND a.entity_type_id = (
-                SELECT entity_type_id FROM entity_types WHERE name = 'line_item'
+                SELECT entity_type_id FROM sales.entity_types WHERE name = 'line_item'
             ))
         )
     )
-    INSERT INTO client_header_map (tenant_id, mapped_header, attribute_id)
+    INSERT INTO sales.client_header_map (tenant_id, mapped_header, attribute_id)
     SELECT tenant_id, mapped_header, attribute_id
     FROM client_header_mappings
     ON CONFLICT (tenant_id, mapped_header) DO NOTHING;
@@ -207,7 +207,6 @@ def activity_salesIngestor_eavPrelude(settings: dict):
     )
 
     with db() as conn:
-        conn.execute(text("SET search_path TO sales"))
         conn.execute(text("SET LOCAL lock_timeout = '2s';"))
         conn.execute(text("SET LOCAL statement_timeout = '5min';"))
         conn.execute(text("SET LOCAL idle_in_transaction_session_timeout = '1min';"))
@@ -284,7 +283,7 @@ def activity_salesIngestor_eavPrelude(settings: dict):
                                 WHEN cc.data_type LIKE 'timestamp%' THEN 'timestamptz'
                                 WHEN cc.data_type IN ('json','jsonb') THEN 'jsonb'
                                 ELSE 'string'
-                            END::attr_data_type AS col_attr_type
+                            END::sales.attr_data_type AS col_attr_type
                         FROM column_classification cc
                     )
                     INSERT INTO sales.sales_batch_header_map (
@@ -299,16 +298,16 @@ def activity_salesIngestor_eavPrelude(settings: dict):
                     FROM input_rows ir
                     JOIN column_types ct
                     ON ct.column_name = ir.standardized_attribute_name
-                    JOIN attributes a
+                    JOIN sales.attributes a
                     ON a.name = ir.standardized_attribute_name
                     AND a.data_type = ct.col_attr_type
                     AND (
                         (ct.always_constant = TRUE AND a.entity_type_id = (
-                            SELECT entity_type_id FROM entity_types WHERE name = 'transaction'
+                            SELECT entity_type_id FROM sales.entity_types WHERE name = 'transaction'
                         ))
                         OR
                         (ct.always_constant = FALSE AND a.entity_type_id = (
-                            SELECT entity_type_id FROM entity_types WHERE name = 'line_item'
+                            SELECT entity_type_id FROM sales.entity_types WHERE name = 'line_item'
                         ))
                     )
                     ON CONFLICT (sales_batch_id, original_attribute_name, standardized_attribute_id) DO NOTHING

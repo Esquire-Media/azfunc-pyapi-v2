@@ -44,8 +44,6 @@ def activity_salesIngestor_cleanup(settings: dict):
                 logger.warning(msg=f"[WARN] Failed to drop table {fq}: {str(e)}", extra={"context": {"PartitionKey": settings["metadata"]["upload_id"]}})
 
 
-        # 3) Optional: also try current search_path (harmless if not present)
-        conn.exec_driver_sql(f"DROP TABLE IF EXISTS \"{table_name}\";")
 
         conn.commit()
 

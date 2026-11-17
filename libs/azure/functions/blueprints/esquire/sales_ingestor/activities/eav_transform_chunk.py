@@ -45,7 +45,7 @@ def activity_salesIngestor_eavTransformChunk(settings: dict):
                 attribute_id uuid,
                 attribute_name text,
                 entity_type_id uuid,
-                data_type attr_data_type
+                data_type sales.attr_data_type
             )
         ),
         """
@@ -62,7 +62,7 @@ def activity_salesIngestor_eavTransformChunk(settings: dict):
                         WHEN format_type(a.atttypid, a.atttypmod) LIKE 'timestamp%' THEN 'timestamptz'
                         WHEN format_type(a.atttypid, a.atttypmod) IN ('json','jsonb') THEN 'jsonb'
                         ELSE 'string'
-                    END::attr_data_type AS col_attr_type
+                    END::sales.attr_data_type AS col_attr_type
                 FROM information_schema.columns c
                 JOIN pg_class cls
                   ON cls.relname = '{settings["staging_table"]}'
@@ -80,13 +80,13 @@ def activity_salesIngestor_eavTransformChunk(settings: dict):
                 a.name AS attribute_name,
                 a.entity_type_id,
                 a.data_type
-            FROM attributes a
+            FROM sales.attributes a
             JOIN column_types ct
               ON ct.column_name = a.name
              AND ct.col_attr_type = a.data_type
             WHERE a.entity_type_id IN (
-                (SELECT entity_type_id FROM entity_types WHERE name = 'transaction'),
-                (SELECT entity_type_id FROM entity_types WHERE name = 'line_item')
+                (SELECT entity_type_id FROM sales.entity_types WHERE name = 'transaction'),
+                (SELECT entity_type_id FROM sales.entity_types WHERE name = 'line_item')
             )
         ),
         """
@@ -105,10 +105,10 @@ def activity_salesIngestor_eavTransformChunk(settings: dict):
         FROM staging_subset s
     ),
     upsert_transactions AS (
-        INSERT INTO entities (id, entity_type_id, parent_entity_id)
+        INSERT INTO sales.entities (id, entity_type_id, parent_entity_id)
         SELECT
             txn_id,
-            (SELECT entity_type_id FROM entity_types WHERE name = 'transaction'),
+            (SELECT entity_type_id FROM sales.entity_types WHERE name = 'transaction'),
             :upload_id
         FROM transaction_data
         ON CONFLICT (id) DO NOTHING
@@ -128,10 +128,10 @@ def activity_salesIngestor_eavTransformChunk(settings: dict):
           ON s."{order_col}" = td.order_key
     ),
     upsert_line_items AS (
-        INSERT INTO entities (id, entity_type_id, parent_entity_id)
+        INSERT INTO sales.entities (id, entity_type_id, parent_entity_id)
         SELECT
             lid.line_item_id,
-            (SELECT entity_type_id FROM entity_types WHERE name = 'line_item'),
+            (SELECT entity_type_id FROM sales.entity_types WHERE name = 'line_item'),
             lid.transaction_entity_id
         FROM line_item_data lid
         ON CONFLICT (id) DO NOTHING
@@ -147,7 +147,7 @@ def activity_salesIngestor_eavTransformChunk(settings: dict):
             MIN(lid.row_json ->> ai.attribute_name) AS column_value
         FROM line_item_data AS lid
         JOIN attribute_info AS ai
-          ON ai.entity_type_id = (SELECT entity_type_id FROM entity_types WHERE name = 'transaction')
+          ON ai.entity_type_id = (SELECT entity_type_id FROM sales.entity_types WHERE name = 'transaction')
          AND lid.row_json ? ai.attribute_name
          AND ai.attribute_name <> 'shipping_address_id'
         GROUP BY lid.transaction_entity_id, ai.attribute_id, ai.data_type
@@ -160,7 +160,7 @@ def activity_salesIngestor_eavTransformChunk(settings: dict):
             lid.row_json ->> ai.attribute_name AS column_value
         FROM line_item_data AS lid
         JOIN attribute_info AS ai
-          ON ai.entity_type_id = (SELECT entity_type_id FROM entity_types WHERE name = 'line_item')
+          ON ai.entity_type_id = (SELECT entity_type_id FROM sales.entity_types WHERE name = 'line_item')
          AND lid.row_json ? ai.attribute_name
          AND ai.attribute_name <> 'billing_address_id'
     ),
@@ -176,7 +176,7 @@ def activity_salesIngestor_eavTransformChunk(settings: dict):
         ORDER BY entity_id, attribute_id
     )
 
-    INSERT INTO entity_attribute_values (
+    INSERT INTO sales.entity_attribute_values (
         entity_id,
         attribute_id,
         value_string,
@@ -216,7 +216,6 @@ def activity_salesIngestor_eavTransformChunk(settings: dict):
     """
 
     with db() as conn:
-        conn.execute(text("SET search_path TO sales"))
         conn.execute(text("SET LOCAL lock_timeout = '2s'"))
         conn.execute(text("SET LOCAL statement_timeout = '10min'"))
         conn.execute(text("SET LOCAL idle_in_transaction_session_timeout = '2min'"))

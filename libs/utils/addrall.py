@@ -1,12 +1,12 @@
 """Shared address completion and standardization for sales/target matchback.
 
-Autocomplete is the authoritative backend completion operation (including ZIP+4).
-One SQL statement batches scalar autocomplete calls using unnest/LATERAL.
-Only autocomplete misses are sent to addresses.geocode_address(text[]) in one batch;
-its returned `addy` norm_addy is the normalized fallback result.
+Suggest is the authoritative batched completion operation (including ZIP+4
+and latitude/longitude). Missing city/state/ZIP can be prefilled unambiguously
+from tiger.zip_state_loc. Only suggest misses reach addresses.geocode_address(text[]),
+with optional final ZIP+4 recovery from addresses.merged.
 
-Targets may alternatively use geocode without autocomplete.
-No ZIP+4 retries or Python street repair.
+Targets may alternatively use geocode without suggest.
+No extra geocode retries or Python street repair.
 """
 from __future__ import annotations
 
@@ -34,17 +34,15 @@ SMARTY_COLUMNS = (
     "zipcode", "plus4_code", "full_zipcode", "latitude", "longitude",
 )
 
-# Autocomplete accepts one address string. A single text[] parameter batches
-# many calls with LATERAL. Accept its first-ranked result, following
-# backend result order. The current function orders lexically by completion_key
-# and source origin, not by a match-quality score. Signature is confirmed:
-# addresses.autocomplete(text, integer DEFAULT 10, text DEFAULT NULL).
-# The normalized_address returned by autocomplete is authoritative;
-# geocode only the unmatched inputs.
-AUTOCOMPLETE_OUTPUT_COLUMNS = frozenset({
+# Suggest accepts text[] and returns 1-based input_index, a normalized_address
+# composite, ZIP+4, and coordinates. Keep the existing AddrAll output contract.
+SUGGEST_OUTPUT_COLUMNS = frozenset({
     "input_index", "match_status", "delivery_line_1", "city_name",
     "state_abbreviation", "zipcode", "plus4_code",
 })
+
+# Retain compatibility for callers importing the existing SQL output contract.
+AUTOCOMPLETE_OUTPUT_COLUMNS = SUGGEST_OUTPUT_COLUMNS
 
 _NORM_PROJECTION = """
     (r.normalized_address).address AS norm_address,
@@ -59,6 +57,73 @@ _NORM_PROJECTION = """
     (r.normalized_address).parsed AS norm_parsed,
     (r.normalized_address).zip4 AS norm_zip4,
     (r.normalized_address).address_alphanumeric AS norm_address_alphanumeric
+"""
+
+# Optional final ZIP+4 recovery for geocoded misses, via addresses.merged.
+# No query of the merged table occurs when ADDRALL_ZIP4_DEEP_SEARCH=False.
+_ZIP4_DEEP_LOOKUP = """    SELECT f.fallback_index,
+           CASE WHEN COUNT(DISTINCT NULLIF(BTRIM(m.plus4::text), '')) = 1
+                THEN MIN(NULLIF(BTRIM(m.plus4::text), '')) END AS plus4
+    FROM fallback_geocoded AS f
+    JOIN addresses.merged AS m
+        ON m.state = UPPER(BTRIM((f.normalized_address).stateAbbrev::text))
+       AND m.city = UPPER(BTRIM((f.normalized_address).location::text))
+       AND m.zip = BTRIM((f.normalized_address).zip::text)
+       AND m.number = COALESCE(
+           NULLIF(UPPER(BTRIM((f.normalized_address).address_alphanumeric::text)), ''),
+           NULLIF(UPPER(BTRIM((f.normalized_address).address::text)), '')
+       )
+       AND COALESCE(m.predir, '') = COALESCE(
+           NULLIF(UPPER(BTRIM((f.normalized_address).predirAbbrev::text)), ''), ''
+       )
+       AND m.street_name = UPPER(BTRIM((f.normalized_address).streetName::text))
+    WHERE NULLIF(BTRIM((f.normalized_address).zip4::text), '') IS NULL
+    GROUP BY f.fallback_index"""
+_ZIP4_NO_DEEP_LOOKUP = (
+    "    SELECT NULL::integer AS fallback_index, NULL::text AS plus4 WHERE FALSE"
+)
+
+POSTAL_LOOKUP_SQL = """
+WITH inputs AS MATERIALIZED (
+    SELECT i.input_index::integer,
+           NULLIF(BTRIM(i.zipcode), '') AS zipcode,
+           NULLIF(UPPER(BTRIM(i.city)), '') AS city,
+           NULLIF(UPPER(BTRIM(i.state)), '') AS state
+    FROM unnest(%s::text[], %s::text[], %s::text[])
+         WITH ORDINALITY AS i(zipcode, city, state, input_index)
+),
+matching AS (
+    -- ZIP given: recover state and, where unambiguous, city.
+    SELECT i.input_index, z.zip::text AS zipcode,
+           NULLIF(UPPER(BTRIM(z.place::text)), '') AS city,
+           NULLIF(UPPER(BTRIM(z.stusps::text)), '') AS state
+    FROM inputs AS i
+    JOIN tiger.zip_state_loc AS z ON z.zip = i.zipcode
+        AND (i.state IS NULL OR UPPER(BTRIM(z.stusps::text)) = i.state)
+    WHERE i.zipcode IS NOT NULL
+    UNION ALL
+    -- ZIP absent: a supplied city (and optional state) may identify a ZIP.
+    SELECT i.input_index, z.zip::text AS zipcode,
+           NULLIF(UPPER(BTRIM(z.place::text)), '') AS city,
+           NULLIF(UPPER(BTRIM(z.stusps::text)), '') AS state
+    FROM inputs AS i
+    JOIN tiger.zip_state_loc AS z
+        ON UPPER(BTRIM(z.place::text)) = i.city
+        AND (i.state IS NULL OR UPPER(BTRIM(z.stusps::text)) = i.state)
+    WHERE i.zipcode IS NULL AND i.city IS NOT NULL
+),
+unique_values AS (
+    SELECT input_index,
+           CASE WHEN COUNT(DISTINCT zipcode) = 1 THEN MIN(zipcode) END AS zipcode,
+           CASE WHEN COUNT(DISTINCT city) = 1 THEN MIN(city) END AS city,
+           CASE WHEN COUNT(DISTINCT state) = 1 THEN MIN(state) END AS state
+    FROM matching
+    GROUP BY input_index
+)
+SELECT i.input_index, u.city, u.state, u.zipcode
+FROM inputs AS i
+LEFT JOIN unique_values AS u USING (input_index)
+ORDER BY i.input_index
 """
 
 # Non-autocomplete callers also resolve a whole text[] batch through geocode.
@@ -76,7 +141,7 @@ inputs AS MATERIALIZED (
 ),
 geocoded AS MATERIALIZED (
     SELECT g.input_index::integer AS input_index,
-           g.normalized_address AS normalized_address,
+           g.addy AS normalized_address,
            public.ST_Y(g.geomout) AS latitude,
            public.ST_X(g.geomout) AS longitude
     FROM source AS s
@@ -109,36 +174,50 @@ ORDER BY r.input_index
 # Preserve the old imported name for callers that referenced the SQL constant.
 STANDARDIZE_SQL = GEOCODE_SQL
 
-# The SQL receives one text[] parameter per batch. Autocomplete remains
-# scalar; only misses are collected into a second text[] and passed to
-# addresses.geocode_address once. Join geocode_address's 1-based input_index back to original
-# input positions; never geocode autocomplete hits.
-AUTOCOMPLETE_SQL = f"""
-WITH inputs AS MATERIALIZED (
+# One batched suggest(text[]) request per batch. Collect only unmatched inputs
+# into a second text[] for geocode_address; do not geocode successful suggestions.
+SUGGEST_SQL = f"""
+WITH source AS MATERIALIZED (
+    SELECT %s::text[] AS texts
+),
+inputs AS MATERIALIZED (
     SELECT i.input_text, i.input_index::integer AS input_index
-    FROM unnest(%s::text[]) WITH ORDINALITY AS i(input_text, input_index)
+    FROM source AS s
+    CROSS JOIN LATERAL unnest(s.texts)
+        WITH ORDINALITY AS i(input_text, input_index)
 ),
-completions AS MATERIALIZED (
-    SELECT i.input_index, i.input_text,
+bulk_results AS MATERIALIZED (
+    SELECT a.input_index::integer AS input_index,
            a.address_id, a.display_address, a.normalized_address,
-           a.zip4 AS completion_zip4, a.unit_count, a.source,
-           CASE WHEN a.source IS NULL THEN 0 ELSE 1 END AS candidate_count
-    FROM inputs AS i
-    LEFT JOIN LATERAL (
-        SELECT c.*
-        FROM addresses.autocomplete(i.input_text, 1) AS c
-        LIMIT 1
-    ) AS a ON TRUE
+           a.zip4 AS completion_zip4, a.unit_count,
+           a.latitude, a.longitude, a.sources,
+           a.ordinality AS result_order
+    FROM source AS s
+    CROSS JOIN LATERAL addresses.suggest(s.texts)
+        WITH ORDINALITY AS a
 ),
-classified AS MATERIALIZED (
-    SELECT c.*, (c.source IS NOT NULL) AS has_completion
-    FROM completions AS c
+invalid_bulk_indices AS MATERIALIZED (
+    SELECT count(*)::integer AS invalid_count
+    FROM bulk_results AS b
+    CROSS JOIN source AS s
+    WHERE b.input_index IS NULL
+       OR b.input_index < 1
+       OR b.input_index > cardinality(s.texts)
+),
+first_completions AS MATERIALIZED (
+    SELECT DISTINCT ON (b.input_index) b.*
+    FROM bulk_results AS b
+    -- Composite norm_addy values can have null members; testing the entire
+    -- composite with IS NOT NULL would discard valid suggestions.
+    WHERE b.normalized_address::text IS NOT NULL
+    ORDER BY b.input_index, b.result_order
 ),
 fallback_requests AS MATERIALIZED (
-    SELECT c.input_index, c.input_text,
-           row_number() OVER (ORDER BY c.input_index)::integer AS fallback_index
-    FROM classified AS c
-    WHERE c.has_completion IS NOT TRUE
+    SELECT i.input_index, i.input_text,
+           row_number() OVER (ORDER BY i.input_index)::integer AS fallback_index
+    FROM inputs AS i
+    LEFT JOIN first_completions AS c USING (input_index)
+    WHERE c.input_index IS NULL
 ),
 fallback_texts AS MATERIALIZED (
     SELECT COALESCE(
@@ -148,7 +227,7 @@ fallback_texts AS MATERIALIZED (
 ),
 fallback_geocoded AS MATERIALIZED (
     SELECT g.input_index::integer AS fallback_index,
-           g.normalized_address AS normalized_address,
+           g.addy AS normalized_address,
            public.ST_Y(g.geomout) AS latitude,
            public.ST_X(g.geomout) AS longitude
     FROM (
@@ -156,26 +235,30 @@ fallback_geocoded AS MATERIALIZED (
     ) AS f
     CROSS JOIN LATERAL addresses.geocode_address(f.texts) AS g
 ),
+merged_zip4 AS MATERIALIZED (
+{_ZIP4_DEEP_LOOKUP}
+),
 resolved AS MATERIALIZED (
-    SELECT c.input_index, c.input_text,
-           CASE WHEN c.has_completion THEN c.address_id END AS address_id,
-           CASE WHEN c.has_completion THEN c.display_address END AS display_address,
-           CASE WHEN c.has_completion THEN c.completion_zip4 END AS completion_zip4,
-           CASE WHEN c.has_completion THEN c.unit_count END AS unit_count,
-           CASE WHEN c.has_completion THEN c.source END AS source,
-           CASE WHEN c.has_completion THEN c.normalized_address
-                ELSE g.normalized_address
-           END AS normalized_address,
-           CASE WHEN c.has_completion THEN 'completed'::text
+    SELECT i.input_index, i.input_text,
+           c.address_id, c.display_address, c.completion_zip4,
+           mz.plus4 AS merged_zip4,
+           c.unit_count, array_to_string(c.sources, ',') AS source,
+           CASE WHEN c.input_index IS NOT NULL THEN c.normalized_address
+                ELSE g.normalized_address END AS normalized_address,
+           CASE WHEN c.input_index IS NOT NULL THEN 'completed'::text
                 WHEN NULLIF(BTRIM((g.normalized_address).streetName::text), '')
                      IS NOT NULL THEN 'normalized_only'::text
                 ELSE 'unmatched'::text
            END AS match_status,
-           c.candidate_count, c.has_completion,
-           g.latitude, g.longitude
-    FROM classified AS c
-    LEFT JOIN fallback_requests AS f ON f.input_index = c.input_index
+           CASE WHEN c.input_index IS NOT NULL THEN 1 ELSE 0 END AS candidate_count,
+           (c.input_index IS NOT NULL) AS has_completion,
+           CASE WHEN c.input_index IS NOT NULL THEN c.latitude ELSE g.latitude END AS latitude,
+           CASE WHEN c.input_index IS NOT NULL THEN c.longitude ELSE g.longitude END AS longitude
+    FROM inputs AS i
+    LEFT JOIN first_completions AS c USING (input_index)
+    LEFT JOIN fallback_requests AS f USING (input_index)
     LEFT JOIN fallback_geocoded AS g ON g.fallback_index = f.fallback_index
+    LEFT JOIN merged_zip4 AS mz ON mz.fallback_index = f.fallback_index
 ),
 formatted AS MATERIALIZED (
     SELECT r.*,
@@ -202,15 +285,27 @@ SELECT r.input_index, r.input_text, r.match_status, r.candidate_count,
            NULLIF(BTRIM((r.normalized_address).stateAbbrev::text), '') END AS state_abbreviation,
        CASE WHEN r.has_completion THEN
            NULLIF(BTRIM((r.normalized_address).zip::text), '') END AS zipcode,
-       CASE WHEN r.has_completion THEN
-           COALESCE(NULLIF(BTRIM(r.completion_zip4::text), ''),
-                    NULLIF(BTRIM((r.normalized_address).zip4::text), ''))
-       END AS plus4_code,
+       COALESCE(NULLIF(BTRIM(r.completion_zip4::text), ''),
+                NULLIF(BTRIM((r.normalized_address).zip4::text), ''),
+                r.merged_zip4) AS plus4_code,
+       CASE WHEN r.merged_zip4 IS NOT NULL THEN 'merged_table'::text
+            ELSE 'database'::text END AS zip4_backend_source,
        r.latitude, r.longitude,
-       {_NORM_PROJECTION}
+       {_NORM_PROJECTION},
+       v.invalid_count AS invalid_bulk_indices
 FROM formatted AS r
+CROSS JOIN invalid_bulk_indices AS v
 ORDER BY r.input_index
 """
+
+# The disabled form cannot reference addresses.merged at all.
+SUGGEST_SQL_NO_DEEP_SEARCH = SUGGEST_SQL.replace(
+    _ZIP4_DEEP_LOOKUP,
+    _ZIP4_NO_DEEP_LOOKUP,
+)
+
+# Preserve imports that referenced the old constant without using autocomplete.
+AUTOCOMPLETE_SQL = SUGGEST_SQL
 
 _POOL_LOCK = threading.Lock()
 _POOLS: dict[str, tuple[Any, threading.BoundedSemaphore]] = {}
@@ -273,7 +368,7 @@ def _connect_with_retries(connect: Any, *, operation: str) -> Any:
 def keystone_connection(database_url: str | None = None):
     """Borrow a pooled raw DBAPI connection (psycopg2 or Azure psycopg3).
 
-    Autocomplete/geocode SQL uses the caller connection. Azure primarily uses
+    Suggest/geocode SQL uses the caller connection. Azure primarily uses
     psycopg3; do not require an extra psycopg2 install for callers that do not
     supply their own DBAPI connection.
     """
@@ -294,7 +389,7 @@ def keystone_connection(database_url: str | None = None):
                 # QueuePool supplies the same bounded concurrency semantics.
                 from sqlalchemy import create_engine
                 connect_args = {"connect_timeout": timeout,
-                                "application_name": "addrall_autocomplete"}
+                                "application_name": "addrall_suggest"}
                 if "://" in dsn:
                     pool = create_engine(
                         dsn.replace("postgresql://", "postgresql+psycopg://", 1),
@@ -548,16 +643,16 @@ def _record_to_address(record: dict[str, Any]) -> dict[str, Any]:
 
 
 def _completion_to_address(record: dict[str, Any]) -> dict[str, Any]:
-    """Project autocomplete's FINAL result, without any further parsing."""
-    missing = AUTOCOMPLETE_OUTPUT_COLUMNS.difference(record)
+    """Project suggest's selected result without re-standardization."""
+    missing = SUGGEST_OUTPUT_COLUMNS.difference(record)
     if missing:
         raise AddrAllConfigurationError(
-            f"Autocomplete SQL adapter missing output columns: {sorted(missing)}"
+            f"Suggest SQL adapter missing output columns: {sorted(missing)}"
         )
     status = as_text(record.get("match_status")).lower()
     if status not in {"completed", "normalized_only", "unmatched"}:
         raise AddrAllConfigurationError(
-            f"Unsupported autocomplete match_status: {status!r}"
+            f"Unsupported suggest match_status: {status!r}"
         )
     out = dict(record)
     out["match_status"] = status
@@ -568,10 +663,11 @@ def _completion_to_address(record: dict[str, Any]) -> dict[str, Any]:
         out["standardized_zipcode"] = normalize_zipcode(record.get("zipcode"))
         out["zip4"] = normalize_zip4(record.get("plus4_code"))
     else:
-        # The SQL returns geocoded norm_addy fields for autocomplete misses.
+        # The SQL returns geocoded norm_addy fields for suggest misses.
         # Use the same converter as the explicit geocode-only path.
         out = _record_to_address(out)
         out["match_status"] = status
+        out["zip4"] = normalize_zip4(record.get("plus4_code"))
     return out
 
 
@@ -588,19 +684,61 @@ def _query_text(
     return _join_address_fields(line, city, state, zip5)
 
 
+def _fill_missing_locality(
+    batch: list[tuple[str, str, str, str | None, str]], conn: Any,
+) -> list[tuple[str, str, str, str | None, str]]:
+    """Fill unambiguous city/state/ZIP gaps in one bulk lookup per batch."""
+    missing = [
+        (index, item) for index, item in enumerate(batch)
+        if (not item[1] or not item[2] or not item[3]) and (item[3] or item[1])
+    ]
+    if not missing:
+        return batch
+
+    rows = _select_rows(conn, POSTAL_LOOKUP_SQL, (
+        [item[3] for _, item in missing],
+        [item[1] or None for _, item in missing],
+        [item[2] or None for _, item in missing],
+    ))
+    indices = [int(row["input_index"]) for row in rows]
+    if indices != list(range(1, len(missing) + 1)):
+        raise AddrAllConfigurationError("Postal lookup returned wrong input indices")
+
+    enriched = list(batch)
+    for (index, (street, city, state, zip5, address2)), row in zip(missing, rows):
+        enriched[index] = (
+            street,
+            city or as_text(row.get("city")),
+            state or as_text(row.get("state")),
+            zip5 or normalize_zipcode(row.get("zipcode")),
+            address2,
+        )
+    return enriched
+
+
+
 def _lookup_batch(
     batch: list[tuple[str, str, str, str | None, str]], *,
     conn: Any, use_autocomplete: bool, candidate_limit: int,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Batched autocomplete, with one geocode_address(text[]) call for misses."""
-    queries = [_query_text(item[:4], item[4]) for item in batch]
-    if not queries:
+    """Postal prefill, suggest, then geocode only for suggest misses."""
+    if not batch:
         return [], {"sql_seconds": 0.0, "completed": 0, "fallback": 0, "unmatched": 0, "ambiguous": 0}
     started = perf_counter()
+    enriched_batch = _fill_missing_locality(batch, conn)
+    queries = [_query_text(item[:4], item[4]) for item in enriched_batch]
     if use_autocomplete:
-        rows = _select_rows(conn, AUTOCOMPLETE_SQL, (queries,))
+        deep_search = os.getenv("ADDRALL_ZIP4_DEEP_SEARCH", "True").strip().lower() in {
+            "true", "1", "yes", "on"
+        }
+        sql = SUGGEST_SQL if deep_search else SUGGEST_SQL_NO_DEEP_SEARCH
+        rows = _select_rows(conn, sql, (queries,))
     else:
         rows = _select_rows(conn, GEOCODE_SQL, (queries,))
+    if use_autocomplete and any(row["invalid_bulk_indices"] for row in rows):
+        raise AddrAllConfigurationError(
+            "Bulk suggest returned input_index outside the 1-based input array"
+        )
     received = [int(row["input_index"]) for row in rows]
     if received != list(range(1, len(queries) + 1)):
         raise AddrAllConfigurationError(
@@ -611,12 +749,16 @@ def _lookup_batch(
         _completion_to_address(row) if use_autocomplete else _record_to_address(row)
         for row in rows
     ]
+    for match, original, filled in zip(formatted, batch, enriched_batch):
+        match["lookup_city"] = filled[1] if not original[1] and filled[1] else None
+        match["lookup_state"] = filled[2] if not original[2] and filled[2] else None
+        match["lookup_zipcode"] = filled[3] if not original[3] and filled[3] else None
     return formatted, {
         "sql_seconds": perf_counter() - started,
         "completed": sum(row.get("match_status") == "completed" for row in formatted),
         "fallback": sum(row.get("match_status") == "normalized_only" for row in formatted),
         "unmatched": sum(row.get("match_status") == "unmatched" for row in formatted),
-        "ambiguous": 0,  # Autocomplete returns the preferred candidate; no ambiguity veto.
+        "ambiguous": 0,  # Suggest returns the preferred candidate; no ambiguity veto.
     }
 
 
@@ -666,7 +808,7 @@ def _resolve_addresses(
     print(
         f"\t\t\t\tAddrAll SQL: {len(requests):,} distinct inputs, "
         f"{len(batches)} batches, {workers} workers, "
-        f"mode={'autocomplete' if use_autocomplete else 'geocode'}, "
+        f"mode={'suggest' if use_autocomplete else 'geocode'}, "
         f"completed={sum(x['completed'] for _, x in outputs):,}, "
         f"geocoded={sum(x['fallback'] for _, x in outputs):,}, "
         f"unmatched={sum(x['unmatched'] for _, x in outputs):,}, "
@@ -686,25 +828,27 @@ def _delivery_parts(
     completed = match.get("match_status") == "completed"
     building, unit = split_secondary(raw_street)
     if completed:
-        # Autocomplete owns canonicalization, unit placement, and locality.
+        # Suggest owns canonicalization, unit placement, and locality.
         # No Python spelling repairs or fallback geocode after it.
         line1 = as_text(match.get("delivery_line_1")) or raw_street
         line2 = as_text(match.get("delivery_line_2")) or raw_address2
-        city = as_text(match.get("city_name")) or raw_city
-        state = as_text(match.get("state_abbreviation")) or raw_state
+        city = as_text(match.get("city_name")) or as_text(match.get("lookup_city")) or raw_city
+        state = as_text(match.get("state_abbreviation")) or as_text(match.get("lookup_state")) or raw_state
     else:
-        # Geocode-only or autocomplete miss: SQL returned the corrected
+        # Geocode-only or suggest miss: SQL returned the corrected
         # `addy` composite for this record.
         standardized = as_text(match.get("standardized_street")) or building
         line1 = " ".join(piece for piece in (standardized, unit) if piece).upper() or None
         line2 = raw_address2 or (match.get("norm_internal") if not unit else None)
-        city = as_text(match.get("standardized_city")) or raw_city
-        state = as_text(match.get("standardized_state")) or raw_state
+        city = as_text(match.get("standardized_city")) or as_text(match.get("lookup_city")) or raw_city
+        state = as_text(match.get("standardized_state")) or as_text(match.get("lookup_state")) or raw_state
 
     zip5_input, zip4_input = zip_parts
     zip5_db = normalize_zipcode(match.get("standardized_zipcode"))
-    zip4_db = normalize_zip4(match.get("zip4")) if completed else None
-    zip5 = zip5_db or zip5_input
+    zip4_db = normalize_zip4(match.get("zip4")) if match.get("match_status") in {
+        "completed", "normalized_only"
+    } else None
+    zip5 = zip5_db or zip5_input or normalize_zipcode(match.get("lookup_zipcode"))
     parsed_zip4 = normalize_zip4(match.get("norm_zip4"))
     if not zip5_input and not zip4_input and parsed_zip4:
         zip4_input = parsed_zip4
@@ -717,15 +861,18 @@ def _delivery_parts(
             zip5 = zip5_input
         zip4, zip4_source = zip4_input, "input"
     elif zip4_db:
-        zip4, zip4_source = zip4_db, "database"
+        zip4, zip4_source = zip4_db, (
+            "merged_table" if match.get("zip4_backend_source") == "merged_table"
+            else "database"
+        )
     elif zip4_input and (not zip5_db or zip5_input == zip5_db):
         zip4, zip4_source = zip4_input, "input"
     else:
         zip4 = None
         zip4_source = "input_zip_mismatch" if zip4_input else "missing"
 
-    # A geocode result supplies coordinates as a pair. Autocomplete and
-    # missing geometries leave existing source coordinates untouched.
+    # Suggest and geocode results supply coordinates as a pair. Missing
+    # coordinate pairs leave existing source coordinates untouched.
     has_geocoded_point = (
         match.get("latitude") is not None and match.get("longitude") is not None
     )
@@ -779,14 +926,6 @@ def clean_addresses(
     if size < 1:
         raise ValueError("batch_size must be positive")
     autocomplete = use_geocode if use_autocomplete is None else use_autocomplete
-    # Legacy ADDRALL_ZIP_LOCALITY remains recognized for configuration
-    # visibility, but its extra SQL pass is retired: autocomplete supplies
-    # city/state/ZIP; geocode now repairs fallback locality as well.
-    if (os.getenv("ADDRALL_ZIP_LOCALITY", "0").strip().lower()
-            in {"1", "true", "yes", "on"}
-            and os.getenv("ADDRALL_PROFILE", "0").strip().lower()
-            in {"1", "true", "yes", "on"}):
-        print("\t\t\t\tAddrAll: ADDRALL_ZIP_LOCALITY ignored (no extra ZIP lookup)")
     started = perf_counter()
 
     def values(name: str | None) -> list[str]:
@@ -955,9 +1094,9 @@ def normalize_target_addresses(
     batch_size: int | None = None, geocode: bool = False,
     compact: bool = False, autocomplete: bool | None = None,
 ) -> pd.DataFrame:
-    """Target join keys with either autocomplete or geocode-only mode.
+    """Target join keys with either suggest or geocode-only mode.
 
-    Provided target ZIP+4 always wins; autocomplete supplies completed ZIP+4
+    Provided target ZIP+4 always wins; suggest supplies completed ZIP+4
     when available. ZIP+4-only rows bypass this wrapper in import_targets.
     """
     if STREET not in df:

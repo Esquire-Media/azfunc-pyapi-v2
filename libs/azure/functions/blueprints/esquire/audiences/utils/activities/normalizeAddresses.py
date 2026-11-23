@@ -41,7 +41,7 @@ _OUTPUT_BLOCK_SIZE_BYTES = int(
 _SQL_STATEMENT_TIMEOUT_MS = int(
     os.getenv(
         "ADDRESS_NORMALIZATION_SQL_STATEMENT_TIMEOUT_MS",
-        "60000",
+        "300000",
     )
 )
 

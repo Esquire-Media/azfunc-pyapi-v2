@@ -16,8 +16,8 @@ from typing import Any, Callable, Mapping, Sequence
 _GEOCODE_SQL = """
 SELECT g.input_index,
        g.rating,
-       ST_Y(g.geomout) AS latitude,
-       ST_X(g.geomout) AS longitude
+       public.ST_Y(g.geomout) AS latitude,
+       public.ST_X(g.geomout) AS longitude
 FROM addresses.geocode_address(%s::text[]) AS g
 """
 
